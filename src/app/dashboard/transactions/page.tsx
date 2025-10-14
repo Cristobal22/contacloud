@@ -65,7 +65,7 @@ import {
                         {transaction.status}
                     </Badge>
                   </TableCell>
-                  <TableCell className={`text-right ${transaction.type === 'Debit' ? 'text-destructive' : 'text-green-600'}`}>
+                  <TableCell className={`text-right font-medium ${transaction.type === 'Debit' ? 'text-red-600' : 'text-green-600'}`}>
                     {transaction.type === 'Debit' ? '-' : '+'}${transaction.amount.toLocaleString('es-CL', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                   </TableCell>
                   <TableCell>
