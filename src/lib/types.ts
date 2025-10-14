@@ -30,3 +30,9 @@ export type Transaction = {
   account: string;
   status: 'Pending' | 'Completed' | 'Failed';
 };
+
+export type CostCenter = {
+    id: string;
+    name: string;
+    description: string;
+};

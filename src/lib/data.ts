@@ -1,4 +1,4 @@
-import type { User, Company, Account, Transaction } from './types';
+import type { User, Company, Account, Transaction, CostCenter } from './types';
 
 export const mockUser: User = {
   id: 'user-1',
@@ -33,4 +33,10 @@ export const mockTransactions: Transaction[] = [
     { id: 'txn-4', date: '2023-10-25', description: 'Cash withdrawal for petty cash', amount: 500, type: 'Debit', account: 'Cash', status: 'Completed' },
     { id: 'txn-5', date: '2023-10-24', description: 'Received payment for Invoice #INV-001', amount: 7500, type: 'Credit', account: 'Accounts Receivable', status: 'Completed' },
     { id: 'txn-6', date: '2023-10-23', description: 'Cloud server hosting - October', amount: 450, type: 'Debit', account: 'Utilities Expense', status: 'Failed' },
+];
+
+export const mockCostCenters: CostCenter[] = [
+    { id: 'cc-1', name: 'Producción', description: 'Costos asociados a la línea de producción.' },
+    { id: 'cc-2', name: 'Administración', description: 'Costos generales y de administración.' },
+    { id: 'cc-3', name: 'Ventas y Marketing', description: 'Costos relacionados con la comercialización y venta de productos.' },
 ];

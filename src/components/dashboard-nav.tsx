@@ -10,6 +10,7 @@ import {
   Users,
   FileText,
   Settings,
+  Building2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -26,6 +27,7 @@ const navItems = [
     { href: '/dashboard/transactions', label: 'Transactions', icon: ArrowRightLeft },
     { href: '/dashboard/payroll', label: 'Payroll', icon: Users },
     { href: '/dashboard/tax-documents', label: 'Tax Documents', icon: FileText },
+    { href: '/dashboard/cost-centers', label: 'Cost Centers', icon: Building2 },
 ];
 
 const bottomNavItems = [
