@@ -31,12 +31,12 @@ import {
         <CardHeader>
             <div className="flex items-center justify-between">
                 <div>
-                    <CardTitle>Companies</CardTitle>
-                    <CardDescription>Manage your client companies.</CardDescription>
+                    <CardTitle>Empresas</CardTitle>
+                    <CardDescription>Gestiona tus empresas cliente.</CardDescription>
                 </div>
                 <Button size="sm" className="gap-1">
                     <PlusCircle className="h-4 w-4" />
-                    Add Company
+                    Agregar Empresa
                 </Button>
             </div>
         </CardHeader>
@@ -44,11 +44,11 @@ import {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Company Name</TableHead>
-                <TableHead>Industry</TableHead>
-                <TableHead>Status</TableHead>
+                <TableHead>Nombre de Empresa</TableHead>
+                <TableHead>Industria</TableHead>
+                <TableHead>Estado</TableHead>
                 <TableHead>
-                  <span className="sr-only">Actions</span>
+                  <span className="sr-only">Acciones</span>
                 </TableHead>
               </TableRow>
             </TableHeader>
@@ -59,7 +59,7 @@ import {
                   <TableCell>{company.industry}</TableCell>
                   <TableCell>
                     <Badge variant={company.active ? "default" : "outline"}>
-                      {company.active ? "Active" : "Inactive"}
+                      {company.active ? "Activa" : "Inactiva"}
                     </Badge>
                   </TableCell>
                   <TableCell>
@@ -71,11 +71,11 @@ import {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                        <DropdownMenuItem>Edit</DropdownMenuItem>
-                        <DropdownMenuItem>View Details</DropdownMenuItem>
+                        <DropdownMenuLabel>Acciones</DropdownMenuLabel>
+                        <DropdownMenuItem>Editar</DropdownMenuItem>
+                        <DropdownMenuItem>Ver Detalles</DropdownMenuItem>
                         <DropdownMenuItem className="text-destructive">
-                          Delete
+                          Eliminar
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>

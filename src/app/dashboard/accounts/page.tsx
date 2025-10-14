@@ -31,12 +31,12 @@ import {
         <CardHeader>
             <div className="flex items-center justify-between">
                 <div>
-                    <CardTitle>Chart of Accounts</CardTitle>
-                    <CardDescription>Manage your financial accounts.</CardDescription>
+                    <CardTitle>Plan de Cuentas</CardTitle>
+                    <CardDescription>Gestiona tus cuentas contables.</CardDescription>
                 </div>
                 <Button size="sm" className="gap-1">
                     <PlusCircle className="h-4 w-4" />
-                    Add Account
+                    Agregar Cuenta
                 </Button>
             </div>
         </CardHeader>
@@ -44,12 +44,12 @@ import {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Code</TableHead>
-                <TableHead>Account Name</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead className="text-right">Balance</TableHead>
+                <TableHead>Código</TableHead>
+                <TableHead>Nombre de Cuenta</TableHead>
+                <TableHead>Tipo</TableHead>
+                <TableHead className="text-right">Saldo</TableHead>
                 <TableHead>
-                  <span className="sr-only">Actions</span>
+                  <span className="sr-only">Acciones</span>
                 </TableHead>
               </TableRow>
             </TableHeader>
@@ -61,7 +61,7 @@ import {
                   <TableCell>
                     <Badge variant="secondary">{account.type}</Badge>
                   </TableCell>
-                  <TableCell className="text-right">${account.balance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                  <TableCell className="text-right">${account.balance.toLocaleString('es-CL', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</TableCell>
                   <TableCell>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
@@ -71,9 +71,9 @@ import {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                        <DropdownMenuItem>Edit</DropdownMenuItem>
-                        <DropdownMenuItem>View Transactions</DropdownMenuItem>
+                        <DropdownMenuLabel>Acciones</DropdownMenuLabel>
+                        <DropdownMenuItem>Editar</DropdownMenuItem>
+                        <DropdownMenuItem>Ver Movimientos</DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </TableCell>

@@ -31,12 +31,12 @@ import {
         <CardHeader>
             <div className="flex items-center justify-between">
                 <div>
-                    <CardTitle>Transactions</CardTitle>
-                    <CardDescription>Manage your financial transactions.</CardDescription>
+                    <CardTitle>Transacciones</CardTitle>
+                    <CardDescription>Gestiona tus transacciones financieras.</CardDescription>
                 </div>
                 <Button size="sm" className="gap-1">
                     <PlusCircle className="h-4 w-4" />
-                    Add Transaction
+                    Agregar Transacción
                 </Button>
             </div>
         </CardHeader>
@@ -44,13 +44,13 @@ import {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Date</TableHead>
-                <TableHead>Description</TableHead>
-                <TableHead>Account</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Amount</TableHead>
+                <TableHead>Fecha</TableHead>
+                <TableHead>Descripción</TableHead>
+                <TableHead>Cuenta</TableHead>
+                <TableHead>Estado</TableHead>
+                <TableHead className="text-right">Monto</TableHead>
                 <TableHead>
-                  <span className="sr-only">Actions</span>
+                  <span className="sr-only">Acciones</span>
                 </TableHead>
               </TableRow>
             </TableHeader>
@@ -66,7 +66,7 @@ import {
                     </Badge>
                   </TableCell>
                   <TableCell className={`text-right ${transaction.type === 'Debit' ? 'text-destructive' : 'text-green-600'}`}>
-                    {transaction.type === 'Debit' ? '-' : '+'}${transaction.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    {transaction.type === 'Debit' ? '-' : '+'}${transaction.amount.toLocaleString('es-CL', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                   </TableCell>
                   <TableCell>
                     <DropdownMenu>
@@ -77,9 +77,9 @@ import {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                        <DropdownMenuItem>Edit</DropdownMenuItem>
-                        <DropdownMenuItem>View Details</DropdownMenuItem>
+                        <DropdownMenuLabel>Acciones</DropdownMenuLabel>
+                        <DropdownMenuItem>Editar</DropdownMenuItem>
+                        <DropdownMenuItem>Ver Detalles</DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </TableCell>
