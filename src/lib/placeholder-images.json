@@ -1,3 +1,28 @@
 {
-  "placeholderImages": []
+  "placeholderImages": [
+    {
+      "id": "hero-image",
+      "description": "A modern office setting with people collaborating.",
+      "imageUrl": "https://picsum.photos/seed/contador-hero/1200/800",
+      "imageHint": "modern office"
+    },
+    {
+      "id": "feature-multitenant",
+      "description": "Abstract representation of multiple entities connected to a central hub.",
+      "imageUrl": "https://picsum.photos/seed/contador-multi/600/400",
+      "imageHint": "network structure"
+    },
+    {
+      "id": "feature-security",
+      "description": "A shield or lock icon symbolizing security and data protection.",
+      "imageUrl": "https://picsum.photos/seed/contador-secure/600/400",
+      "imageHint": "security shield"
+    },
+    {
+      "id": "feature-data",
+      "description": "Charts and graphs on a screen, representing data management.",
+      "imageUrl": "https://picsum.photos/seed/contador-data/600/400",
+      "imageHint": "data charts"
+    }
+  ]
 }

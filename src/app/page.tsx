@@ -1,3 +1,127 @@
+import Image from 'next/image';
+import Link from 'next/link';
+import { Button } from '@/components/ui/button';
+import { Header } from '@/components/header';
+import { Footer } from '@/components/footer';
+import { PlaceHolderImages } from '@/lib/placeholder-images';
+import { Card, CardContent } from '@/components/ui/card';
+
 export default function Home() {
-  return <></>;
+  const heroImage = PlaceHolderImages.find(p => p.id === 'hero-image');
+  const featureMultiTenant = PlaceHolderImages.find(p => p.id === 'feature-multitenant');
+  const featureSecurity = PlaceHolderImages.find(p => p.id === 'feature-security');
+  const featureData = PlaceHolderImages.find(p => p.id === 'feature-data');
+
+  const features = [
+    {
+      title: 'Multi-tenant Architecture',
+      description: 'Securely manage multiple companies with complete data isolation.',
+      image: featureMultiTenant,
+    },
+    {
+      title: 'Advanced Security',
+      description: 'Role-based access control and robust security with Firebase.',
+      image: featureSecurity,
+    },
+    {
+      title: 'Centralized Data',
+      description: 'Streamline payroll and tax document management with cloud functions.',
+      image: featureData,
+    },
+  ];
+
+  return (
+    <div className="flex min-h-screen flex-col bg-background">
+      <Header />
+      <main className="flex-1">
+        <section className="relative py-20 md:py-32">
+          <div className="container text-center">
+            <div className="mx-auto max-w-3xl">
+              <h1 className="font-headline text-4xl font-bold tracking-tight text-foreground sm:text-5xl md:text-6xl">
+                The Future of Cloud Accounting is Here
+              </h1>
+              <p className="mt-6 text-lg text-muted-foreground">
+                Contador Cloud offers a secure, multi-tenant platform for modern accountants to manage company finances, payroll, and taxes with unparalleled efficiency.
+              </p>
+              <div className="mt-10 flex justify-center gap-4">
+                <Button asChild size="lg">
+                  <Link href="/login">Get Started</Link>
+                </Button>
+                <Button asChild variant="outline" size="lg">
+                  <Link href="#features">Learn More</Link>
+                </Button>
+              </div>
+            </div>
+          </div>
+          {heroImage && (
+            <div className="absolute inset-0 -z-10">
+              <Image
+                src={heroImage.imageUrl}
+                alt={heroImage.description}
+                data-ai-hint={heroImage.imageHint}
+                fill
+                className="object-cover opacity-10"
+                priority
+              />
+              <div className="absolute inset-0 bg-gradient-to-b from-background/50 via-background to-background" />
+            </div>
+          )}
+        </section>
+
+        <section id="features" className="py-20 md:py-24 bg-muted/50">
+          <div className="container">
+            <div className="mx-auto max-w-2xl text-center">
+              <h2 className="font-headline text-3xl font-bold tracking-tight sm:text-4xl">
+                Powerful Features for Modern Accounting
+              </h2>
+              <p className="mt-4 text-lg text-muted-foreground">
+                Everything you need to streamline your accounting workflows.
+              </p>
+            </div>
+            <div className="mt-16 grid gap-8 md:grid-cols-2 lg:grid-cols-3">
+              {features.map((feature) => (
+                <Card key={feature.title} className="overflow-hidden transition-shadow hover:shadow-lg">
+                  <CardContent className="p-0">
+                    {feature.image && (
+                      <Image
+                        src={feature.image.imageUrl}
+                        alt={feature.image.description}
+                        data-ai-hint={feature.image.imageHint}
+                        width={600}
+                        height={400}
+                        className="aspect-video w-full object-cover"
+                      />
+                    )}
+                    <div className="p-6">
+                      <h3 className="font-headline text-xl font-semibold">{feature.title}</h3>
+                      <p className="mt-2 text-muted-foreground">{feature.description}</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="py-20 md:py-24">
+          <div className="container text-center">
+            <div className="mx-auto max-w-3xl">
+              <h2 className="font-headline text-3xl font-bold tracking-tight sm:text-4xl">
+                Ready to transform your practice?
+              </h2>
+              <p className="mt-4 text-lg text-muted-foreground">
+                Join Contador Cloud today and experience the next generation of accounting software.
+              </p>
+              <div className="mt-8">
+                <Button asChild size="lg">
+                  <Link href="/login">Sign Up Now</Link>
+                </Button>
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
+      <Footer />
+    </div>
+  );
 }
