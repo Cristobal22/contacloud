@@ -1,3 +1,7 @@
+
+'use client'
+
+import React from "react"
 import {
     Card,
     CardContent,
@@ -16,8 +20,18 @@ import {
     SelectValue,
   } from "@/components/ui/select"
   import { Upload } from "lucide-react"
-  
+
   export default function TaxDocumentsPage() {
+    const [fileName, setFileName] = React.useState<string | null>(null);
+
+    const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+        if (event.target.files && event.target.files.length > 0) {
+            setFileName(event.target.files[0].name);
+        } else {
+            setFileName(null);
+        }
+    };
+
     return (
       <div className="grid gap-6">
         <Card>
@@ -42,12 +56,14 @@ import {
               <div className="grid gap-3">
                 <Label htmlFor="tax-document-file">Archivo del Documento</Label>
                 <div className="flex items-center gap-3">
-                    <Input id="tax-document-file" type="file" className="hidden" />
+                    <Input id="tax-document-file" type="file" className="hidden" onChange={handleFileChange} />
                     <Button type="button" variant="outline" onClick={() => document.getElementById('tax-document-file')?.click()}>
                         <Upload className="mr-2 h-4 w-4" />
                         Elegir Archivo
                     </Button>
-                    <span className="text-sm text-muted-foreground">Ningún archivo seleccionado</span>
+                    <span className="text-sm text-muted-foreground">
+                        {fileName || "Ningún archivo seleccionado"}
+                    </span>
                 </div>
                 <p className="text-xs text-muted-foreground">Sube un archivo PDF, XML, o de imagen.</p>
               </div>
