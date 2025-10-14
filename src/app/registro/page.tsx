@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Logo } from '@/components/logo';
 
-export default function LoginPage() {
+export default function SignupPage() {
   return (
     <div className="flex min-h-screen w-full items-center justify-center bg-muted/40 p-4">
       <div className="w-full max-w-md">
@@ -14,8 +14,8 @@ export default function LoginPage() {
             <div className="mb-4 flex justify-center">
               <Logo />
             </div>
-            <CardTitle className="font-headline text-2xl">Bienvenido de Nuevo</CardTitle>
-            <CardDescription>Ingresa tus credenciales para acceder a tu cuenta.</CardDescription>
+            <CardTitle className="font-headline text-2xl">Crear una Cuenta</CardTitle>
+            <CardDescription>Ingresa tus datos para crear una nueva cuenta.</CardDescription>
           </CardHeader>
           <CardContent>
             <form className="grid gap-4">
@@ -24,25 +24,21 @@ export default function LoginPage() {
                 <Input id="email" type="email" placeholder="m@ejemplo.com" required />
               </div>
               <div className="grid gap-2">
-                <div className="flex items-center">
-                  <Label htmlFor="password">Contraseña</Label>
-                  <Link href="#" className="ml-auto inline-block text-sm underline">
-                    ¿Olvidaste tu contraseña?
-                  </Link>
-                </div>
+                <Label htmlFor="password">Contraseña</Label>
                 <Input id="password" type="password" required />
               </div>
-              <Button asChild type="submit" className="w-full">
-                <Link href="/dashboard">Iniciar Sesión</Link>
-              </Button>
-              <Button variant="outline" className="w-full">
-                Iniciar Sesión con Google
+               <div className="grid gap-2">
+                <Label htmlFor="confirm-password">Confirmar Contraseña</Label>
+                <Input id="confirm-password" type="password" required />
+              </div>
+              <Button type="submit" className="w-full">
+                Crear Cuenta
               </Button>
             </form>
             <div className="mt-4 text-center text-sm">
-              ¿No tienes una cuenta?{' '}
-              <Link href="/registro" className="underline">
-                Regístrate
+              ¿Ya tienes una cuenta?{' '}
+              <Link href="/login" className="underline">
+                Iniciar Sesión
               </Link>
             </div>
           </CardContent>
