@@ -1,4 +1,4 @@
-import type { User, Company, Account, Transaction, CostCenter, Employee, Subject } from './types';
+import type { User, Company, Account, Transaction, CostCenter, Employee, Subject, Voucher } from './types';
 
 export const mockUser: User = {
   id: 'user-1',
@@ -22,8 +22,11 @@ export const mockAccounts: Account[] = [
   { id: 'acc-3', code: '2105-01', name: 'Remuneraciones por Pagar', type: 'Liability', balance: 85300.00 },
   { id: 'acc-4', code: '2105-10', name: 'Leyes Sociales por Pagar', type: 'Liability', balance: 22150.00 },
   { id: 'acc-5', code: '2105-15', name: 'Impuestos Retenidos por Pagar', type: 'Liability', balance: 7800.00 },
-  { id: 'acc-6', code: '5105-05', name: 'Sueldos y Salarios', type: 'Expense', balance: 100000.00 },
-  { id: 'acc-7', code: '5105-10', name: 'Aportes a Seguridad Social', type: 'Expense', balance: 15250.00 },
+  { id: 'acc-6', code: '640', name: 'Sueldos y Salarios', type: 'Expense', balance: 100000.00 },
+  { id: 'acc-7', code: '642', name: 'Cargas Sociales', type: 'Expense', balance: 15250.00 },
+  { id: 'acc-8', code: '465', name: 'Líquido a Pagar a Empleados', type: 'Liability', balance: 0 },
+  { id: 'acc-9', code: '4751', name: 'Impuestos Retenidos por Pagar', type: 'Liability', balance: 0 },
+  { id: 'acc-10', code: '476', name: 'Obligaciones Previsionales por Pagar', type: 'Liability', balance: 0 },
 ];
 
 export const mockTransactions: Transaction[] = [
@@ -53,4 +56,12 @@ export const mockSubjects: Subject[] = [
     { id: 'sub-2', name: 'Proveedor de Servicios XYZ S.A.', rut: '77.987.654-3', type: 'Proveedor', status: 'Active' },
     { id: 'sub-3', name: 'Asesorías Profesionales SpA', rut: '78.456.123-K', type: 'Proveedor', status: 'Active' },
     { id: 'sub-4', name: 'Cliente Minorista Ejemplo', rut: '15.890.123-4', type: 'Cliente', status: 'Inactive' },
+];
+
+export const mockVouchers: Voucher[] = [
+    { id: 'v-1', date: '2023-11-01', type: 'Ingreso', description: 'Pago factura #101', status: 'Posteado', total: 125000 },
+    { id: 'v-2', date: '2023-11-02', type: 'Egreso', description: 'Pago de arriendo oficina', status: 'Posteado', total: 550000 },
+    { id: 'v-3', date: '2023-11-03', type: 'Traspaso', description: 'Ajuste de caja', status: 'Borrador', total: 15000 },
+    { id: 'v-4', date: '2023-11-04', type: 'Egreso', description: 'Compra de suministros', status: 'Posteado', total: 75000 },
+    { id: 'v-5', date: '2023-11-05', type: 'Ingreso', description: 'Abono cliente Z', status: 'Posteado', total: 200000 },
 ];

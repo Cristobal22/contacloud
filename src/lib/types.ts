@@ -53,3 +53,12 @@ export type Subject = {
   type: 'Cliente' | 'Proveedor' | 'Otro';
   status: 'Active' | 'Inactive';
 };
+
+export type Voucher = {
+  id: string;
+  date: string;
+  type: 'Ingreso' | 'Egreso' | 'Traspaso';
+  description: string;
+  status: 'Borrador' | 'Posteado';
+  total: number;
+};
