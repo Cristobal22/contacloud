@@ -20,33 +20,33 @@ import { Separator } from "@/components/ui/separator"
   export default function SettingsPage() {
     return (
       <div className="mx-auto grid w-full max-w-6xl gap-2">
-        <h1 className="text-3xl font-semibold">Settings</h1>
+        <h1 className="text-3xl font-semibold">Configuración</h1>
         <Separator className="my-4"/>
         <Tabs defaultValue="profile">
           <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="profile">Profile</TabsTrigger>
-            <TabsTrigger value="appearance">Appearance</TabsTrigger>
-            <TabsTrigger value="notifications">Notifications</TabsTrigger>
+            <TabsTrigger value="profile">Perfil</TabsTrigger>
+            <TabsTrigger value="appearance">Apariencia</TabsTrigger>
+            <TabsTrigger value="notifications">Notificaciones</TabsTrigger>
           </TabsList>
           <TabsContent value="profile">
             <Card>
               <CardHeader>
-                <CardTitle>Profile</CardTitle>
+                <CardTitle>Perfil</CardTitle>
                 <CardDescription>
-                  Update your personal information.
+                  Actualiza tu información personal.
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <form className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="name">Name</Label>
+                    <Label htmlFor="name">Nombre</Label>
                     <Input id="name" defaultValue="Alex Doe" />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="email">Email</Label>
+                    <Label htmlFor="email">Correo Electrónico</Label>
                     <Input id="email" type="email" defaultValue="alex.doe@example.com" />
                   </div>
-                  <Button>Save changes</Button>
+                  <Button>Guardar Cambios</Button>
                 </form>
               </CardContent>
             </Card>
@@ -54,53 +54,53 @@ import { Separator } from "@/components/ui/separator"
           <TabsContent value="appearance">
             <Card>
               <CardHeader>
-                <CardTitle>Appearance</CardTitle>
+                <CardTitle>Apariencia</CardTitle>
                 <CardDescription>
-                  Customize the look and feel of the application.
+                  Personaliza la apariencia de la aplicación.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex items-center justify-between rounded-lg border p-4">
                   <div>
-                    <Label htmlFor="dark-mode">Dark Mode</Label>
+                    <Label htmlFor="dark-mode">Modo Oscuro</Label>
                     <p className="text-sm text-muted-foreground">
-                      Enable or disable dark mode.
+                      Activa o desactiva el modo oscuro.
                     </p>
                   </div>
                   <Switch id="dark-mode" />
                 </div>
-                <Button>Save preferences</Button>
+                <Button>Guardar Preferencias</Button>
               </CardContent>
             </Card>
           </TabsContent>
           <TabsContent value="notifications">
             <Card>
               <CardHeader>
-                <CardTitle>Notifications</CardTitle>
+                <CardTitle>Notificaciones</CardTitle>
                 <CardDescription>
-                  Manage your notification preferences.
+                  Gestiona tus preferencias de notificación.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex items-center justify-between rounded-lg border p-4">
                   <div>
-                    <Label htmlFor="email-notifications">Email Notifications</Label>
+                    <Label htmlFor="email-notifications">Notificaciones por Correo</Label>
                     <p className="text-sm text-muted-foreground">
-                      Receive email notifications for important events.
+                      Recibe correos para eventos importantes.
                     </p>
                   </div>
                   <Switch id="email-notifications" checked />
                 </div>
                 <div className="flex items-center justify-between rounded-lg border p-4">
                   <div>
-                    <Label htmlFor="push-notifications">Push Notifications</Label>
+                    <Label htmlFor="push-notifications">Notificaciones Push</Label>
                     <p className="text-sm text-muted-foreground">
-                      Receive push notifications on your devices.
+                      Recibe notificaciones push en tus dispositivos.
                     </p>
                   </div>
                   <Switch id="push-notifications" />
                 </div>
-                <Button>Save preferences</Button>
+                <Button>Guardar Preferencias</Button>
               </CardContent>
             </Card>
           </TabsContent>
