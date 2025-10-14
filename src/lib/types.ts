@@ -45,3 +45,11 @@ export type Employee = {
   costCenter: string;
   status: 'Active' | 'Inactive';
 };
+
+export type Subject = {
+  id: string;
+  name: string;
+  rut: string;
+  type: 'Cliente' | 'Proveedor' | 'Otro';
+  status: 'Active' | 'Inactive';
+};

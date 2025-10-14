@@ -1,4 +1,4 @@
-import type { User, Company, Account, Transaction, CostCenter, Employee } from './types';
+import type { User, Company, Account, Transaction, CostCenter, Employee, Subject } from './types';
 
 export const mockUser: User = {
   id: 'user-1',
@@ -17,13 +17,13 @@ export const mockCompanies: Company[] = [
 ];
 
 export const mockAccounts: Account[] = [
-  { id: 'acc-1', code: '1010', name: 'Cash', type: 'Asset', balance: 150000.75 },
-  { id: 'acc-2', code: '1200', name: 'Accounts Receivable', type: 'Asset', balance: 75230.50 },
-  { id: 'acc-3', code: '4650', name: 'Remuneraciones por Pagar', type: 'Liability', balance: 85300.00 },
-  { id: 'acc-4', code: '4760', name: 'Obligaciones Previsionales por Pagar', type: 'Liability', balance: 22150.00 },
-  { id: 'acc-5', code: '4751', name: 'Impuestos Retenidos por Pagar', type: 'Liability', balance: 7800.00 },
-  { id: 'acc-6', code: '6400', name: 'Sueldos y Salarios', type: 'Expense', balance: 100000.00 },
-  { id: 'acc-7', code: '6420', name: 'Cargas Sociales', type: 'Expense', balance: 15250.00 },
+  { id: 'acc-1', code: '1101-01', name: 'Caja', type: 'Asset', balance: 150000.75 },
+  { id: 'acc-2', code: '1105-05', name: 'Cuentas por Cobrar Clientes', type: 'Asset', balance: 75230.50 },
+  { id: 'acc-3', code: '2105-01', name: 'Remuneraciones por Pagar', type: 'Liability', balance: 85300.00 },
+  { id: 'acc-4', code: '2105-10', name: 'Leyes Sociales por Pagar', type: 'Liability', balance: 22150.00 },
+  { id: 'acc-5', code: '2105-15', name: 'Impuestos Retenidos por Pagar', type: 'Liability', balance: 7800.00 },
+  { id: 'acc-6', code: '5105-05', name: 'Sueldos y Salarios', type: 'Expense', balance: 100000.00 },
+  { id: 'acc-7', code: '5105-10', name: 'Aportes a Seguridad Social', type: 'Expense', balance: 15250.00 },
 ];
 
 export const mockTransactions: Transaction[] = [
@@ -46,4 +46,11 @@ export const mockEmployees: Employee[] = [
   { id: 'emp-2', name: 'Ana Gómez', rut: '9.876.543-2', position: 'Asistente Administrativa', costCenter: 'Administración', status: 'Active' },
   { id: 'emp-3', name: 'Carlos Soto', rut: '15.678.901-K', position: 'Vendedor', costCenter: 'Ventas y Marketing', status: 'Active' },
   { id: 'emp-4', name: 'María Rodríguez', rut: '18.123.456-7', position: 'Jefe de Producción', costCenter: 'Producción', status: 'Inactive' },
+];
+
+export const mockSubjects: Subject[] = [
+    { id: 'sub-1', name: 'Comercial ABC Ltda.', rut: '76.123.456-7', type: 'Cliente', status: 'Active' },
+    { id: 'sub-2', name: 'Proveedor de Servicios XYZ S.A.', rut: '77.987.654-3', type: 'Proveedor', status: 'Active' },
+    { id: 'sub-3', name: 'Asesorías Profesionales SpA', rut: '78.456.123-K', type: 'Proveedor', status: 'Active' },
+    { id: 'sub-4', name: 'Cliente Minorista Ejemplo', rut: '15.890.123-4', type: 'Cliente', status: 'Inactive' },
 ];
