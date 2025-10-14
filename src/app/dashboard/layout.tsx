@@ -1,3 +1,6 @@
+'use client'
+
+import React from "react"
 import Link from "next/link"
 import {
   ChevronDown,
@@ -16,17 +19,23 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { DashboardNav } from "@/components/dashboard-nav"
 import { UserNav } from "@/components/user-nav"
 import { Logo } from "@/components/logo"
 import { mockCompanies } from "@/lib/data"
+import type { Company } from "@/lib/types"
 
 export default function DashboardLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
+  const [selectedCompany, setSelectedCompany] = React.useState<Company>(mockCompanies[0]);
+
+  const handleCompanyChange = (company: Company) => {
+    setSelectedCompany(company);
+  };
+
   return (
     <div className="flex min-h-screen w-full flex-col bg-muted/40">
       <aside className="fixed inset-y-0 left-0 z-10 hidden w-64 flex-col border-r bg-background sm:flex">
@@ -51,10 +60,10 @@ export default function DashboardLayout({
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="start">
-                    <DropdownMenuLabel>Select a Company</DropdownMenuLabel>
+                    <DropdownMenuLabel>Selecciona una Empresa</DropdownMenuLabel>
                     <DropdownMenuSeparator />
                     {mockCompanies.map((company) => (
-                        <DropdownMenuItem key={company.id}>{company.name}</DropdownMenuItem>
+                        <DropdownMenuItem key={company.id} onSelect={() => handleCompanyChange(company)}>{company.name}</DropdownMenuItem>
                     ))}
                   </DropdownMenuContent>
                 </DropdownMenu>
@@ -64,15 +73,15 @@ export default function DashboardLayout({
                         <DropdownMenuTrigger asChild>
                             <Button variant="outline" className="flex items-center gap-2">
                                 <Briefcase className="h-4 w-4" />
-                                <span>{mockCompanies[0].name}</span>
+                                <span>{selectedCompany.name}</span>
                                 <ChevronDown className="h-4 w-4" />
                             </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="start">
-                            <DropdownMenuLabel>Select a Company</DropdownMenuLabel>
+                            <DropdownMenuLabel>Selecciona una Empresa</DropdownMenuLabel>
                             <DropdownMenuSeparator />
                             {mockCompanies.map((company) => (
-                                <DropdownMenuItem key={company.id}>{company.name}</DropdownMenuItem>
+                                <DropdownMenuItem key={company.id} onSelect={() => handleCompanyChange(company)}>{company.name}</DropdownMenuItem>
                             ))}
                         </DropdownMenuContent>
                     </DropdownMenu>
