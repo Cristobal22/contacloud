@@ -34,45 +34,45 @@ import {
         <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-2 xl:grid-cols-4">
           <Card>
             <CardHeader className="pb-2">
-              <CardDescription>Total Balance</CardDescription>
-              <CardTitle className="text-4xl">${totalBalance.toLocaleString()}</CardTitle>
+              <CardDescription>Total Activos</CardDescription>
+              <CardTitle className="text-4xl">${totalBalance.toLocaleString('es-CL')}</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-xs text-muted-foreground">
-                +25% from last month
+                +25% desde el mes pasado
               </div>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="pb-2">
-              <CardDescription>Total Liabilities</CardDescription>
-              <CardTitle className="text-4xl">${totalLiabilities.toLocaleString()}</CardTitle>
+              <CardDescription>Total Pasivos</CardDescription>
+              <CardTitle className="text-4xl">${totalLiabilities.toLocaleString('es-CL')}</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-xs text-muted-foreground">
-                +10% from last month
+                +10% desde el mes pasado
               </div>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="pb-2">
-              <CardDescription>Companies</CardDescription>
+              <CardDescription>Empresas</CardDescription>
               <CardTitle className="text-4xl">{mockCompanies.length}</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-xs text-muted-foreground">
-                +1 from last month
+                +1 desde el mes pasado
               </div>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="pb-2">
-              <CardDescription>Transactions</CardDescription>
+              <CardDescription>Transacciones</CardDescription>
               <CardTitle className="text-4xl">{mockTransactions.length}</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-xs text-muted-foreground">
-                +20 from last month
+                +20 desde el mes pasado
               </div>
             </CardContent>
           </Card>
@@ -80,8 +80,8 @@ import {
         <div className="grid gap-4 md:grid-cols-2">
             <Card>
                 <CardHeader>
-                    <CardTitle>Account Balances</CardTitle>
-                    <CardDescription>A summary of balances across different account types.</CardDescription>
+                    <CardTitle>Saldos de Cuentas</CardTitle>
+                    <CardDescription>Un resumen de los saldos entre tipos de cuenta.</CardDescription>
                 </CardHeader>
                 <CardContent>
                     <ResponsiveContainer width="100%" height={300}>
@@ -107,18 +107,18 @@ import {
             </Card>
             <Card>
           <CardHeader>
-            <CardTitle>Recent Transactions</CardTitle>
+            <CardTitle>Transacciones Recientes</CardTitle>
             <CardDescription>
-              An overview of the latest financial activities.
+              Un resumen de las últimas actividades financieras.
             </CardDescription>
           </CardHeader>
           <CardContent>
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Description</TableHead>
-                  <TableHead className="text-right">Amount</TableHead>
-                  <TableHead>Status</TableHead>
+                  <TableHead>Descripción</TableHead>
+                  <TableHead className="text-right">Monto</TableHead>
+                  <TableHead>Estado</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -131,7 +131,7 @@ import {
                       </div>
                     </TableCell>
                     <TableCell className="text-right">
-                      ${transaction.amount.toLocaleString()}
+                      ${transaction.amount.toLocaleString('es-CL')}
                     </TableCell>
                     <TableCell>
                       <Badge variant={transaction.status === 'Completed' ? 'default' : transaction.status === 'Pending' ? 'secondary' : 'destructive'} className="text-xs" >
