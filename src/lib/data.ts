@@ -1,4 +1,4 @@
-import type { User, Company, Account, Transaction, CostCenter } from './types';
+import type { User, Company, Account, Transaction, CostCenter, Employee } from './types';
 
 export const mockUser: User = {
   id: 'user-1',
@@ -39,4 +39,11 @@ export const mockCostCenters: CostCenter[] = [
     { id: 'cc-1', name: 'Producción', description: 'Costos asociados a la línea de producción.' },
     { id: 'cc-2', name: 'Administración', description: 'Costos generales y de administración.' },
     { id: 'cc-3', name: 'Ventas y Marketing', description: 'Costos relacionados con la comercialización y venta de productos.' },
+];
+
+export const mockEmployees: Employee[] = [
+  { id: 'emp-1', name: 'Juan Pérez', rut: '12.345.678-9', position: 'Operario de Producción', costCenter: 'Producción', status: 'Active' },
+  { id: 'emp-2', name: 'Ana Gómez', rut: '9.876.543-2', position: 'Asistente Administrativa', costCenter: 'Administración', status: 'Active' },
+  { id: 'emp-3', name: 'Carlos Soto', rut: '15.678.901-K', position: 'Vendedor', costCenter: 'Ventas y Marketing', status: 'Active' },
+  { id: 'emp-4', name: 'María Rodríguez', rut: '18.123.456-7', position: 'Jefe de Producción', costCenter: 'Producción', status: 'Inactive' },
 ];

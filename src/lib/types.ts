@@ -36,3 +36,12 @@ export type CostCenter = {
     name: string;
     description: string;
 };
+
+export type Employee = {
+  id: string;
+  name: string;
+  rut: string;
+  position: string;
+  costCenter: string;
+  status: 'Active' | 'Inactive';
+};
