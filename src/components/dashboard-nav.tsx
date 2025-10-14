@@ -27,7 +27,12 @@ import {
   Award,
   Library,
   Book,
-  FileCog
+  FileCog,
+  RefreshCw,
+  GitMerge,
+  Lock,
+  SlidersHorizontal,
+  Building,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './ui/collapsible';
@@ -109,7 +114,37 @@ const payrollSections = [
             { href: '/dashboard/remuneraciones/parametros-iut', label: 'Parámetros IUT', icon: Book },
         ]
     }
-]
+];
+
+const criticalProcessesSections = [
+    {
+        title: 'Centralización',
+        icon: GitMerge,
+        links: [
+            { href: '/dashboard/critical-processes/centralization-remunerations', label: 'Centralización Remuneraciones', icon: FileText },
+            { href: '/dashboard/critical-processes/centralization-rcv', label: 'Centralización RCV (SII)', icon: FileText },
+        ]
+    },
+    {
+        title: 'Cierres',
+        icon: Lock,
+        links: [
+            { href: '/dashboard/critical-processes/monthly-closing', label: 'Cierre Mensual', icon: FileText },
+        ]
+    }
+];
+
+const configurationSections = [
+    {
+        title: 'General',
+        icon: SlidersHorizontal,
+        links: [
+            { href: '/dashboard/companies', label: 'Empresas', icon: Building },
+            { href: '/dashboard/configuration/monthly-parameters', label: 'Parámetros Mensuales', icon: Book },
+        ]
+    }
+];
+
 
 const bottomNavItems = [
     { href: '/dashboard/settings', label: 'Settings', icon: Settings },
@@ -127,6 +162,11 @@ export function DashboardNav() {
     'Procesos_sub': true,
     'Informes_sub': true,
     'Maestros_sub': true,
+    'Procesos Críticos': true,
+    'Centralización_sub': true,
+    'Cierres_sub': true,
+    'Configuración': true,
+    'General_sub': true,
   });
 
   const toggleSection = (title: string) => {
@@ -150,48 +190,61 @@ export function DashboardNav() {
     );
   }
 
+  const renderSection = (section: { title: string, icon: React.ElementType, links: { href: string, label: string, icon: React.ElementType }[] }) => (
+    <Collapsible key={section.title} open={openSections[section.title]} onOpenChange={() => toggleSection(section.title)}>
+        <CollapsibleTrigger className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-muted-foreground hover:text-primary">
+            <div className="flex items-center gap-3">
+            <section.icon className="h-4 w-4" />
+            <span>{section.title}</span>
+            </div>
+            {openSections[section.title] ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+        </CollapsibleTrigger>
+        <CollapsibleContent className="ml-7 flex flex-col gap-1 border-l border-muted-foreground/20 pl-5 py-2">
+            {section.links.map(renderLink)}
+        </CollapsibleContent>
+    </Collapsible>
+  );
+
+  const renderNestedSection = (
+      parentTitle: string, 
+      parentIcon: React.ElementType, 
+      subSections: { title: string, icon: React.ElementType, links: { href: string, label: string, icon: React.ElementType }[] }[]
+    ) => (
+        <Collapsible open={openSections[parentTitle]} onOpenChange={() => toggleSection(parentTitle)}>
+            <CollapsibleTrigger className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-muted-foreground hover:text-primary">
+                <div className="flex items-center gap-3">
+                <parentIcon className="h-4 w-4" />
+                <span>{parentTitle}</span>
+                </div>
+                {openSections[parentTitle] ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </CollapsibleTrigger>
+            <CollapsibleContent className="ml-7 flex flex-col gap-1 border-l border-muted-foreground/20 pl-5 py-2">
+                {subSections.map((subSection) => (
+                    <Collapsible key={subSection.title} open={openSections[subSection.title + '_sub']} onOpenChange={() => toggleSection(subSection.title + '_sub')}>
+                        <CollapsibleTrigger className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-muted-foreground hover:text-primary">
+                            <div className="flex items-center gap-3">
+                                <subSection.icon className="h-4 w-4" />
+                                <span>{subSection.title}</span>
+                            </div>
+                            {openSections[subSection.title + '_sub'] ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                        </CollapsibleTrigger>
+                        <CollapsibleContent className="ml-7 flex flex-col gap-1 border-l border-muted-foreground/20 pl-5 py-2">
+                            {subSection.links.map(renderLink)}
+                        </CollapsibleContent>
+                    </Collapsible>
+                ))}
+            </CollapsibleContent>
+        </Collapsible>
+  );
+
+
   return (
     <div className="flex h-full flex-col justify-between">
       <nav className="grid items-start gap-2 px-4 text-sm font-medium">
-        {navSections.map((section) => (
-          <Collapsible key={section.title} open={openSections[section.title]} onOpenChange={() => toggleSection(section.title)}>
-            <CollapsibleTrigger className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-muted-foreground hover:text-primary">
-              <div className="flex items-center gap-3">
-                <section.icon className="h-4 w-4" />
-                <span>{section.title}</span>
-              </div>
-              {openSections[section.title] ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-            </CollapsibleTrigger>
-            <CollapsibleContent className="ml-7 flex flex-col gap-1 border-l border-muted-foreground/20 pl-5 py-2">
-              {section.links.map(renderLink)}
-            </CollapsibleContent>
-          </Collapsible>
-        ))}
-         <Collapsible open={openSections['Remuneraciones']} onOpenChange={() => toggleSection('Remuneraciones')}>
-            <CollapsibleTrigger className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-muted-foreground hover:text-primary">
-              <div className="flex items-center gap-3">
-                <Users className="h-4 w-4" />
-                <span>Remuneraciones</span>
-              </div>
-              {openSections['Remuneraciones'] ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-            </CollapsibleTrigger>
-            <CollapsibleContent className="ml-7 flex flex-col gap-1 border-l border-muted-foreground/20 pl-5 py-2">
-              {payrollSections.map((subSection) => (
-                 <Collapsible key={subSection.title} open={openSections[subSection.title + '_sub']} onOpenChange={() => toggleSection(subSection.title + '_sub')}>
-                    <CollapsibleTrigger className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-muted-foreground hover:text-primary">
-                        <div className="flex items-center gap-3">
-                            <subSection.icon className="h-4 w-4" />
-                            <span>{subSection.title}</span>
-                        </div>
-                        {openSections[subSection.title + '_sub'] ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                    </CollapsibleTrigger>
-                    <CollapsibleContent className="ml-7 flex flex-col gap-1 border-l border-muted-foreground/20 pl-5 py-2">
-                        {subSection.links.map(renderLink)}
-                    </CollapsibleContent>
-                 </Collapsible>
-              ))}
-            </CollapsibleContent>
-        </Collapsible>
+        {navSections.map(renderSection)}
+        {renderNestedSection('Remuneraciones', Users, payrollSections)}
+        {renderNestedSection('Procesos Críticos', RefreshCw, criticalProcessesSections)}
+        {renderNestedSection('Configuración', Settings, configurationSections)}
       </nav>
       <nav className="mt-auto grid items-start gap-1 px-4 text-sm font-medium">
         {bottomNavItems.map(renderLink)}
