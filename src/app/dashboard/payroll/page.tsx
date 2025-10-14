@@ -16,8 +16,8 @@ import {
       <div className="grid gap-6">
         <Card>
           <CardHeader>
-            <CardTitle>Centralización de Remuneraciones</CardTitle>
-            <CardDescription>Carga y procesa los datos de remuneraciones para la centralización.</CardDescription>
+            <CardTitle>Liquidaciones de Sueldo</CardTitle>
+            <CardDescription>Carga y procesa los datos para generar las liquidaciones de sueldo.</CardDescription>
           </CardHeader>
           <CardContent>
             <form className="grid gap-6">
@@ -38,7 +38,7 @@ import {
                 <Textarea id="description" placeholder="Ej: Remuneraciones Octubre 2023" />
               </div>
               <div className="flex justify-end">
-                <Button>Procesar Nómina</Button>
+                <Button>Procesar Liquidaciones</Button>
               </div>
             </form>
           </CardContent>
@@ -46,8 +46,8 @@ import {
         <Card>
             <CardHeader>
                 <CardTitle>Historial de Procesamiento</CardTitle>
-                <CardDescription>Revisa el estado de las cargas de nómina anteriores.</CardDescription>
-            </CardHeader>
+                <CardDescription>Revisa el estado de las liquidaciones anteriores.</CardDescription>
+            </Header>
             <CardContent>
                 <p className="text-sm text-muted-foreground">Aún no hay historial de procesamiento.</p>
             </CardContent>
