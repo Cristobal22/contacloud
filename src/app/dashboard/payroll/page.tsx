@@ -1,3 +1,6 @@
+'use client';
+
+import React from 'react';
 import {
     Card,
     CardContent,
@@ -10,8 +13,23 @@ import {
   import { Label } from "@/components/ui/label"
   import { Textarea } from "@/components/ui/textarea"
   import { Upload } from "lucide-react"
-  
+
   export default function PayrollPage() {
+    const [fileName, setFileName] = React.useState<string | null>(null);
+    const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+    const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+        if (event.target.files && event.target.files.length > 0) {
+            setFileName(event.target.files[0].name);
+        } else {
+            setFileName(null);
+        }
+    };
+
+    const handleButtonClick = () => {
+        fileInputRef.current?.click();
+    }
+
     return (
       <div className="grid gap-6">
         <Card>
@@ -24,12 +42,14 @@ import {
               <div className="grid gap-3">
                 <Label htmlFor="payroll-file">Archivo de Remuneraciones</Label>
                 <div className="flex items-center gap-3">
-                    <Input id="payroll-file" type="file" className="hidden" />
-                    <Button type="button" variant="outline" onClick={() => document.getElementById('payroll-file')?.click()}>
+                    <Input id="payroll-file" type="file" className="hidden" ref={fileInputRef} onChange={handleFileChange} />
+                    <Button type="button" variant="outline" onClick={handleButtonClick}>
                         <Upload className="mr-2 h-4 w-4" />
                         Elegir Archivo
                     </Button>
-                    <span className="text-sm text-muted-foreground">Ningún archivo seleccionado</span>
+                    <span className="text-sm text-muted-foreground">
+                        {fileName || "Ningún archivo seleccionado"}
+                    </span>
                 </div>
                 <p className="text-xs text-muted-foreground">Sube un archivo CSV, XLSX, o XML con los datos de la nómina.</p>
               </div>
@@ -55,4 +75,3 @@ import {
       </div>
     )
   }
-  
