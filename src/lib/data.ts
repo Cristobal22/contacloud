@@ -19,11 +19,11 @@ export const mockCompanies: Company[] = [
 export const mockAccounts: Account[] = [
   { id: 'acc-1', code: '1010', name: 'Cash', type: 'Asset', balance: 150000.75 },
   { id: 'acc-2', code: '1200', name: 'Accounts Receivable', type: 'Asset', balance: 75230.50 },
-  { id: 'acc-3', code: '2010', name: 'Accounts Payable', type: 'Liability', balance: 45800.00 },
-  { id: 'acc-4', code: '3000', name: 'Owner\'s Equity', type: 'Equity', balance: 250000.00 },
-  { id: 'acc-5', code: '4000', name: 'Service Revenue', type: 'Revenue', balance: 300500.25 },
-  { id: 'acc-6', code: '5000', name: 'Salaries Expense', type: 'Expense', balance: 80000.00 },
-  { id: 'acc-7', code: '5010', name: 'Rent Expense', type: 'Expense', balance: 25000.00 },
+  { id: 'acc-3', code: '4650', name: 'Remuneraciones por Pagar', type: 'Liability', balance: 85300.00 },
+  { id: 'acc-4', code: '4760', name: 'Obligaciones Previsionales por Pagar', type: 'Liability', balance: 22150.00 },
+  { id: 'acc-5', code: '4751', name: 'Impuestos Retenidos por Pagar', type: 'Liability', balance: 7800.00 },
+  { id: 'acc-6', code: '6400', name: 'Sueldos y Salarios', type: 'Expense', balance: 100000.00 },
+  { id: 'acc-7', code: '6420', name: 'Cargas Sociales', type: 'Expense', balance: 15250.00 },
 ];
 
 export const mockTransactions: Transaction[] = [
