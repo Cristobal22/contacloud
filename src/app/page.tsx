@@ -1,3 +1,4 @@
+
 import Image from 'next/image';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -14,18 +15,18 @@ export default function Home() {
 
   const features = [
     {
-      title: 'Multi-tenant Architecture',
-      description: 'Securely manage multiple companies with complete data isolation.',
+      title: 'Arquitectura Multi-empresa',
+      description: 'Gestiona de forma segura múltiples empresas con aislamiento total de los datos.',
       image: featureMultiTenant,
     },
     {
-      title: 'Advanced Security',
-      description: 'Role-based access control and robust security with Firebase.',
+      title: 'Seguridad Avanzada',
+      description: 'Control de acceso basado en roles y seguridad robusta con Firebase.',
       image: featureSecurity,
     },
     {
-      title: 'Centralized Data',
-      description: 'Streamline payroll and tax document management with cloud functions.',
+      title: 'Datos Centralizados',
+      description: 'Optimiza la gestión de nóminas y documentos fiscales con funciones en la nube.',
       image: featureData,
     },
   ];
@@ -38,17 +39,17 @@ export default function Home() {
           <div className="container text-center">
             <div className="mx-auto max-w-3xl">
               <h1 className="font-headline text-4xl font-bold tracking-tight text-foreground sm:text-5xl md:text-6xl">
-                The Future of Cloud Accounting is Here
+                El Futuro de la Contabilidad en la Nube está Aquí
               </h1>
               <p className="mt-6 text-lg text-muted-foreground">
-                Contador Cloud offers a secure, multi-tenant platform for modern accountants to manage company finances, payroll, and taxes with unparalleled efficiency.
+                Contador Cloud ofrece una plataforma segura y multi-empresa para que los contadores modernos gestionen las finanzas, nóminas e impuestos de las empresas con una eficiencia sin igual.
               </p>
               <div className="mt-10 flex justify-center gap-4">
                 <Button asChild size="lg">
-                  <Link href="/login">Get Started</Link>
+                  <Link href="/login">Comenzar</Link>
                 </Button>
                 <Button asChild variant="outline" size="lg">
-                  <Link href="#features">Learn More</Link>
+                  <Link href="#features">Saber Más</Link>
                 </Button>
               </div>
             </div>
@@ -72,10 +73,10 @@ export default function Home() {
           <div className="container">
             <div className="mx-auto max-w-2xl text-center">
               <h2 className="font-headline text-3xl font-bold tracking-tight sm:text-4xl">
-                Powerful Features for Modern Accounting
+                Funcionalidades Potentes para la Contabilidad Moderna
               </h2>
               <p className="mt-4 text-lg text-muted-foreground">
-                Everything you need to streamline your accounting workflows.
+                Todo lo que necesitas para optimizar tus flujos de trabajo contables.
               </p>
             </div>
             <div className="mt-16 grid gap-8 md:grid-cols-2 lg:grid-cols-3">
@@ -107,14 +108,14 @@ export default function Home() {
           <div className="container text-center">
             <div className="mx-auto max-w-3xl">
               <h2 className="font-headline text-3xl font-bold tracking-tight sm:text-4xl">
-                Ready to transform your practice?
+                ¿Listo para transformar tu práctica contable?
               </h2>
               <p className="mt-4 text-lg text-muted-foreground">
-                Join Contador Cloud today and experience the next generation of accounting software.
+                Únete a Contador Cloud hoy y experimenta la nueva generación de software contable.
               </p>
               <div className="mt-8">
                 <Button asChild size="lg">
-                  <Link href="/login">Sign Up Now</Link>
+                  <Link href="/login">Regístrate Ahora</Link>
                 </Button>
               </div>
             </div>
