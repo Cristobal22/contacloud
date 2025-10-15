@@ -39,23 +39,27 @@ function AccountantDashboardLayout({ children }: { children: React.ReactNode }) 
         if (!firestore || !userProfile || !userProfile.companyIds || userProfile.companyIds.length === 0) {
             return null;
         }
-        return query(collection(firestore, 'companies'), where('__name__', 'in', userProfile.companyIds));
+        // Firestore 'in' queries are limited to 30 elements.
+        return query(collection(firestore, 'companies'), where('__name__', 'in', userProfile.companyIds.slice(0,30)));
     }, [firestore, userProfile]);
 
     const { data: companies, loading: companiesLoading } = useCollection<Company>({ 
       query: companiesQuery,
-      disabled: !firestore || !userProfile,
+      disabled: !companiesQuery,
     });
     
     React.useEffect(() => {
-        if (companiesLoading || profileLoading || userLoading) {
-            return;
-        }
+        const loading = companiesLoading || profileLoading || userLoading;
+        if (loading) return;
 
         if (companies && companies.length > 0) {
             const storedCompanyId = localStorage.getItem('selectedCompanyId');
             const company = companies.find(c => c.id === storedCompanyId) || companies[0];
-            setSelectedCompany(company);
+            if (company) {
+                setSelectedCompany(company);
+            }
+        } else {
+            setSelectedCompany(null);
         }
         setIsLoadingCompany(false);
 
@@ -126,7 +130,7 @@ function AccountantDashboardLayout({ children }: { children: React.ReactNode }) 
                         <UserNav />
                     </header>
                     <main className="flex-1 p-4 sm:p-6">
-                        {isLoading && !selectedCompany ? <div className="flex h-full w-full items-center justify-center"><p>Cargando datos del contador...</p></div> : children}
+                        {isLoading ? <div className="flex h-full w-full items-center justify-center"><p>Cargando datos del contador...</p></div> : children}
                     </main>
                 </div>
             </div>

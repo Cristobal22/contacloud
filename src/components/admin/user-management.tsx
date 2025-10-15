@@ -132,7 +132,7 @@ export default function UserManagement() {
 
     const { data: users, loading: usersLoading, error } = useCollection<UserProfile>({ 
         path: 'users',
-        // Disable query if the user is not an admin, to prevent permission errors
+        // Disable query until we confirm the user is an admin to prevent permission errors.
         disabled: profileLoading || userProfile?.role !== 'Admin'
     });
     const { data: companies, loading: companiesLoading } = useCollection<Company>({ path: 'companies' });
@@ -265,9 +265,11 @@ export default function UserManagement() {
     }
     
     const loading = usersLoading || companiesLoading || profileLoading;
+    const isReadyForAdminView = !profileLoading && userProfile?.role === 'Admin';
+
 
     const renderTableContent = () => {
-        if (loading) {
+        if (usersLoading) {
             return (
                 <TableRow>
                     <TableCell colSpan={5} className="h-24 text-center">
@@ -344,14 +346,14 @@ export default function UserManagement() {
                             <CardTitle>Gestión de Usuarios</CardTitle>
                             <CardDescription>Invita nuevos contadores y asígnales empresas.</CardDescription>
                         </div>
-                         <Button size="sm" className="gap-1" onClick={handleCreateNew} disabled={userProfile?.role !== 'Admin'}>
+                         <Button size="sm" className="gap-1" onClick={handleCreateNew} disabled={!isReadyForAdminView}>
                             <PlusCircle className="h-4 w-4" />
                             Agregar Usuario
                         </Button>
                     </div>
                 </CardHeader>
                 <CardContent>
-                     {userProfile?.role !== 'Admin' && <AdminSetupTool />}
+                     {!isReadyForAdminView && !profileLoading && <AdminSetupTool />}
                     <Table>
                         <TableHeader>
                             <TableRow>
@@ -372,7 +374,7 @@ export default function UserManagement() {
                                         </div>
                                     </TableCell>
                                 </TableRow>
-                            ) : (userProfile?.role === 'Admin' ? renderTableContent() : (
+                            ) : (isReadyForAdminView ? renderTableContent() : (
                                  <TableRow>
                                     <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
                                         Asigna el rol de administrador para ver la lista de usuarios.
