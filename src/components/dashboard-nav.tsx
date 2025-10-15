@@ -209,11 +209,13 @@ export function DashboardNav() {
       parentTitle: string, 
       parentIcon: React.ElementType, 
       subSections: { title: string, icon: React.ElementType, links: { href: string, label: string, icon: React.ElementType }[] }[]
-    ) => (
+    ) => {
+        const ParentIcon = parentIcon;
+        return (
         <Collapsible open={openSections[parentTitle]} onOpenChange={() => toggleSection(parentTitle)}>
             <CollapsibleTrigger className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-muted-foreground hover:text-primary">
                 <div className="flex items-center gap-3">
-                <parentIcon className="h-4 w-4" />
+                <ParentIcon className="h-4 w-4" />
                 <span>{parentTitle}</span>
                 </div>
                 {openSections[parentTitle] ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
@@ -235,7 +237,7 @@ export function DashboardNav() {
                 ))}
             </CollapsibleContent>
         </Collapsible>
-  );
+    )};
 
 
   return (
