@@ -7,7 +7,6 @@ import {
     CardDescription,
     CardHeader,
     CardTitle,
-    CardFooter,
 } from "@/components/ui/card"
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -25,8 +24,14 @@ export default function VatSummaryPage({ companyId }: { companyId?: string }) {
     const [month, setMonth] = React.useState(currentMonth);
     const [summary, setSummary] = React.useState<{debit: number, credit: number, total: number} | null>(null);
 
-    const { data: sales, loading: salesLoading } = useCollection<Sale>({ path: `companies/${companyId}/sales`, companyId: companyId });
-    const { data: purchases, loading: purchasesLoading } = useCollection<Purchase>({ path: `companies/${companyId}/purchases`, companyId: companyId });
+    const { data: sales, loading: salesLoading } = useCollection<Sale>({ 
+        path: `companies/${companyId}/sales`, 
+        companyId: companyId 
+    });
+    const { data: purchases, loading: purchasesLoading } = useCollection<Purchase>({ 
+        path: `companies/${companyId}/purchases`, 
+        companyId: companyId 
+    });
     
     const loading = salesLoading || purchasesLoading;
 
@@ -36,17 +41,21 @@ export default function VatSummaryPage({ companyId }: { companyId?: string }) {
 
         const relevantSales = sales?.filter(s => {
             const saleDate = new Date(s.date);
-            return saleDate >= startDate && saleDate <= endDate;
+            // Adjust for timezone issues if dates are stored as YYYY-MM-DD
+            const saleUTCDate = new Date(saleDate.getUTCFullYear(), saleDate.getUTCMonth(), saleDate.getUTCDate());
+            return saleUTCDate >= startDate && saleUTCDate <= endDate;
         }) || [];
 
         const relevantPurchases = purchases?.filter(p => {
             const purchaseDate = new Date(p.date);
-            return purchaseDate >= startDate && purchaseDate <= endDate;
+            const purchaseUTCDate = new Date(purchaseDate.getUTCFullYear(), purchaseDate.getUTCMonth(), purchaseDate.getUTCDate());
+            return purchaseUTCDate >= startDate && purchaseUTCDate <= endDate;
         }) || [];
 
         const totalSales = relevantSales.reduce((sum, s) => sum + s.total, 0);
         const totalPurchases = relevantPurchases.reduce((sum, p) => sum + p.total, 0);
 
+        // Standard VAT rate in Chile is 19%
         const vatDebit = totalSales * 0.19;
         const vatCredit = totalPurchases * 0.19;
 
