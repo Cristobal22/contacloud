@@ -20,7 +20,7 @@ import {
     TableRow,
     TableFooter
 } from "@/components/ui/table";
-import { PlusCircle, Trash2 } from "lucide-react";
+import { PlusCircle, Trash2, ArrowLeft } from "lucide-react";
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -31,37 +31,47 @@ import {
     SelectTrigger,
     SelectValue,
   } from "@/components/ui/select"
-import { useCollection } from '@/firebase';
+import { useCollection, useDoc, useFirestore } from '@/firebase';
 import type { Voucher, VoucherEntry, Account } from '@/lib/types';
-import { SelectedCompanyContext } from '../../layout';
+import { SelectedCompanyContext } from '@/app/dashboard/layout';
+import { doc, setDoc, addDoc, collection } from 'firebase/firestore';
+import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 
-interface VoucherDetailProps {
-    voucherData?: Voucher | null;
-    onSave: (voucher: Voucher) => void;
-    onCancel: () => void;
-}
-
-export default function VoucherDetailForm({ voucherData, onSave, onCancel }: VoucherDetailProps) {
-    const isNew = voucherData ? voucherData.id.startsWith('new') : false;
+export default function VoucherEditPage({ params }: { params: { id: string } }) {
+    const { id } = params;
+    const isNew = id === 'new';
     const { selectedCompany } = React.useContext(SelectedCompanyContext) || {};
+    const firestore = useFirestore();
+    const router = useRouter();
+
+    const voucherRef = !isNew && firestore && selectedCompany ? doc(firestore, `companies/${selectedCompany.id}/vouchers`, id) : null;
+    const { data: existingVoucher, loading: voucherLoading } = useDoc<Voucher>(voucherRef);
+
+    const [voucher, setVoucher] = React.useState<Partial<Voucher> | null>(null);
+    const [entries, setEntries] = React.useState<Partial<VoucherEntry>[]>([]);
 
     const { data: accounts, loading: accountsLoading } = useCollection<Account>({
         path: selectedCompany ? `companies/${selectedCompany.id}/accounts` : undefined,
         companyId: selectedCompany?.id,
     });
-
-    const [voucher, setVoucher] = React.useState<Voucher | null>(null);
-    const [entries, setEntries] = React.useState<VoucherEntry[]>([]);
-
+    
     React.useEffect(() => {
-        if (voucherData) {
-            setVoucher(voucherData);
-            setEntries(voucherData.entries || []);
-        } else {
-            setVoucher(null);
+        if (isNew) {
+             setVoucher({
+                date: new Date().toISOString().substring(0, 10),
+                type: 'Traspaso',
+                description: '',
+                status: 'Borrador',
+                total: 0,
+                entries: []
+            });
             setEntries([]);
+        } else if (existingVoucher) {
+            setVoucher(existingVoucher);
+            setEntries(existingVoucher.entries);
         }
-    }, [voucherData]);
+    }, [isNew, existingVoucher]);
 
     const handleAddEntry = () => {
         setEntries([
@@ -87,65 +97,90 @@ export default function VoucherDetailForm({ voucherData, onSave, onCancel }: Vou
         setEntries(newEntries);
     };
 
-     const handleHeaderChange = (field: keyof Omit<Voucher, 'id' | 'total' | 'entries'>, value: string) => {
+     const handleHeaderChange = (field: keyof Omit<Voucher, 'id' | 'total' | 'entries' | 'companyId'>, value: string) => {
         if (voucher) {
             setVoucher({ ...voucher, [field]: value });
         }
     };
 
-    const totalDebit = entries.reduce((sum, entry) => sum + Number(entry.debit), 0);
-    const totalCredit = entries.reduce((sum, entry) => sum + Number(entry.credit), 0);
+    const totalDebit = entries.reduce((sum, entry) => sum + Number(entry.debit || 0), 0);
+    const totalCredit = entries.reduce((sum, entry) => sum + Number(entry.credit || 0), 0);
     const isBalanced = totalDebit === totalCredit && totalDebit > 0;
     const canSave = isBalanced && entries.length > 1 && voucher?.description;
     
-    const handleSaveClick = () => {
-        if (voucher && canSave) {
-            onSave({ ...voucher, total: totalDebit, entries });
+    const handleSaveClick = async () => {
+       if (!firestore || !selectedCompany || !voucher || !canSave) return;
+
+        const collectionRef = collection(firestore, `companies/${selectedCompany.id}/vouchers`);
+        
+        const voucherData = {
+          date: voucher.date || new Date().toISOString().substring(0, 10),
+          type: voucher.type || 'Traspaso',
+          description: voucher.description || '',
+          status: 'Borrador',
+          total: totalDebit,
+          entries: entries.map(e => ({
+            account: e.account || '',
+            description: e.description || '',
+            debit: e.debit || 0,
+            credit: e.credit || 0,
+            // make sure id is a string
+            id: e.id ? e.id.toString() : `entry-${Date.now()}`,
+          })),
+          companyId: selectedCompany.id
+        };
+
+        try {
+            if (isNew) {
+                await addDoc(collectionRef, voucherData);
+            } else {
+                const docRef = doc(firestore, `companies/${selectedCompany.id}/vouchers`, id);
+                await setDoc(docRef, voucherData, { merge: true });
+            }
+            router.push('/dashboard/vouchers');
+        } catch (error) {
+            console.error("Error saving voucher:", error);
         }
     };
-
-    if (!voucher) {
-        return (
-            <div className="grid gap-6">
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Cargando...</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <p>Buscando detalles del comprobante...</p>
-                    </CardContent>
-                </Card>
-            </div>
-        );
-    }
+    
+    if (voucherLoading) return <p>Cargando comprobante...</p>;
+    if (!isNew && !voucher && !voucherLoading) return <p>No se encontró el comprobante.</p>;
+    if (!voucher) return null;
 
 
     return (
         <div className="grid gap-6">
-            <Card className="border-0 shadow-none">
+            <Card>
                 <CardHeader>
-                    <div className="flex justify-between items-start">
-                        <div>
-                            <CardTitle>
-                                {isNew ? 'Nuevo Comprobante' : `Editar Comprobante #${voucher.id.substring(0, 6)}`}
-                            </CardTitle>
-                            <CardDescription>
-                                Gestiona los detalles y asientos del comprobante contable.
-                            </CardDescription>
+                    <div className="flex items-center gap-4">
+                        <Button variant="outline" size="icon" asChild>
+                            <Link href="/dashboard/vouchers"><ArrowLeft className="h-4 w-4" /></Link>
+                        </Button>
+                        <div className="flex-1">
+                            <div className="flex justify-between items-start">
+                                <div>
+                                    <CardTitle>
+                                        {isNew ? 'Nuevo Comprobante' : `Editar Comprobante #${id.substring(0, 6)}`}
+                                    </CardTitle>
+                                    <CardDescription>
+                                        Gestiona los detalles y asientos del comprobante contable.
+                                    </CardDescription>
+                                </div>
+                                <Badge variant={voucher.status === 'Contabilizado' ? 'outline' : 'secondary'}>
+                                    {voucher.status}
+                                </Badge>
+                            </div>
                         </div>
-                        <Badge variant={voucher.status === 'Contabilizado' ? 'outline' : 'secondary'}>
-                            {voucher.status}
-                        </Badge>
                     </div>
                 </CardHeader>
-                <CardContent className="max-h-[60vh] overflow-y-auto p-0">
-                    <div className="grid gap-6 md:grid-cols-3 mb-8 px-6">
+                <CardContent className="space-y-8">
+                    <div className="grid gap-6 md:grid-cols-3">
                         <div className="space-y-2">
                             <Label htmlFor="voucher-date">Fecha</Label>
                             <Input 
                                 id="voucher-date" 
                                 type="date" 
-                                value={voucher.date}
+                                value={voucher.date || ''}
                                 onChange={(e) => handleHeaderChange('date', e.target.value)}
                             />
                         </div>
@@ -166,7 +201,7 @@ export default function VoucherDetailForm({ voucherData, onSave, onCancel }: Vou
                             <Label htmlFor="voucher-description">Descripción</Label>
                             <Input 
                                 id="voucher-description"
-                                value={voucher.description}
+                                value={voucher.description || ''}
                                 onChange={(e) => handleHeaderChange('description', e.target.value)}
                                 placeholder="Ej: Pago de factura #101"
                             />
@@ -188,7 +223,7 @@ export default function VoucherDetailForm({ voucherData, onSave, onCancel }: Vou
                                     <TableCell>
                                         <Select
                                             value={entry.account}
-                                            onValueChange={(value) => handleEntryChange(entry.id, 'account', value)}
+                                            onValueChange={(value) => handleEntryChange(entry.id!, 'account', value)}
                                         >
                                             <SelectTrigger>
                                                 <SelectValue placeholder="Selecciona una cuenta" />
@@ -206,7 +241,7 @@ export default function VoucherDetailForm({ voucherData, onSave, onCancel }: Vou
                                     <TableCell>
                                         <Input 
                                             value={entry.description}
-                                            onChange={(e) => handleEntryChange(entry.id, 'description', e.target.value)}
+                                            onChange={(e) => handleEntryChange(entry.id!, 'description', e.target.value)}
                                             placeholder="Descripción del asiento"
                                         />
                                     </TableCell>
@@ -215,7 +250,7 @@ export default function VoucherDetailForm({ voucherData, onSave, onCancel }: Vou
                                             type="number"
                                             className="text-right"
                                             value={entry.debit}
-                                            onChange={(e) => handleEntryChange(entry.id, 'debit', parseFloat(e.target.value) || 0)}
+                                            onChange={(e) => handleEntryChange(entry.id!, 'debit', parseFloat(e.target.value) || 0)}
                                         />
                                     </TableCell>
                                     <TableCell>
@@ -223,11 +258,11 @@ export default function VoucherDetailForm({ voucherData, onSave, onCancel }: Vou
                                             type="number"
                                             className="text-right"
                                             value={entry.credit}
-                                            onChange={(e) => handleEntryChange(entry.id, 'credit', parseFloat(e.target.value) || 0)}
+                                            onChange={(e) => handleEntryChange(entry.id!, 'credit', parseFloat(e.target.value) || 0)}
                                         />
                                     </TableCell>
                                     <TableCell>
-                                        <Button variant="ghost" size="icon" className="text-destructive" onClick={() => handleRemoveEntry(entry.id)}>
+                                        <Button variant="ghost" size="icon" className="text-destructive" onClick={() => handleRemoveEntry(entry.id!)}>
                                             <Trash2 className="h-4 w-4" />
                                         </Button>
                                     </TableCell>
@@ -268,12 +303,12 @@ export default function VoucherDetailForm({ voucherData, onSave, onCancel }: Vou
                     </Table>
                 </CardContent>
                 <CardFooter className="flex justify-end gap-2 pt-6">
-                    <Button variant="outline" onClick={onCancel}>Cancelar</Button>
+                     <Button variant="outline" asChild>
+                        <Link href="/dashboard/vouchers">Cancelar</Link>
+                    </Button>
                     <Button disabled={!canSave} onClick={handleSaveClick}>Guardar Comprobante</Button>
                 </CardFooter>
             </Card>
         </div>
     );
 }
-
-    

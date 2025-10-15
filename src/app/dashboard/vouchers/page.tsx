@@ -27,10 +27,6 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
   } from "@/components/ui/dropdown-menu"
-  import {
-    Dialog,
-    DialogContent,
-  } from "@/components/ui/dialog"
     import {
     AlertDialog,
     AlertDialogAction,
@@ -42,9 +38,9 @@ import {
     AlertDialogTitle,
   } from "@/components/ui/alert-dialog"
   import { useCollection, useFirestore } from "@/firebase"
-  import { collection, addDoc, setDoc, doc, updateDoc } from "firebase/firestore"
+  import { doc, updateDoc } from "firebase/firestore"
   import type { Voucher } from "@/lib/types"
-  import VoucherDetailForm from "./[id]/page"
+  import Link from "next/link"
   
   export default function VouchersPage({ companyId }: { companyId?: string }) {
     const firestore = useFirestore();
@@ -53,29 +49,8 @@ import {
       companyId: companyId 
     });
 
-    const [isDetailOpen, setIsDetailOpen] = React.useState(false);
     const [isContabilizarDialogOpen, setIsContabilizarDialogOpen] = React.useState(false);
-    const [selectedVoucher, setSelectedVoucher] = React.useState<Voucher | null>(null);
     const [voucherToContabilizar, setVoucherToContabilizar] = React.useState<Voucher | null>(null);
-
-
-    const handleCreateNew = () => {
-        setSelectedVoucher({
-            id: `new-${Date.now()}`,
-            date: new Date().toISOString().substring(0, 10),
-            type: 'Traspaso',
-            description: '',
-            status: 'Borrador',
-            total: 0,
-            entries: []
-        });
-        setIsDetailOpen(true);
-    };
-
-    const handleEdit = (voucher: Voucher) => {
-        setSelectedVoucher(voucher);
-        setIsDetailOpen(true);
-    };
 
     const handleOpenContabilizarDialog = (voucher: Voucher) => {
         setVoucherToContabilizar(voucher);
@@ -96,49 +71,6 @@ import {
         }
     };
 
-
-    const handleSaveVoucher = async (voucher: Voucher) => {
-        if (!firestore || !companyId) return;
-
-        const isNew = voucher.id.startsWith('new-');
-        const collectionRef = collection(firestore, `companies/${companyId}/vouchers`);
-
-        const voucherData = {
-          date: voucher.date,
-          type: voucher.type,
-          description: voucher.description,
-          status: voucher.status,
-          total: voucher.total,
-          entries: voucher.entries.map(e => ({
-            account: e.account,
-            description: e.description,
-            debit: e.debit,
-            credit: e.credit,
-            id: e.id.toString(), // ensure id is a string
-          })),
-          companyId: companyId
-        };
-        
-        try {
-            if (isNew) {
-                await addDoc(collectionRef, voucherData);
-            } else {
-                const docRef = doc(firestore, `companies/${companyId}/vouchers`, voucher.id);
-                await setDoc(docRef, voucherData, { merge: true });
-            }
-        } catch (error) {
-            console.error("Error saving voucher:", error);
-        } finally {
-            setIsDetailOpen(false);
-            setSelectedVoucher(null);
-        }
-    };
-
-    const handleCancel = () => {
-        setIsDetailOpen(false);
-        setSelectedVoucher(null);
-    }
-
     return (
       <>
         <Card>
@@ -148,9 +80,11 @@ import {
                       <CardTitle>Comprobantes Contables</CardTitle>
                       <CardDescription>Gestiona los comprobantes de la empresa.</CardDescription>
                   </div>
-                  <Button size="sm" className="gap-1" onClick={handleCreateNew} disabled={!companyId}>
+                  <Button size="sm" className="gap-1" disabled={!companyId} asChild>
+                    <Link href="/dashboard/vouchers/edit/new">
                       <PlusCircle className="h-4 w-4" />
                       Agregar Comprobante
+                    </Link>
                   </Button>
               </div>
           </CardHeader>
@@ -200,8 +134,8 @@ import {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-                           <DropdownMenuItem onClick={() => handleEdit(voucher)} disabled={voucher.status === 'Contabilizado'}>
-                                Editar
+                           <DropdownMenuItem asChild disabled={voucher.status === 'Contabilizado'}>
+                                <Link href={`/dashboard/vouchers/edit/${voucher.id}`}>Editar</Link>
                            </DropdownMenuItem>
                            {voucher.status === 'Borrador' && (
                             <>
@@ -228,16 +162,6 @@ import {
           </CardContent>
         </Card>
 
-        <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
-            <DialogContent className="sm:max-w-4xl">
-                 <VoucherDetailForm 
-                    voucherData={selectedVoucher}
-                    onSave={handleSaveVoucher}
-                    onCancel={handleCancel}
-                 />
-            </DialogContent>
-        </Dialog>
-
         <AlertDialog open={isContabilizarDialogOpen} onOpenChange={setIsContabilizarDialogOpen}>
             <AlertDialogContent>
                 <AlertDialogHeader>
@@ -259,5 +183,3 @@ import {
       </>
     )
   }
-
-    
