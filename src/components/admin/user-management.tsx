@@ -8,10 +8,9 @@ import {
     CardDescription,
     CardHeader,
     CardTitle,
-    CardFooter,
 } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { MoreHorizontal, PlusCircle, Terminal } from "lucide-react"
+import { MoreHorizontal, PlusCircle } from "lucide-react"
   import {
     Dialog,
     DialogContent,
@@ -50,8 +49,6 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Checkbox } from '@/components/ui/checkbox';
 import { Skeleton } from '../ui/skeleton';
-import { setUserRole } from '@/ai/flows/set-user-role-flow';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useUserProfile } from '@/firebase/auth/use-user-profile';
 
 
@@ -60,69 +57,6 @@ type NewUserInput = {
   displayName: string;
 };
 
-function AdminSetupTool() {
-    const [uid, setUid] = useState('');
-    const [isProcessing, setIsProcessing] = useState(false);
-    const { toast } = useToast();
-
-    const handleAssignRole = async () => {
-        if (!uid.trim()) {
-            toast({
-                variant: 'destructive',
-                title: 'UID Requerido',
-                description: 'Por favor, ingresa el UID del usuario a convertir en Admin.',
-            });
-            return;
-        }
-
-        setIsProcessing(true);
-        try {
-            const result = await setUserRole({ uid, role: 'Admin' });
-
-            if (result.success) {
-                toast({
-                    title: '¡Rol de Administrador Asignado!',
-                    description: 'Cierra sesión y vuelve a iniciarla para que los cambios surtan efecto y puedas ver la lista de usuarios.',
-                });
-            } else {
-                throw new Error(result.message);
-            }
-        } catch (error: any) {
-            console.error("Error al asignar el rol de admin:", error);
-            toast({
-                variant: 'destructive',
-                title: 'Error',
-                description: error.message || 'No se pudo asignar el rol. Revisa que el UID sea correcto y las credenciales de servicio estén configuradas.',
-            });
-        } finally {
-            setIsProcessing(false);
-        }
-    };
-
-    return (
-        <Alert variant="destructive" className="mb-6">
-            <Terminal className="h-4 w-4" />
-            <AlertTitle>Acción Requerida: Configurar Primer Administrador</AlertTitle>
-            <AlertDescription>
-                <p>Para poder gestionar usuarios, primero debes asignarte el rol de 'Admin'. Pega tu UID de Firebase Authentication a continuación y haz clic en el botón.</p>
-                 <div className="flex w-full max-w-sm items-center space-x-2 my-4">
-                    <Input
-                        type="text"
-                        placeholder="Pega tu UID aquí"
-                        value={uid}
-                        onChange={(e) => setUid(e.target.value)}
-                        disabled={isProcessing}
-                    />
-                    <Button onClick={handleAssignRole} disabled={isProcessing}>
-                        {isProcessing ? 'Procesando...' : 'Convertirme en Administrador'}
-                    </Button>
-                </div>
-                <p className="text-xs">Después de hacerlo, **cierra sesión y vuelve a iniciarla** para activar tus nuevos permisos.</p>
-            </AlertDescription>
-        </Alert>
-    )
-}
-
 export default function UserManagement() {
     const firestore = useFirestore();
     const auth = useAuth();
@@ -130,6 +64,7 @@ export default function UserManagement() {
     const { user: authUser } = useUser();
     const { userProfile, loading: profileLoading } = useUserProfile(authUser?.uid);
 
+    // Disable query until we know the user is an admin to prevent permission errors
     const { data: users, loading: usersLoading, error } = useCollection<UserProfile>({ 
         path: 'users',
         disabled: profileLoading || userProfile?.role !== 'Admin'
@@ -170,6 +105,7 @@ export default function UserManagement() {
         setIsProcessing(true);
 
         try {
+            // This password is temporary. The user will be forced to reset it.
             const tempPassword = Math.random().toString(36).slice(-8) + 'A1!';
             const userCredential = await createUserWithEmailAndPassword(auth, newUser.email, tempPassword);
             const user = userCredential.user;
@@ -184,6 +120,7 @@ export default function UserManagement() {
             };
 
             await setDoc(doc(firestore, 'users', user.uid), newUserProfile);
+            // Send a password reset email immediately
             await sendPasswordResetEmail(auth, user.email!);
 
             toast({
@@ -245,23 +182,8 @@ export default function UserManagement() {
         });
     }
     
-    const handleChangeRole = async (uid: string, role: 'Admin' | 'Accountant') => {
-        setIsProcessing(true);
-        const result = await setUserRole({ uid, role });
-        if (result.success) {
-            toast({
-                title: "Rol Actualizado",
-                description: `El rol del usuario ha sido cambiado a ${role}. El usuario debe volver a iniciar sesión para que los cambios surtan efecto.`,
-            });
-        } else {
-             toast({
-                variant: 'destructive',
-                title: 'Error al Cambiar Rol',
-                description: result.message,
-            });
-        }
-        setIsProcessing(false);
-    }
+    // The ability to change roles is removed as it required a backend flow
+    // that was causing instability. This must now be done via a secure, manual script.
     
     const loading = usersLoading || companiesLoading || profileLoading;
     const isReadyForAdminView = !profileLoading && userProfile?.role === 'Admin';
@@ -283,7 +205,7 @@ export default function UserManagement() {
                 <TableRow>
                     <TableCell colSpan={5} className="h-24 text-center text-destructive">
                         <p className="font-bold">Error de permisos: No se pueden listar los usuarios.</p>
-                        <p className='text-xs text-muted-foreground'>Asegúrate de que las reglas de Firestore permitan la operación 'list' en la colección 'users' para administradores.</p>
+                        <p className='text-xs text-muted-foreground'>Esto es esperado si aún no eres Administrador. Sigue las instrucciones del README para asignarte el rol de Admin.</p>
                     </TableCell>
                 </TableRow>
             );
@@ -316,19 +238,6 @@ export default function UserManagement() {
                         <DropdownMenuContent align="end">
                             <DropdownMenuLabel>Acciones</DropdownMenuLabel>
                             <DropdownMenuItem onSelect={() => handleEditUser(user)}>Editar / Asignar Empresas</DropdownMenuItem>
-                            <DropdownMenuSub>
-                                <DropdownMenuSubTrigger>Cambiar Rol</DropdownMenuSubTrigger>
-                                <DropdownMenuPortal>
-                                    <DropdownMenuSubContent>
-                                        <DropdownMenuItem disabled={user.role === 'Admin'} onSelect={() => handleChangeRole(user.uid, 'Admin')}>
-                                            Hacer Administrador
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem disabled={user.role === 'Accountant'} onSelect={() => handleChangeRole(user.uid, 'Accountant')}>
-                                            Hacer Contador
-                                        </DropdownMenuItem>
-                                    </DropdownMenuSubContent>
-                                </DropdownMenuPortal>
-                            </DropdownMenuSub>
                         </DropdownMenuContent>
                     </DropdownMenu>
                 </TableCell>
@@ -352,7 +261,6 @@ export default function UserManagement() {
                     </div>
                 </CardHeader>
                 <CardContent>
-                     {!isReadyForAdminView && !profileLoading && <AdminSetupTool />}
                     <Table>
                         <TableHeader>
                             <TableRow>
@@ -364,22 +272,7 @@ export default function UserManagement() {
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {isProcessing && !usersLoading ? (
-                                <TableRow>
-                                    <TableCell colSpan={5} className="h-24 text-center">
-                                        <div className="flex justify-center items-center gap-2">
-                                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
-                                            <span>Procesando...</span>
-                                        </div>
-                                    </TableCell>
-                                </TableRow>
-                            ) : (isReadyForAdminView ? renderTableContent() : (
-                                 <TableRow>
-                                    <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
-                                        Asigna el rol de administrador para ver la lista de usuarios.
-                                    </TableCell>
-                                </TableRow>
-                            ))}
+                            {renderTableContent()}
                         </TableBody>
                     </Table>
                 </CardContent>
