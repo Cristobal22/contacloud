@@ -31,6 +31,7 @@ import {
   } from "@/components/ui/select"
 import { mockVouchers, mockAccounts } from '@/lib/data';
 import { useParams } from 'next/navigation';
+import type { Voucher } from '@/lib/types';
 
 interface VoucherEntry {
     id: number;
@@ -45,14 +46,25 @@ export default function VoucherDetailPage() {
     const { id } = params;
     const isNew = id === 'new';
 
-    const voucher = mockVouchers.find(v => v.id === id) || {
-        id: 'new',
-        date: new Date().toISOString().substring(0, 10),
-        type: 'Traspaso',
-        description: 'Nuevo Comprobante',
-        status: 'Borrador',
-        total: 0
-    };
+    const [voucher, setVoucher] = React.useState<Voucher | null>(null);
+
+    React.useEffect(() => {
+        if (isNew) {
+            setVoucher({
+                id: 'new',
+                date: new Date().toISOString().substring(0, 10),
+                type: 'Traspaso',
+                description: 'Nuevo Comprobante',
+                status: 'Borrador',
+                total: 0
+            });
+        } else {
+            const foundVoucher = mockVouchers.find(v => v.id === id);
+            if (foundVoucher) {
+                setVoucher(foundVoucher);
+            }
+        }
+    }, [id, isNew]);
     
     const [entries, setEntries] = React.useState<VoucherEntry[]>(isNew ? [] : [
         { id: 1, account: '1101-01', description: 'Inicio de actividades', debit: 100000, credit: 0 },
@@ -87,6 +99,22 @@ export default function VoucherDetailPage() {
     const totalDebit = entries.reduce((sum, entry) => sum + entry.debit, 0);
     const totalCredit = entries.reduce((sum, entry) => sum + entry.credit, 0);
 
+    if (!voucher) {
+        return (
+            <div className="grid gap-6">
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Cargando...</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <p>Buscando detalles del comprobante...</p>
+                    </CardContent>
+                </Card>
+            </div>
+        );
+    }
+
+
     return (
         <div className="grid gap-6">
             <Card>
@@ -97,7 +125,7 @@ export default function VoucherDetailPage() {
                                 {isNew ? 'Nuevo Comprobante' : `Editar Comprobante #${voucher.id}`}
                             </CardTitle>
                             <CardDescription>
-                                {voucher.description} - {new Date(voucher.date).toLocaleDateString('es-CL')}
+                                {voucher.description} - {new Date(voucher.date).toLocaleDateString('es-CL', { timeZone: 'UTC' })}
                             </CardDescription>
                         </div>
                         <Badge variant={voucher.status === 'Posteado' ? 'outline' : 'secondary'}>
