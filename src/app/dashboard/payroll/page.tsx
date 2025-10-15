@@ -68,7 +68,7 @@ import {
             <CardHeader>
                 <CardTitle>Historial de Procesamiento</CardTitle>
                 <CardDescription>Revisa el estado de las liquidaciones anteriores.</CardDescription>
-            </Header>
+            </CardHeader>
             <CardContent>
                 <p className="text-sm text-muted-foreground">Aún no hay historial de procesamiento.</p>
             </CardContent>
