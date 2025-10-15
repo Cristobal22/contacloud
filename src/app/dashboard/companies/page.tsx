@@ -244,7 +244,7 @@ import { useToast } from '@/hooks/use-toast';
         </Card>
 
         <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
-            <DialogContent className="sm:max-w-[425px]">
+            <DialogContent className="sm:max-w-lg">
                 <DialogHeader>
                     <DialogTitle>{selectedCompanyLocal?.id?.startsWith('new-') ? 'Crear Nueva Empresa' : 'Editar Empresa'}</DialogTitle>
                     <DialogDescription>
@@ -252,27 +252,28 @@ import { useToast } from '@/hooks/use-toast';
                     </DialogDescription>
                 </DialogHeader>
                 <div className="grid gap-4 py-4">
-                    <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="name" className="text-right">Nombre/Razón Social</Label>
-                        <Input id="name" value={selectedCompanyLocal?.name || ''} onChange={(e) => handleFieldChange('name', e.target.value)} className="col-span-3" />
+                    <div className="space-y-2">
+                        <Label htmlFor="name">Nombre/Razón Social</Label>
+                        <Input id="name" value={selectedCompanyLocal?.name || ''} onChange={(e) => handleFieldChange('name', e.target.value)} />
                     </div>
-                     <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="rut" className="text-right">RUT</Label>
-                        <Input id="rut" value={selectedCompanyLocal?.rut || ''} onChange={(e) => handleFieldChange('rut', e.target.value)} className="col-span-3" />
+                     <div className="space-y-2">
+                        <Label htmlFor="rut">RUT</Label>
+                        <Input id="rut" value={selectedCompanyLocal?.rut || ''} onChange={(e) => handleFieldChange('rut', e.target.value)} />
                     </div>
-                     <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="address" className="text-right">Dirección</Label>
-                        <Input id="address" value={selectedCompanyLocal?.address || ''} onChange={(e) => handleFieldChange('address', e.target.value)} className="col-span-3" />
+                     <div className="space-y-2">
+                        <Label htmlFor="address">Dirección</Label>
+                        <Input id="address" value={selectedCompanyLocal?.address || ''} onChange={(e) => handleFieldChange('address', e.target.value)} />
                     </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="giro" className="text-right">Giro o Actividad Comercial</Label>
-                        <Input id="giro" value={selectedCompanyLocal?.giro || ''} onChange={(e) => handleFieldChange('giro', e.target.value)} className="col-span-3" />
+                    <div className="space-y-2">
+                        <Label htmlFor="giro">Giro o Actividad Comercial</Label>
+                        <Input id="giro" value={selectedCompanyLocal?.giro || ''} onChange={(e) => handleFieldChange('giro', e.target.value)} />
+                        <p className="text-xs text-muted-foreground">
+                            Consulte los códigos de actividad en el <a href="https://www.sii.cl/ayudas/ayudas_por_servicios/1956-codigos-1959.html" target="_blank" rel="noopener noreferrer" className="text-primary underline">sitio del SII</a>.
+                        </p>
                     </div>
-                     <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="active" className="text-right">Activa</Label>
-                        <div className="col-span-3">
-                           <Switch id="active" checked={selectedCompanyLocal?.active || false} onCheckedChange={(checked) => handleFieldChange('active', checked)} />
-                        </div>
+                     <div className="flex items-center space-x-2 pt-2">
+                        <Switch id="active" checked={selectedCompanyLocal?.active || false} onCheckedChange={(checked) => handleFieldChange('active', checked)} />
+                        <Label htmlFor="active">Activa</Label>
                     </div>
                 </div>
                 <DialogFooter>
@@ -306,4 +307,6 @@ import { useToast } from '@/hooks/use-toast';
       </>
     )
   }
+    
+
     
