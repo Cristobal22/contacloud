@@ -8,11 +8,9 @@
  */
 
 import { ai } from '@/ai/genkit';
-import { z } from 'genkit/zod';
+import { z } from 'zod';
 import { UserProfileSchema, type UserProfile } from '@/lib/types';
-import { doc, setDoc } from 'firebase/firestore';
-import { getFirestore } from 'firebase/firestore';
-import { initializeFirebase } from '@/firebase';
+
 
 export const CreateUserInputSchema = z.object({
   email: z.string().email(),
@@ -69,5 +67,3 @@ const createUserFlow = ai.defineFlow(
     return newUserProfile;
   }
 );
-
-    

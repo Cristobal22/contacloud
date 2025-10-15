@@ -1,10 +1,11 @@
+
 'use server';
 /**
  * @fileOverview A flow to centralize the RCV (Registro de Compras y Ventas) from SII.
  */
 
 import { ai } from '@/ai/genkit';
-import { z } from 'genkit/zod';
+import { z } from 'zod';
 import type { Account, Company, VoucherEntry } from '@/lib/types';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
