@@ -20,6 +20,8 @@ export default function CompanySettingsPage() {
     React.useEffect(() => {
         if (selectedCompany) {
             setCompany(selectedCompany);
+        } else {
+            setCompany(null);
         }
     }, [selectedCompany]);
 
@@ -42,14 +44,30 @@ export default function CompanySettingsPage() {
 
     const handleSaveChanges = async () => {
         if (company && company.id && firestore) {
-            const companyRef = doc(firestore, 'companies', company.id);
-            await updateDoc(companyRef, company);
-            alert('Cambios guardados exitosamente!');
+            const { id, ...companyData } = company;
+            const companyRef = doc(firestore, 'companies', id);
+            try {
+                await updateDoc(companyRef, companyData);
+                alert('Cambios guardados exitosamente!');
+            } catch (error) {
+                console.error("Error saving company settings:", error);
+                alert('Hubo un error al guardar los cambios.');
+            }
         }
     };
 
     if (!company) {
-        return <p>Selecciona una empresa para ver su configuración.</p>
+        return (
+            <Card>
+                <CardHeader>
+                    <CardTitle>Configuración de la Empresa</CardTitle>
+                    <CardDescription>Por favor, selecciona una empresa desde el menú superior para ver su configuración.</CardDescription>
+                </CardHeader>
+                 <CardContent>
+                    <p className="text-muted-foreground">No hay ninguna empresa seleccionada.</p>
+                </CardContent>
+            </Card>
+        )
     }
 
     return (
