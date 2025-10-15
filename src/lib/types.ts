@@ -13,6 +13,25 @@ export type Company = {
   name: string;
   industry: string;
   active: boolean;
+  isDistributor?: boolean;
+  startYear?: number;
+  periodStartDate?: string;
+  periodEndDate?: string;
+  profitAccount?: string;
+  lossAccount?: string;
+  salesInvoicesReceivableAccount?: string;
+  salesNotesReceivableAccount?: string;
+  salesVatAccount?: string;
+  salesOtherTaxesAccount?: string;
+  proportionalVat?: boolean;
+  purchasesInvoicesPayableAccount?: string;
+  purchasesNotesPayableAccount?: string;
+  purchasesVatAccount?: string;
+  purchasesOtherTaxesAccount?: string;
+  feesPayableAccount?: string;
+  feesWithholdingAccount?: string;
+  incomeFeesReceivableAccount?: string;
+  incomeFeesWithholdingAccount?: string;
 };
 
 export type Account = {

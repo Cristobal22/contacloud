@@ -28,6 +28,7 @@ import {
   import { useCollection, useFirestore } from "@/firebase"
   import { collection } from "firebase/firestore"
   import type { Company } from "@/lib/types"
+  import Link from "next/link"
   
   export default function CompaniesPage() {
     const firestore = useFirestore();
@@ -86,7 +87,9 @@ import {
                         <DropdownMenuContent align="end">
                             <DropdownMenuLabel>Acciones</DropdownMenuLabel>
                             <DropdownMenuItem>Editar</DropdownMenuItem>
-                            <DropdownMenuItem>Ver Detalles</DropdownMenuItem>
+                            <DropdownMenuItem asChild>
+                              <Link href={`/dashboard/companies/settings`}>Configuración</Link>
+                            </DropdownMenuItem>
                             <DropdownMenuItem className="text-destructive">
                             Eliminar
                             </DropdownMenuItem>
