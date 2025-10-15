@@ -1,3 +1,4 @@
+
 'use client';
 
 import React from 'react';
@@ -49,9 +50,9 @@ import {
             const movements = accountMovements.get(account.code);
             let finalBalance = account.balance || 0; // Ensure balance is a number
             if (movements) {
-                 if (account.type === 'Activo' || account.type === 'Resultado') {
+                 if (account.type === 'Activo' || (account.type === 'Resultado' && movements.debit > movements.credit)) {
                      finalBalance += movements.debit - movements.credit;
-                 } else { // Pasivo, Patrimonio
+                 } else { // Pasivo, Patrimonio, Resultado (Acreedor)
                      finalBalance += movements.credit - movements.debit;
                  }
             }
@@ -110,6 +111,3 @@ import {
       </Card>
     )
   }
-  
-
-    

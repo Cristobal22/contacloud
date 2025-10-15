@@ -8,25 +8,52 @@ import {
     CardHeader,
     CardTitle,
     CardFooter,
-  } from "@/components/ui/card"
+} from "@/components/ui/card"
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter as TableFooterOriginal } from '@/components/ui/table';
+import { useCollection } from '@/firebase';
+import type { Purchase, Sale } from '@/lib/types';
+import { startOfMonth, endOfMonth } from 'date-fns';
   
-  export default function VatSummaryPage() {
+export default function VatSummaryPage({ companyId }: { companyId?: string }) {
     const currentYear = new Date().getFullYear();
-    const currentMonth = new Date().getMonth() + 1;
+    const currentMonth = new Date().getMonth();
 
-    const [year, setYear] = React.useState(currentYear.toString());
-    const [month, setMonth] = React.useState(currentMonth.toString());
-    const [summary, setSummary] = React.useState<any | null>(null);
+    const [year, setYear] = React.useState(currentYear);
+    const [month, setMonth] = React.useState(currentMonth);
+    const [summary, setSummary] = React.useState<{debit: number, credit: number, total: number} | null>(null);
+
+    const { data: sales, loading: salesLoading } = useCollection<Sale>({ path: `companies/${companyId}/sales`, companyId: companyId });
+    const { data: purchases, loading: purchasesLoading } = useCollection<Purchase>({ path: `companies/${companyId}/purchases`, companyId: companyId });
+    
+    const loading = salesLoading || purchasesLoading;
 
     const handleGenerate = () => {
+        const startDate = startOfMonth(new Date(year, month));
+        const endDate = endOfMonth(new Date(year, month));
+
+        const relevantSales = sales?.filter(s => {
+            const saleDate = new Date(s.date);
+            return saleDate >= startDate && saleDate <= endDate;
+        }) || [];
+
+        const relevantPurchases = purchases?.filter(p => {
+            const purchaseDate = new Date(p.date);
+            return purchaseDate >= startDate && purchaseDate <= endDate;
+        }) || [];
+
+        const totalSales = relevantSales.reduce((sum, s) => sum + s.total, 0);
+        const totalPurchases = relevantPurchases.reduce((sum, p) => sum + p.total, 0);
+
+        const vatDebit = totalSales * 0.19;
+        const vatCredit = totalPurchases * 0.19;
+
         setSummary({
-            debit: 475000,
-            credit: 285000,
-            total: 190000
+            debit: vatDebit,
+            credit: vatCredit,
+            total: vatDebit - vatCredit,
         });
     }
 
@@ -42,13 +69,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
                 <div className="flex-1 grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                         <Label htmlFor="month">Mes</Label>
-                        <Select value={month} onValueChange={setMonth}>
+                        <Select value={month.toString()} onValueChange={(val) => setMonth(parseInt(val))}>
                             <SelectTrigger id="month">
                                 <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
                                 {Array.from({ length: 12 }, (_, i) => (
-                                    <SelectItem key={i+1} value={(i+1).toString()}>
+                                    <SelectItem key={i} value={i.toString()}>
                                         {new Date(0, i).toLocaleString('es-CL', { month: 'long' })}
                                     </SelectItem>
                                 ))}
@@ -57,7 +84,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
                     </div>
                     <div className="space-y-2">
                         <Label htmlFor="year">Año</Label>
-                        <Select value={year} onValueChange={setYear}>
+                        <Select value={year.toString()} onValueChange={(val) => setYear(parseInt(val))}>
                             <SelectTrigger id="year">
                                 <SelectValue />
                             </SelectTrigger>
@@ -71,7 +98,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
                         </Select>
                     </div>
                 </div>
-                <Button onClick={handleGenerate}>Generar Resumen</Button>
+                <Button onClick={handleGenerate} disabled={loading || !companyId}>
+                    {loading ? 'Cargando...' : 'Generar Resumen'}
+                </Button>
             </div>
           </CardContent>
         </Card>
@@ -79,7 +108,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
             <CardHeader>
                 <CardTitle>Resumen de IVA</CardTitle>
                  <CardDescription>
-                    {summary ? `Resumen para ${new Date(parseInt(year), parseInt(month)-1).toLocaleString('es-CL', { month: 'long', year: 'numeric' })}` : "Aún no se ha generado ningún resumen."}
+                    {summary ? `Resumen para ${new Date(year, month).toLocaleString('es-CL', { month: 'long', year: 'numeric' })}` 
+                    : !companyId ? "Por favor, selecciona una empresa." : "Aún no se ha generado ningún resumen."}
                  </CardDescription>
             </CardHeader>
             <CardContent>
@@ -96,19 +126,19 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
                         <TableBody>
                             <TableRow>
                                 <TableCell>IVA Débito Fiscal (Ventas)</TableCell>
-                                <TableCell className="text-right">${summary.debit.toLocaleString('es-CL')}</TableCell>
+                                <TableCell className="text-right">${Math.round(summary.debit).toLocaleString('es-CL')}</TableCell>
                             </TableRow>
                              <TableRow>
                                 <TableCell>IVA Crédito Fiscal (Compras)</TableCell>
-                                <TableCell className="text-right">- ${summary.credit.toLocaleString('es-CL')}</TableCell>
+                                <TableCell className="text-right">- ${Math.round(summary.credit).toLocaleString('es-CL')}</TableCell>
                             </TableRow>
                         </TableBody>
-                        <TableFooter>
+                        <TableFooterOriginal>
                             <TableRow className="font-bold text-lg">
                                 <TableCell>{summary.total >= 0 ? "IVA a Pagar" : "Remanente Crédito Fiscal"}</TableCell>
-                                <TableCell className="text-right">${Math.abs(summary.total).toLocaleString('es-CL')}</TableCell>
+                                <TableCell className="text-right">${Math.round(Math.abs(summary.total)).toLocaleString('es-CL')}</TableCell>
                             </TableRow>
-                        </TableFooter>
+                        </TableFooterOriginal>
                     </Table>
                 )}
             </CardContent>
@@ -116,4 +146,3 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
       </div>
     )
   }
-  

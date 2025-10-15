@@ -1,37 +1,94 @@
 
 'use client';
 
+import React from "react";
 import {
     Card,
     CardContent,
     CardDescription,
     CardHeader,
     CardTitle,
-  } from "@/components/ui/card"
+} from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { DateRangePicker } from "@/components/date-range-picker"
-import React from "react";
 import { DateRange } from "react-day-picker";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import { useCollection } from "@/firebase";
+import type { Account, Voucher } from "@/lib/types";
 
-  
-  export default function BalancesPage() {
+type BalanceRow = {
+    code: string;
+    name: string;
+    debit: number;
+    credit: number;
+    balance: number;
+};
+
+export default function BalancesPage({ companyId }: { companyId?: string }) {
     const [date, setDate] = React.useState<DateRange | undefined>({
         from: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
         to: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0),
     });
-    const [generatedBalance, setGeneratedBalance] = React.useState<any[] | null>(null);
+    const [generatedBalance, setGeneratedBalance] = React.useState<BalanceRow[] | null>(null);
+
+    const { data: accounts, loading: accountsLoading } = useCollection<Account>({
+        path: companyId ? `companies/${companyId}/accounts` : undefined,
+        companyId: companyId,
+    });
+    const { data: vouchers, loading: vouchersLoading } = useCollection<Voucher>({
+        path: companyId ? `companies/${companyId}/vouchers` : undefined,
+        companyId: companyId,
+    });
+
+    const loading = accountsLoading || vouchersLoading;
 
     const handleGenerate = () => {
-        // Mock balance generation
-        setGeneratedBalance([
-            { code: '1.1.01', name: 'Caja', debit: 1500000, credit: 500000, balance: 1000000 },
-            { code: '1.2.01', name: 'Clientes', debit: 2500000, credit: 1200000, balance: 1300000 },
-            { code: '2.1.01', name: 'Proveedores', debit: 800000, credit: 1800000, balance: -1000000 },
-            { code: '3.1.01', name: 'Capital', debit: 0, credit: 1300000, balance: -1300000 },
-        ]);
+        if (!accounts || !vouchers || !date?.from || !date?.to) {
+            setGeneratedBalance([]);
+            return;
+        };
+
+        const startDate = date.from;
+        const endDate = date.to;
+
+        const filteredVouchers = vouchers.filter(v => {
+            const voucherDate = new Date(v.date);
+            return voucherDate >= startDate && voucherDate <= endDate && v.status === 'Contabilizado';
+        });
+
+        const accountMovements = new Map<string, { debit: number; credit: number }>();
+
+        filteredVouchers.forEach(voucher => {
+            voucher.entries.forEach(entry => {
+                const current = accountMovements.get(entry.account) || { debit: 0, credit: 0 };
+                current.debit += Number(entry.debit) || 0;
+                current.credit += Number(entry.credit) || 0;
+                accountMovements.set(entry.account, current);
+            });
+        });
+
+        const balanceData = accounts.map(account => {
+            const movements = accountMovements.get(account.code) || { debit: 0, credit: 0 };
+            let finalBalance = account.balance || 0;
+
+            if (account.type === 'Activo' || (account.type === 'Resultado' && movements.debit > movements.credit)) {
+                finalBalance += movements.debit - movements.credit;
+            } else {
+                finalBalance += movements.credit - movements.debit;
+            }
+            
+            return {
+                code: account.code,
+                name: account.name,
+                debit: movements.debit,
+                credit: movements.credit,
+                balance: finalBalance,
+            };
+        }).filter(item => item.debit > 0 || item.credit > 0);
+
+        setGeneratedBalance(balanceData);
     }
 
     const totals = React.useMemo(() => {
@@ -54,7 +111,9 @@ import { es } from "date-fns/locale";
                         <div className="flex-1">
                              <DateRangePicker date={date} onDateChange={setDate} />
                         </div>
-                        <Button onClick={handleGenerate}>Generar Balance</Button>
+                        <Button onClick={handleGenerate} disabled={loading || !companyId}>
+                            {loading ? 'Cargando...' : 'Generar Balance'}
+                        </Button>
                     </div>
                 </CardContent>
             </Card>
@@ -63,8 +122,8 @@ import { es } from "date-fns/locale";
                     <CardTitle>Último Balance Generado</CardTitle>
                     <CardDescription>
                          {generatedBalance && date?.from && date?.to ? 
-                            `Balance de 8 columnas para el período del ${format(date.from, "P", { locale: es })} al ${format(date.to, "P", { locale: es })}.` 
-                            : "Aún no se ha generado ningún balance."}
+                            `Balance para el período del ${format(date.from, "P", { locale: es })} al ${format(date.to, "P", { locale: es })}.` 
+                            : !companyId ? "Por favor, selecciona una empresa." : "Aún no se ha generado ningún balance."}
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -82,6 +141,9 @@ import { es } from "date-fns/locale";
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
+                                {generatedBalance.length === 0 && (
+                                    <TableRow><TableCell colSpan={5} className="text-center">No hay movimientos en el período seleccionado.</TableCell></TableRow>
+                                )}
                                 {generatedBalance.map(row => (
                                     <TableRow key={row.code}>
                                         <TableCell>{row.code}</TableCell>
@@ -109,4 +171,3 @@ import { es } from "date-fns/locale";
       </div>
     )
   }
-  
