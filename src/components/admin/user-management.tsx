@@ -1,3 +1,4 @@
+
 'use client';
 
 import React from 'react';
@@ -43,6 +44,7 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Checkbox } from '@/components/ui/checkbox';
+import { Skeleton } from '../ui/skeleton';
 
 type NewUserInput = {
   email: string;
@@ -54,7 +56,7 @@ export default function UserManagement() {
     const auth = useAuth();
     const { toast } = useToast();
 
-    const { data: users, loading: usersLoading } = useCollection<UserProfile>({ path: 'users' });
+    const { data: users, loading: usersLoading, error } = useCollection<UserProfile>({ path: 'users' });
     const { data: companies, loading: companiesLoading } = useCollection<Company>({ path: 'companies' });
     
     const [isCreateFormOpen, setIsCreateFormOpen] = useState(false);
@@ -91,6 +93,7 @@ export default function UserManagement() {
         setIsProcessing(true);
 
         try {
+            // This is a temporary password, user will be forced to reset it.
             const tempPassword = Math.random().toString(36).slice(-8) + 'A1!';
             const userCredential = await createUserWithEmailAndPassword(auth, newUser.email, tempPassword);
             const user = userCredential.user;
@@ -99,13 +102,15 @@ export default function UserManagement() {
                 uid: user.uid,
                 email: user.email!,
                 displayName: newUser.displayName || user.email!.split('@')[0],
-                role: 'Accountant',
+                role: 'Accountant', // All users created here are Accountants by default
                 photoURL: `https://i.pravatar.cc/150?u=${user.uid}`,
                 companyIds: []
             };
 
+            // Set the user profile in Firestore
             await setDoc(doc(firestore, 'users', user.uid), newUserProfile);
             
+            // Send password reset email
             await sendPasswordResetEmail(auth, user.email!);
 
             toast({
@@ -169,6 +174,62 @@ export default function UserManagement() {
     
     const loading = usersLoading || companiesLoading;
 
+    const renderTableContent = () => {
+        if (loading) {
+            return (
+                <TableRow>
+                    <TableCell colSpan={5} className="h-24 text-center">
+                        <p>Cargando usuarios...</p>
+                    </TableCell>
+                </TableRow>
+            );
+        }
+
+        if (error) {
+             return (
+                <TableRow>
+                    <TableCell colSpan={5} className="h-24 text-center text-destructive">
+                        <p>Error de permisos: No se pueden listar los usuarios.</p>
+                        <p className='text-xs text-muted-foreground'>Asegúrate de que las reglas de Firestore permitan la operación 'list' en la colección 'users' para administradores.</p>
+                    </TableCell>
+                </TableRow>
+            );
+        }
+
+        if (!users || users.length === 0) {
+            return (
+                <TableRow>
+                    <TableCell colSpan={5} className="h-24 text-center">
+                        No se encontraron usuarios.
+                    </TableCell>
+                </TableRow>
+            );
+        }
+
+        return users.map(user => (
+            <TableRow key={user.uid}>
+                <TableCell className="font-medium">{user.displayName}</TableCell>
+                <TableCell>{user.email}</TableCell>
+                <TableCell>{user.role}</TableCell>
+                <TableCell>{user.companyIds?.length || 0}</TableCell>
+                <TableCell>
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button aria-haspopup="true" size="icon" variant="ghost" disabled={user.role === 'Admin'}>
+                                <MoreHorizontal className="h-4 w-4" />
+                                <span className="sr-only">Toggle menu</span>
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                            <DropdownMenuLabel>Acciones</DropdownMenuLabel>
+                            <DropdownMenuItem onSelect={() => handleEditUser(user)}>Editar / Asignar Empresas</DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                </TableCell>
+            </TableRow>
+        ));
+    };
+
     return (
         <>
             <Card>
@@ -196,36 +257,9 @@ export default function UserManagement() {
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {loading && <TableRow><TableCell colSpan={5} className="text-center">Cargando usuarios...</TableCell></TableRow>}
-                            {!loading && users?.map(user => (
-                                <TableRow key={user.uid}>
-                                    <TableCell className="font-medium">{user.displayName}</TableCell>
-                                    <TableCell>{user.email}</TableCell>
-                                    <TableCell>{user.role}</TableCell>
-                                    <TableCell>{user.companyIds?.length || 0}</TableCell>
-                                    <TableCell>
-                                        <DropdownMenu>
-                                            <DropdownMenuTrigger asChild>
-                                                <Button aria-haspopup="true" size="icon" variant="ghost">
-                                                    <MoreHorizontal className="h-4 w-4" />
-                                                    <span className="sr-only">Toggle menu</span>
-                                                </Button>
-                                            </DropdownMenuTrigger>
-                                            <DropdownMenuContent align="end">
-                                                <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-                                                <DropdownMenuItem onSelect={() => handleEditUser(user)}>Editar / Asignar Empresas</DropdownMenuItem>
-                                            </DropdownMenuContent>
-                                        </DropdownMenu>
-                                    </TableCell>
-                                </TableRow>
-                            ))}
+                            {renderTableContent()}
                         </TableBody>
                     </Table>
-                    {users?.length === 0 && !loading && (
-                        <div className="text-center py-12 border-2 border-dashed rounded-lg">
-                             <p className="text-sm text-muted-foreground mt-2">No se encontraron usuarios.</p>
-                        </div>
-                    )}
                 </CardContent>
             </Card>
 
@@ -277,7 +311,13 @@ export default function UserManagement() {
                             <div>
                                 <Label>Empresas Asignadas</Label>
                                 <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-2 rounded-lg border p-4 max-h-60 overflow-y-auto">
-                                    {companiesLoading && <p>Cargando empresas...</p>}
+                                    {companiesLoading && (
+                                        <div className="col-span-full space-y-2">
+                                            <Skeleton className="h-5 w-3/4" />
+                                            <Skeleton className="h-5 w-1/2" />
+                                            <Skeleton className="h-5 w-2/3" />
+                                        </div>
+                                    )}
                                     {companies?.map(company => (
                                         <div key={company.id} className="flex items-center space-x-2">
                                             <Checkbox
@@ -288,6 +328,7 @@ export default function UserManagement() {
                                             <Label htmlFor={`company-${company.id}`} className="font-normal">{company.name}</Label>
                                         </div>
                                     ))}
+                                    {!companiesLoading && companies?.length === 0 && <p className="text-sm text-muted-foreground">No hay empresas para asignar.</p>}
                                 </div>
                             </div>
                         </div>

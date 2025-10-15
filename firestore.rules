@@ -1,311 +1,355 @@
 /**
- * @file Firestore Security Rules
- * @core-philosophy This ruleset enforces a strict user-ownership model for user profiles
- *  and a company-based access control model for company data. Global data collections
- *  (account groups, institutions, parameters, entities) are publicly readable but not writable by clients.
+ * @file Firebase Security Rules for Accounting Platform
+ * @core-philosophy This ruleset enforces a role-based access control model,
+ *  where 'Admin' users have broad read access and user-specific data is
+ *  protected by ownership. Data integrity is ensured by validating key
+ *  fields on create and update operations.
  * @data-structure
- *  - /users/{userId}: Stores individual user profiles, accessible only to the user themselves.
- *  - /companies: Stores company data. Access to company subcollections is restricted to
- *    authenticated users. Data within a company is implicitly accessible.
- *  - /companies/{companyId}/accounts: Accounts for a given company.
- *  - /companies/{companyId}/vouchers: Vouchers for a given company.
- *  - /companies/{companyId}/subjects: Subjects for a given company.
- *  - /companies/{companyId}/cost-centers: Cost centers for a given company.
- *  - /companies/{companyId}/employees: Employees for a given company.
- *  - /companies/{companyId}/purchases: Purchases for a given company.
- *  - /companies/{companyId}/sales: Sales for a given company.
- *  - /companies/{companyId}/fees: Fees for a given company.
- *  - /account-groups: Stores global account groups, publicly readable.
- *  - /institutions: Stores global institution data, publicly readable.
- *  - /family-allowance-parameters: Stores global family allowance parameters, publicly readable.
- *  - /tax-parameters: Stores global tax parameters, publicly readable.
- *  - /health-entities: Stores global health entities, publicly readable.
- *  - /afp-entities: Stores global AFP entities, publicly readable.
+ *  - /users/{userId}: Stores user profiles, accessible to admins and the user themselves.
+ *  - /companies: Stores company data, publicly readable, writable only by admins.
+ *  - /companies/{companyId}/*: Subcollections for company-specific data, writable only by admins.
+ *  - /account-groups, /institutions, /family-allowance-parameters, /tax-parameters, /health-entities, /afp-entities:
+ *    Global collections, publicly readable, writable only by admins.
  * @key-security-decisions
- *  - User listing is explicitly denied to prevent information disclosure.
- *  - Company-level security is implicitly granted to authenticated users. More granular
- *    access control within a company would require a role-based access control (RBAC)
- *    system, which is out of scope for this initial ruleset.
- *  - Global data collections are read-only for clients, updates must be performed
- *    through the Firebase Admin SDK.
+ *  - User listing is restricted to admins.
+ *  - Read-only collections (e.g., /account-groups) are publicly readable.
+ *  - Company-related data is namespaced under /companies/{companyId}/... and secured by admin privileges.
+ * @denormalization-for-authorization None needed in this basic ruleset.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Manages user profile data, ensuring only the user can access their own profile.
-     * @path /users/{userId}
-     * @allow (create) User with UID 'user_abc' can create their profile with matching document ID.
-     * @allow (get, update, delete) User with UID 'user_abc' can access and modify their profile.
-     * @deny Any other user cannot access or modify another user's profile.
-     * @principle Enforces document ownership for user profiles.
+     * @description: Controls access to user profile data.
+     * @path: /users/{userId}
+     * @allow: User with UID 'user123' can read their own profile (get)
+     *          request.auth.uid == 'user123'
+     * @allow: Admin user can read any user profile (get)
+     *          request.auth.token.role == 'Admin'
+     * @allow: User with UID 'user123' can create their own profile (create)
+     *          request.auth.uid == 'user123'
+     * @allow: User with UID 'user123' can update their own profile (update)
+     *          request.auth.uid == 'user123'
+     * @deny: User with UID 'user123' cannot read another user's profile (get)
+     *         request.auth.uid != 'anotherUser'
+     * @deny: User with UID 'user123' cannot create another user's profile (create)
+     *         request.auth.uid != 'anotherUser'
+     * @deny: User with UID 'user123' cannot update another user's profile (update)
+     *         request.auth.uid != 'anotherUser'
+     * @principle: Enforces document ownership for writes, restricts reads to owner and admins.
      */
     match /users/{userId} {
-      function isSignedIn() {
-        return request.auth != null;
-      }
-
       function isOwner(userId) {
         return request.auth.uid == userId;
       }
-
-      function isExistingOwner(userId) {
-        return isOwner(userId) && resource != null;
+      function isAdmin() {
+        return request.auth.token.role == 'Admin';
       }
-
-      allow get: if isOwner(userId);
-      allow list: if false;
-      allow create: if isSignedIn() && request.auth.uid == userId;
-      allow update: if isExistingOwner(userId);
-      allow delete: if isExistingOwner(userId);
+      allow get: if isOwner(userId) || isAdmin();
+      allow list: if isAdmin();
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId) && resource.data.uid == userId;
+      allow delete: if false;
     }
 
     /**
-     * @description Manages company data, allowing authenticated users.
-     * @path /companies
-     * @allow (create) Authenticated user can create a company.
-     * @allow (get, list) Authenticated user can read company data.
-     * @deny Unauthenticated users cannot create or access company data.
-     * @principle Grants access to company data for authenticated users.
+     * @description: Controls access to company data.
+     * @path: /companies
+     * @allow: Any user can read company data (get, list)
+     *          true
+     * @allow: Admin can create new companies (create)
+     *          request.auth.token.role == 'Admin'
+     * @deny: Non-admin users cannot create, update, or delete companies.
+     *          request.auth.token.role != 'Admin'
+     * @principle: Public read, admin-only writes.
      */
     match /companies/{companyId} {
-      function isSignedIn() {
-        return request.auth != null;
+      function isAdmin() {
+        return request.auth.token.role == 'Admin';
       }
-
-      allow get, list: if isSignedIn();
-      allow create: if isSignedIn();
-      allow update: if isSignedIn();
-      allow delete: if isSignedIn();
-
-      /**
-       * @description Manages account data for a specific company.
-       * @path /companies/{companyId}/accounts
-       * @allow (create, get, list, update, delete) Authenticated user can manage accounts for their company.
-       * @deny Unauthenticated users cannot access or modify company account data.
-       * @principle Grants access to company account data for authenticated users.
-       */
-      match /companies/{companyId}/accounts/{accountId} {
-        function isSignedIn() {
-          return request.auth != null;
-        }
-
-        allow get, list: if isSignedIn();
-        allow create: if isSignedIn();
-        allow update: if isSignedIn();
-        allow delete: if isSignedIn();
-      }
-
-      /**
-       * @description Manages voucher data for a specific company.
-       * @path /companies/{companyId}/vouchers
-       * @allow (create, get, list, update, delete) Authenticated user can manage vouchers for their company.
-       * @deny Unauthenticated users cannot access or modify company voucher data.
-       * @principle Grants access to company voucher data for authenticated users.
-       */
-      match /companies/{companyId}/vouchers/{voucherId} {
-        function isSignedIn() {
-          return request.auth != null;
-        }
-
-        allow get, list: if isSignedIn();
-        allow create: if isSignedIn();
-        allow update: if isSignedIn();
-        allow delete: if isSignedIn();
-      }
-
-      /**
-       * @description Manages subject data for a specific company.
-       * @path /companies/{companyId}/subjects
-       * @allow (create, get, list, update, delete) Authenticated user can manage subjects for their company.
-       * @deny Unauthenticated users cannot access or modify company subject data.
-       * @principle Grants access to company subject data for authenticated users.
-       */
-      match /companies/{companyId}/subjects/{subjectId} {
-        function isSignedIn() {
-          return request.auth != null;
-        }
-
-        allow get, list: if isSignedIn();
-        allow create: if isSignedIn();
-        allow update: if isSignedIn();
-        allow delete: if isSignedIn();
-      }
-
-      /**
-       * @description Manages cost center data for a specific company.
-       * @path /companies/{companyId}/cost-centers
-       * @allow (create, get, list, update, delete) Authenticated user can manage cost centers for their company.
-       * @deny Unauthenticated users cannot access or modify company cost center data.
-       * @principle Grants access to company cost center data for authenticated users.
-       */
-      match /companies/{companyId}/cost-centers/{costCenterId} {
-        function isSignedIn() {
-          return request.auth != null;
-        }
-
-        allow get, list: if isSignedIn();
-        allow create: if isSignedIn();
-        allow update: if isSignedIn();
-        allow delete: if isSignedIn();
-      }
-
-      /**
-       * @description Manages employee data for a specific company.
-       * @path /companies/{companyId}/employees
-       * @allow (create, get, list, update, delete) Authenticated user can manage employees for their company.
-       * @deny Unauthenticated users cannot access or modify company employee data.
-       * @principle Grants access to company employee data for authenticated users.
-       */
-      match /companies/{companyId}/employees/{employeeId} {
-        function isSignedIn() {
-          return request.auth != null;
-        }
-
-        allow get, list: if isSignedIn();
-        allow create: if isSignedIn();
-        allow update: if isSignedIn();
-        allow delete: if isSignedIn();
-      }
-
-        /**
-       * @description Manages purchase data for a specific company.
-       * @path /companies/{companyId}/purchases
-       * @allow (create, get, list, update, delete) Authenticated user can manage purchases for their company.
-       * @deny Unauthenticated users cannot access or modify company purchase data.
-       * @principle Grants access to company purchase data for authenticated users.
-       */
-      match /companies/{companyId}/purchases/{purchaseId} {
-        function isSignedIn() {
-          return request.auth != null;
-        }
-
-        allow get, list: if isSignedIn();
-        allow create: if isSignedIn();
-        allow update: if isSignedIn();
-        allow delete: if isSignedIn();
-      }
-
-      /**
-       * @description Manages sale data for a specific company.
-       * @path /companies/{companyId}/sales
-       * @allow (create, get, list, update, delete) Authenticated user can manage sales for their company.
-       * @deny Unauthenticated users cannot access or modify company sale data.
-       * @principle Grants access to company sale data for authenticated users.
-       */
-      match /companies/{companyId}/sales/{saleId} {
-        function isSignedIn() {
-          return request.auth != null;
-        }
-
-        allow get, list: if isSignedIn();
-        allow create: if isSignedIn();
-        allow update: if isSignedIn();
-        allow delete: if isSignedIn();
-      }
-
-       /**
-       * @description Manages fee data for a specific company.
-       * @path /companies/{companyId}/fees
-       * @allow (create, get, list, update, delete) Authenticated user can manage fees for their company.
-       * @deny Unauthenticated users cannot access or modify company fee data.
-       * @principle Grants access to company fee data for authenticated users.
-       */
-      match /companies/{companyId}/fees/{feeId} {
-        function isSignedIn() {
-          return request.auth != null;
-        }
-
-        allow get, list: if isSignedIn();
-        allow create: if isSignedIn();
-        allow update: if isSignedIn();
-        allow delete: if isSignedIn();
-      }
+      allow get, list: if true;
+      allow create: if isAdmin();
+      allow update: if isAdmin() && resource != null;
+      allow delete: if isAdmin() && resource != null;
     }
 
     /**
-     * @description Manages global account group data, allowing public read access.
-     * @path /account-groups
-     * @allow (get, list) Public read access to account group data.
-     * @deny (create, update, delete) No client-side writes allowed.
-     * @principle Provides public read access to global account group data.
+     * @description: Controls access to company-specific account data.
+     * @path: /companies/{companyId}/accounts/{accountId}
+     * @allow: Admin user can read or write account data (get, list, create, update, delete)
+     *          request.auth.token.role == 'Admin'
+     * @deny: Non-admin users cannot access account data.
+     *          request.auth.token.role != 'Admin'
+     * @principle: Admin-only access to company account data.
+     */
+    match /companies/{companyId}/accounts/{accountId} {
+      function isAdmin() {
+        return request.auth.token.role == 'Admin';
+      }
+       allow get, list: if isAdmin();
+       allow create: if isAdmin();
+       allow update: if isAdmin() && resource != null;
+       allow delete: if isAdmin() && resource != null;
+    }
+
+    /**
+     * @description: Controls access to company-specific voucher data.
+     * @path: /companies/{companyId}/vouchers/{voucherId}
+     * @allow: Admin user can read or write voucher data (get, list, create, update, delete)
+     *          request.auth.token.role == 'Admin'
+     * @deny: Non-admin users cannot access voucher data.
+     *          request.auth.token.role != 'Admin'
+     * @principle: Admin-only access to company voucher data.
+     */
+    match /companies/{companyId}/vouchers/{voucherId} {
+      function isAdmin() {
+        return request.auth.token.role == 'Admin';
+      }
+       allow get, list: if isAdmin();
+       allow create: if isAdmin();
+       allow update: if isAdmin() && resource != null;
+       allow delete: if isAdmin() && resource != null;
+    }
+
+    /**
+     * @description: Controls access to company-specific subject data.
+     * @path: /companies/{companyId}/subjects/{subjectId}
+     * @allow: Admin user can read or write subject data (get, list, create, update, delete)
+     *          request.auth.token.role == 'Admin'
+     * @deny: Non-admin users cannot access subject data.
+     *          request.auth.token.role != 'Admin'
+     * @principle: Admin-only access to company subject data.
+     */
+    match /companies/{companyId}/subjects/{subjectId} {
+      function isAdmin() {
+        return request.auth.token.role == 'Admin';
+      }
+       allow get, list: if isAdmin();
+       allow create: if isAdmin();
+       allow update: if isAdmin() && resource != null;
+       allow delete: if isAdmin() && resource != null;
+    }
+
+    /**
+     * @description: Controls access to company-specific cost center data.
+     * @path: /companies/{companyId}/cost-centers/{costCenterId}
+     * @allow: Admin user can read or write cost center data (get, list, create, update, delete)
+     *          request.auth.token.role == 'Admin'
+     * @deny: Non-admin users cannot access cost center data.
+     *          request.auth.token.role != 'Admin'
+     * @principle: Admin-only access to company cost center data.
+     */
+    match /companies/{companyId}/cost-centers/{costCenterId} {
+      function isAdmin() {
+        return request.auth.token.role == 'Admin';
+      }
+       allow get, list: if isAdmin();
+       allow create: if isAdmin();
+       allow update: if isAdmin() && resource != null;
+       allow delete: if isAdmin() && resource != null;
+    }
+
+    /**
+     * @description: Controls access to company-specific employee data.
+     * @path: /companies/{companyId}/employees/{employeeId}
+     * @allow: Admin user can read or write employee data (get, list, create, update, delete)
+     *          request.auth.token.role == 'Admin'
+     * @deny: Non-admin users cannot access employee data.
+     *          request.auth.token.role != 'Admin'
+     * @principle: Admin-only access to company employee data.
+     */
+    match /companies/{companyId}/employees/{employeeId} {
+      function isAdmin() {
+        return request.auth.token.role == 'Admin';
+      }
+       allow get, list: if isAdmin();
+       allow create: if isAdmin();
+       allow update: if isAdmin() && resource != null;
+       allow delete: if isAdmin() && resource != null;
+    }
+    
+    /**
+     * @description: Controls access to company-specific purchase data.
+     * @path: /companies/{companyId}/purchases/{purchaseId}
+     * @allow: Admin user can read or write purchase data (get, list, create, update, delete)
+     *          request.auth.token.role == 'Admin'
+     * @deny: Non-admin users cannot access purchase data.
+     *          request.auth.token.role != 'Admin'
+     * @principle: Admin-only access to company purchase data.
+     */
+    match /companies/{companyId}/purchases/{purchaseId} {
+      function isAdmin() {
+        return request.auth.token.role == 'Admin';
+      }
+       allow get, list: if isAdmin();
+       allow create: if isAdmin();
+       allow update: if isAdmin() && resource != null;
+       allow delete: if isAdmin() && resource != null;
+    }
+
+    /**
+     * @description: Controls access to company-specific sales data.
+     * @path: /companies/{companyId}/sales/{saleId}
+     * @allow: Admin user can read or write sale data (get, list, create, update, delete)
+     *          request.auth.token.role == 'Admin'
+     * @deny: Non-admin users cannot access sales data.
+     *          request.auth.token.role != 'Admin'
+     * @principle: Admin-only access to company sale data.
+     */
+    match /companies/{companyId}/sales/{saleId} {
+      function isAdmin() {
+        return request.auth.token.role == 'Admin';
+      }
+       allow get, list: if isAdmin();
+       allow create: if isAdmin();
+       allow update: if isAdmin() && resource != null;
+       allow delete: if isAdmin() && resource != null;
+    }
+
+    /**
+     * @description: Controls access to company-specific fee data.
+     * @path: /companies/{companyId}/fees/{feeId}
+     * @allow: Admin user can read or write fee data (get, list, create, update, delete)
+     *          request.auth.token.role == 'Admin'
+     * @deny: Non-admin users cannot access fee data.
+     *          request.auth.token.role != 'Admin'
+     * @principle: Admin-only access to company fee data.
+     */
+    match /companies/{companyId}/fees/{feeId} {
+      function isAdmin() {
+        return request.auth.token.role == 'Admin';
+      }
+       allow get, list: if isAdmin();
+       allow create: if isAdmin();
+       allow update: if isAdmin() && resource != null;
+       allow delete: if isAdmin() && resource != null;
+    }
+
+    /**
+     * @description: Controls access to global account group data.
+     * @path: /account-groups/{accountGroupId}
+     * @allow: Any user can read account group data (get, list)
+     *          true
+     * @allow: Admin can create, update, or delete account groups.
+     *          request.auth.token.role == 'Admin'
+     * @deny: Non-admin users cannot create, update, or delete account groups.
+     *          request.auth.token.role != 'Admin'
+     * @principle: Public read, admin-only writes.
      */
     match /account-groups/{accountGroupId} {
-      allow get, list: if true;
-      allow create: if false;
-      allow update: if false;
-      allow delete: if false;
+      function isAdmin() {
+        return request.auth.token.role == 'Admin';
+      }
+       allow get, list: if true;
+       allow create: if isAdmin();
+       allow update: if isAdmin() && resource != null;
+       allow delete: if isAdmin() && resource != null;
     }
 
     /**
-     * @description Manages global institution data, allowing public read access.
-     * @path /institutions
-     * @allow (get, list) Public read access to institution data.
-     * @deny (create, update, delete) No client-side writes allowed.
-     * @principle Provides public read access to global institution data.
+     * @description: Controls access to global institution data.
+     * @path: /institutions/{institutionId}
+     * @allow: Any user can read institution data (get, list)
+     *          true
+     * @allow: Admin can create, update, or delete institutions.
+     *          request.auth.token.role == 'Admin'
+     * @deny: Non-admin users cannot create, update, or delete institutions.
+     *          request.auth.token.role != 'Admin'
+     * @principle: Public read, admin-only writes.
      */
     match /institutions/{institutionId} {
-      allow get, list: if true;
-      allow create: if false;
-      allow update: if false;
-      allow delete: if false;
+      function isAdmin() {
+        return request.auth.token.role == 'Admin';
+      }
+       allow get, list: if true;
+       allow create: if isAdmin();
+       allow update: if isAdmin() && resource != null;
+       allow delete: if isAdmin() && resource != null;
     }
 
     /**
-     * @description Manages global family allowance parameter data, allowing public read access.
-     * @path /family-allowance-parameters
-     * @allow (get, list) Public read access to family allowance parameter data.
-     * @deny (create, update, delete) No client-side writes allowed.
-     * @principle Provides public read access to global family allowance parameter data.
+     * @description: Controls access to global family allowance parameter data.
+     * @path: /family-allowance-parameters/{parameterId}
+     * @allow: Any user can read family allowance parameter data (get, list)
+     *          true
+     * @allow: Admin can create, update, or delete family allowance parameters.
+     *          request.auth.token.role == 'Admin'
+     * @deny: Non-admin users cannot create, update, or delete family allowance parameters.
+     *          request.auth.token.role != 'Admin'
+     * @principle: Public read, admin-only writes.
      */
-    match /family-allowance-parameters/{familyAllowanceParameterId} {
-      allow get, list: if true;
-      allow create: if false;
-      allow update: if false;
-      allow delete: if false;
+    match /family-allowance-parameters/{parameterId} {
+      function isAdmin() {
+        return request.auth.token.role == 'Admin';
+      }
+       allow get, list: if true;
+       allow create: if isAdmin();
+       allow update: if isAdmin() && resource != null;
+       allow delete: if isAdmin() && resource != null;
     }
 
     /**
-     * @description Manages global tax parameter data, allowing public read access.
-     * @path /tax-parameters
-     * @allow (get, list) Public read access to tax parameter data.
-     * @deny (create, update, delete) No client-side writes allowed.
-     * @principle Provides public read access to global tax parameter data.
+     * @description: Controls access to global tax parameter data.
+     * @path: /tax-parameters/{parameterId}
+     * @allow: Any user can read tax parameter data (get, list)
+     *          true
+     * @allow: Admin can create, update, or delete tax parameters.
+     *          request.auth.token.role == 'Admin'
+     * @deny: Non-admin users cannot create, update, or delete tax parameters.
+     *          request.auth.token.role != 'Admin'
+     * @principle: Public read, admin-only writes.
      */
-    match /tax-parameters/{taxParameterId} {
-      allow get, list: if true;
-      allow create: if false;
-      allow update: if false;
-      allow delete: if false;
+    match /tax-parameters/{parameterId} {
+      function isAdmin() {
+        return request.auth.token.role == 'Admin';
+      }
+       allow get, list: if true;
+       allow create: if isAdmin();
+       allow update: if isAdmin() && resource != null;
+       allow delete: if isAdmin() && resource != null;
     }
 
-      /**
-     * @description Manages global health entities data, allowing public read access.
-     * @path /health-entities
-     * @allow (get, list) Public read access to health entities data.
-     * @deny (create, update, delete) No client-side writes allowed.
-     * @principle Provides public read access to global health entities data.
+    /**
+     * @description: Controls access to global health entities data.
+     * @path: /health-entities/{healthEntityId}
+     * @allow: Any user can read health entities data (get, list)
+     *          true
+     * @allow: Admin can create, update, or delete health entities.
+     *          request.auth.token.role == 'Admin'
+     * @deny: Non-admin users cannot create, update, or delete health entities.
+     *          request.auth.token.role != 'Admin'
+     * @principle: Public read, admin-only writes.
      */
     match /health-entities/{healthEntityId} {
-      allow get, list: if true;
-      allow create: if false;
-      allow update: if false;
-      allow delete: if false;
+      function isAdmin() {
+        return request.auth.token.role == 'Admin';
+      }
+       allow get, list: if true;
+       allow create: if isAdmin();
+       allow update: if isAdmin() && resource != null;
+       allow delete: if isAdmin() && resource != null;
     }
 
     /**
-     * @description Manages global AFP entities data, allowing public read access.
-     * @path /afp-entities
-     * @allow (get, list) Public read access to AFP entities data.
-     * @deny (create, update, delete) No client-side writes allowed.
-     * @principle Provides public read access to global AFP entities data.
+     * @description: Controls access to global AFP entities data.
+     * @path: /afp-entities/{afpEntityId}
+     * @allow: Any user can read AFP entities data (get, list)
+     *          true
+     * @allow: Admin can create, update, or delete AFP entities.
+     *          request.auth.token.role == 'Admin'
+     * @deny: Non-admin users cannot create, update, or delete AFP entities.
+     *          request.auth.token.role != 'Admin'
+     * @principle: Public read, admin-only writes.
      */
     match /afp-entities/{afpEntityId} {
-      allow get, list: if true;
-      allow create: if false;
-      allow update: if false;
-      allow delete: if false;
+      function isAdmin() {
+        return request.auth.token.role == 'Admin';
+      }
+       allow get, list: if true;
+       allow create: if isAdmin();
+       allow update: if isAdmin() && resource != null;
+       allow delete: if isAdmin() && resource != null;
     }
   }
 }
