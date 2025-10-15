@@ -48,9 +48,10 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { useCollection, useFirestore, useUser } from "@/firebase"
+import { useCollection, useFirestore, useUser, useAuth } from "@/firebase"
 import type { UserProfile } from "@/lib/types"
 import { collection, doc, setDoc, deleteDoc } from "firebase/firestore"
+import { createUserWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth'
 import { errorEmitter } from '@/firebase/error-emitter'
 import { FirestorePermissionError } from '@/firebase/errors'
 import { useMemo, useState } from 'react';
@@ -64,6 +65,7 @@ type NewUserInput = {
 
 export default function UserManagement() {
     const firestore = useFirestore();
+    const auth = useAuth();
     const { user: authUser } = useUser();
     const { userProfile: currentUserProfile, loading: profileLoading } = useUserProfile(authUser?.uid);
     const { toast } = useToast();
@@ -75,7 +77,7 @@ export default function UserManagement() {
         return collection(firestore, 'users');
     }, [firestore]);
 
-    const { data: users, loading: usersLoading } = useCollection<UserProfile>({ 
+    const { data: users, loading: usersLoading, refetch: refetchUsers } = useCollection<UserProfile>({ 
       query: usersCollection,
       disabled: !isCurrentUserAdmin,
     });
@@ -135,6 +137,7 @@ export default function UserManagement() {
     };
 
     const handleCreateUser = async () => {
+        if (!auth || !firestore) return;
         if (!newUser.email) {
             toast({ variant: 'destructive', title: 'Error', description: 'Por favor, complete el correo electrónico.' });
             return;
@@ -143,28 +146,39 @@ export default function UserManagement() {
         setIsCreating(true);
 
         try {
-            const response = await fetch('/api/create-user', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    email: newUser.email,
-                    displayName: newUser.displayName,
-                }),
+            // We need a temporary random password, as we cannot create a user without one.
+            const tempPassword = Math.random().toString(36).slice(-8);
+            const userCredential = await createUserWithEmailAndPassword(auth, newUser.email, tempPassword);
+            const user = userCredential.user;
+
+            const newUserProfile: UserProfile = {
+                uid: user.uid,
+                email: user.email!,
+                displayName: newUser.displayName || user.email!.split('@')[0],
+                role: 'Accountant',
+                photoURL: `https://i.pravatar.cc/150?u=${user.uid}`
+            };
+
+            await setDoc(doc(firestore, 'users', user.uid), newUserProfile);
+            
+            // This function from the client SDK generates a link and sends the email automatically
+            await sendPasswordResetEmail(auth, user.email!);
+
+            toast({
+                title: 'Usuario Creado y Correo Enviado',
+                description: `Se ha enviado un correo a ${user.email} para que establezca su contraseña.`,
             });
-
-            const result = await response.json();
-
-            if (!response.ok) {
-                throw new Error(result.error || 'Failed to create user.');
-            }
-
-            setInvitationLink(result.invitationLink);
+            
             setIsCreateFormOpen(false);
-            setIsSuccessDialogOpen(true);
+            refetchUsers();
 
         } catch (error: any) {
             console.error('Error creating user:', error);
-            toast({ variant: 'destructive', title: 'Error al Crear Usuario', description: error.message });
+            if (error.code === 'auth/email-already-in-use') {
+                toast({ variant: 'destructive', title: 'Error al Crear Usuario', description: 'El correo electrónico ya está en uso.' });
+            } else {
+                toast({ variant: 'destructive', title: 'Error al Crear Usuario', description: 'Ocurrió un error inesperado.' });
+            }
         } finally {
             setIsCreating(false);
         }
@@ -198,12 +212,6 @@ export default function UserManagement() {
     
     const handleNewUserFieldChange = (field: keyof NewUserInput, value: string) => {
         setNewUser(prev => ({...prev, [field]: value}));
-    };
-
-    const copyToClipboard = () => {
-        navigator.clipboard.writeText(invitationLink).then(() => {
-            toast({ title: 'Copiado', description: 'El enlace de invitación se ha copiado al portapapeles.' });
-        });
     };
 
     return (
@@ -323,7 +331,7 @@ export default function UserManagement() {
                     <DialogHeader>
                         <DialogTitle>Invitar Nuevo Contador</DialogTitle>
                         <DialogDescription>
-                            Ingresa el correo y nombre del nuevo usuario. Se generará un enlace para que establezca su contraseña.
+                            Ingresa el correo y nombre del nuevo usuario. Se enviará un correo para que establezca su contraseña.
                         </DialogDescription>
                     </DialogHeader>
                     <div className="grid gap-4 py-4">
@@ -341,32 +349,8 @@ export default function UserManagement() {
                             <Button type="button" variant="secondary" disabled={isCreating}>Cancelar</Button>
                         </DialogClose>
                         <Button type="submit" onClick={handleCreateUser} disabled={isCreating}>
-                            {isCreating ? 'Generando invitación...' : 'Generar Invitación'}
+                            {isCreating ? 'Creando y enviando...' : 'Crear e Invitar'}
                         </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
-
-             {/* Invitation Link Success Dialog */}
-            <Dialog open={isSuccessDialogOpen} onOpenChange={setIsSuccessDialogOpen}>
-                <DialogContent className="sm:max-w-md">
-                    <DialogHeader>
-                        <DialogTitle>¡Usuario Creado Exitosamente!</DialogTitle>
-                        <DialogDescription>
-                            Copia el siguiente enlace y envíalo al nuevo usuario para que pueda establecer su contraseña y acceder a la plataforma.
-                        </DialogDescription>
-                    </DialogHeader>
-                    <div className="flex items-center space-x-2">
-                        <Input id="invitation-link" value={invitationLink} readOnly />
-                        <Button type="button" size="sm" onClick={copyToClipboard}>
-                            <Copy className="h-4 w-4" />
-                            <span className="sr-only">Copiar</span>
-                        </Button>
-                    </div>
-                    <DialogFooter className="sm:justify-start">
-                        <DialogClose asChild>
-                            <Button type="button" variant="secondary">Cerrar</Button>
-                        </DialogClose>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
@@ -394,3 +378,5 @@ export default function UserManagement() {
         </>
     );
 }
+
+    
