@@ -31,11 +31,11 @@ import {
   
   export default function JournalPage({ companyId }: { companyId?: string }) {
     const { data: vouchers, loading: vouchersLoading } = useCollection<Voucher>({ 
-      path: `companies/${companyId}/vouchers`,
+      path: companyId ? `companies/${companyId}/vouchers` : undefined,
       companyId: companyId 
     });
      const { data: accounts, loading: accountsLoading } = useCollection<Account>({
-        path: `companies/${companyId}/accounts`,
+        path: companyId ? `companies/${companyId}/accounts` : undefined,
         companyId: companyId,
     });
 
@@ -46,6 +46,7 @@ import {
         const entries: JournalEntry[] = [];
 
         vouchers.forEach(voucher => {
+            if(voucher.status !== 'Posteado') return;
             voucher.entries.forEach((entry, index) => {
                 entries.push({
                     id: `${voucher.id}-${index}`,
@@ -67,7 +68,7 @@ import {
       <Card>
         <CardHeader>
           <CardTitle>Libro Diario</CardTitle>
-          <CardDescription>Consulta los movimientos en el libro diario.</CardDescription>
+          <CardDescription>Consulta los movimientos en el libro diario para la empresa seleccionada.</CardDescription>
         </CardHeader>
         <CardContent>
           <Table>
@@ -91,10 +92,10 @@ import {
                         <TableCell>{new Date(entry.date).toLocaleDateString('es-CL', { timeZone: 'UTC' })}</TableCell>
                         <TableCell>{entry.accountCode} - {entry.accountName}</TableCell>
                         <TableCell>{entry.description}</TableCell>
-                        <TableCell className="text-right text-red-600">
+                        <TableCell className="text-right">
                             {entry.debit > 0 ? `$${entry.debit.toLocaleString('es-CL')}` : '$0'}
                         </TableCell>
-                        <TableCell className="text-right text-green-600">
+                        <TableCell className="text-right">
                             {entry.credit > 0 ? `$${entry.credit.toLocaleString('es-CL')}` : '$0'}
                         </TableCell>
                     </TableRow>

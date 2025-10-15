@@ -21,11 +21,11 @@ import {
   
   export default function LedgerPage({ companyId }: { companyId?: string }) {
     const { data: accounts, loading: accountsLoading } = useCollection<Account>({
-        path: `companies/${companyId}/accounts`,
+        path: companyId ? `companies/${companyId}/accounts` : undefined,
         companyId: companyId,
     });
     const { data: vouchers, loading: vouchersLoading } = useCollection<Voucher>({
-      path: `companies/${companyId}/vouchers`,
+      path: companyId ? `companies/${companyId}/vouchers` : undefined,
       companyId: companyId 
     });
 
@@ -47,7 +47,7 @@ import {
 
         return accounts.map(account => {
             const movements = accountMovements.get(account.code);
-            let finalBalance = account.balance;
+            let finalBalance = account.balance || 0; // Ensure balance is a number
             if (movements) {
                  if (account.type === 'Activo' || account.type === 'Resultado') {
                      finalBalance += movements.debit - movements.credit;
@@ -59,7 +59,7 @@ import {
                 ...account,
                 finalBalance: finalBalance,
             };
-        });
+        }).sort((a,b) => a.code.localeCompare(b.code));
 
     }, [accounts, vouchers]);
 
@@ -100,7 +100,7 @@ import {
                     {!loading && ledgerBalances.length === 0 && (
                         <TableRow>
                             <TableCell colSpan={4} className="text-center">
-                                No hay cuentas para mostrar en el libro mayor.
+                                {!companyId ? "Selecciona una empresa para ver el libro mayor." : "No hay cuentas para mostrar en el libro mayor."}
                             </TableCell>
                         </TableRow>
                     )}
