@@ -19,19 +19,26 @@ import {
   import { Badge } from "@/components/ui/badge"
   import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis } from "recharts"
   import { useCollection } from "@/firebase"
-  import type { Account, Company, Voucher } from "@/lib/types"
+  import type { Account, Company, Voucher, UserProfile } from "@/lib/types"
+  import { useUser } from "@/firebase"
+  import { useUserProfile } from "@/firebase/auth/use-user-profile"
   
   export default function DashboardPage({ companyId }: { companyId?: string }) {
+    const { user } = useUser();
+    const { userProfile } = useUserProfile(user?.uid);
     const { data: accounts, loading: accountsLoading } = useCollection<Account>({
         path: `companies/${companyId}/accounts`,
         companyId: companyId,
+        disabled: userProfile?.role !== 'Accountant'
     });
     const { data: vouchers, loading: vouchersLoading } = useCollection<Voucher>({
         path: `companies/${companyId}/vouchers`,
         companyId: companyId,
+        disabled: userProfile?.role !== 'Accountant'
     });
     const { data: companies, loading: companiesLoading } = useCollection<Company>({
         path: 'companies',
+        disabled: userProfile?.role !== 'Accountant'
     });
 
     const loading = accountsLoading || vouchersLoading || companiesLoading;
@@ -87,6 +94,10 @@ import {
                 <p>Cargando dashboard...</p>
             </div>
         )
+    }
+
+    if (userProfile?.role === 'Admin') {
+        return null; // Admin users should be redirected, but as a fallback, we render nothing.
     }
   
     return (
@@ -216,5 +227,3 @@ import {
     )
   }
   
-
-    

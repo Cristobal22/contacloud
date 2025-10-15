@@ -24,13 +24,20 @@ import { Logo } from "@/components/logo"
 import type { Company, SelectedCompanyContextType } from "@/lib/types"
 import { useUser, useFirestore, useCollection } from "@/firebase"
 import { useUserProfile } from "@/firebase/auth/use-user-profile"
+import { useRouter } from 'next/navigation'
 
 export const SelectedCompanyContext = React.createContext<SelectedCompanyContextType | null>(null);
 
 function AccountantDashboard({ children }: { children: React.ReactNode }) {
     const firestore = useFirestore();
-    const companiesCollection = firestore ? collection(firestore, 'companies') : null;
-    const { data: companies, loading: companiesLoading } = useCollection<Company>({ query: companiesCollection });
+    const { user, loading: userLoading } = useUser();
+    
+    const { data: companies, loading: companiesLoading } = useCollection<Company>({ 
+      query: firestore ? collection(firestore, 'companies') : null,
+      // We ensure the query only runs when we have a user
+      disabled: userLoading || !user,
+    });
+
     const [selectedCompany, setSelectedCompany] = React.useState<Company | null>(null);
 
     React.useEffect(() => {
@@ -148,7 +155,15 @@ function AdminDashboard({ children }: { children: React.ReactNode }) {
 function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
     const { user } = useUser();
     const { userProfile, loading: profileLoading } = useUserProfile(user?.uid);
+    const router = useRouter();
     
+    React.useEffect(() => {
+        if (!profileLoading && userProfile?.role === 'Admin') {
+            router.replace('/dashboard/admin/users');
+        }
+    }, [profileLoading, userProfile, router]);
+
+
     if (profileLoading) {
         return (
             <div className="flex min-h-screen w-full items-center justify-center">
@@ -158,6 +173,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
     }
 
     if (userProfile?.role === 'Admin') {
+        // The redirection is handling the view, we can show a loader or the children for the brief moment before redirection.
         return <AdminDashboard>{children}</AdminDashboard>;
     }
 
@@ -179,7 +195,7 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode
 }) {
-  const { user, loading: userLoading } = useUser();
+  const { user, loading: userLoading } = useUser({ redirectTo: '/login' });
   
   if (userLoading) {
     return (

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { onSnapshot, collection, query, where, Query } from 'firebase/firestore';
+import { onSnapshot, collection, query, where, Query, CollectionReference } from 'firebase/firestore';
 import { useFirestore } from '../provider';
 import { errorEmitter } from '../error-emitter';
 import { FirestorePermissionError } from '../errors';
@@ -9,30 +9,34 @@ import { FirestorePermissionError } from '../errors';
 type UseCollectionProps<T> = {
     path?: string;
     companyId?: string | null;
-    query?: Query<T> | null;
+    query?: Query<T> | CollectionReference<T> | null;
+    disabled?: boolean;
 };
 
-export function useCollection<T>({ path, companyId, query: manualQuery }: UseCollectionProps<T>) {
+export function useCollection<T>({ path, companyId, query: manualQuery, disabled = false }: UseCollectionProps<T>) {
   const firestore = useFirestore();
   const [data, setData] = useState<T[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
   const finalQuery = useMemo(() => {
+    if (disabled) return null;
+
     if (manualQuery) {
         return manualQuery;
     }
-    if (!firestore || !path || companyId === undefined) {
+    if (!firestore || !path) {
         return null;
     }
+    // companyId can be explicitly undefined, which means don't filter by it.
     if (companyId) {
         return query(collection(firestore, path), where('companyId', '==', companyId));
     }
     return collection(firestore, path);
-  }, [firestore, path, companyId, manualQuery]);
+  }, [firestore, path, companyId, manualQuery, disabled]);
 
   useEffect(() => {
-    if (finalQuery === null) {
+    if (finalQuery === null || disabled) {
       setData(null);
       setLoading(false);
       return;
@@ -43,7 +47,7 @@ export function useCollection<T>({ path, companyId, query: manualQuery }: UseCol
     const unsubscribe = onSnapshot(
       finalQuery as Query<T>,
       (querySnapshot) => {
-        const items = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as T));
+        const items = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as unknown as T));
         setData(items);
         setLoading(false);
       },
@@ -60,7 +64,7 @@ export function useCollection<T>({ path, companyId, query: manualQuery }: UseCol
     );
 
     return () => unsubscribe();
-  }, [finalQuery, path]);
+  }, [finalQuery, path, disabled]);
 
   return { data, loading, error };
 }
