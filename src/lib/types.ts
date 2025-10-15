@@ -27,7 +27,7 @@ export type Company = {
   name: string;
   rut: string;
   address: string;
-  industry: string;
+  giro: string;
   active: boolean;
   isDistributor?: boolean;
   startYear?: number;

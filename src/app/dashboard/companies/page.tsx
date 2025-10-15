@@ -1,3 +1,4 @@
+
 'use client';
 
 import React from 'react';
@@ -74,7 +75,7 @@ import { useToast } from '@/hooks/use-toast';
     const [companyToDelete, setCompanyToDelete] = React.useState<Company | null>(null);
 
     const handleCreateNew = () => {
-        setSelectedCompanyLocal({ id: `new-${Date.now()}`, name: '', rut: '', address: '', industry: '', active: true });
+        setSelectedCompanyLocal({ id: `new-${Date.now()}`, name: '', rut: '', address: '', giro: '', active: true });
         setIsFormOpen(true);
     };
 
@@ -129,7 +130,7 @@ import { useToast } from '@/hooks/use-toast';
             name: selectedCompanyLocal.name || 'Sin Nombre',
             rut: selectedCompanyLocal.rut || '',
             address: selectedCompanyLocal.address || '',
-            industry: selectedCompanyLocal.industry || 'No especificada',
+            giro: selectedCompanyLocal.giro || 'No especificado',
             active: selectedCompanyLocal.active ?? true,
         };
         
@@ -186,7 +187,7 @@ import { useToast } from '@/hooks/use-toast';
                 <TableRow>
                   <TableHead>Nombre de Empresa</TableHead>
                   <TableHead>RUT</TableHead>
-                  <TableHead>Industria</TableHead>
+                  <TableHead>Giro</TableHead>
                   <TableHead>Estado</TableHead>
                   <TableHead>
                     <span className="sr-only">Acciones</span>
@@ -203,7 +204,7 @@ import { useToast } from '@/hooks/use-toast';
                       <TableRow key={company.id}>
                       <TableCell className="font-medium">{company.name}</TableCell>
                       <TableCell>{company.rut}</TableCell>
-                      <TableCell>{company.industry}</TableCell>
+                      <TableCell>{company.giro}</TableCell>
                       <TableCell>
                           <Badge variant={company.active ? "default" : "outline"}>
                           {company.active ? "Activa" : "Inactiva"}
@@ -264,8 +265,8 @@ import { useToast } from '@/hooks/use-toast';
                         <Input id="address" value={selectedCompanyLocal?.address || ''} onChange={(e) => handleFieldChange('address', e.target.value)} className="col-span-3" />
                     </div>
                     <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="industry" className="text-right">Industria</Label>
-                        <Input id="industry" value={selectedCompanyLocal?.industry || ''} onChange={(e) => handleFieldChange('industry', e.target.value)} className="col-span-3" />
+                        <Label htmlFor="giro" className="text-right">Giro o Actividad Comercial</Label>
+                        <Input id="giro" value={selectedCompanyLocal?.giro || ''} onChange={(e) => handleFieldChange('giro', e.target.value)} className="col-span-3" />
                     </div>
                      <div className="grid grid-cols-4 items-center gap-4">
                         <Label htmlFor="active" className="text-right">Activa</Label>
