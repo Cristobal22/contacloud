@@ -42,9 +42,15 @@ import {
     DropdownMenuItem,
     DropdownMenuLabel,
     DropdownMenuTrigger,
+    DropdownMenuSub,
+    DropdownMenuSubTrigger,
+    DropdownMenuPortal,
+    DropdownMenuSubContent
 } from "@/components/ui/dropdown-menu"
 import { Checkbox } from '@/components/ui/checkbox';
 import { Skeleton } from '../ui/skeleton';
+import { setUserRole } from '@/ai/flows/set-user-role-flow';
+
 
 type NewUserInput = {
   email: string;
@@ -172,6 +178,24 @@ export default function UserManagement() {
         });
     }
     
+    const handleChangeRole = async (uid: string, role: 'Admin' | 'Accountant') => {
+        setIsProcessing(true);
+        const result = await setUserRole({ uid, role });
+        if (result.success) {
+            toast({
+                title: "Rol Actualizado",
+                description: `El rol del usuario ha sido cambiado a ${role}. El usuario debe volver a iniciar sesión para que los cambios surtan efecto.`,
+            });
+        } else {
+             toast({
+                variant: 'destructive',
+                title: 'Error al Cambiar Rol',
+                description: result.message,
+            });
+        }
+        setIsProcessing(false);
+    }
+    
     const loading = usersLoading || companiesLoading;
 
     const renderTableContent = () => {
@@ -215,7 +239,7 @@ export default function UserManagement() {
                 <TableCell>
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                            <Button aria-haspopup="true" size="icon" variant="ghost" disabled={user.role === 'Admin'}>
+                            <Button aria-haspopup="true" size="icon" variant="ghost" disabled={isProcessing}>
                                 <MoreHorizontal className="h-4 w-4" />
                                 <span className="sr-only">Toggle menu</span>
                             </Button>
@@ -223,6 +247,19 @@ export default function UserManagement() {
                         <DropdownMenuContent align="end">
                             <DropdownMenuLabel>Acciones</DropdownMenuLabel>
                             <DropdownMenuItem onSelect={() => handleEditUser(user)}>Editar / Asignar Empresas</DropdownMenuItem>
+                            <DropdownMenuSub>
+                                <DropdownMenuSubTrigger>Cambiar Rol</DropdownMenuSubTrigger>
+                                <DropdownMenuPortal>
+                                    <DropdownMenuSubContent>
+                                        <DropdownMenuItem disabled={user.role === 'Admin'} onSelect={() => handleChangeRole(user.uid, 'Admin')}>
+                                            Hacer Administrador
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem disabled={user.role === 'Accountant'} onSelect={() => handleChangeRole(user.uid, 'Accountant')}>
+                                            Hacer Contador
+                                        </DropdownMenuItem>
+                                    </DropdownMenuSubContent>
+                                </DropdownMenuPortal>
+                            </DropdownMenuSub>
                         </DropdownMenuContent>
                     </DropdownMenu>
                 </TableCell>

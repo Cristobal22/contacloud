@@ -66,3 +66,16 @@ const VoucherSchema = z.object({
 
 export const CentralizeRcvOutputSchema = z.array(VoucherSchema);
 export type CentralizeRcvOutput = z.infer<typeof CentralizeRcvOutputSchema>;
+
+// Set User Role Schemas
+export const SetUserRoleInputSchema = z.object({
+  uid: z.string().describe('The UID of the user to update.'),
+  role: z.enum(['Admin', 'Accountant']).describe('The new role to assign.'),
+});
+export type SetUserRoleInput = z.infer<typeof SetUserRoleInputSchema>;
+
+export const SetUserRoleOutputSchema = z.object({
+  success: z.boolean(),
+  message: z.string(),
+});
+export type SetUserRoleOutput = z.infer<typeof SetUserRoleOutputSchema>;
