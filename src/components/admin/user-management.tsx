@@ -123,14 +123,27 @@ export default function UserManagement() {
             toast({ variant: 'destructive', title: 'Error', description: 'Por favor, complete todos los campos obligatorios.' });
             return;
         }
+        if (!firestore) {
+            toast({ variant: 'destructive', title: 'Error', description: 'La base de datos no está disponible.' });
+            return;
+        }
+
         setIsCreating(true);
         try {
-            await createUser(newUser);
-            toast({ title: 'Usuario "creado"', description: `El perfil para ${newUser.email} fue agregado a Firestore. NOTA: Aún no pueden iniciar sesión.` });
+            // Step 1: Call the flow to "create" the auth user and get back the profile
+            const createdUserProfile = await createUser(newUser);
+            toast({ title: 'Usuario "creado"', description: `La autenticación para ${newUser.email} fue simulada.` });
+
+            // Step 2: Create the user document in Firestore with the UID from the response
+            const userDocRef = doc(firestore, "users", createdUserProfile.uid);
+            await setDoc(userDocRef, createdUserProfile);
+
+            toast({ title: 'Perfil Creado', description: `El perfil de ${newUser.email} fue guardado en Firestore.` });
+            
             setIsCreateFormOpen(false);
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error creating user:', error);
-            toast({ variant: 'destructive', title: 'Error', description: 'No se pudo crear el usuario.' });
+            toast({ variant: 'destructive', title: 'Error al Crear Usuario', description: error.message || 'No se pudo completar el proceso.' });
         } finally {
             setIsCreating(false);
         }
