@@ -21,12 +21,22 @@ import {
 } from "@/components/ui/table";
 import { PlusCircle, Trash2 } from "lucide-react";
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import { mockVouchers } from '@/lib/data';
 import { useParams } from 'next/navigation';
+
+interface VoucherEntry {
+    id: number;
+    account: string;
+    description: string;
+    debit: number;
+    credit: number;
+}
 
 export default function VoucherDetailPage() {
     const params = useParams();
     const { id } = params;
+    const isNew = id === 'new';
 
     // In a real app, you'd fetch voucher details and its lines from an API
     const voucher = mockVouchers.find(v => v.id === id) || {
@@ -38,11 +48,33 @@ export default function VoucherDetailPage() {
         total: 0
     };
     
-    // Mock entries for demonstration. In a real app, this would be state managed.
-    const [entries, setEntries] = React.useState([
-        { id: 1, account: '1101-01 Caja', description: 'Inicio', debit: 100000, credit: 0 },
-        { id: 2, account: '3101-01 Capital', description: 'Inicio', debit: 0, credit: 100000 },
+    // Manage entries with local state
+    const [entries, setEntries] = React.useState<VoucherEntry[]>(isNew ? [] : [
+        { id: 1, account: '1101-01 Caja', description: 'Inicio de actividades', debit: 100000, credit: 0 },
+        { id: 2, account: '3101-01 Capital', description: 'Aporte inicial', debit: 0, credit: 100000 },
     ]);
+
+    const handleAddEntry = () => {
+        setEntries([
+            ...entries,
+            { id: Date.now(), account: '', description: '', debit: 0, credit: 0 }
+        ]);
+    };
+
+    const handleRemoveEntry = (entryId: number) => {
+        setEntries(entries.filter(entry => entry.id !== entryId));
+    };
+
+    const handleEntryChange = (entryId: number, field: keyof VoucherEntry, value: string | number) => {
+        const newEntries = entries.map(entry => {
+            if (entry.id === entryId) {
+                const numericValue = typeof value === 'string' ? parseFloat(value) || 0 : value;
+                return { ...entry, [field]: numericValue };
+            }
+            return entry;
+        });
+        setEntries(newEntries);
+    };
 
     const totalDebit = entries.reduce((sum, entry) => sum + entry.debit, 0);
     const totalCredit = entries.reduce((sum, entry) => sum + entry.credit, 0);
@@ -54,7 +86,7 @@ export default function VoucherDetailPage() {
                     <div className="flex justify-between items-start">
                         <div>
                             <CardTitle>
-                                {id === 'new' ? 'Nuevo Comprobante' : `Editar Comprobante #${voucher.id}`}
+                                {isNew ? 'Nuevo Comprobante' : `Editar Comprobante #${voucher.id}`}
                             </CardTitle>
                             <CardDescription>
                                 {voucher.description} - {new Date(voucher.date).toLocaleDateString('es-CL')}
@@ -69,22 +101,46 @@ export default function VoucherDetailPage() {
                     <Table>
                         <TableHeader>
                             <TableRow>
-                                <TableHead className="w-[300px]">Cuenta Contable</TableHead>
+                                <TableHead className="w-[250px]">Cuenta Contable</TableHead>
                                 <TableHead>Descripción</TableHead>
-                                <TableHead className="w-[150px] text-right">Debe</TableHead>
-                                <TableHead className="w-[150px] text-right">Haber</TableHead>
+                                <TableHead className="w-[180px] text-right">Debe</TableHead>
+                                <TableHead className="w-[180px] text-right">Haber</TableHead>
                                 <TableHead className="w-[50px]"></TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
                             {entries.map(entry => (
                                 <TableRow key={entry.id}>
-                                    <TableCell className="font-medium">{entry.account}</TableCell>
-                                    <TableCell>{entry.description}</TableCell>
-                                    <TableCell className="text-right">${entry.debit.toLocaleString('es-CL')}</TableCell>
-                                    <TableCell className="text-right">${entry.credit.toLocaleString('es-CL')}</TableCell>
                                     <TableCell>
-                                        <Button variant="ghost" size="icon" className="text-destructive">
+                                        <Input 
+                                            defaultValue={entry.account}
+                                            placeholder="Ej: 1101-01"
+                                        />
+                                    </TableCell>
+                                    <TableCell>
+                                        <Input 
+                                            defaultValue={entry.description}
+                                            placeholder="Descripción del asiento"
+                                        />
+                                    </TableCell>
+                                    <TableCell>
+                                        <Input
+                                            type="number"
+                                            className="text-right"
+                                            value={entry.debit}
+                                            onChange={(e) => handleEntryChange(entry.id, 'debit', e.target.value)}
+                                        />
+                                    </TableCell>
+                                    <TableCell>
+                                        <Input
+                                            type="number"
+                                            className="text-right"
+                                            value={entry.credit}
+                                            onChange={(e) => handleEntryChange(entry.id, 'credit', e.target.value)}
+                                        />
+                                    </TableCell>
+                                    <TableCell>
+                                        <Button variant="ghost" size="icon" className="text-destructive" onClick={() => handleRemoveEntry(entry.id)}>
                                             <Trash2 className="h-4 w-4" />
                                         </Button>
                                     </TableCell>
@@ -101,7 +157,7 @@ export default function VoucherDetailPage() {
                         <TableFooter>
                             <TableRow>
                                 <TableCell colSpan={2}>
-                                     <Button size="sm" variant="outline" className="gap-1">
+                                     <Button size="sm" variant="outline" className="gap-1" onClick={handleAddEntry}>
                                         <PlusCircle className="h-4 w-4" />
                                         Agregar Línea
                                     </Button>
@@ -126,7 +182,7 @@ export default function VoucherDetailPage() {
                 </CardContent>
                 <CardFooter className="flex justify-end gap-2">
                     <Button variant="outline">Cancelar</Button>
-                    <Button>Guardar Comprobante</Button>
+                    <Button disabled={totalDebit !== totalCredit || entries.length === 0}>Guardar Comprobante</Button>
                 </CardFooter>
             </Card>
         </div>
