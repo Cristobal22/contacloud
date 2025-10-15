@@ -74,7 +74,9 @@ function AccountantDashboardLayout({ children }: { children: React.ReactNode }) 
 
     const handleCompanyChange = (company: Company) => {
         setSelectedCompany(company);
-        localStorage.setItem('selectedCompanyId', company.id);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('selectedCompanyId', company.id);
+        }
     };
     
     const isLoading = userLoading || profileLoading || companiesLoading || !isMounted;
@@ -136,7 +138,7 @@ function AccountantDashboardLayout({ children }: { children: React.ReactNode }) 
                         <UserNav />
                     </header>
                     <main className="flex-1 p-4 sm:p-6">
-                        {isLoading ? <div className="flex h-full w-full items-center justify-center"><p>Cargando datos del contador...</p></div> : children}
+                        {isLoading && !selectedCompany ? <div className="flex h-full w-full items-center justify-center"><p>Cargando datos del contador...</p></div> : children}
                     </main>
                 </div>
             </div>

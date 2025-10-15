@@ -87,7 +87,7 @@ function AccountantDashboardContent({ companyId }: { companyId: string }) {
     if (loading) {
         return (
             <div className="flex min-h-[400px] w-full items-center justify-center">
-                <p>Cargando dashboard...</p>
+                <p>Cargando datos del dashboard...</p>
             </div>
         )
     }
@@ -220,10 +220,9 @@ function AccountantDashboardContent({ companyId }: { companyId: string }) {
 }
 
 function AccountantDashboard() {
-    const context = React.useContext(SelectedCompanyContext);
+    const { selectedCompany } = React.useContext(SelectedCompanyContext) || {};
     
-    // The context can be null initially, handle this case gracefully.
-    if (!context || !context.selectedCompany) {
+    if (!selectedCompany) {
         return (
             <Card>
                 <CardHeader>
@@ -237,7 +236,7 @@ function AccountantDashboard() {
         );
     }
     
-    return <AccountantDashboardContent companyId={context.selectedCompany.id} />;
+    return <AccountantDashboardContent companyId={selectedCompany.id} />;
 }
 
 export default function DashboardPage() {
@@ -246,7 +245,7 @@ export default function DashboardPage() {
 
   if (profileLoading) {
       return (
-          <div className="flex min-h-screen w-full items-center justify-center">
+          <div className="flex min-h-[400px] w-full items-center justify-center">
               <p>Cargando dashboard...</p>
           </div>
       )
