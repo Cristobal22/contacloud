@@ -35,6 +35,17 @@ import {
     DialogFooter,
     DialogClose,
   } from "@/components/ui/dialog"
+  import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogTrigger,
+  } from "@/components/ui/alert-dialog"
   import { Input } from "@/components/ui/input"
   import { Label } from "@/components/ui/label"
   import { Switch } from "@/components/ui/switch"
@@ -169,8 +180,9 @@ import {
                               <DropdownMenuItem asChild>
                                 <Link href={`/dashboard/companies/settings`}>Configuración</Link>
                               </DropdownMenuItem>
+                              <DropdownMenuSeparator />
                               <DropdownMenuItem className="text-destructive" onClick={() => handleOpenDeleteDialog(company)}>
-                              Eliminar
+                                Eliminar
                               </DropdownMenuItem>
                           </DropdownMenuContent>
                           </DropdownMenu>
@@ -220,22 +232,26 @@ import {
             </DialogContent>
         </Dialog>
         
-        <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-            <DialogContent>
-                <DialogHeader>
-                    <DialogTitle>¿Estás seguro?</DialogTitle>
-                    <DialogDescription>
+        <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
+                    <AlertDialogDescription>
                         Esta acción no se puede deshacer. Esto eliminará permanentemente la empresa <span className="font-bold">{companyToDelete?.name}</span> y todos sus datos asociados (cuentas, comprobantes, etc.).
-                    </DialogDescription>
-                </DialogHeader>
-                <DialogFooter>
-                      <DialogClose asChild>
-                        <Button variant="outline">Cancelar</Button>
-                    </DialogClose>
-                    <Button variant="destructive" onClick={handleDelete}>Sí, eliminar</Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction
+                        className={buttonVariants({ variant: "destructive" })}
+                        onClick={handleDelete}
+                    >
+                        Sí, eliminar
+                    </AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
       </>
     )
   }
+    
