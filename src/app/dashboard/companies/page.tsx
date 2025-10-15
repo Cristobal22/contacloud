@@ -16,7 +16,7 @@ import {
     CardHeader,
     CardTitle,
   } from "@/components/ui/card"
-  import { Button } from "@/components/ui/button"
+  import { Button, buttonVariants } from "@/components/ui/button"
   import { Badge } from "@/components/ui/badge"
   import { MoreHorizontal, PlusCircle } from "lucide-react"
   import {
@@ -24,6 +24,7 @@ import {
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuLabel,
+    DropdownMenuSeparator,
     DropdownMenuTrigger,
   } from "@/components/ui/dropdown-menu"
    import {
@@ -44,7 +45,6 @@ import {
     AlertDialogFooter,
     AlertDialogHeader,
     AlertDialogTitle,
-    AlertDialogTrigger,
   } from "@/components/ui/alert-dialog"
   import { Input } from "@/components/ui/input"
   import { Label } from "@/components/ui/label"
@@ -53,30 +53,42 @@ import {
   import { collection, addDoc, setDoc, doc, deleteDoc } from "firebase/firestore"
   import type { Company } from "@/lib/types"
   import Link from "next/link"
+  import { useRouter } from 'next/navigation'
+  import { SelectedCompanyContext } from '../layout'
+
   
   export default function CompaniesPage() {
     const firestore = useFirestore();
+    const router = useRouter();
+    const { setSelectedCompany } = React.useContext(SelectedCompanyContext) || {};
     const companiesCollection = firestore ? collection(firestore, 'companies') : null;
     const { data: companies, loading } = useCollection<Company>({ query: companiesCollection });
 
     const [isFormOpen, setIsFormOpen] = React.useState(false);
-    const [selectedCompany, setSelectedCompany] = React.useState<Partial<Company> | null>(null);
+    const [selectedCompany, setSelectedCompanyLocal] = React.useState<Partial<Company> | null>(null);
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false);
     const [companyToDelete, setCompanyToDelete] = React.useState<Company | null>(null);
 
     const handleCreateNew = () => {
-        setSelectedCompany({ id: `new-${Date.now()}`, name: '', industry: '', active: true });
+        setSelectedCompanyLocal({ id: `new-${Date.now()}`, name: '', industry: '', active: true });
         setIsFormOpen(true);
     };
 
     const handleEdit = (company: Company) => {
-        setSelectedCompany(company);
+        setSelectedCompanyLocal(company);
         setIsFormOpen(true);
     };
     
     const handleOpenDeleteDialog = (company: Company) => {
         setCompanyToDelete(company);
         setIsDeleteDialogOpen(true);
+    };
+
+    const handleGoToSettings = (company: Company) => {
+      if (setSelectedCompany) {
+        setSelectedCompany(company);
+        router.push('/dashboard/companies/settings');
+      }
     };
 
     const handleDelete = async () => {
@@ -113,13 +125,13 @@ import {
             console.error("Error saving company:", error);
         } finally {
             setIsFormOpen(false);
-            setSelectedCompany(null);
+            setSelectedCompanyLocal(null);
         }
     };
 
     const handleFieldChange = (field: keyof Omit<Company, 'id'>, value: string | boolean) => {
         if (selectedCompany) {
-            setSelectedCompany({ ...selectedCompany, [field]: value });
+            setSelectedCompanyLocal({ ...selectedCompany, [field]: value });
         }
     };
 
@@ -177,8 +189,8 @@ import {
                           <DropdownMenuContent align="end">
                               <DropdownMenuLabel>Acciones</DropdownMenuLabel>
                               <DropdownMenuItem onClick={() => handleEdit(company)}>Editar</DropdownMenuItem>
-                              <DropdownMenuItem asChild>
-                                <Link href={`/dashboard/companies/settings`}>Configuración</Link>
+                              <DropdownMenuItem onClick={() => handleGoToSettings(company)}>
+                                Configuración
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
                               <DropdownMenuItem className="text-destructive" onClick={() => handleOpenDeleteDialog(company)}>
