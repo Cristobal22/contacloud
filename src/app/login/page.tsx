@@ -1,3 +1,4 @@
+
 'use client';
 
 import Link from 'next/link';
@@ -77,15 +78,11 @@ export default function LoginPage() {
                 Iniciar Sesión con Google
               </Button>
             </form>
-            <div className="mt-4 text-center text-sm">
-              ¿No tienes una cuenta?{' '}
-              <Link href="/registro" className="underline">
-                Regístrate
-              </Link>
-            </div>
           </CardContent>
         </Card>
       </div>
     </div>
   );
 }
+
+    

@@ -10,7 +10,8 @@
                 "email": { "type": "string", "format": "email", "description": "The user's email address." },
                 "displayName": { "type": "string", "description": "The user's display name." },
                 "photoURL": { "type": "string", "description": "URL of the user's profile picture." },
-                "role": { "type": "string", "enum": ["Admin", "Accountant"], "description": "The role of the user within the application." }
+                "role": { "type": "string", "enum": ["Admin", "Accountant"], "description": "The role of the user within the application." },
+                "password": { "type": "string", "description": "The user's password, only used for creation." }
             },
             "required": ["uid", "email", "role"]
         },

@@ -1,3 +1,4 @@
+
 'use client';
 
 import React from 'react';
@@ -18,7 +19,7 @@ import {
 } from "@/components/ui/card"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { MoreHorizontal } from "lucide-react"
+import { MoreHorizontal, PlusCircle } from "lucide-react"
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -53,10 +54,13 @@ import type { UserProfile } from "@/lib/types"
 import { collection, doc, setDoc, deleteDoc } from "firebase/firestore"
 import { errorEmitter } from '@/firebase/error-emitter'
 import { FirestorePermissionError } from '@/firebase/errors'
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
+import { useToast } from '@/hooks/use-toast';
+import { createUser, CreateUserInput } from '@/ai/flows/create-user-flow';
 
 export default function UserManagement() {
     const firestore = useFirestore();
+    const { toast } = useToast();
     
     const usersCollection = useMemo(() => {
         if (!firestore) return null;
@@ -66,9 +70,18 @@ export default function UserManagement() {
     const { data: users, loading } = useCollection<UserProfile>({ query: usersCollection });
 
     const [isFormOpen, setIsFormOpen] = React.useState(false);
+    const [isCreateFormOpen, setIsCreateFormOpen] = useState(false);
     const [selectedUser, setSelectedUser] = React.useState<Partial<UserProfile> | null>(null);
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false);
     const [userToDelete, setUserToDelete] = React.useState<UserProfile | null>(null);
+
+    const [newUser, setNewUser] = useState<CreateUserInput>({email: '', password: ''});
+    const [isCreating, setIsCreating] = useState(false);
+
+    const handleCreateNew = () => {
+        setNewUser({email: '', password: ''});
+        setIsCreateFormOpen(true);
+    };
 
     const handleEdit = (user: UserProfile) => {
         setSelectedUser(user);
@@ -80,7 +93,7 @@ export default function UserManagement() {
         setIsDeleteDialogOpen(true);
     };
 
-    const handleSave = () => {
+    const handleSaveRole = () => {
         if (!firestore || !selectedUser || !selectedUser.uid) return;
 
         const { uid, ...userData } = selectedUser;
@@ -104,6 +117,26 @@ export default function UserManagement() {
         setSelectedUser(null);
     };
 
+    const handleCreateUser = async () => {
+        if (!newUser.email || !newUser.password) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Por favor, complete todos los campos.' });
+            return;
+        }
+        setIsCreating(true);
+        try {
+            // This is a MOCK. In a real app, this flow would trigger a secure backend function.
+            // The user created here will NOT be able to log in.
+            await createUser(newUser);
+            toast({ title: 'Usuario "creado"', description: `El perfil para ${newUser.email} fue agregado a Firestore. NOTA: Aún no pueden iniciar sesión.` });
+            setIsCreateFormOpen(false);
+        } catch (error) {
+            console.error('Error creating user:', error);
+            toast({ variant: 'destructive', title: 'Error', description: 'No se pudo crear el usuario.' });
+        } finally {
+            setIsCreating(false);
+        }
+    };
+
     const handleDelete = () => {
         if (!firestore || !userToDelete) return;
         const docRef = doc(firestore, 'users', userToDelete.uid);
@@ -125,6 +158,10 @@ export default function UserManagement() {
             setSelectedUser({ ...selectedUser, [field]: value });
         }
     };
+    
+    const handleNewUserFieldChange = (field: keyof CreateUserInput, value: string) => {
+        setNewUser(prev => ({...prev, [field]: value}));
+    };
 
     return (
         <>
@@ -135,6 +172,10 @@ export default function UserManagement() {
                             <CardTitle>Gestión de Usuarios</CardTitle>
                             <CardDescription>Administra los usuarios y sus roles en el sistema.</CardDescription>
                         </div>
+                         <Button size="sm" className="gap-1" onClick={handleCreateNew}>
+                            <PlusCircle className="h-4 w-4" />
+                            Agregar Usuario
+                        </Button>
                     </div>
                 </CardHeader>
                 <CardContent>
@@ -195,6 +236,7 @@ export default function UserManagement() {
                 </CardContent>
             </Card>
 
+            {/* Edit Role Dialog */}
             <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
                 <DialogContent className="sm:max-w-[425px]">
                     <DialogHeader>
@@ -225,11 +267,42 @@ export default function UserManagement() {
                         <DialogClose asChild>
                             <Button type="button" variant="secondary">Cancelar</Button>
                         </DialogClose>
-                        <Button type="submit" onClick={handleSave}>Guardar Cambios</Button>
+                        <Button type="submit" onClick={handleSaveRole}>Guardar Cambios</Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
 
+             {/* Create User Dialog */}
+            <Dialog open={isCreateFormOpen} onOpenChange={setIsCreateFormOpen}>
+                <DialogContent className="sm:max-w-[425px]">
+                    <DialogHeader>
+                        <DialogTitle>Crear Nuevo Usuario Contador</DialogTitle>
+                        <DialogDescription>
+                            Ingresa el email y una contraseña temporal para el nuevo usuario.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="grid gap-4 py-4">
+                        <div className="grid grid-cols-4 items-center gap-4">
+                            <Label htmlFor="new-email" className="text-right">Email</Label>
+                            <Input id="new-email" type="email" value={newUser.email} onChange={(e) => handleNewUserFieldChange('email', e.target.value)} className="col-span-3" placeholder="usuario@contador.com" />
+                        </div>
+                        <div className="grid grid-cols-4 items-center gap-4">
+                            <Label htmlFor="new-password" className="text-right">Contraseña</Label>
+                            <Input id="new-password" type="password" value={newUser.password} onChange={(e) => handleNewUserFieldChange('password', e.target.value)} className="col-span-3" />
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <DialogClose asChild>
+                            <Button type="button" variant="secondary" disabled={isCreating}>Cancelar</Button>
+                        </DialogClose>
+                        <Button type="submit" onClick={handleCreateUser} disabled={isCreating}>
+                            {isCreating ? 'Creando...' : 'Crear Usuario'}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Delete Confirmation Dialog */}
             <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
                 <AlertDialogContent>
                     <AlertDialogHeader>
@@ -252,3 +325,5 @@ export default function UserManagement() {
         </>
     );
 }
+
+    

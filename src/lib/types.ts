@@ -1,12 +1,16 @@
 
 
-export type UserProfile = {
-  uid: string;
-  email: string;
-  displayName?: string | null;
-  photoURL?: string | null;
-  role: 'Admin' | 'Accountant';
-};
+import { z } from 'zod';
+
+export const UserProfileSchema = z.object({
+  uid: z.string(),
+  email: z.string().email(),
+  displayName: z.string().optional().nullable(),
+  photoURL: z.string().optional().nullable(),
+  role: z.enum(['Admin', 'Accountant']),
+});
+
+export type UserProfile = z.infer<typeof UserProfileSchema>;
 
 
 export type User = {
