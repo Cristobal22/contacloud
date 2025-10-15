@@ -34,7 +34,7 @@ import { Label } from '@/components/ui/label';
                 <CardDescription>Genera el libro de remuneraciones en formato electrónico para la Dirección del Trabajo (DT).</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                    <div className="flex flex-col sm:flex-row gap-4 items-end">
+                    <div className="flex flex-col sm:flex-row gap-4 items-end max-w-lg">
                         <div className="flex-1 grid grid-cols-2 gap-4">
                             <div className="space-y-2">
                                 <Label htmlFor="month">Mes</Label>

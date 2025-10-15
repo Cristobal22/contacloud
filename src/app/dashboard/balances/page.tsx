@@ -7,13 +7,12 @@ import {
     CardDescription,
     CardHeader,
     CardTitle,
-    CardFooter,
   } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { DateRangePicker } from "@/components/date-range-picker"
 import React from "react";
 import { DateRange } from "react-day-picker";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 
@@ -51,7 +50,7 @@ import { es } from "date-fns/locale";
                 <CardDescription>Selecciona un período para generar un balance contable.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                    <div className="flex flex-col sm:flex-row gap-4">
+                    <div className="flex flex-col sm:flex-row gap-4 items-end">
                         <div className="flex-1">
                              <DateRangePicker date={date} onDateChange={setDate} />
                         </div>
@@ -89,18 +88,20 @@ import { es } from "date-fns/locale";
                                         <TableCell>{row.name}</TableCell>
                                         <TableCell className="text-right">${row.debit.toLocaleString('es-CL')}</TableCell>
                                         <TableCell className="text-right">${row.credit.toLocaleString('es-CL')}</TableCell>
-                                        <TableCell className="text-right font-bold">${row.balance.toLocaleString('es-CL')}</TableCell>
+                                        <TableCell className={`text-right font-bold ${row.balance < 0 ? 'text-destructive' : ''}`}>
+                                            ${row.balance.toLocaleString('es-CL')}
+                                        </TableCell>
                                     </TableRow>
                                 ))}
                             </TableBody>
-                            <CardFooter>
-                                <TableRow>
+                            <TableFooter>
+                                <TableRow className="text-base">
                                     <TableCell colSpan={2} className="font-bold">Totales</TableCell>
                                     <TableCell className="text-right font-bold">${totals.debit.toLocaleString('es-CL')}</TableCell>
                                     <TableCell className="text-right font-bold">${totals.credit.toLocaleString('es-CL')}</TableCell>
                                     <TableCell></TableCell>
                                 </TableRow>
-                            </CardFooter>
+                            </TableFooter>
                         </Table>
                     )}
                 </CardContent>

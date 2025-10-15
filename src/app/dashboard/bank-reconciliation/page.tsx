@@ -37,7 +37,7 @@ import {
                         <div className="flex-1">
                             <h3 className="text-sm font-medium mb-2">Cargar Cartola Bancaria</h3>
                             <div className="flex items-center gap-2">
-                                <Input id="file-upload" type="file" ref={fileInputRef} className="hidden" onChange={handleFileChange}/>
+                                <Input id="file-upload" type="file" ref={fileInputRef} className="hidden" onChange={handleFileChange} accept=".csv,.xlsx,.xls,.pdf"/>
                                 <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
                                     <Upload className="mr-2 h-4 w-4" />
                                     Cargar Archivo

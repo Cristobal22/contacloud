@@ -45,7 +45,7 @@ import {
                             {employees?.map(emp => (
                                 <SelectItem key={emp.id} value={emp.id}>{emp.firstName} {emp.lastName}</SelectItem>
                             ))}
-                            {employees?.length === 0 && <SelectItem value="no-emp" disabled>No hay empleados en esta empresa</SelectItem>}
+                            {!loading && employees?.length === 0 && <SelectItem value="no-emp" disabled>No hay empleados en esta empresa</SelectItem>}
                         </SelectContent>
                     </Select>
                 </div>
@@ -62,4 +62,3 @@ import {
     )
   }
   
-
