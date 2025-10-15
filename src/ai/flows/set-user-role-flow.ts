@@ -10,37 +10,47 @@ import { SetUserRoleInputSchema, SetUserRoleOutputSchema } from './schemas';
 import type { SetUserRoleInput, SetUserRoleOutput } from './schemas';
 import { getFirestore } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
-import { initializeApp, getApps, cert } from 'firebase-admin/app';
+import { initializeApp, getApps, cert, App } from 'firebase-admin/app';
 
-// This is a placeholder for a secure way to get service account credentials
-// In a real production environment, use environment variables or a secret manager.
-function getServiceAccount() {
-  try {
+// Helper function to initialize Firebase Admin SDK idempotently.
+function initializeFirebaseAdmin(): App {
+    const apps = getApps();
+    if (apps.length > 0) {
+        return apps[0];
+    }
+    
+    // In a production environment (like Netlify, Vercel, etc.),
+    // the service account key should be stored in an environment variable.
     if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
-      return JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
+        try {
+            const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
+            return initializeApp({
+                credential: cert(serviceAccount)
+            });
+        } catch(e) {
+            console.error("Failed to parse FIREBASE_SERVICE_ACCOUNT_KEY:", e);
+            throw new Error("Firebase Admin SDK service account key is invalid.");
+        }
     }
-  } catch (e) {
-    console.error("Failed to parse FIREBASE_SERVICE_ACCOUNT_KEY:", e);
-  }
-  // Fallback for local development if the env var is not set
-  // IMPORTANT: This path is for demonstration. Do not commit serviceAccountKey.json to git.
-  try {
-      return require('../../../serviceAccountKey.json');
-  } catch (e) {
-      return null;
-  }
+    
+    // This part is for local development and should not run in production builds.
+    // We check NODE_ENV to prevent webpack/turbopack from trying to bundle the local file.
+    if (process.env.NODE_ENV !== 'production') {
+        try {
+            // The require is kept inside the try-catch and conditional block
+            // to ensure it's not evaluated during production builds.
+            const serviceAccount = require('../../../serviceAccountKey.json');
+            return initializeApp({
+                credential: cert(serviceAccount)
+            });
+        } catch (e) {
+            console.warn("Local serviceAccountKey.json not found. For local admin actions, place it in the root directory.");
+        }
+    }
+
+    throw new Error("Firebase Admin SDK could not be initialized. Service account key is missing.");
 }
 
-if (getApps().length === 0) {
-    const serviceAccount = getServiceAccount();
-    if(serviceAccount) {
-        initializeApp({
-            credential: cert(serviceAccount)
-        });
-    } else {
-        console.warn("Firebase Admin SDK not initialized. Service account key is missing.");
-    }
-}
 
 const setUserRoleFlow = ai.defineFlow(
   {
@@ -50,33 +60,31 @@ const setUserRoleFlow = ai.defineFlow(
   },
   async ({ uid, role }) => {
     try {
-        if (getApps().length === 0) {
-            throw new Error("Firebase Admin SDK is not initialized.");
-        }
-      const auth = getAuth();
-      const firestore = getFirestore();
+        initializeFirebaseAdmin();
+        const auth = getAuth();
+        const firestore = getFirestore();
 
-      // 1. Set the custom claim on the user's auth token
-      await auth.setCustomUserClaims(uid, { role });
+        // 1. Set the custom claim on the user's auth token
+        await auth.setCustomUserClaims(uid, { role });
 
-      // 2. Update the role in the user's Firestore document for consistency
-      const userDocRef = firestore.collection('users').doc(uid);
-      await userDocRef.update({ role });
+        // 2. Update the role in the user's Firestore document for consistency
+        const userDocRef = firestore.collection('users').doc(uid);
+        await userDocRef.update({ role });
       
-      // Force user to re-authenticate to get the new token with the claim
-      // This is often done on the client-side by signing out and in, or refreshing the token.
-      // Here, we just return success.
+        // Force user to re-authenticate to get the new token with the claim
+        // This is often done on the client-side by signing out and in, or refreshing the token.
+        // Here, we just return success.
 
-      return {
-        success: true,
-        message: `Successfully set role to ${role} for user ${uid}.`,
-      };
+        return {
+            success: true,
+            message: `Successfully set role to ${role} for user ${uid}.`,
+        };
     } catch (error: any) {
-      console.error('Error setting user role:', error);
-      return {
-        success: false,
-        message: error.message || 'An unknown error occurred.',
-      };
+        console.error('Error setting user role:', error);
+        return {
+            success: false,
+            message: error.message || 'An unknown error occurred.',
+        };
     }
   }
 );

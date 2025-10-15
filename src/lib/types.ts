@@ -204,7 +204,7 @@ export type AfpEntity = {
 };
 
 
-export type DashboardPageProps = {
+export type PageProps = {
     params: {};
     searchParams: { [key: string]: string | string[] | undefined };
 };
@@ -213,5 +213,3 @@ export type SelectedCompanyContextType = {
     selectedCompany: Company | null;
     setSelectedCompany: (company: Company | null) => void;
 };
-
-    
