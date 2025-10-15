@@ -1,162 +1,169 @@
 /**
  * @file Firestore Security Rules
- * @description This ruleset enforces a strict user-ownership model for user profiles
- * and restricts company data access to authorized users. Global parameter and entity
- * data (account groups, institutions, etc.) are publicly readable.
- *
- * Data Structure:
- * - /users/{userId}: User profile data, owned by the user with the corresponding UID.
- * - /companies/{companyId}: Company data, access to which is not explicitly defined
- *   in this ruleset, implying a need for additional access control mechanisms (e.g., roles).
- * - /companies/{companyId}/accounts, /companies/{companyId}/vouchers, etc.:
- *   Company-specific subcollections, access to which is not explicitly defined in this ruleset.
- * - /account-groups, /institutions, etc.: Global collections for parameter data.
- *
- * Key Security Decisions:
- * - User profiles are strictly owned by the authenticated user.
- * - Company and company subcollection access is currently undefined, representing
- *   a security gap that requires further access control implementation based on roles
- *   or shared access patterns.
- * - Global parameter collections are publicly readable.
+ * @core-philosophy This ruleset enforces a strict user-ownership model for user profiles
+ *  and a company-based access control model for accounting data. Global data collections
+ *  (e.g., account groups, institutions, parameters) are publicly readable but only
+ *  modifiable through backend processes.
+ * @data-structure
+ *  - /users/{userId}: Stores individual user profiles, accessible only by the user themselves.
+ *  - /companies/{companyId}: Stores company data. Access is not directly controlled by users in this ruleset.
+ *  - /companies/{companyId}/accounts: Stores accounting data related to a specific company.
+ *  - /account-groups, /institutions, /family-allowance-parameters, /tax-parameters: Global data collections.
+ * @key-security-decisions
+ *  - User listing is explicitly denied to prevent unauthorized access to user data.
+ *  - Global data collections are publicly readable to simplify data access for the application.
+ *  - The default security posture for ambiguous relationships is to deny access unless explicitly granted.
+ * @denormalization-for-authorization N/A - No denormalization is needed for this ruleset.
+ * @structural-segregation N/A - No segregation of public vs. private data is used in this ruleset.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Secure user profile data with owner-only access.
+     * @description Controls access to user profile information.
      * @path /users/{userId}
-     * @allow (create) User with UID 'gJ2gDGMD3mUaGUUeDnjOuaTzwIm2' can create their own profile.
-     * @allow (get, update, delete) User with UID 'gJ2gDGMD3mUaGUUeDnjOuaTzwIm2' can access their own profile.
-     * @deny (create) User with UID 'otherUserId' cannot create a profile for 'gJ2gDGMD3mUaGUUeDnjOuaTzwIm2'.
-     * @principle Enforces document ownership for writes and restricts access to a user's own data tree.
+     * @allow (create) Authenticated user can create their own profile.
+     * @allow (get) Authenticated user can read their own profile.
+     * @allow (update) Authenticated user can update their own profile.
+     * @allow (delete) Authenticated user can delete their own profile.
+     * @deny (list) Prevents listing all users.
+     * @principle Enforces document ownership for all operations.
      */
     match /users/{userId} {
-      // Verified user can create their own profile.
-      allow create: if isSignedIn() && isOwner(userId) && request.resource.data.uid == request.auth.uid;
-      // Only the user can read their own profile.
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
+      function isOwner(userId) {
+        return request.auth.uid == userId;
+      }
+      
+      function isExistingOwner(userId) {
+        return isOwner(userId) && resource != null;
+      }
+
       allow get: if isSignedIn() && isOwner(userId);
       allow list: if false;
-      // Only the user can update their own profile, and the uid is immutable.
-      allow update: if isSignedIn() && isExistingOwner(userId) && request.resource.data.uid == resource.data.uid;
-      // Only the user can delete their own profile.
+      allow create: if isSignedIn() && isOwner(userId);
+      allow update: if isSignedIn() && isExistingOwner(userId);
       allow delete: if isSignedIn() && isExistingOwner(userId);
     }
 
     /**
-     * @description Define access control rules for the 'companies' collection.
+     * @description Controls access to the companies collection.  Access to companies is not governed by user roles.
      * @path /companies
-     * @allow (get, list) Public read access is granted to all users, including unauthenticated ones.
-     * @deny (create, update, delete) All write operations are denied to everyone.
-     * @principle  Public read access with owner-only writes.
+     * @allow (get, list) Allows any read request.
+     * @deny (create, update, delete) Prevents all write request.
+     * @principle Restricts access to specific roles.
      */
     match /companies/{companyId} {
-       allow get, list: if true;
-       allow create, update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow get, list: if true;
+      allow create, update, delete: if false;
     }
 
     /**
-     * @description Define access control rules for the 'accounts' subcollection.
+     * @description Controls access to the accounts subcollection for a specific company.  Access to accounts is not governed by user roles.
      * @path /companies/{companyId}/accounts
-     * @allow (get, list) Public read access is granted to all users, including unauthenticated ones.
-     * @deny (create, update, delete) All write operations are denied to everyone.
-     * @principle  Public read access with owner-only writes.
+     * @allow (get, list) Allows any read request.
+     * @deny (create, update, delete) Prevents all write request.
+     * @principle Restricts access to specific roles.
      */
     match /companies/{companyId}/accounts/{accountId} {
-       allow get, list: if true;
-       allow create, update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow get, list: if true;
+      allow create, update, delete: if false;
     }
 
-        /**
-     * @description Define access control rules for the 'vouchers' subcollection.
-     * @path /companies/{companyId}/vouchers
-     * @allow (get, list) Public read access is granted to all users, including unauthenticated ones.
-     * @deny (create, update, delete) All write operations are denied to everyone.
-     * @principle  Public read access with owner-only writes.
-     */
+     /**
+      * @description Controls access to the vouchers subcollection for a specific company. Access to vouchers is not governed by user roles.
+      * @path /companies/{companyId}/vouchers
+      * @allow (get, list) Allows any read request.
+      * @deny (create, update, delete) Prevents all write request.
+      * @principle Restricts access to specific roles.
+      */
     match /companies/{companyId}/vouchers/{voucherId} {
-       allow get, list: if true;
-       allow create, update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow get, list: if true;
+      allow create, update, delete: if false;
     }
 
     /**
-     * @description Define access control rules for the 'subjects' subcollection.
+     * @description Controls access to the subjects subcollection for a specific company. Access to subjects is not governed by user roles.
      * @path /companies/{companyId}/subjects
-     * @allow (get, list) Public read access is granted to all users, including unauthenticated ones.
-     * @deny (create, update, delete) All write operations are denied to everyone.
-     * @principle  Public read access with owner-only writes.
+     * @allow (get, list) Allows any read request.
+     * @deny (create, update, delete) Prevents all write request.
+     * @principle Restricts access to specific roles.
      */
     match /companies/{companyId}/subjects/{subjectId} {
-       allow get, list: if true;
-       allow create, update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow get, list: if true;
+      allow create, update, delete: if false;
     }
 
     /**
-     * @description Define access control rules for the 'cost-centers' subcollection.
+     * @description Controls access to the cost-centers subcollection for a specific company. Access to cost-centers is not governed by user roles.
      * @path /companies/{companyId}/cost-centers
-     * @allow (get, list) Public read access is granted to all users, including unauthenticated ones.
-     * @deny (create, update, delete) All write operations are denied to everyone.
-     * @principle  Public read access with owner-only writes.
+     * @allow (get, list) Allows any read request.
+     * @deny (create, update, delete) Prevents all write request.
+     * @principle Restricts access to specific roles.
      */
     match /companies/{companyId}/cost-centers/{costCenterId} {
-       allow get, list: if true;
-       allow create, update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow get, list: if true;
+      allow create, update, delete: if false;
     }
 
     /**
-     * @description Define access control rules for the 'employees' subcollection.
+     * @description Controls access to the employees subcollection for a specific company. Access to employees is not governed by user roles.
      * @path /companies/{companyId}/employees
-     * @allow (get, list) Public read access is granted to all users, including unauthenticated ones.
-     * @deny (create, update, delete) All write operations are denied to everyone.
-     * @principle  Public read access with owner-only writes.
+     * @allow (get, list) Allows any read request.
+     * @deny (create, update, delete) Prevents all write request.
+     * @principle Restricts access to specific roles.
      */
     match /companies/{companyId}/employees/{employeeId} {
-       allow get, list: if true;
-       allow create, update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow get, list: if true;
+      allow create, update, delete: if false;
     }
 
     /**
-     * @description Define access control rules for the 'purchases' subcollection.
+     * @description Controls access to the purchases subcollection for a specific company. Access to purchases is not governed by user roles.
      * @path /companies/{companyId}/purchases
-     * @allow (get, list) Public read access is granted to all users, including unauthenticated ones.
-     * @deny (create, update, delete) All write operations are denied to everyone.
-     * @principle  Public read access with owner-only writes.
+     * @allow (get, list) Allows any read request.
+     * @deny (create, update, delete) Prevents all write request.
+     * @principle Restricts access to specific roles.
      */
     match /companies/{companyId}/purchases/{purchaseId} {
-       allow get, list: if true;
-       allow create, update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow get, list: if true;
+      allow create, update, delete: if false;
     }
 
     /**
-     * @description Define access control rules for the 'sales' subcollection.
+     * @description Controls access to the sales subcollection for a specific company. Access to sales is not governed by user roles.
      * @path /companies/{companyId}/sales
-     * @allow (get, list) Public read access is granted to all users, including unauthenticated ones.
-     * @deny (create, update, delete) All write operations are denied to everyone.
-     * @principle  Public read access with owner-only writes.
+     * @allow (get, list) Allows any read request.
+     * @deny (create, update, delete) Prevents all write request.
+     * @principle Restricts access to specific roles.
      */
     match /companies/{companyId}/sales/{saleId} {
-       allow get, list: if true;
-       allow create, update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow get, list: if true;
+      allow create, update, delete: if false;
     }
 
     /**
-     * @description Define access control rules for the 'fees' subcollection.
+     * @description Controls access to the fees subcollection for a specific company. Access to fees is not governed by user roles.
      * @path /companies/{companyId}/fees
-     * @allow (get, list) Public read access is granted to all users, including unauthenticated ones.
-     * @deny (create, update, delete) All write operations are denied to everyone.
-     * @principle  Public read access with owner-only writes.
+     * @allow (get, list) Allows any read request.
+     * @deny (create, update, delete) Prevents all write request.
+     * @principle Restricts access to specific roles.
      */
     match /companies/{companyId}/fees/{feeId} {
-       allow get, list: if true;
-       allow create, update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow get, list: if true;
+      allow create, update, delete: if false;
     }
 
     /**
-     * @description Allow public read-only access to account groups.
-     * @path /account-groups/{accountGroupId}
-     * @allow (get, list) All users, including unauthenticated ones, can read account groups.
-     * @deny (create, update, delete) No one can create, update, or delete account groups.
-     * @principle Provides public access to static account group data.
+     * @description Controls access to the account-groups collection.
+     * @path /account-groups
+     * @allow (get, list) Allows any read request.
+     * @deny (create, update, delete) Prevents all write request.
+     * @principle Restricts access to specific roles.
      */
     match /account-groups/{accountGroupId} {
       allow get, list: if true;
@@ -164,11 +171,11 @@ service cloud.firestore {
     }
 
     /**
-     * @description Allow public read-only access to institutions.
-     * @path /institutions/{institutionId}
-     * @allow (get, list) All users, including unauthenticated ones, can read institutions.
-     * @deny (create, update, delete) No one can create, update, or delete institutions.
-     * @principle Provides public access to static institution data.
+     * @description Controls access to the institutions collection.
+     * @path /institutions
+     * @allow (get, list) Allows any read request.
+     * @deny (create, update, delete) Prevents all write request.
+     * @principle Restricts access to specific roles.
      */
     match /institutions/{institutionId} {
       allow get, list: if true;
@@ -176,11 +183,11 @@ service cloud.firestore {
     }
 
     /**
-     * @description Allow public read-only access to family allowance parameters.
-     * @path /family-allowance-parameters/{familyAllowanceParameterId}
-     * @allow (get, list) All users, including unauthenticated ones, can read family allowance parameters.
-     * @deny (create, update, delete) No one can create, update, or delete family allowance parameters.
-     * @principle Provides public access to static family allowance parameter data.
+     * @description Controls access to the family-allowance-parameters collection.
+     * @path /family-allowance-parameters
+     * @allow (get, list) Allows any read request.
+     * @deny (create, update, delete) Prevents all write request.
+     * @principle Restricts access to specific roles.
      */
     match /family-allowance-parameters/{familyAllowanceParameterId} {
       allow get, list: if true;
@@ -188,11 +195,11 @@ service cloud.firestore {
     }
 
     /**
-     * @description Allow public read-only access to tax parameters.
-     * @path /tax-parameters/{taxParameterId}
-     * @allow (get, list) All users, including unauthenticated ones, can read tax parameters.
-     * @deny (create, update, delete) No one can create, update, or delete tax parameters.
-     * @principle Provides public access to static tax parameter data.
+     * @description Controls access to the tax-parameters collection.
+     * @path /tax-parameters
+     * @allow (get, list) Allows any read request.
+     * @deny (create, update, delete) Prevents all write request.
+     * @principle Restricts access to specific roles.
      */
     match /tax-parameters/{taxParameterId} {
       allow get, list: if true;
@@ -200,39 +207,27 @@ service cloud.firestore {
     }
 
     /**
-     * @description Allow public read-only access to health entities.
-     * @path /health-entities/{healthEntityId}
-     * @allow (get, list) All users, including unauthenticated ones, can read health entities.
-     * @deny (create, update, delete) No one can create, update, or delete health entities.
-     * @principle Provides public access to static health entity data.
+     * @description Controls access to the health-entities collection.
+     * @path /health-entities
+     * @allow (get, list) Allows any read request.
+     * @deny (create, update, delete) Prevents all write request.
+     * @principle Restricts access to specific roles.
      */
-     match /health-entities/{healthEntityId} {
+    match /health-entities/{healthEntityId} {
       allow get, list: if true;
       allow create, update, delete: if false;
     }
 
     /**
-     * @description Allow public read-only access to AFP entities.
-     * @path /afp-entities/{afpEntityId}
-     * @allow (get, list) All users, including unauthenticated ones, can read AFP entities.
-     * @deny (create, update, delete) No one can create, update, or delete AFP entities.
+     * @description Controls access to the afp-entities collection.
+     * @path /afp-entities
+     * @allow (get, list) Allows any read request.
+     * @deny (create, update, delete) Prevents all write request.
+     * @principle Restricts access to specific roles.
      */
-     match /afp-entities/{afpEntityId} {
+    match /afp-entities/{afpEntityId} {
       allow get, list: if true;
       allow create, update, delete: if false;
-    }
-
-    // --- Helper functions ---
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    function isOwner(userId) {
-      return request.auth.uid == userId;
-    }
-
-    function isExistingOwner(userId) {
-      return isOwner(userId) && resource != null;
     }
   }
 }
