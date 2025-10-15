@@ -25,7 +25,20 @@ import {
   import UserManagement from "@/components/admin/user-management"
 import { SelectedCompanyContext } from "./layout"
   
-function AccountantDashboardContent({ companyId, companies, accounts, vouchers, loading }: { companyId: string | undefined, companies: Company[] | null, accounts: Account[] | null, vouchers: Voucher[] | null, loading: boolean }) {
+function AccountantDashboardContent({ companyId }: { companyId: string | undefined }) {
+    
+    const { data: accounts, loading: accountsLoading } = useCollection<Account>({
+        path: companyId ? `companies/${companyId}/accounts` : undefined,
+        companyId: companyId,
+    });
+    const { data: vouchers, loading: vouchersLoading } = useCollection<Voucher>({
+        path: companyId ? `companies/${companyId}/vouchers` : undefined,
+        companyId: companyId,
+    });
+     const { data: companies, loading: companiesLoading } = useCollection<Company>({ path: 'companies'});
+
+    const loading = accountsLoading || vouchersLoading || companiesLoading;
+
 
     const calculatedBalances = React.useMemo(() => {
         if (!accounts || !vouchers) return [];
@@ -47,7 +60,7 @@ function AccountantDashboardContent({ companyId, companies, accounts, vouchers, 
             const movements = accountMovements.get(account.code);
             let finalBalance = account.balance || 0;
             if (movements) {
-                 if (account.type === 'Activo' || account.type === 'Resultado') {
+                 if (account.type === 'Activo' || (account.type === 'Resultado' && movements.debit > movements.credit)) {
                      finalBalance += movements.debit - movements.credit;
                  } else { 
                      finalBalance += movements.credit - movements.debit;
@@ -226,29 +239,7 @@ function AccountantDashboard() {
     const { selectedCompany } = React.useContext(SelectedCompanyContext) || {};
     const companyId = selectedCompany?.id;
 
-    const { data: accounts, loading: accountsLoading } = useCollection<Account>({
-        path: `companies/${companyId}/accounts`,
-        disabled: !companyId
-    });
-    const { data: vouchers, loading: vouchersLoading } = useCollection<Voucher>({
-        path: `companies/${companyId}/vouchers`,
-        disabled: !companyId
-    });
-    const { data: companies, loading: companiesLoading } = useCollection<Company>({
-        path: 'companies',
-    });
-
-    const loading = accountsLoading || vouchersLoading || companiesLoading;
-
-    return (
-        <AccountantDashboardContent 
-            companyId={companyId}
-            companies={companies}
-            accounts={accounts}
-            vouchers={vouchers}
-            loading={loading}
-        />
-    );
+    return <AccountantDashboardContent companyId={companyId} />;
 }
 
 export default function DashboardPage() {

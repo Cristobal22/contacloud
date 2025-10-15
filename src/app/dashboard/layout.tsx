@@ -27,12 +27,11 @@ import { useUserProfile } from "@/firebase/auth/use-user-profile"
 
 export const SelectedCompanyContext = React.createContext<SelectedCompanyContextType | null>(null);
 
-function AccountantDashboard({ children }: { children: React.ReactNode }) {
+function AccountantDashboardLayout({ children }: { children: React.ReactNode }) {
     const firestore = useFirestore();
     const { user, loading: userLoading } = useUser();
     const { userProfile, loading: profileLoading } = useUserProfile(user?.uid);
     
-    // Create the query for the companies collection, but only if the user profile and companyIds are available.
     const companiesQuery = React.useMemo(() => {
         if (!firestore || !userProfile || !userProfile.companyIds || userProfile.companyIds.length === 0) {
             return null;
@@ -48,23 +47,30 @@ function AccountantDashboard({ children }: { children: React.ReactNode }) {
     const [selectedCompany, setSelectedCompany] = React.useState<Company | null>(null);
 
     React.useEffect(() => {
-        if (companies && companies.length > 0 && !selectedCompany) {
-            setSelectedCompany(companies[0]);
+        const storedCompanyId = localStorage.getItem('selectedCompanyId');
+        if (companies && companies.length > 0) {
+            if (storedCompanyId) {
+                const foundCompany = companies.find(c => c.id === storedCompanyId);
+                setSelectedCompany(foundCompany || companies[0]);
+            } else {
+                setSelectedCompany(companies[0]);
+            }
         } else if (companies && companies.length === 0) {
             setSelectedCompany(null);
         }
-    }, [companies, selectedCompany]);
+    }, [companies]);
 
     const handleCompanyChange = (company: Company) => {
         setSelectedCompany(company);
+        localStorage.setItem('selectedCompanyId', company.id);
     };
 
-    if (companiesLoading || profileLoading) {
-        return <div className="flex h-full w-full items-center justify-center"><p>Cargando empresas...</p></div>
+    if (userLoading || profileLoading || companiesLoading) {
+        return <div className="flex h-full w-full items-center justify-center"><p>Cargando datos del contador...</p></div>
     }
 
     return (
-        <SelectedCompanyContext.Provider value={{ selectedCompany, setSelectedCompany }}>
+        <SelectedCompanyContext.Provider value={{ selectedCompany, setSelectedCompany: handleCompanyChange }}>
             <div className="flex min-h-screen w-full flex-col bg-muted/40">
                 <aside className="fixed inset-y-0 left-0 z-10 hidden w-64 flex-col border-r bg-background sm:flex">
                     <div className="flex h-16 items-center border-b px-6">
@@ -128,7 +134,7 @@ function AccountantDashboard({ children }: { children: React.ReactNode }) {
     );
 }
 
-function AdminDashboard({ children }: { children: React.ReactNode }) {
+function AdminDashboardLayout({ children }: { children: React.ReactNode }) {
     return (
         <div className="flex min-h-screen w-full flex-col bg-muted/40">
             <aside className="fixed inset-y-0 left-0 z-10 hidden w-64 flex-col border-r bg-background sm:flex">
@@ -168,11 +174,11 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
     }
     
     if (userProfile?.role === 'Admin') {
-        return <AdminDashboard>{children}</AdminDashboard>;
+        return <AdminDashboardLayout>{children}</AdminDashboardLayout>;
     }
 
     if (userProfile?.role === 'Accountant') {
-        return <AccountantDashboard>{children}</AccountantDashboard>;
+        return <AccountantDashboardLayout>{children}</AccountantDashboardLayout>;
     }
     
     return (
