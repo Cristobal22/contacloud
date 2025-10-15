@@ -1,5 +1,6 @@
 'use client'
 
+import React from "react"
 import {
     Card,
     CardContent,
@@ -16,18 +17,43 @@ import {
     TableRow,
   } from "@/components/ui/table"
   import { Badge } from "@/components/ui/badge"
-  import { mockAccounts, mockTransactions, mockCompanies } from "@/lib/data"
-  import { DollarSign, Landmark, Building, ArrowRightLeft } from "lucide-react"
   import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis } from "recharts"
+  import { useCollection } from "@/firebase"
+  import type { Account, Company, Voucher } from "@/lib/types"
+  import { SelectedCompanyContext } from "./layout"
   
-  export default function DashboardPage() {
-    const totalBalance = mockAccounts
-        .filter(acc => acc.type === 'Asset' || acc.type === 'Revenue')
-        .reduce((sum, acc) => sum + acc.balance, 0);
+  export default function DashboardPage({ companyId }: { companyId?: string }) {
+    const { data: accounts, loading: accountsLoading } = useCollection<Account>({
+        path: `companies/${companyId}/accounts`,
+        companyId: companyId,
+    });
+    const { data: vouchers, loading: vouchersLoading } = useCollection<Voucher>({
+        path: `companies/${companyId}/vouchers`,
+        companyId: companyId,
+    });
+    const { data: companies, loading: companiesLoading } = useCollection<Company>({
+        path: 'companies',
+    });
 
-    const totalLiabilities = mockAccounts
-        .filter(acc => acc.type === 'Liability' || acc.type === 'Expense')
-        .reduce((sum, acc) => sum + acc.balance, 0);
+    const totalBalance = accounts
+        ?.filter(acc => acc.type === 'Activo')
+        .reduce((sum, acc) => sum + acc.balance, 0) || 0;
+
+    const totalLiabilities = accounts
+        ?.filter(acc => acc.type === 'Pasivo')
+        .reduce((sum, acc) => sum + acc.balance, 0) || 0;
+
+    const recentVouchers = vouchers?.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 5) || [];
+
+    const loading = accountsLoading || vouchersLoading || companiesLoading;
+
+    if (loading) {
+        return (
+            <div className="flex min-h-screen w-full items-center justify-center">
+                <p>Cargando dashboard...</p>
+            </div>
+        )
+    }
   
     return (
       <div className="grid auto-rows-max items-start gap-4 md:gap-8 lg:col-span-2">
@@ -39,7 +65,7 @@ import {
             </CardHeader>
             <CardContent>
               <div className="text-xs text-muted-foreground">
-                +25% desde el mes pasado
+                Calculado desde las cuentas de la empresa.
               </div>
             </CardContent>
           </Card>
@@ -50,29 +76,29 @@ import {
             </CardHeader>
             <CardContent>
               <div className="text-xs text-muted-foreground">
-                +10% desde el mes pasado
+                Calculado desde las cuentas de la empresa.
               </div>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="pb-2">
               <CardDescription>Empresas</CardDescription>
-              <CardTitle className="text-4xl">{mockCompanies.length}</CardTitle>
+              <CardTitle className="text-4xl">{companies?.length || 0}</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-xs text-muted-foreground">
-                +1 desde el mes pasado
+                Total de empresas gestionadas.
               </div>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="pb-2">
-              <CardDescription>Transacciones</CardDescription>
-              <CardTitle className="text-4xl">{mockTransactions.length}</CardTitle>
+              <CardDescription>Comprobantes</CardDescription>
+              <CardTitle className="text-4xl">{vouchers?.length || 0}</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-xs text-muted-foreground">
-                +20 desde el mes pasado
+                Total de comprobantes para esta empresa.
               </div>
             </CardContent>
           </Card>
@@ -85,7 +111,7 @@ import {
                 </CardHeader>
                 <CardContent>
                     <ResponsiveContainer width="100%" height={300}>
-                        <BarChart data={mockAccounts}>
+                        <BarChart data={accounts?.filter(a => a.balance > 0)}>
                             <XAxis
                             dataKey="name"
                             stroke="#888888"
@@ -107,7 +133,7 @@ import {
             </Card>
             <Card>
           <CardHeader>
-            <CardTitle>Transacciones Recientes</CardTitle>
+            <CardTitle>Comprobantes Recientes</CardTitle>
             <CardDescription>
               Un resumen de las últimas actividades financieras.
             </CardDescription>
@@ -122,24 +148,31 @@ import {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {mockTransactions.slice(0, 5).map((transaction) => (
-                  <TableRow key={transaction.id}>
+                {recentVouchers.map((voucher) => (
+                  <TableRow key={voucher.id}>
                     <TableCell>
-                      <div className="font-medium">{transaction.account}</div>
+                      <div className="font-medium">{voucher.description}</div>
                       <div className="text-sm text-muted-foreground">
-                        {transaction.description}
+                        {voucher.date} - {voucher.type}
                       </div>
                     </TableCell>
                     <TableCell className="text-right">
-                      ${transaction.amount.toLocaleString('es-CL')}
+                      ${voucher.total.toLocaleString('es-CL')}
                     </TableCell>
                     <TableCell>
-                      <Badge variant={transaction.status === 'Completed' ? 'default' : transaction.status === 'Pending' ? 'secondary' : 'destructive'} className="text-xs" >
-                          {transaction.status}
+                      <Badge variant={voucher.status === 'Posteado' ? 'outline' : 'secondary'} className="text-xs" >
+                          {voucher.status}
                       </Badge>
                     </TableCell>
                   </TableRow>
                 ))}
+                 {recentVouchers.length === 0 && (
+                     <TableRow>
+                        <TableCell colSpan={3} className="text-center">
+                            No hay comprobantes recientes para esta empresa.
+                        </TableCell>
+                    </TableRow>
+                 )}
               </TableBody>
             </Table>
           </CardContent>
