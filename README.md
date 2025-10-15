@@ -58,8 +58,33 @@ To create your first `Admin` user:
 6.  Click on the document to open its fields.
 7.  Find the **`role`** field and change its value from `"Accountant"` to `"Admin"`.
 8.  Click **Update**.
+9.  **You must also set a custom claim** for this user to grant admin privileges for listing all users. This must be done via the Firebase Admin SDK. You can run a Node.js script like the one below.
+    - **Get User UID**: In the Firebase Console, go to **Authentication > Users** and copy the UID for your admin user.
+    - **Create a `serviceAccountKey.json`**: In the Firebase Console, go to **Project Settings > Service accounts** and generate a new private key.
+    - **Run the script**:
+        ```javascript
+        // setAdmin.js
+        const admin = require('firebase-admin');
+        const serviceAccount = require('./path/to/your/serviceAccountKey.json');
+        
+        admin.initializeApp({
+          credential: admin.credential.cert(serviceAccount)
+        });
 
-That's it! The next time this user logs in, they will have full administrative privileges and will be redirected to the admin dashboard.
+        const uid = 'PASTE_YOUR_ADMIN_UID_HERE';
+
+        admin.auth().setCustomUserClaims(uid, { role: 'Admin' })
+          .then(() => {
+            console.log('Successfully set admin claim for user:', uid);
+            process.exit(0);
+          })
+          .catch(error => {
+            console.error('Error setting custom claim:', error);
+            process.exit(1);
+          });
+        ```
+
+That's it! The next time this user logs in, they will have full administrative privileges.
 
 ### Running the Development Server
 

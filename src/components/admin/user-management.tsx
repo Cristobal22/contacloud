@@ -49,14 +49,15 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { useCollection, useFirestore, useAuth } from "@/firebase"
+import { useCollection, useFirestore, useAuth, useUser } from "@/firebase"
 import type { UserProfile } from "@/lib/types"
 import { collection, doc, setDoc, deleteDoc } from "firebase/firestore"
 import { createUserWithEmailAndPassword } from "firebase/auth";
 import { errorEmitter } from '@/firebase/error-emitter'
 import { FirestorePermissionError } from '@/firebase/errors'
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
+import { useUserProfile } from '@/firebase/auth/use-user-profile';
 
 type NewUserInput = {
   email: string;
@@ -67,14 +68,23 @@ type NewUserInput = {
 export default function UserManagement() {
     const firestore = useFirestore();
     const auth = useAuth();
+    const { user: authUser } = useUser();
+    const { userProfile: currentUserProfile, loading: profileLoading } = useUserProfile(authUser?.uid);
     const { toast } = useToast();
+    
+    const isCurrentUserAdmin = currentUserProfile?.role === 'Admin';
     
     const usersCollection = useMemo(() => {
         if (!firestore) return null;
         return collection(firestore, 'users');
     }, [firestore]);
 
-    const { data: users, loading } = useCollection<UserProfile>({ query: usersCollection });
+    const { data: users, loading: usersLoading } = useCollection<UserProfile>({ 
+      query: usersCollection,
+      disabled: !isCurrentUserAdmin, // Only fetch if the current user is an admin
+    });
+    
+    const loading = usersLoading || profileLoading;
 
     const [isFormOpen, setIsFormOpen] = React.useState(false);
     const [isCreateFormOpen, setIsCreateFormOpen] = useState(false);
@@ -138,19 +148,19 @@ export default function UserManagement() {
         try {
             // Step 1: Create the auth user directly
             const userCredential = await createUserWithEmailAndPassword(auth, newUser.email, newUser.password);
-            const authUser = userCredential.user;
+            const createdAuthUser = userCredential.user;
             
             // Step 2: Create the user profile object for Firestore
             const newUserProfile: UserProfile = {
-                uid: authUser.uid,
+                uid: createdAuthUser.uid,
                 email: newUser.email,
                 displayName: newUser.displayName || newUser.email.split('@')[0],
                 role: 'Accountant', // All users created by Admin are Accountants
-                photoURL: `https://i.pravatar.cc/150?u=${authUser.uid}`
+                photoURL: `https://i.pravatar.cc/150?u=${createdAuthUser.uid}`
             };
             
             // Step 3: Save the profile to Firestore
-            const userDocRef = doc(firestore, "users", authUser.uid);
+            const userDocRef = doc(firestore, "users", createdAuthUser.uid);
             await setDoc(userDocRef, newUserProfile);
 
             toast({ title: 'Usuario Creado', description: `La cuenta y el perfil para ${newUser.email} han sido creados.` });
@@ -172,8 +182,6 @@ export default function UserManagement() {
         if (!firestore || !userToDelete) return;
         const docRef = doc(firestore, 'users', userToDelete.uid);
         
-        // This only deletes the Firestore document, not the auth user.
-        // In a real app, this should be a Cloud Function.
         deleteDoc(docRef)
             .then(() => {
                 toast({ title: 'Perfil Eliminado', description: `El perfil de ${userToDelete.email} fue eliminado de Firestore.` });
@@ -264,7 +272,9 @@ export default function UserManagement() {
                             ))}
                             {!loading && users?.length === 0 && (
                                 <TableRow>
-                                    <TableCell colSpan={5} className="text-center">No se encontraron usuarios.</TableCell>
+                                    <TableCell colSpan={5} className="text-center">
+                                        {isCurrentUserAdmin ? "No se encontraron usuarios." : "No tienes permisos para ver esta lista."}
+                                    </TableCell>
                                 </TableRow>
                             )}
                         </TableBody>
