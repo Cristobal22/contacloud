@@ -9,6 +9,7 @@ import { FirebaseProvider } from './provider';
 import { FirebaseClientProvider } from './client-provider';
 import { useFirebase, useFirebaseApp, useFirestore, useAuth } from './provider';
 import { useUser } from './auth/use-user';
+import { useUserProfile } from './auth/use-user-profile';
 import { useDoc } from './firestore/use-doc';
 import { useCollection } from './firestore/use-collection';
 
@@ -43,6 +44,7 @@ export {
   useFirestore,
   useAuth,
   useUser,
+  useUserProfile,
   useDoc,
   useCollection,
 };

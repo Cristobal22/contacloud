@@ -1,4 +1,3 @@
-
 'use client';
 
 import Link from 'next/link';
@@ -36,12 +35,15 @@ import {
   HeartPulse,
   Wallet,
   SlidersHorizontal,
+  UserCog,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './ui/collapsible';
 import React from 'react';
+import { useUserProfile } from '@/firebase/auth/use-user-profile';
+import { useUser } from '@/firebase';
 
-const navSections = [
+const accountantNavSections = [
     {
         title: 'Contabilidad',
         icon: Landmark,
@@ -150,12 +152,25 @@ const configurationSections = [
     }
 ];
 
+const adminNavSections = [
+    {
+        title: 'Administración',
+        icon: UserCog,
+        links: [
+            { href: '/dashboard/admin/users', label: 'Gestión de Usuarios', icon: Users },
+        ]
+    }
+]
 
 const bottomNavItems = [
     { href: '/dashboard/settings', label: 'Settings', icon: Settings },
 ]
 
-export function DashboardNav() {
+type DashboardNavProps = {
+    role: 'Admin' | 'Accountant';
+}
+
+export function DashboardNav({ role }: DashboardNavProps) {
   const pathname = usePathname();
   const [openSections, setOpenSections] = React.useState<Record<string, boolean>>({
     'Contabilidad': true,
@@ -172,6 +187,7 @@ export function DashboardNav() {
     'Cierres_sub': true,
     'Configuración': false,
     'General_sub': true,
+    'Administración': true,
   });
 
   const toggleSection = (title: string) => {
@@ -244,14 +260,23 @@ export function DashboardNav() {
         </Collapsible>
     )};
 
+    const navContent = role === 'Admin' ? (
+        <>
+            {adminNavSections.map(renderSection)}
+        </>
+    ) : (
+        <>
+            {accountantNavSections.map(renderSection)}
+            {renderNestedSection('Remuneraciones', Users, payrollSections)}
+            {renderNestedSection('Procesos Críticos', RefreshCw, criticalProcessesSections, false)}
+            {renderNestedSection('Configuración', SlidersHorizontal, configurationSections, false)}
+        </>
+    );
 
   return (
     <div className="flex h-full flex-col justify-between">
       <nav className="grid items-start gap-2 px-4 text-sm font-medium">
-        {navSections.map(renderSection)}
-        {renderNestedSection('Remuneraciones', Users, payrollSections)}
-        {renderNestedSection('Procesos Críticos', RefreshCw, criticalProcessesSections, false)}
-        {renderNestedSection('Configuración', SlidersHorizontal, configurationSections, false)}
+        {navContent}
       </nav>
       <nav className="mt-auto grid items-start gap-1 px-4 text-sm font-medium">
         {bottomNavItems.map(renderLink)}
