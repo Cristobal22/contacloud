@@ -45,7 +45,7 @@ Contador Cloud is a modern, multi-tenant accounting application designed for acc
 
 ### IMPORTANT: Creating the First Admin User
 
-For security and functionality, the first user with the `Admin` role must be created and configured manually in the Firebase Console. This is a one-time setup for your first administrator.
+For security and functionality, the first user with the `Admin` role must be created and configured manually in the Firebase Console and via a special script. This is a one-time setup for your first administrator.
 
 **All users created via the Admin dashboard within the app will be automatically assigned the `Accountant` role.**
 
@@ -58,31 +58,7 @@ To create your first `Admin` user:
 6.  Click on the document to open its fields.
 7.  Find the **`role`** field and change its value from `"Accountant"` to `"Admin"`.
 8.  Click **Update**.
-9.  **You must also set a custom claim** for this user to grant admin privileges for listing all users. This must be done via the Firebase Admin SDK. You can run a Node.js script like the one below.
-    - **Get User UID**: In the Firebase Console, go to **Authentication > Users** and copy the UID for your admin user.
-    - **Create a `serviceAccountKey.json`**: In the Firebase Console, go to **Project Settings > Service accounts** and generate a new private key.
-    - **Run the script**:
-        ```javascript
-        // setAdmin.js
-        const admin = require('firebase-admin');
-        const serviceAccount = require('./path/to/your/serviceAccountKey.json');
-        
-        admin.initializeApp({
-          credential: admin.credential.cert(serviceAccount)
-        });
-
-        const uid = 'PASTE_YOUR_ADMIN_UID_HERE';
-
-        admin.auth().setCustomUserClaims(uid, { role: 'Admin' })
-          .then(() => {
-            console.log('Successfully set admin claim for user:', uid);
-            process.exit(0);
-          })
-          .catch(error => {
-            console.error('Error setting custom claim:', error);
-            process.exit(1);
-          });
-        ```
+9.  **You must also set a custom claim** for this user to grant admin privileges for listing all users. You can do this by navigating to the **Admin Dashboard** in the application, where you will find a special tool to assign the 'Admin' role to a user by providing their UID. After assigning the role, you must **log out and log back in** for the changes to take effect.
 
 That's it! The next time this user logs in, they will have full administrative privileges.
 
