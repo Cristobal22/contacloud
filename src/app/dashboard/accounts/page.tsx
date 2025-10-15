@@ -182,7 +182,9 @@ export default function AccountsPage({ companyId }: { companyId?: string }) {
               ))}
               {!loading && accounts?.length === 0 && (
                 <TableRow>
-                    <TableCell colSpan={5} className="text-center">No se encontraron cuentas para esta empresa.</TableCell>
+                    <TableCell colSpan={5} className="text-center">
+                        {!companyId ? "Selecciona una empresa para ver sus cuentas." : "No se encontraron cuentas para esta empresa."}
+                    </TableCell>
                 </TableRow>
               )}
             </TableBody>

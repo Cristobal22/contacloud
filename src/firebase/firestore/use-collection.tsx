@@ -20,23 +20,44 @@ export function useCollection<T>({ path, companyId, query: manualQuery, disabled
   const [error, setError] = useState<Error | null>(null);
 
   const finalQuery = useMemo(() => {
-    if (disabled) return null;
+    // Globally disabled or no path provided
+    if (disabled || !path) {
+        return null;
+    }
+
+    // Path requires a companyId, but it's not available
+    if (path.includes('{companyId}') && !companyId) {
+        return null;
+    }
+    
+    const resolvedPath = path.replace('{companyId}', companyId || '');
 
     if (manualQuery) {
         return manualQuery;
     }
-    if (!firestore || !path) {
+
+    if (!firestore) {
         return null;
     }
-    // companyId can be explicitly undefined, which means don't filter by it.
+    
+    // For collections that are not company-specific, but depend on a companyId to be present
     if (companyId) {
-        return query(collection(firestore, path), where('companyId', '==', companyId));
+        return query(collection(firestore, resolvedPath), where('companyId', '==', companyId));
     }
-    return collection(firestore, path);
+    
+    // For global collections
+    if (!path.includes('{companyId}') && !path.includes('undefined')) {
+        return collection(firestore, resolvedPath);
+    }
+
+    // If we're here, it's likely a sub-collection path that is currently invalid because companyId is missing.
+    // e.g. path is "companies/undefined/vouchers"
+    return null;
+
   }, [firestore, path, companyId, manualQuery, disabled]);
 
   const fetchData = useCallback(() => {
-    if (finalQuery === null || disabled) {
+    if (finalQuery === null) {
       setData(null);
       setLoading(false);
       return () => {};
@@ -68,7 +89,7 @@ export function useCollection<T>({ path, companyId, query: manualQuery, disabled
       }
     );
     return unsubscribe;
-  }, [finalQuery, path, disabled]);
+  }, [finalQuery, path]);
 
 
   useEffect(() => {

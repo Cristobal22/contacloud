@@ -31,11 +31,11 @@ import {
   
   export default function JournalPage({ companyId }: { companyId?: string }) {
     const { data: vouchers, loading: vouchersLoading } = useCollection<Voucher>({ 
-      path: companyId ? `companies/${companyId}/vouchers` : undefined,
+      path: `companies/${companyId}/vouchers`,
       companyId: companyId 
     });
      const { data: accounts, loading: accountsLoading } = useCollection<Account>({
-        path: companyId ? `companies/${companyId}/accounts` : undefined,
+        path: `companies/${companyId}/accounts`,
         companyId: companyId,
     });
 
@@ -113,6 +113,3 @@ import {
       </Card>
     )
   }
-  
-
-    

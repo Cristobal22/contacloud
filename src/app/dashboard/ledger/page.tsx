@@ -1,4 +1,3 @@
-
 'use client';
 
 import React from 'react';
@@ -22,11 +21,11 @@ import {
   
   export default function LedgerPage({ companyId }: { companyId?: string }) {
     const { data: accounts, loading: accountsLoading } = useCollection<Account>({
-        path: companyId ? `companies/${companyId}/accounts` : undefined,
+        path: `companies/${companyId}/accounts`,
         companyId: companyId,
     });
     const { data: vouchers, loading: vouchersLoading } = useCollection<Voucher>({
-      path: companyId ? `companies/${companyId}/vouchers` : undefined,
+      path: `companies/${companyId}/vouchers`,
       companyId: companyId 
     });
 
