@@ -22,7 +22,14 @@ import {
 import { PlusCircle, Trash2 } from "lucide-react";
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { mockVouchers } from '@/lib/data';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+  } from "@/components/ui/select"
+import { mockVouchers, mockAccounts } from '@/lib/data';
 import { useParams } from 'next/navigation';
 
 interface VoucherEntry {
@@ -38,7 +45,6 @@ export default function VoucherDetailPage() {
     const { id } = params;
     const isNew = id === 'new';
 
-    // In a real app, you'd fetch voucher details and its lines from an API
     const voucher = mockVouchers.find(v => v.id === id) || {
         id: 'new',
         date: new Date().toISOString().substring(0, 10),
@@ -48,10 +54,9 @@ export default function VoucherDetailPage() {
         total: 0
     };
     
-    // Manage entries with local state
     const [entries, setEntries] = React.useState<VoucherEntry[]>(isNew ? [] : [
-        { id: 1, account: '1101-01 Caja', description: 'Inicio de actividades', debit: 100000, credit: 0 },
-        { id: 2, account: '3101-01 Capital', description: 'Aporte inicial', debit: 0, credit: 100000 },
+        { id: 1, account: '1101-01', description: 'Inicio de actividades', debit: 100000, credit: 0 },
+        { id: 2, account: '3101-01', description: 'Aporte inicial', debit: 0, credit: 100000 },
     ]);
 
     const handleAddEntry = () => {
@@ -68,8 +73,11 @@ export default function VoucherDetailPage() {
     const handleEntryChange = (entryId: number, field: keyof VoucherEntry, value: string | number) => {
         const newEntries = entries.map(entry => {
             if (entry.id === entryId) {
-                const numericValue = typeof value === 'string' ? parseFloat(value) || 0 : value;
-                return { ...entry, [field]: numericValue };
+                if (field === 'debit' || field === 'credit') {
+                    const numericValue = typeof value === 'string' ? parseFloat(value) || 0 : value;
+                    return { ...entry, [field]: numericValue };
+                }
+                return { ...entry, [field]: value };
             }
             return entry;
         });
@@ -112,14 +120,26 @@ export default function VoucherDetailPage() {
                             {entries.map(entry => (
                                 <TableRow key={entry.id}>
                                     <TableCell>
-                                        <Input 
-                                            defaultValue={entry.account}
-                                            placeholder="Ej: 1101-01"
-                                        />
+                                        <Select
+                                            value={entry.account}
+                                            onValueChange={(value) => handleEntryChange(entry.id, 'account', value)}
+                                        >
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="Selecciona una cuenta" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {mockAccounts.map(account => (
+                                                    <SelectItem key={account.id} value={account.code}>
+                                                        {account.code} - {account.name}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
                                     </TableCell>
                                     <TableCell>
                                         <Input 
-                                            defaultValue={entry.description}
+                                            value={entry.description}
+                                            onChange={(e) => handleEntryChange(entry.id, 'description', e.target.value)}
                                             placeholder="Descripción del asiento"
                                         />
                                     </TableCell>
