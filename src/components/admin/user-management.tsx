@@ -56,7 +56,12 @@ import { FirestorePermissionError } from '@/firebase/errors'
 
 export default function UserManagement() {
     const firestore = useFirestore();
-    const usersCollection = firestore ? collection(firestore, 'users') : null;
+    
+    const usersCollection = React.useMemo(() => {
+        if (!firestore) return null;
+        return collection(firestore, 'users');
+    }, [firestore]);
+
     const { data: users, loading } = useCollection<UserProfile>({ query: usersCollection });
 
     const [isFormOpen, setIsFormOpen] = React.useState(false);
