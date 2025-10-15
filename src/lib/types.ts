@@ -24,16 +24,6 @@ export type Account = {
   companyId?: string;
 };
 
-export type Transaction = {
-  id: string;
-  date: string;
-  description: string;
-  amount: number;
-  type: 'Debit' | 'Credit';
-  account: string;
-  status: 'Pending' | 'Completed' | 'Failed';
-};
-
 export type CostCenter = {
     id: string;
     name: string;
@@ -48,6 +38,7 @@ export type Employee = {
   position: string;
   costCenter: string;
   status: 'Active' | 'Inactive';
+  companyId?: string;
 };
 
 export type Subject = {
@@ -114,4 +105,3 @@ export type SelectedCompanyContextType = {
     selectedCompany: Company | null;
     setSelectedCompany: (company: Company | null) => void;
 };
-

@@ -1,4 +1,6 @@
 
+'use client';
+
 import {
     Card,
     CardContent,
@@ -16,9 +18,15 @@ import {
     SelectTrigger,
     SelectValue,
   } from "@/components/ui/select"
-  import { mockEmployees } from "@/lib/data"
+  import { useCollection } from "@/firebase"
+  import type { Employee } from "@/lib/types"
   
-  export default function CertificadoRemuneracionesPage() {
+  export default function CertificadoRemuneracionesPage({ companyId }: { companyId?: string }) {
+    const { data: employees, loading } = useCollection<Employee>({ 
+        path: `companies/${companyId}/employees`,
+        companyId: companyId 
+    });
+
     return (
       <Card>
         <CardHeader>
@@ -29,14 +37,15 @@ import {
             <form className="grid gap-6 md:grid-cols-2">
                 <div className="space-y-2">
                     <Label htmlFor="employee">Empleado</Label>
-                     <Select>
+                     <Select disabled={!companyId || loading}>
                         <SelectTrigger id="employee">
-                            <SelectValue placeholder="Selecciona un empleado" />
+                            <SelectValue placeholder={!companyId ? "Selecciona una empresa primero" : (loading ? "Cargando empleados..." : "Selecciona un empleado")} />
                         </SelectTrigger>
                         <SelectContent>
-                            {mockEmployees.map(emp => (
+                            {employees?.map(emp => (
                                 <SelectItem key={emp.id} value={emp.id}>{emp.name}</SelectItem>
                             ))}
+                            {employees?.length === 0 && <SelectItem value="no-emp" disabled>No hay empleados en esta empresa</SelectItem>}
                         </SelectContent>
                     </Select>
                 </div>
@@ -45,7 +54,7 @@ import {
                     <Input id="year" type="number" placeholder="Ej: 2023" defaultValue={new Date().getFullYear()} />
                 </div>
                  <div className="md:col-span-2 flex justify-end">
-                    <Button>Generar Certificado</Button>
+                    <Button disabled={!companyId}>Generar Certificado</Button>
                 </div>
             </form>
         </CardContent>

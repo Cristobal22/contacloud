@@ -1,4 +1,6 @@
 
+'use client';
+
 import {
     Table,
     TableBody,
@@ -24,9 +26,15 @@ import {
     DropdownMenuLabel,
     DropdownMenuTrigger,
   } from "@/components/ui/dropdown-menu"
-  import { mockEmployees } from "@/lib/data"
+  import { useCollection } from "@/firebase"
+  import type { Employee } from "@/lib/types"
   
-  export default function EmployeesPage() {
+  export default function EmployeesPage({ companyId }: { companyId?: string }) {
+    const { data: employees, loading } = useCollection<Employee>({ 
+      path: `companies/${companyId}/employees`,
+      companyId: companyId 
+    });
+
     return (
       <Card>
         <CardHeader>
@@ -35,7 +43,7 @@ import {
                     <CardTitle>Personal</CardTitle>
                     <CardDescription>Gestiona los empleados de tu organización.</CardDescription>
                 </div>
-                <Button size="sm" className="gap-1">
+                <Button size="sm" className="gap-1" disabled={!companyId}>
                     <PlusCircle className="h-4 w-4" />
                     Agregar Empleado
                 </Button>
@@ -56,7 +64,12 @@ import {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {mockEmployees.map((employee) => (
+              {loading && (
+                <TableRow>
+                    <TableCell colSpan={6} className="text-center">Cargando...</TableCell>
+                </TableRow>
+              )}
+              {!loading && employees?.map((employee) => (
                 <TableRow key={employee.id}>
                   <TableCell className="font-medium">{employee.name}</TableCell>
                   <TableCell>{employee.rut}</TableCell>
@@ -84,6 +97,13 @@ import {
                   </TableCell>
                 </TableRow>
               ))}
+               {!loading && employees?.length === 0 && (
+                <TableRow>
+                    <TableCell colSpan={6} className="text-center">
+                        {!companyId ? "Selecciona una empresa para ver sus empleados." : "No se encontraron empleados para esta empresa."}
+                    </TableCell>
+                </TableRow>
+              )}
             </TableBody>
           </Table>
         </CardContent>
