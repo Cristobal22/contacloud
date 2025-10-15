@@ -1,7 +1,7 @@
+
 'use client'
 
 import React from "react"
-import Link from "next/link"
 import {
     Table,
     TableBody,
@@ -30,17 +30,19 @@ import {
   import {
     Dialog,
     DialogContent,
-    DialogDescription,
-    DialogHeader,
-    DialogTitle,
-    DialogFooter,
   } from "@/components/ui/dialog"
-  import { mockVouchers } from "@/lib/data"
+  import { useCollection, useFirestore } from "@/firebase"
+  import { collection, addDoc, setDoc, doc } from "firebase/firestore"
   import type { Voucher, VoucherEntry } from "@/lib/types"
   import VoucherDetailForm from "./[id]/page"
   
-  export default function VouchersPage() {
-    const [vouchers, setVouchers] = React.useState<Voucher[]>(mockVouchers);
+  export default function VouchersPage({ companyId }: { companyId?: string }) {
+    const firestore = useFirestore();
+    const { data: vouchers, loading } = useCollection<Voucher>({ 
+      path: `companies/${companyId}/vouchers`,
+      companyId: companyId 
+    });
+
     const [isCreateDialogOpen, setIsCreateDialogOpen] = React.useState(false);
     const [selectedVoucher, setSelectedVoucher] = React.useState<Voucher | null>(null);
 
@@ -51,7 +53,8 @@ import {
             type: 'Traspaso',
             description: '',
             status: 'Borrador',
-            total: 0
+            total: 0,
+            entries: []
         });
         setIsCreateDialogOpen(true);
     };
@@ -61,13 +64,27 @@ import {
         setIsCreateDialogOpen(true);
     };
 
-    const handleSaveVoucher = (voucher: Voucher, entries: VoucherEntry[]) => {
+    const handleSaveVoucher = async (voucher: Voucher) => {
+        if (!firestore || !companyId) return;
+
         const isNew = voucher.id.startsWith('new-');
+        const collectionRef = collection(firestore, `companies/${companyId}/vouchers`);
+
+        const voucherData = {
+          date: voucher.date,
+          type: voucher.type,
+          description: voucher.description,
+          status: voucher.status,
+          total: voucher.total,
+          entries: voucher.entries.map(e => ({...e, id: e.id.toString()})),
+          companyId: companyId
+        };
+        
         if (isNew) {
-            const newVoucher = { ...voucher, id: `v-${Date.now()}` };
-            setVouchers(prev => [newVoucher, ...prev]);
+            await addDoc(collectionRef, voucherData);
         } else {
-            setVouchers(prev => prev.map(v => v.id === voucher.id ? voucher : v));
+            const docRef = doc(firestore, `companies/${companyId}/vouchers`, voucher.id);
+            await setDoc(docRef, voucherData, { merge: true });
         }
         setIsCreateDialogOpen(false);
         setSelectedVoucher(null);
@@ -87,7 +104,7 @@ import {
                       <CardTitle>Comprobantes Contables</CardTitle>
                       <CardDescription>Gestiona los comprobantes de la empresa.</CardDescription>
                   </div>
-                  <Button size="sm" className="gap-1" onClick={handleCreateNew}>
+                  <Button size="sm" className="gap-1" onClick={handleCreateNew} disabled={!companyId}>
                       <PlusCircle className="h-4 w-4" />
                       Agregar Comprobante
                   </Button>
@@ -108,7 +125,12 @@ import {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {vouchers.map((voucher) => (
+                {loading && (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center">Cargando...</TableCell>
+                  </TableRow>
+                )}
+                {!loading && vouchers?.map((voucher) => (
                   <TableRow key={voucher.id}>
                     <TableCell>{voucher.date}</TableCell>
                     <TableCell>
@@ -143,6 +165,13 @@ import {
                     </TableCell>
                   </TableRow>
                 ))}
+                {!loading && vouchers?.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center">
+                      {!companyId ? "Selecciona una empresa para ver sus comprobantes." : "No se encontraron comprobantes para esta empresa."}
+                    </TableCell>
+                  </TableRow>
+                )}
               </TableBody>
             </Table>
           </CardContent>

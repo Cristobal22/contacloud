@@ -1,3 +1,4 @@
+
 'use client';
 
 import React from 'react';
@@ -32,17 +33,16 @@ import {
   } from "@/components/ui/select"
 import { useCollection } from '@/firebase';
 import type { Voucher, VoucherEntry, Account } from '@/lib/types';
-import { useRouter } from 'next/navigation';
 import { SelectedCompanyContext } from '../../layout';
 
 interface VoucherDetailProps {
     voucherData?: Voucher | null;
-    onSave: (voucher: Voucher, entries: VoucherEntry[]) => void;
+    onSave: (voucher: Voucher) => void;
     onCancel: () => void;
 }
 
 export default function VoucherDetailForm({ voucherData, onSave, onCancel }: VoucherDetailProps) {
-    const isNew = !voucherData?.id || voucherData.id.startsWith('new');
+    const isNew = voucherData ? voucherData.id.startsWith('new') : false;
     const { selectedCompany } = React.useContext(SelectedCompanyContext) || {};
 
     const { data: accounts, loading: accountsLoading } = useCollection<Account>({
@@ -52,62 +52,52 @@ export default function VoucherDetailForm({ voucherData, onSave, onCancel }: Vou
 
     const [voucher, setVoucher] = React.useState<Voucher | null>(null);
     const [entries, setEntries] = React.useState<VoucherEntry[]>([]);
-     const router = useRouter();
 
     React.useEffect(() => {
         if (voucherData) {
             setVoucher(voucherData);
-             if (isNew) {
-                setEntries([]);
-            } else {
-                // Example entries for a non-new voucher
-                 setEntries([
-                    { id: Date.now() + 1, account: '1101-01', description: 'Inicio de actividades', debit: voucherData.total, credit: 0 },
-                    { id: Date.now() + 2, account: '3101-01', description: 'Aporte inicial', debit: 0, credit: voucherData.total },
-                ]);
-            }
+            setEntries(voucherData.entries || []);
         }
-    }, [voucherData, isNew]);
+    }, [voucherData]);
 
     const handleAddEntry = () => {
         setEntries([
             ...entries,
-            { id: Date.now(), account: '', description: '', debit: 0, credit: 0 }
+            { id: `new-${Date.now()}`, account: '', description: '', debit: 0, credit: 0 }
         ]);
     };
 
-    const handleRemoveEntry = (entryId: number) => {
+    const handleRemoveEntry = (entryId: string) => {
         setEntries(entries.filter(entry => entry.id !== entryId));
     };
 
-    const handleEntryChange = (entryId: number, field: keyof VoucherEntry, value: string | number) => {
+    const handleEntryChange = (entryId: string, field: keyof VoucherEntry, value: string | number) => {
         const newEntries = entries.map(entry => {
             if (entry.id === entryId) {
-                if (field === 'debit' || field === 'credit') {
-                    const numericValue = typeof value === 'string' ? parseFloat(value.replace(/[^0-9.-]/g, '')) || 0 : value;
-                    return { ...entry, [field]: numericValue };
-                }
-                return { ...entry, [field]: value };
+                const updatedEntry = { ...entry, [field]: value };
+                if (field === 'debit' && Number(value) > 0) updatedEntry.credit = 0;
+                if (field === 'credit' && Number(value) > 0) updatedEntry.debit = 0;
+                return updatedEntry;
             }
             return entry;
         });
         setEntries(newEntries);
     };
 
-     const handleHeaderChange = (field: keyof Omit<Voucher, 'id' | 'total'>, value: string) => {
+     const handleHeaderChange = (field: keyof Omit<Voucher, 'id' | 'total' | 'entries'>, value: string) => {
         if (voucher) {
             setVoucher({ ...voucher, [field]: value });
         }
     };
 
-    const totalDebit = entries.reduce((sum, entry) => sum + entry.debit, 0);
-    const totalCredit = entries.reduce((sum, entry) => sum + entry.credit, 0);
+    const totalDebit = entries.reduce((sum, entry) => sum + Number(entry.debit), 0);
+    const totalCredit = entries.reduce((sum, entry) => sum + Number(entry.credit), 0);
     const isBalanced = totalDebit === totalCredit && totalDebit > 0;
     const canSave = isBalanced && entries.length > 1 && voucher?.description;
     
     const handleSaveClick = () => {
         if (voucher && canSave) {
-            onSave({ ...voucher, total: totalDebit }, entries);
+            onSave({ ...voucher, total: totalDebit, entries });
         }
     };
 

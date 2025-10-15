@@ -1,3 +1,4 @@
+
 export type User = {
   id: string;
   name: string;
@@ -19,6 +20,7 @@ export type Account = {
   name: string;
   type: 'Activo' | 'Pasivo' | 'Patrimonio' | 'Resultado';
   balance: number;
+  companyId?: string;
 };
 
 export type Transaction = {
@@ -61,10 +63,12 @@ export type Voucher = {
   description: string;
   status: 'Borrador' | 'Posteado';
   total: number;
+  entries: VoucherEntry[];
+  companyId?: string;
 };
 
 export type VoucherEntry = {
-    id: number;
+    id: string;
     account: string;
     description: string;
     debit: number;
