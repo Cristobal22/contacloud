@@ -24,6 +24,11 @@ export type Account = {
   companyId?: string;
 };
 
+export type AccountGroup = {
+    id: string;
+    name: string;
+};
+
 export type CostCenter = {
     id: string;
     name: string;
@@ -95,6 +100,30 @@ export type Fee = {
   total: number;
   status: 'Pendiente' | 'Pagada' | 'Vencida';
 };
+
+export type Institution = {
+    id: string;
+    name: string;
+    type: 'AFP' | 'Salud' | 'Mutual' | 'Caja de Compensación';
+};
+
+export type FamilyAllowanceParameter = {
+    id: string;
+    tramo: string;
+    desde: number;
+    hasta: number;
+    monto: number;
+};
+
+export type TaxParameter = {
+    id: string;
+    tramo: string;
+    desde: number;
+    hasta: number;
+    factor: number;
+    rebaja: number;
+};
+
 
 export type DashboardPageProps = {
     params: {};

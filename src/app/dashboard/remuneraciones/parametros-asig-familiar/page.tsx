@@ -1,3 +1,4 @@
+'use client';
 
 import {
     Table,
@@ -15,15 +16,15 @@ import {
     CardTitle,
 } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-
-const tramosAsignacion = [
-    { tramo: 'A', desde: 0, hasta: 429899, monto: 20328 },
-    { tramo: 'B', desde: 429900, hasta: 627913, monto: 12475 },
-    { tramo: 'C', desde: 627914, hasta: 979330, monto: 3942 },
-    { tramo: 'D', desde: 979331, hasta: Infinity, monto: 0 },
-];
+import { useCollection, useFirestore } from "@/firebase"
+import type { FamilyAllowanceParameter } from "@/lib/types"
+import { collection } from "firebase/firestore";
 
 export default function ParametrosAsigFamiliarPage() {
+    const firestore = useFirestore();
+    const paramsCollection = firestore ? collection(firestore, 'family-allowance-parameters') : null;
+    const { data: tramosAsignacion, loading } = useCollection<FamilyAllowanceParameter>({ query: paramsCollection });
+
     return (
         <Card>
             <CardHeader>
@@ -46,14 +47,26 @@ export default function ParametrosAsigFamiliarPage() {
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {tramosAsignacion.map((tramo) => (
-                            <TableRow key={tramo.tramo}>
+                        {loading && (
+                            <TableRow>
+                                <TableCell colSpan={4} className="text-center">Cargando...</TableCell>
+                            </TableRow>
+                        )}
+                        {!loading && tramosAsignacion?.map((tramo) => (
+                            <TableRow key={tramo.id}>
                                 <TableCell className="font-medium">{tramo.tramo}</TableCell>
                                 <TableCell className="text-right">${tramo.desde.toLocaleString('es-CL')}</TableCell>
-                                <TableCell className="text-right">{tramo.hasta === Infinity ? 'Y más' : `$${tramo.hasta.toLocaleString('es-CL')}`}</TableCell>
+                                <TableCell className="text-right">{tramo.hasta === Infinity || tramo.hasta === 0 ? 'Y más' : `$${tramo.hasta.toLocaleString('es-CL')}`}</TableCell>
                                 <TableCell className="text-right font-medium">${tramo.monto.toLocaleString('es-CL')}</TableCell>
                             </TableRow>
                         ))}
+                         {!loading && tramosAsignacion?.length === 0 && (
+                            <TableRow>
+                                <TableCell colSpan={4} className="text-center">
+                                    No se encontraron parámetros de asignación familiar.
+                                </TableCell>
+                            </TableRow>
+                         )}
                     </TableBody>
                 </Table>
                  <p className="text-xs text-muted-foreground mt-4">Valores vigentes según la legislación actual.</p>

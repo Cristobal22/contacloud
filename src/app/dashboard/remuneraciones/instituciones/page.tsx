@@ -1,3 +1,4 @@
+'use client';
 
 import {
     Table,
@@ -17,16 +18,15 @@ import {
 import { Button } from "@/components/ui/button"
 import { PlusCircle } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
-
-const mockInstitutions = [
-    { id: 'inst-1', name: 'AFP Capital', type: 'AFP' },
-    { id: 'inst-2', name: 'Fonasa', type: 'Salud' },
-    { id: 'inst-3', name: 'Isapre Colmena', type: 'Salud' },
-    { id: 'inst-4', name: 'Mutual de Seguridad', type: 'Mutual' },
-    { id: 'inst-5', name: 'Caja Los Andes', type: 'Caja de Compensación' },
-];
+import { useCollection, useFirestore } from "@/firebase"
+import type { Institution } from "@/lib/types"
+import { collection } from "firebase/firestore";
 
 export default function InstitucionesPage() {
+    const firestore = useFirestore();
+    const institutionsCollection = firestore ? collection(firestore, 'institutions') : null;
+    const { data: institutions, loading } = useCollection<Institution>({ query: institutionsCollection });
+
     return (
         <Card>
             <CardHeader>
@@ -50,12 +50,24 @@ export default function InstitucionesPage() {
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {mockInstitutions.map((inst) => (
+                        {loading && (
+                            <TableRow>
+                                <TableCell colSpan={2} className="text-center">Cargando...</TableCell>
+                            </TableRow>
+                        )}
+                        {!loading && institutions?.map((inst) => (
                             <TableRow key={inst.id}>
                                 <TableCell className="font-medium">{inst.name}</TableCell>
                                 <TableCell><Badge variant="secondary">{inst.type}</Badge></TableCell>
                             </TableRow>
                         ))}
+                         {!loading && institutions?.length === 0 && (
+                            <TableRow>
+                                <TableCell colSpan={2} className="text-center">
+                                    No se encontraron instituciones.
+                                </TableCell>
+                            </TableRow>
+                        )}
                     </TableBody>
                 </Table>
             </CardContent>

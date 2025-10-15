@@ -1,3 +1,4 @@
+'use client';
 import {
     Table,
     TableBody,
@@ -15,16 +16,15 @@ import {
 } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { PlusCircle } from "lucide-react"
-
-// Main account groups as requested
-const accountGroups = [
-    { id: 'grp-1', name: 'Activo' },
-    { id: 'grp-2', name: 'Pasivo' },
-    { id: 'grp-3', name: 'Patrimonio' },
-    { id: 'grp-4', name: 'Resultado' },
-];
+import { useCollection, useFirestore } from "@/firebase"
+import type { AccountGroup } from "@/lib/types"
+import { collection } from "firebase/firestore";
 
 export default function AccountGroupsPage() {
+    const firestore = useFirestore();
+    const accountGroupsCollection = firestore ? collection(firestore, 'account-groups') : null;
+    const { data: accountGroups, loading } = useCollection<AccountGroup>({ query: accountGroupsCollection });
+
     return (
         <Card>
             <CardHeader>
@@ -47,12 +47,17 @@ export default function AccountGroupsPage() {
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {accountGroups.map((group) => (
+                        {loading && (
+                            <TableRow>
+                                <TableCell colSpan={1} className="text-center">Cargando...</TableCell>
+                            </TableRow>
+                        )}
+                        {!loading && accountGroups?.map((group) => (
                             <TableRow key={group.id}>
                                 <TableCell className="font-medium">{group.name}</TableCell>
                             </TableRow>
                         ))}
-                         {accountGroups.length === 0 && (
+                         {!loading && accountGroups?.length === 0 && (
                             <TableRow>
                                 <TableCell colSpan={1} className="text-center">
                                     No se encontraron grupos de cuentas.
