@@ -1,3 +1,5 @@
+'use client';
+
 import {
     Table,
     TableBody,
@@ -22,9 +24,15 @@ import {
     DropdownMenuLabel,
     DropdownMenuTrigger,
   } from "@/components/ui/dropdown-menu"
-  import { mockCostCenters } from "@/lib/data"
+  import { useCollection } from "@/firebase"
+  import type { CostCenter } from "@/lib/types"
   
-  export default function CostCentersPage() {
+  export default function CostCentersPage({ companyId }: { companyId?: string }) {
+    const { data: costCenters, loading } = useCollection<CostCenter>({
+        path: `companies/${companyId}/cost-centers`,
+        companyId: companyId,
+    });
+    
     return (
       <Card>
         <CardHeader>
@@ -33,7 +41,7 @@ import {
                     <CardTitle>Centros de Costos</CardTitle>
                     <CardDescription>Gestiona los centros de costos de tu organización.</CardDescription>
                 </div>
-                <Button size="sm" className="gap-1">
+                <Button size="sm" className="gap-1" disabled={!companyId}>
                     <PlusCircle className="h-4 w-4" />
                     Agregar Centro de Costo
                 </Button>
@@ -51,7 +59,12 @@ import {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {mockCostCenters.map((center) => (
+              {loading && (
+                <TableRow>
+                    <TableCell colSpan={3} className="text-center">Cargando...</TableCell>
+                </TableRow>
+              )}
+              {!loading && costCenters?.map((center) => (
                 <TableRow key={center.id}>
                   <TableCell className="font-medium">{center.name}</TableCell>
                   <TableCell>{center.description}</TableCell>
@@ -74,6 +87,13 @@ import {
                   </TableCell>
                 </TableRow>
               ))}
+              {!loading && costCenters?.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={3} className="text-center">
+                    {!companyId ? "Selecciona una empresa para ver sus centros de costos." : "No se encontraron centros de costos para esta empresa."}
+                  </TableCell>
+                </TableRow>
+              )}
             </TableBody>
           </Table>
         </CardContent>

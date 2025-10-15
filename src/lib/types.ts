@@ -1,4 +1,5 @@
 
+
 export type User = {
   id: string;
   name: string;
@@ -37,6 +38,7 @@ export type CostCenter = {
     id: string;
     name: string;
     description: string;
+    companyId?: string;
 };
 
 export type Employee = {
@@ -112,3 +114,4 @@ export type SelectedCompanyContextType = {
     selectedCompany: Company | null;
     setSelectedCompany: (company: Company | null) => void;
 };
+
