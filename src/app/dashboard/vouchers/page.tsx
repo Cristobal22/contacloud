@@ -1,6 +1,7 @@
 'use client'
 
 import React from "react"
+import Link from "next/link"
 import {
     Table,
     TableBody,
@@ -104,8 +105,9 @@ import {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-                          <DropdownMenuItem>Editar</DropdownMenuItem>
-                          <DropdownMenuItem>Ver Asientos</DropdownMenuItem>
+                           <DropdownMenuItem asChild>
+                                <Link href={`/dashboard/vouchers/${voucher.id}`}>Editar</Link>
+                           </DropdownMenuItem>
                           <DropdownMenuItem>Anular</DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
@@ -155,7 +157,9 @@ import {
                     </div>
                 </div>
                 <DialogFooter>
-                    <Button type="submit">Continuar</Button>
+                    <Button asChild>
+                        <Link href="/dashboard/vouchers/new">Continuar</Link>
+                    </Button>
                 </DialogFooter>
             </DialogContent>
         </Dialog>
