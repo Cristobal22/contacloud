@@ -16,7 +16,7 @@ import {
     CardHeader,
     CardTitle,
   } from "@/components/ui/card"
-  import { Button } from "@/components/ui/button"
+  import { Button, buttonVariants } from "@/components/ui/button"
   import { Badge } from "@/components/ui/badge"
   import { MoreHorizontal, PlusCircle } from "lucide-react"
   import {
@@ -24,15 +24,26 @@ import {
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuLabel,
+    DropdownMenuSeparator,
     DropdownMenuTrigger,
   } from "@/components/ui/dropdown-menu"
   import {
     Dialog,
     DialogContent,
   } from "@/components/ui/dialog"
+    import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+  } from "@/components/ui/alert-dialog"
   import { useCollection, useFirestore } from "@/firebase"
-  import { collection, addDoc, setDoc, doc } from "firebase/firestore"
-  import type { Voucher, VoucherEntry } from "@/lib/types"
+  import { collection, addDoc, setDoc, doc, updateDoc } from "firebase/firestore"
+  import type { Voucher } from "@/lib/types"
   import VoucherDetailForm from "./[id]/page"
   
   export default function VouchersPage({ companyId }: { companyId?: string }) {
@@ -42,8 +53,11 @@ import {
       companyId: companyId 
     });
 
-    const [isCreateDialogOpen, setIsCreateDialogOpen] = React.useState(false);
+    const [isDetailOpen, setIsDetailOpen] = React.useState(false);
+    const [isPostDialogOpen, setIsPostDialogOpen] = React.useState(false);
     const [selectedVoucher, setSelectedVoucher] = React.useState<Voucher | null>(null);
+    const [voucherToPost, setVoucherToPost] = React.useState<Voucher | null>(null);
+
 
     const handleCreateNew = () => {
         setSelectedVoucher({
@@ -55,13 +69,33 @@ import {
             total: 0,
             entries: []
         });
-        setIsCreateDialogOpen(true);
+        setIsDetailOpen(true);
     };
 
     const handleEdit = (voucher: Voucher) => {
         setSelectedVoucher(voucher);
-        setIsCreateDialogOpen(true);
+        setIsDetailOpen(true);
     };
+
+    const handleOpenPostDialog = (voucher: Voucher) => {
+        setVoucherToPost(voucher);
+        setIsPostDialogOpen(true);
+    }
+
+    const handlePostVoucher = async () => {
+        if (!firestore || !companyId || !voucherToPost) return;
+
+        try {
+            const docRef = doc(firestore, `companies/${companyId}/vouchers`, voucherToPost.id);
+            await updateDoc(docRef, { status: 'Posteado' });
+        } catch (error) {
+            console.error("Error posting voucher:", error);
+        } finally {
+            setIsPostDialogOpen(false);
+            setVoucherToPost(null);
+        }
+    };
+
 
     const handleSaveVoucher = async (voucher: Voucher) => {
         if (!firestore || !companyId) return;
@@ -95,13 +129,13 @@ import {
         } catch (error) {
             console.error("Error saving voucher:", error);
         } finally {
-            setIsCreateDialogOpen(false);
+            setIsDetailOpen(false);
             setSelectedVoucher(null);
         }
     };
 
     const handleCancel = () => {
-        setIsCreateDialogOpen(false);
+        setIsDetailOpen(false);
         setSelectedVoucher(null);
     }
 
@@ -142,7 +176,7 @@ import {
                 )}
                 {!loading && vouchers?.map((voucher) => (
                   <TableRow key={voucher.id}>
-                    <TableCell>{voucher.date}</TableCell>
+                    <TableCell>{new Date(voucher.date).toLocaleDateString('es-CL', { timeZone: 'UTC' })}</TableCell>
                     <TableCell>
                       <Badge variant={
                           voucher.type === 'Ingreso' ? 'default' : 
@@ -166,10 +200,17 @@ import {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-                           <DropdownMenuItem onClick={() => handleEdit(voucher)}>
+                           <DropdownMenuItem onClick={() => handleEdit(voucher)} disabled={voucher.status === 'Posteado'}>
                                 Editar
                            </DropdownMenuItem>
-                          <DropdownMenuItem>Anular</DropdownMenuItem>
+                           {voucher.status === 'Borrador' && (
+                            <>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem onClick={() => handleOpenPostDialog(voucher)}>
+                                    Postear
+                                </DropdownMenuItem>
+                            </>
+                           )}
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>
@@ -187,7 +228,7 @@ import {
           </CardContent>
         </Card>
 
-        <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+        <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
             <DialogContent className="sm:max-w-4xl">
                  <VoucherDetailForm 
                     voucherData={selectedVoucher}
@@ -196,6 +237,25 @@ import {
                  />
             </DialogContent>
         </Dialog>
+
+        <AlertDialog open={isPostDialogOpen} onOpenChange={setIsPostDialogOpen}>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>¿Confirmas la acción?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        Esta acción no se puede deshacer. Al postear el comprobante, se registrará oficialmente en la contabilidad y no podrá ser editado.
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction
+                        onClick={handlePostVoucher}
+                    >
+                        Sí, postear comprobante
+                    </AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
       </>
     )
   }
