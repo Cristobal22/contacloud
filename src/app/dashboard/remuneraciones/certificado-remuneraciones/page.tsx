@@ -43,7 +43,7 @@ import {
                         </SelectTrigger>
                         <SelectContent>
                             {employees?.map(emp => (
-                                <SelectItem key={emp.id} value={emp.id}>{emp.name}</SelectItem>
+                                <SelectItem key={emp.id} value={emp.id}>{emp.firstName} {emp.lastName}</SelectItem>
                             ))}
                             {employees?.length === 0 && <SelectItem value="no-emp" disabled>No hay empleados en esta empresa</SelectItem>}
                         </SelectContent>
@@ -62,3 +62,4 @@ import {
     )
   }
   
+

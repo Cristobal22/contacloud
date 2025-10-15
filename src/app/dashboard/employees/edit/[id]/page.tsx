@@ -85,9 +85,14 @@ export default function EmployeeFormPage({ params }: { params: { id: string } })
         return <p>Cargando empleado...</p>;
     }
     
-    if (!employee) {
+    if (!isNew && !employee && !employeeLoading) {
         return <p>No se encontró el empleado.</p>;
     }
+    
+    if (!employee) {
+        return null; // Or a loading spinner
+    }
+
 
     return (
         <Card>
@@ -254,7 +259,7 @@ export default function EmployeeFormPage({ params }: { params: { id: string } })
                 </section>
             </CardContent>
              <CardFooter className="flex justify-end">
-                <Button onClick={handleSaveChanges}>Guardar Cambios</Button>
+                <Button onClick={handleSaveChanges} disabled={!selectedCompany}>Guardar Cambios</Button>
             </CardFooter>
         </Card>
     );
