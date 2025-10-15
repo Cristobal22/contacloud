@@ -348,7 +348,7 @@ export default function UserManagement() {
                     <AlertDialogHeader>
                         <AlertDialogTitle>¿Estás realmente seguro?</AlertDialogTitle>
                         <AlertDialogDescription>
-                            Esta acción eliminará el documento de perfil del usuario de la base de datos, pero NO eliminará al usuario del sistema de autenticación de Firebase. Esta es una limitación del prototipo. ¿Deseas continuar?
+                           Esta acción eliminará el documento de perfil del usuario de la base de datos, pero NO eliminará al usuario del sistema de autenticación de Firebase por razones de seguridad. Deberás eliminarlo manualmente desde la Consola de Firebase. ¿Deseas continuar?
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>

@@ -10,6 +10,8 @@ export default function SignupPage() {
   const router = useRouter();
 
   useEffect(() => {
+    // This page is not used for direct signup. The admin creates users.
+    // We redirect to login to avoid confusion.
     router.replace('/login');
   }, [router]);
 
@@ -32,5 +34,3 @@ export default function SignupPage() {
     </div>
   );
 }
-
-    
