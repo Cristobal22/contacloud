@@ -41,7 +41,7 @@ export default function DashboardLayout({
     if (companies && companies.length > 0 && !selectedCompany) {
       setSelectedCompany(companies[0]);
     }
-  }, [companies, selectedCompany]);
+  }, [companies]);
 
   const handleCompanyChange = (company: Company) => {
     setSelectedCompany(company);
