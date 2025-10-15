@@ -77,7 +77,6 @@ export default function EmployeeFormPage({ params }: { params: { id: string } })
             router.push('/dashboard/employees');
         } catch (error) {
             console.error("Error saving employee:", error);
-            // You might want to show a toast notification here
         }
     };
 
@@ -90,7 +89,7 @@ export default function EmployeeFormPage({ params }: { params: { id: string } })
     }
     
     if (!employee) {
-        return null; // Or a loading spinner
+        return null; 
     }
 
 

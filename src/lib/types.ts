@@ -1,5 +1,6 @@
 
 
+
 export type User = {
   id: string;
   name: string;
@@ -24,7 +25,7 @@ export type Company = {
   salesVatAccount?: string;
   salesOtherTaxesAccount?: string;
   proportionalVat?: boolean;
-  purchasesInvoicesReceivableAccount?: string;
+  purchasesInvoicesPayableAccount?: string;
   purchasesNotesPayableAccount?: string;
   purchasesVatAccount?: string;
   purchasesOtherTaxesAccount?: string;
@@ -84,7 +85,6 @@ export type Employee = {
   costCenterId?: string;
   status: 'Active' | 'Inactive';
   companyId?: string;
-  name?: string; // Added for compatibility with employee select on other pages
 };
 
 
