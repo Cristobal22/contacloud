@@ -49,10 +49,9 @@ const createUserFlow = ai.defineFlow(
     const simulatedUid = `mock-uid-${Date.now()}`;
     console.log(`[Admin Flow] Simulated UID: ${simulatedUid}`);
 
-    // 2. Create the user profile document in Firestore
-    const { firestore } = initializeFirebase();
-    const userDocRef = doc(firestore, "users", simulatedUid);
-
+    // 2. We can't write to firestore from the server side with the client sdk.
+    // In a real app this would be an admin SDK call. For now, we just return the profile.
+    
     const newUserProfile: UserProfile = {
       uid: simulatedUid,
       email: input.email,
@@ -61,11 +60,11 @@ const createUserFlow = ai.defineFlow(
       photoURL: `https://i.pravatar.cc/150?u=${simulatedUid}` // A random avatar
     };
 
-    // We can write this document because our security rules allow an Admin to write to the users collection.
-    // NOTE: This does NOT create an actual Firebase Auth user. The user will NOT be able to log in.
+    // We can't write this document because we are on the server.
+    // NOTE: This does NOT create an actual Firebase Auth user OR a firestore doc.
+    // The user will NOT be able to log in.
     // This is a placeholder to demonstrate the UI/UX flow.
-    await setDoc(userDocRef, newUserProfile);
-     console.log(`[Admin Flow] Firestore profile created for ${input.email}`);
+     console.log(`[Admin Flow] Firestore profile for ${input.email} was NOT created. This is a simulation.`);
 
     return newUserProfile;
   }
