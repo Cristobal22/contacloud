@@ -213,7 +213,7 @@ export default function UserManagement() {
              return (
                 <TableRow>
                     <TableCell colSpan={5} className="h-24 text-center text-destructive">
-                        <p>Error de permisos: No se pueden listar los usuarios.</p>
+                        <p className="font-bold">Error de permisos: No se pueden listar los usuarios.</p>
                         <p className='text-xs text-muted-foreground'>Asegúrate de que las reglas de Firestore permitan la operación 'list' en la colección 'users' para administradores.</p>
                     </TableCell>
                 </TableRow>
@@ -294,7 +294,16 @@ export default function UserManagement() {
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {renderTableContent()}
+                            {isProcessing && !usersLoading ? (
+                                <TableRow>
+                                    <TableCell colSpan={5} className="h-24 text-center">
+                                        <div className="flex justify-center items-center gap-2">
+                                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
+                                            <span>Procesando...</span>
+                                        </div>
+                                    </TableCell>
+                                </TableRow>
+                            ) : renderTableContent()}
                         </TableBody>
                     </Table>
                 </CardContent>
