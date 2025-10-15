@@ -28,12 +28,15 @@ import {
   } from "@/components/ui/dropdown-menu"
   import { useCollection } from "@/firebase"
   import type { Employee } from "@/lib/types"
+  import { useRouter } from "next/navigation"
+  import Link from "next/link"
   
   export default function EmployeesPage({ companyId }: { companyId?: string }) {
     const { data: employees, loading } = useCollection<Employee>({ 
       path: `companies/${companyId}/employees`,
       companyId: companyId 
     });
+    const router = useRouter();
 
     return (
       <Card>
@@ -43,9 +46,11 @@ import {
                     <CardTitle>Personal</CardTitle>
                     <CardDescription>Gestiona los empleados de tu organización.</CardDescription>
                 </div>
-                <Button size="sm" className="gap-1" disabled={!companyId}>
+                <Button size="sm" className="gap-1" disabled={!companyId} asChild>
+                  <Link href="/dashboard/employees/edit/new">
                     <PlusCircle className="h-4 w-4" />
                     Agregar Empleado
+                  </Link>
                 </Button>
             </div>
         </CardHeader>
@@ -90,7 +95,9 @@ import {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-                        <DropdownMenuItem>Editar Ficha</DropdownMenuItem>
+                        <DropdownMenuItem asChild>
+                            <Link href={`/dashboard/employees/edit/${employee.id}`}>Editar Ficha</Link>
+                        </DropdownMenuItem>
                         <DropdownMenuItem>Ver Liquidaciones</DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -111,5 +118,4 @@ import {
     )
   }
   
-
     

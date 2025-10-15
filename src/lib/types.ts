@@ -84,6 +84,7 @@ export type Employee = {
   costCenter?: string;
   status: 'Active' | 'Inactive';
   companyId?: string;
+  name?: string; // Added for compatibility with employee select on other pages
 };
 
 
