@@ -1,0 +1,233 @@
+{
+    "entities": {
+        "Company": {
+            "title": "Company",
+            "description": "Represents a company client in the accounting platform.",
+            "type": "object",
+            "properties": {
+                "id": { "type": "string", "description": "Unique identifier for the company." },
+                "name": { "type": "string", "description": "The name of the company." },
+                "industry": { "type": "string", "description": "The industry the company belongs to." },
+                "active": { "type": "boolean", "description": "Whether the company is currently active." },
+                "isDistributor": { "type": "boolean" },
+                "startYear": { "type": "number" },
+                "periodStartDate": { "type": "string", "format": "date" },
+                "periodEndDate": { "type": "string", "format": "date" },
+                "profitAccount": { "type": "string" },
+                "lossAccount": { "type": "string" },
+                "salesInvoicesReceivableAccount": { "type": "string" },
+                "salesNotesReceivableAccount": { "type": "string" },
+                "salesVatAccount": { "type": "string" },
+                "salesOtherTaxesAccount": { "type": "string" },
+                "proportionalVat": { "type": "boolean" },
+                "purchasesInvoicesPayableAccount": { "type": "string" },
+                "purchasesNotesPayableAccount": { "type": "string" },
+                "purchasesVatAccount": { "type": "string" },
+                "purchasesOtherTaxesAccount": { "type": "string" },
+                "feesPayableAccount": { "type": "string" },
+                "feesWithholdingAccount": { "type": "string" },
+                "incomeFeesReceivableAccount": { "type": "string" },
+                "incomeFeesWithholdingAccount": { "type": "string" }
+            },
+            "required": ["id", "name", "industry", "active"]
+        },
+        "Account": {
+            "title": "Account",
+            "description": "Represents a single account in the chart of accounts for a company.",
+            "type": "object",
+            "properties": {
+                "id": { "type": "string" },
+                "code": { "type": "string" },
+                "name": { "type": "string" },
+                "type": { "type": "string", "enum": ["Activo", "Pasivo", "Patrimonio", "Resultado"] },
+                "balance": { "type": "number" },
+                "companyId": { "type": "string" }
+            },
+            "required": ["id", "code", "name", "type", "balance"]
+        },
+        "Voucher": {
+            "title": "Voucher",
+            "description": "Represents an accounting voucher with multiple entries.",
+            "type": "object",
+            "properties": {
+                "id": { "type": "string" },
+                "date": { "type": "string", "format": "date" },
+                "type": { "type": "string", "enum": ["Ingreso", "Egreso", "Traspaso"] },
+                "description": { "type": "string" },
+                "status": { "type": "string", "enum": ["Borrador", "Posteado"] },
+                "total": { "type": "number" },
+                "entries": { 
+                    "type": "array", 
+                    "items": { "$ref": "#/entities/VoucherEntry" }
+                },
+                "companyId": { "type": "string" }
+            },
+            "required": ["id", "date", "type", "description", "status", "total", "entries"]
+        },
+        "VoucherEntry": {
+            "title": "VoucherEntry",
+            "description": "Represents a single entry within an accounting voucher.",
+            "type": "object",
+            "properties": {
+                "id": { "type": "string" },
+                "account": { "type": "string" },
+                "description": { "type": "string" },
+                "debit": { "type": "number" },
+                "credit": { "type": "number" }
+            },
+            "required": ["id", "account", "debit", "credit"]
+        },
+        "Subject": {
+            "title": "Subject",
+            "description": "Represents a subject (client, provider, etc.) for a company.",
+            "type": "object",
+            "properties": {
+                "id": { "type": "string" },
+                "name": { "type": "string" },
+                "rut": { "type": "string" },
+                "type": { "type": "string", "enum": ["Cliente", "Proveedor", "Otro"] },
+                "status": { "type": "string", "enum": ["Active", "Inactive"] },
+                "companyId": { "type": "string" }
+            },
+            "required": ["id", "name", "rut", "type", "status"]
+        },
+        "CostCenter": {
+            "title": "CostCenter",
+            "description": "Represents a cost center for a company.",
+            "type": "object",
+            "properties": {
+                "id": { "type": "string" },
+                "name": { "type": "string" },
+                "description": { "type": "string" },
+                "companyId": { "type": "string" }
+            },
+            "required": ["id", "name"]
+        },
+        "Employee": {
+            "title": "Employee",
+            "description": "Represents an employee of a company.",
+            "type": "object",
+            "properties": {
+                "id": { "type": "string" },
+                "name": { "type": "string" },
+                "rut": { "type": "string" },
+                "position": { "type": "string" },
+                "costCenter": { "type": "string" },
+                "status": { "type": "string", "enum": ["Active", "Inactive"] },
+                "companyId": { "type": "string" }
+            },
+            "required": ["id", "name", "rut", "position", "status"]
+        },
+        "AccountGroup": {
+            "title": "AccountGroup",
+            "description": "Main groups for classifying the chart of accounts.",
+            "type": "object",
+            "properties": {
+                "id": { "type": "string" },
+                "name": { "type": "string" }
+            },
+            "required": ["id", "name"]
+        },
+        "Institution": {
+            "title": "Institution",
+            "description": "Represents pension and health institutions for payroll calculations.",
+            "type": "object",
+            "properties": {
+                "id": { "type": "string" },
+                "name": { "type": "string" },
+                "type": { "type": "string", "enum": ["AFP", "Salud", "Mutual", "Caja de Compensación"] }
+            },
+            "required": ["id", "name", "type"]
+        },
+        "FamilyAllowanceParameter": {
+            "title": "FamilyAllowanceParameter",
+            "description": "Parameters for calculating family allowance.",
+            "type": "object",
+            "properties": {
+                "id": { "type": "string" },
+                "tramo": { "type": "string" },
+                "desde": { "type": "number" },
+                "hasta": { "type": "number" },
+                "monto": { "type": "number" }
+            },
+            "required": ["id", "tramo", "desde", "hasta", "monto"]
+        },
+        "TaxParameter": {
+            "title": "TaxParameter",
+            "description": "Parameters for the Second Category Unique Tax (IUT).",
+            "type": "object",
+            "properties": {
+                "id": { "type": "string" },
+                "tramo": { "type": "string" },
+                "desde": { "type": "number" },
+                "hasta": { "type": "number" },
+                "factor": { "type": "number" },
+                "rebaja": { "type": "number" }
+            },
+            "required": ["id", "tramo", "desde", "hasta", "factor", "rebaja"]
+        },
+         "HealthEntity": {
+            "title": "HealthEntity",
+            "description": "Health entities (Isapres, Fonasa) for payroll.",
+            "type": "object",
+            "properties": {
+                "id": { "type": "string" },
+                "code": { "type": "string" },
+                "name": { "type": "string" },
+                "mandatoryContribution": { "type": "number" },
+                "previredCode": { "type": "string" },
+                "dtCode": { "type": "string" }
+            },
+            "required": ["id", "code", "name", "mandatoryContribution", "previredCode", "dtCode"]
+        }
+    },
+    "firestore": {
+        "/companies": {
+            "schema": { "$ref": "#/entities/Company" },
+            "description": "Collection of all companies managed by the platform."
+        },
+        "/companies/{companyId}/accounts": {
+            "schema": { "$ref": "#/entities/Account" },
+            "description": "Sub-collection of accounts for a specific company."
+        },
+        "/companies/{companyId}/vouchers": {
+            "schema": { "$ref": "#/entities/Voucher" },
+            "description": "Sub-collection of accounting vouchers for a specific company."
+        },
+        "/companies/{companyId}/subjects": {
+            "schema": { "$ref": "#/entities/Subject" },
+            "description": "Sub-collection of subjects (clients, providers) for a specific company."
+        },
+        "/companies/{companyId}/cost-centers": {
+            "schema": { "$ref": "#/entities/CostCenter" },
+            "description": "Sub-collection of cost centers for a specific company."
+        },
+        "/companies/{companyId}/employees": {
+            "schema": { "$ref": "#/entities/Employee" },
+            "description": "Sub-collection of employees for a specific company."
+        },
+        "/account-groups": {
+            "schema": { "$ref": "#/entities/AccountGroup" },
+            "description": "Global collection of account groups."
+        },
+        "/institutions": {
+            "schema": { "$ref": "#/entities/Institution" },
+            "description": "Global collection of pension and health institutions."
+        },
+        "/family-allowance-parameters": {
+            "schema": { "$ref": "#/entities/FamilyAllowanceParameter" },
+            "description": "Global collection of family allowance parameters."
+        },
+        "/tax-parameters": {
+            "schema": { "$ref": "#/entities/TaxParameter" },
+            "description": "Global collection of tax parameters for IUT."
+        },
+         "/health-entities": {
+            "schema": { "$ref": "#/entities/HealthEntity" },
+            "description": "Global collection of health entities (Isapres and Fonasa)."
+        }
+    },
+    "auth": {
+        "providers": ["google.com", "password"]
+    }
+}

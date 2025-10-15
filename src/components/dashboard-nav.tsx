@@ -1,3 +1,4 @@
+
 'use client';
 
 import Link from 'next/link';
@@ -33,6 +34,7 @@ import {
   Lock,
   SlidersHorizontal,
   Building,
+  HeartPulse,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './ui/collapsible';
@@ -110,6 +112,7 @@ const payrollSections = [
         icon: Briefcase,
         links: [
             { href: '/dashboard/remuneraciones/instituciones', label: 'Instituciones', icon: Library },
+            { href: '/dashboard/remuneraciones/entidades-salud', label: 'Entidades de Salud', icon: HeartPulse },
             { href: '/dashboard/remuneraciones/parametros-asig-familiar', label: 'Parámetros Asig. Familiar', icon: Book },
             { href: '/dashboard/remuneraciones/parametros-iut', label: 'Parámetros IUT', icon: Book },
         ]

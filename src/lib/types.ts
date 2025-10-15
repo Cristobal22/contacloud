@@ -143,6 +143,15 @@ export type TaxParameter = {
     rebaja: number;
 };
 
+export type HealthEntity = {
+    id: string;
+    code: string;
+    name: string;
+    mandatoryContribution: number;
+    previredCode: string;
+    dtCode: string;
+};
+
 
 export type DashboardPageProps = {
     params: {};
