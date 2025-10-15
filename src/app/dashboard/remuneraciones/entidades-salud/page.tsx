@@ -19,8 +19,10 @@ import { Button } from "@/components/ui/button"
 import { PlusCircle } from "lucide-react"
 import { useCollection, useFirestore } from "@/firebase"
 import type { HealthEntity } from "@/lib/types"
-import { collection, writeBatch } from "firebase/firestore";
+import { collection, writeBatch, doc } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
+import { errorEmitter } from "@/firebase/error-emitter"
+import { FirestorePermissionError } from "@/firebase/errors"
 
 const initialHealthEntities: Omit<HealthEntity, 'id'>[] = [
     { code: "001", name: "FONASA", mandatoryContribution: 7.00, previredCode: "01", dtCode: "01" },
@@ -43,7 +45,7 @@ export default function HealthEntitiesPage() {
         const batch = writeBatch(firestore);
         
         initialHealthEntities.forEach(entityData => {
-            const docRef = collection(firestore, 'health-entities').doc();
+            const docRef = doc(collection(firestore, 'health-entities'));
             batch.set(docRef, entityData);
         });
 
@@ -56,11 +58,10 @@ export default function HealthEntitiesPage() {
             refetch(); // Refetch the data to update the table
         } catch (error) {
             console.error("Error seeding health entities: ", error);
-            toast({
-                variant: "destructive",
-                title: "Error al cargar datos",
-                description: "No se pudieron guardar las entidades de salud en Firestore.",
-            });
+             errorEmitter.emit('permission-error', new FirestorePermissionError({
+                path: 'health-entities',
+                operation: 'create',
+            }));
         }
     };
 

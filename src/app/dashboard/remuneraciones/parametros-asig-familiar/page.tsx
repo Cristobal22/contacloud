@@ -20,6 +20,8 @@ import { useCollection, useFirestore } from "@/firebase"
 import type { FamilyAllowanceParameter } from "@/lib/types"
 import { collection, writeBatch, doc } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
+import { errorEmitter } from "@/firebase/error-emitter"
+import { FirestorePermissionError } from "@/firebase/errors"
 
 const initialFamilyAllowanceParameters: Omit<FamilyAllowanceParameter, 'id'>[] = [
     { tramo: "A", desde: 0, hasta: 515879, monto: 20328 },
@@ -52,11 +54,10 @@ export default function ParametrosAsigFamiliarPage() {
             refetch();
         } catch (error) {
             console.error("Error seeding family allowance parameters: ", error);
-            toast({
-                variant: "destructive",
-                title: "Error al cargar datos",
-                description: "No se pudieron guardar los parámetros en Firestore.",
-            });
+             errorEmitter.emit('permission-error', new FirestorePermissionError({
+                path: 'family-allowance-parameters',
+                operation: 'create',
+            }));
         }
     };
 
@@ -94,7 +95,7 @@ export default function ParametrosAsigFamiliarPage() {
                             <TableRow key={tramo.id}>
                                 <TableCell className="font-medium">{tramo.tramo}</TableCell>
                                 <TableCell className="text-right">${tramo.desde.toLocaleString('es-CL')}</TableCell>
-                                <TableCell className="text-right">{tramo.hasta === Infinity || tramo.hasta === 0 ? 'Y más' : `$${tramo.hasta.toLocaleString('es-CL')}`}</TableCell>
+                                <TableCell className="text-right">{tramo.hasta === Infinity || tramo.hasta >= 999999999 ? 'Y más' : `$${tramo.hasta.toLocaleString('es-CL')}`}</TableCell>
                                 <TableCell className="text-right font-medium">${tramo.monto.toLocaleString('es-CL')}</TableCell>
                             </TableRow>
                         ))}

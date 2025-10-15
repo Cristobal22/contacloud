@@ -54,8 +54,13 @@ export function useCollection<T>({ path, companyId, query: manualQuery, disabled
       (err) => {
         setError(err);
         setLoading(false);
-        const q = finalQuery as Query;
-        const queryPath = (q as any)._query?.path.segments.join('/') || path;
+        let queryPath = path;
+        if (finalQuery && 'path' in finalQuery) {
+          queryPath = (finalQuery as CollectionReference).path;
+        } else if (finalQuery && (finalQuery as any)._query) {
+           queryPath = (finalQuery as any)._query.path.segments.join('/');
+        }
+        
         errorEmitter.emit('permission-error', new FirestorePermissionError({
           path: queryPath || 'unknown',
           operation: 'list',

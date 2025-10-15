@@ -16,7 +16,7 @@ import {
     CardHeader,
     CardTitle,
   } from "@/components/ui/card"
-  import { Button } from "@/components/ui/button"
+  import { Button, buttonVariants } from "@/components/ui/button"
   import { MoreHorizontal, PlusCircle } from "lucide-react"
   import {
     DropdownMenu,
@@ -34,6 +34,16 @@ import {
     DialogFooter,
     DialogClose,
   } from "@/components/ui/dialog"
+    import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+  } from "@/components/ui/alert-dialog"
   import { Input } from "@/components/ui/input"
   import { Label } from "@/components/ui/label"
   import { Textarea } from '@/components/ui/textarea';
@@ -226,22 +236,25 @@ import {
                 </DialogContent>
             </Dialog>
 
-             <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>¿Estás seguro?</DialogTitle>
-                        <DialogDescription>
+             <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
+                        <AlertDialogDescription>
                             Esta acción no se puede deshacer. Esto eliminará permanentemente el centro de costo <span className="font-bold">{centerToDelete?.name}</span>.
-                        </DialogDescription>
-                    </DialogHeader>
-                    <DialogFooter>
-                         <DialogClose asChild>
-                            <Button variant="outline">Cancelar</Button>
-                        </DialogClose>
-                        <Button variant="destructive" onClick={handleDelete}>Sí, eliminar</Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                         <AlertDialogAction
+                            className={buttonVariants({ variant: "destructive" })}
+                            onClick={handleDelete}
+                        >
+                            Sí, eliminar
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </>
     )
   }

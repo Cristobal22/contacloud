@@ -22,6 +22,8 @@ import { useCollection, useFirestore } from "@/firebase"
 import type { Institution } from "@/lib/types"
 import { collection, doc, writeBatch } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
+import { errorEmitter } from "@/firebase/error-emitter"
+import { FirestorePermissionError } from "@/firebase/errors"
 
 const initialInstitutions: Omit<Institution, 'id'>[] = [
     { name: "AFP", type: "AFP" },
@@ -55,11 +57,10 @@ export default function InstitucionesPage() {
             refetch();
         } catch (error) {
             console.error("Error seeding institutions: ", error);
-            toast({
-                variant: "destructive",
-                title: "Error al cargar datos",
-                description: "No se pudieron guardar las instituciones en Firestore.",
-            });
+            errorEmitter.emit('permission-error', new FirestorePermissionError({
+                path: 'institutions',
+                operation: 'create',
+            }));
         }
     };
 

@@ -20,6 +20,8 @@ import { useCollection, useFirestore } from "@/firebase"
 import type { TaxParameter } from "@/lib/types"
 import { collection, doc, writeBatch } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
+import { errorEmitter } from "@/firebase/error-emitter"
+import { FirestorePermissionError } from "@/firebase/errors"
 
 const initialTaxParameters: Omit<TaxParameter, 'id'>[] = [
     { tramo: "1", desde: 0, hasta: 13.5, factor: 0, rebaja: 0 },
@@ -56,11 +58,10 @@ export default function ParametrosIUTPage() {
             refetch();
         } catch (error) {
             console.error("Error seeding tax parameters: ", error);
-            toast({
-                variant: "destructive",
-                title: "Error al cargar datos",
-                description: "No se pudo guardar la tabla de IUT en Firestore.",
-            });
+            errorEmitter.emit('permission-error', new FirestorePermissionError({
+                path: 'tax-parameters',
+                operation: 'create',
+            }));
         }
     };
 
@@ -95,8 +96,8 @@ export default function ParametrosIUTPage() {
                         )}
                         {!loading && tablaIUT?.map((item) => (
                             <TableRow key={item.id}>
-                                <TableCell className="font-medium">{`Más de ${item.desde.toLocaleString('es-CL')} ${item.hasta !== Infinity && item.hasta !== 0 ? `hasta ${item.hasta.toLocaleString('es-CL')}`: ''}`}</TableCell>
-                                <TableCell>{`${item.factor * 100}%`}</TableCell>
+                                <TableCell className="font-medium">{`Más de ${item.desde.toLocaleString('es-CL')} ${item.hasta !== Infinity && item.hasta < 999999999 ? `hasta ${item.hasta.toLocaleString('es-CL')}`: ''}`}</TableCell>
+                                <TableCell>{`${(item.factor * 100).toFixed(1).replace('.',',')}%`}</TableCell>
                                 <TableCell className="text-right font-medium">{item.rebaja.toLocaleString('es-CL')}</TableCell>
                             </TableRow>
                         ))}

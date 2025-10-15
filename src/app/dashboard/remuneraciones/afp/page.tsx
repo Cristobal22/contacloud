@@ -19,8 +19,10 @@ import { Button } from "@/components/ui/button"
 import { PlusCircle } from "lucide-react"
 import { useCollection, useFirestore } from "@/firebase"
 import type { AfpEntity } from "@/lib/types"
-import { collection, writeBatch } from "firebase/firestore";
+import { collection, writeBatch, doc } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
+import { errorEmitter } from "@/firebase/error-emitter"
+import { FirestorePermissionError } from "@/firebase/errors"
 
 const initialAfpEntities: Omit<AfpEntity, 'id'>[] = [
     { code: "03", name: "CAPITAL", mandatoryContribution: 11.44, previredCode: "33", provisionalRegime: "DL 3.500", dtCode: "02" },
@@ -42,10 +44,9 @@ export default function AfpEntitiesPage() {
     const handleSeedData = async () => {
         if (!firestore) return;
         const batch = writeBatch(firestore);
-        const afpCollection = collection(firestore, 'afp-entities');
         
         initialAfpEntities.forEach(entityData => {
-            const docRef = collection(firestore, 'afp-entities').doc();
+            const docRef = doc(collection(firestore, 'afp-entities'));
             batch.set(docRef, entityData);
         });
 
@@ -58,11 +59,10 @@ export default function AfpEntitiesPage() {
             refetch();
         } catch (error) {
             console.error("Error seeding AFP entities: ", error);
-            toast({
-                variant: "destructive",
-                title: "Error al cargar datos",
-                description: "No se pudieron guardar las entidades de AFP en Firestore.",
-            });
+             errorEmitter.emit('permission-error', new FirestorePermissionError({
+                path: 'afp-entities',
+                operation: 'create',
+            }));
         }
     };
 

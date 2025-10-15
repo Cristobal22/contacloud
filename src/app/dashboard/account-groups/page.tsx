@@ -106,11 +106,11 @@ export default function AccountGroupsPage() {
             refetch();
         } catch (error) {
             console.error("Error seeding account groups: ", error);
-            toast({
-                variant: "destructive",
-                title: "Error al cargar datos",
-                description: "No se pudieron guardar los grupos de cuentas en Firestore.",
-            });
+            const path = 'account-groups';
+             errorEmitter.emit('permission-error', new FirestorePermissionError({
+                path: path,
+                operation: 'create',
+            }));
         }
     };
     
