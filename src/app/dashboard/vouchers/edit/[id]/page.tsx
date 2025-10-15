@@ -31,13 +31,15 @@ import {
     SelectValue,
   } from "@/components/ui/select"
 import { useCollection, useDoc, useFirestore } from '@/firebase';
-import type { Voucher, VoucherEntry, Account } from '@/lib/types';
+import type { Voucher, VoucherEntry, Account, Company } from '@/lib/types';
 import { SelectedCompanyContext } from '@/app/dashboard/layout';
 import { doc, setDoc, addDoc, collection } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { errorEmitter } from '@/firebase/error-emitter'
 import { FirestorePermissionError } from '@/firebase/errors'
+import { AIVoucherGenerator } from '@/components/ai-voucher-generator';
+import { createVoucherFromPrompt, CreateVoucherFromPromptInput, CreateVoucherFromPromptOutput } from '@/ai/flows/create-voucher-flow';
 
 export default function VoucherEditPage({ params }: { params: { id: string } }) {
     const { id } = params;
@@ -51,6 +53,8 @@ export default function VoucherEditPage({ params }: { params: { id: string } }) 
 
     const [voucher, setVoucher] = React.useState<Partial<Voucher> | null>(null);
     const [entries, setEntries] = React.useState<Partial<VoucherEntry>[]>([]);
+    const [isGenerating, setIsGenerating] = React.useState(false);
+
 
     const { data: accounts, loading: accountsLoading } = useCollection<Account>({
         path: selectedCompany ? `companies/${selectedCompany.id}/accounts` : undefined,
@@ -103,6 +107,33 @@ export default function VoucherEditPage({ params }: { params: { id: string } }) 
             setVoucher({ ...voucher, [field]: value });
         }
     };
+    
+    const handleGenerateVoucher = async (prompt: string) => {
+        if (!prompt || !accounts || !selectedCompany) return;
+        setIsGenerating(true);
+
+        const input: CreateVoucherFromPromptInput = {
+            prompt: prompt,
+            chartOfAccounts: accounts,
+            companySettings: selectedCompany,
+        };
+
+        try {
+            const result = await createVoucherFromPrompt(input);
+            if (result.description && result.entries.length > 0) {
+                setVoucher(prev => ({...prev, description: result.description}));
+                setEntries(result.entries.map((e, i) => ({
+                    id: `new-entry-${Date.now()}-${i}`,
+                    ...e,
+                })));
+            }
+        } catch (e) {
+            console.error("Error generating voucher with AI", e);
+        } finally {
+            setIsGenerating(false);
+        }
+    }
+
 
     const totalDebit = entries.reduce((sum, entry) => sum + Number(entry.debit || 0), 0);
     const totalCredit = entries.reduce((sum, entry) => sum + Number(entry.credit || 0), 0);
@@ -162,6 +193,12 @@ export default function VoucherEditPage({ params }: { params: { id: string } }) 
 
     return (
         <div className="grid gap-6">
+            {isNew && (
+                <AIVoucherGenerator
+                    onGenerate={handleGenerateVoucher}
+                    isLoading={isGenerating}
+                />
+            )}
             <Card>
                 <CardHeader>
                     <div className="flex items-center gap-4">
