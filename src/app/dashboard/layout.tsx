@@ -31,17 +31,21 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode
 }) {
-  const { user, loading } = useUser();
+  const { user, loading: userLoading } = useUser();
   const firestore = useFirestore();
-  const companiesCollection = firestore ? collection(firestore, 'companies') : null;
+  
+  // Solo crear la query si el usuario está autenticado
+  const companiesCollection = !userLoading && user && firestore ? collection(firestore, 'companies') : null;
+  
   const { data: companies, loading: companiesLoading } = useCollection<Company>({ query: companiesCollection });
   const [selectedCompany, setSelectedCompany] = React.useState<Company | null>(null);
 
   React.useEffect(() => {
+    // Si tenemos empresas y ninguna ha sido seleccionada, seleccionamos la primera.
     if (companies && companies.length > 0 && !selectedCompany) {
       setSelectedCompany(companies[0]);
     }
-  }, [companies]);
+  }, [companies, selectedCompany]); // Mantenemos selectedCompany aquí para re-evaluar si se des-selecciona por alguna razón
 
   const handleCompanyChange = (company: Company) => {
     setSelectedCompany(company);
@@ -49,12 +53,14 @@ export default function DashboardLayout({
 
   const childrenWithProps = React.Children.map(children, child => {
     if (React.isValidElement(child)) {
+      // Clona el elemento y le pasa el companyId
       return React.cloneElement(child, { companyId: selectedCompany?.id } as any);
     }
     return child;
   });
 
-  if (loading || companiesLoading) {
+  // Muestra el estado de carga si el usuario o las empresas están cargando
+  if (userLoading || companiesLoading) {
     return (
         <div className="flex min-h-screen w-full items-center justify-center">
             <p>Loading...</p>
@@ -62,8 +68,9 @@ export default function DashboardLayout({
     )
   }
   
+  // Si no hay usuario (y ya no está cargando), useUser() se encargará de redirigir
   if (!user) {
-      return null; // The useUser hook will handle the redirect
+      return null;
   }
 
   return (
