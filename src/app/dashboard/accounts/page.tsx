@@ -195,7 +195,7 @@ export default function AccountsPage({ companyId }: { companyId?: string }) {
                   </div>
                   <div className="grid grid-cols-4 items-center gap-4">
                       <Label htmlFor="type" className="text-right">Tipo</Label>
-                      <Select value={selectedAccount?.type || 'Activo'} onValueChange={(value) => handleFieldChange('type', value)}>
+                      <Select value={selectedAccount?.type || 'Activo'} onValueChange={(value) => handleFieldChange('type', value as 'Activo' | 'Pasivo' | 'Patrimonio' | 'Resultado')}>
                           <SelectTrigger className="col-span-3">
                               <SelectValue placeholder="Selecciona un tipo" />
                           </SelectTrigger>

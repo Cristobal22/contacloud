@@ -24,7 +24,7 @@ export type Company = {
   salesVatAccount?: string;
   salesOtherTaxesAccount?: string;
   proportionalVat?: boolean;
-  purchasesInvoicesPayableAccount?: string;
+  purchasesInvoicesReceivableAccount?: string;
   purchasesNotesPayableAccount?: string;
   purchasesVatAccount?: string;
   purchasesOtherTaxesAccount?: string;
