@@ -32,6 +32,8 @@ function AccountantDashboardLayout({ children }: { children: React.ReactNode }) 
     const { user, loading: userLoading } = useUser();
     const { userProfile, loading: profileLoading } = useUserProfile(user?.uid);
     
+    const [isMounted, setIsMounted] = React.useState(false);
+
     const companiesQuery = React.useMemo(() => {
         if (!firestore || !userProfile || !userProfile.companyIds || userProfile.companyIds.length === 0) {
             return null;
@@ -47,25 +49,32 @@ function AccountantDashboardLayout({ children }: { children: React.ReactNode }) 
     const [selectedCompany, setSelectedCompany] = React.useState<Company | null>(null);
 
     React.useEffect(() => {
+        setIsMounted(true);
+    }, []);
+
+    React.useEffect(() => {
+        if (!isMounted || !companies || companies.length === 0) return;
+
         const storedCompanyId = localStorage.getItem('selectedCompanyId');
-        if (companies && companies.length > 0) {
-            if (storedCompanyId) {
-                const foundCompany = companies.find(c => c.id === storedCompanyId);
-                setSelectedCompany(foundCompany || companies[0]);
-            } else {
-                setSelectedCompany(companies[0]);
+        if (storedCompanyId) {
+            const foundCompany = companies.find(c => c.id === storedCompanyId);
+            if (foundCompany) {
+                setSelectedCompany(foundCompany);
+                return;
             }
-        } else if (companies && companies.length === 0) {
-            setSelectedCompany(null);
         }
-    }, [companies]);
+        
+        // Fallback to the first company if nothing is stored or found
+        setSelectedCompany(companies[0]);
+
+    }, [companies, isMounted]);
 
     const handleCompanyChange = (company: Company) => {
         setSelectedCompany(company);
         localStorage.setItem('selectedCompanyId', company.id);
     };
 
-    if (userLoading || profileLoading || companiesLoading) {
+    if (userLoading || profileLoading || companiesLoading || !isMounted) {
         return <div className="flex h-full w-full items-center justify-center"><p>Cargando datos del contador...</p></div>
     }
 

@@ -29,11 +29,9 @@ function AccountantDashboardContent({ companyId }: { companyId: string | undefin
     
     const { data: accounts, loading: accountsLoading } = useCollection<Account>({
         path: companyId ? `companies/${companyId}/accounts` : undefined,
-        companyId: companyId,
     });
     const { data: vouchers, loading: vouchersLoading } = useCollection<Voucher>({
         path: companyId ? `companies/${companyId}/vouchers` : undefined,
-        companyId: companyId,
     });
      const { data: companies, loading: companiesLoading } = useCollection<Company>({ path: 'companies'});
 
@@ -87,7 +85,7 @@ function AccountantDashboardContent({ companyId }: { companyId: string | undefin
 
     if (loading) {
         return (
-            <div className="flex min-h-screen w-full items-center justify-center">
+            <div className="flex min-h-[400px] w-full items-center justify-center">
                 <p>Cargando dashboard...</p>
             </div>
         )
@@ -236,10 +234,19 @@ function AccountantDashboardContent({ companyId }: { companyId: string | undefin
 }
 
 function AccountantDashboard() {
-    const { selectedCompany } = React.useContext(SelectedCompanyContext) || {};
-    const companyId = selectedCompany?.id;
-
-    return <AccountantDashboardContent companyId={companyId} />;
+    const context = React.useContext(SelectedCompanyContext);
+    
+    // The context can be null initially, handle this case gracefully.
+    if (!context) {
+        return (
+            <div className="flex min-h-[400px] w-full items-center justify-center">
+                <p>Cargando empresa...</p>
+            </div>
+        );
+    }
+    
+    const { selectedCompany } = context;
+    return <AccountantDashboardContent companyId={selectedCompany?.id} />;
 }
 
 export default function DashboardPage() {
