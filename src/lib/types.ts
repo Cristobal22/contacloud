@@ -81,7 +81,7 @@ export type Employee = {
   bank?: 'Banco de Chile' | 'Banco Internacional' | 'Scotiabank Chile' | 'BCI' | 'Banco Bice' | 'HSBC Bank (Chile)' | 'Banco Santander-Chile' | 'Itaú Corpbanca' | 'Banco Security' | 'Banco Falabella' | 'Banco Ripley' | 'Banco Consorcio' | 'Scotiabank Azul (Ex-BBVA)' | 'BancoEstado';
   accountType?: 'Cuenta Corriente' | 'Cuenta Vista' | 'Cuenta de Ahorro';
   accountNumber?: string;
-  costCenter?: string;
+  costCenterId?: string;
   status: 'Active' | 'Inactive';
   companyId?: string;
   name?: string; // Added for compatibility with employee select on other pages
@@ -195,5 +195,3 @@ export type SelectedCompanyContextType = {
     selectedCompany: Company | null;
     setSelectedCompany: (company: Company | null) => void;
 };
-
-    

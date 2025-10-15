@@ -134,7 +134,7 @@
                 "bank": { "type": "string", "enum": ["Banco de Chile", "Banco Internacional", "Scotiabank Chile", "BCI", "Banco Bice", "HSBC Bank (Chile)", "Banco Santander-Chile", "Itaú Corpbanca", "Banco Security", "Banco Falabella", "Banco Ripley", "Banco Consorcio", "Scotiabank Azul (Ex-BBVA)", "BancoEstado"] },
                 "accountType": { "type": "string", "enum": ["Cuenta Corriente", "Cuenta Vista", "Cuenta de Ahorro"] },
                 "accountNumber": { "type": "string" },
-                "costCenter": { "type": "string" },
+                "costCenterId": { "type": "string" },
                 "status": { "type": "string", "enum": ["Active", "Inactive"] },
                 "companyId": { "type": "string" }
             },
@@ -272,5 +272,3 @@
         "providers": ["google.com", "password"]
     }
 }
-
-    

@@ -163,10 +163,10 @@ export default function EmployeeFormPage({ params }: { params: { id: string } })
                         <div className="space-y-2"><Label>Sueldo Base</Label><Input type="number" value={employee.baseSalary ?? ''} onChange={(e) => handleFieldChange('baseSalary', parseFloat(e.target.value))} /></div>
                          <div className="space-y-2">
                             <Label>Centro de Costo</Label>
-                            <Select value={employee.costCenter || ''} onValueChange={(v) => handleFieldChange('costCenter', v)} disabled={costCentersLoading}>
+                            <Select value={employee.costCenterId || ''} onValueChange={(v) => handleFieldChange('costCenterId', v)} disabled={costCentersLoading}>
                                 <SelectTrigger><SelectValue placeholder="Selecciona..." /></SelectTrigger>
                                 <SelectContent>
-                                    {costCenters?.map(cc => <SelectItem key={cc.id} value={cc.name}>{cc.name}</SelectItem>)}
+                                    {costCenters?.map(cc => <SelectItem key={cc.id} value={cc.id}>{cc.name}</SelectItem>)}
                                 </SelectContent>
                             </Select>
                         </div>
@@ -264,4 +264,3 @@ export default function EmployeeFormPage({ params }: { params: { id: string } })
         </Card>
     );
 }
-

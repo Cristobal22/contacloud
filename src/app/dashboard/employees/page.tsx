@@ -27,16 +27,26 @@ import {
     DropdownMenuTrigger,
   } from "@/components/ui/dropdown-menu"
   import { useCollection } from "@/firebase"
-  import type { Employee } from "@/lib/types"
-  import { useRouter } from "next/navigation"
+  import type { Employee, CostCenter } from "@/lib/types"
   import Link from "next/link"
+  import React from "react"
   
   export default function EmployeesPage({ companyId }: { companyId?: string }) {
-    const { data: employees, loading } = useCollection<Employee>({ 
+    const { data: employees, loading: employeesLoading } = useCollection<Employee>({ 
       path: `companies/${companyId}/employees`,
       companyId: companyId 
     });
-    const router = useRouter();
+    const { data: costCenters, loading: costCentersLoading } = useCollection<CostCenter>({
+        path: `companies/${companyId}/cost-centers`,
+        companyId: companyId,
+    });
+
+    const costCenterMap = React.useMemo(() => {
+        if (!costCenters) return new Map<string, string>();
+        return new Map(costCenters.map(cc => [cc.id, cc.name]));
+    }, [costCenters]);
+
+    const loading = employeesLoading || costCentersLoading;
 
     return (
       <Card>
@@ -79,7 +89,7 @@ import {
                   <TableCell className="font-medium">{`${employee.firstName} ${employee.lastName}`}</TableCell>
                   <TableCell>{employee.rut}</TableCell>
                   <TableCell>{employee.position}</TableCell>
-                  <TableCell>{employee.costCenter}</TableCell>
+                  <TableCell>{employee.costCenterId ? costCenterMap.get(employee.costCenterId) : 'N/A'}</TableCell>
                   <TableCell>
                     <Badge variant={employee.status === 'Active' ? "default" : "outline"}>
                       {employee.status === 'Active' ? "Activo" : "Inactivo"}
@@ -117,5 +127,3 @@ import {
       </Card>
     )
   }
-  
-    
