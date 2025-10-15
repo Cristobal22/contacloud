@@ -8,6 +8,7 @@ export const UserProfileSchema = z.object({
   displayName: z.string().optional().nullable(),
   photoURL: z.string().optional().nullable(),
   role: z.enum(['Admin', 'Accountant']),
+  companyIds: z.array(z.string()).optional(),
 });
 
 export type UserProfile = z.infer<typeof UserProfileSchema>;

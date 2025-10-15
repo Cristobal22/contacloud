@@ -7,7 +7,7 @@ import {
   Home,
   Briefcase,
 } from "lucide-react"
-import { collection, query } from "firebase/firestore"
+import { collection, query, where } from "firebase/firestore"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -21,7 +21,7 @@ import {
 import { DashboardNav } from "@/components/dashboard-nav"
 import { UserNav } from "@/components/user-nav"
 import { Logo } from "@/components/logo"
-import type { Company, SelectedCompanyContextType } from "@/lib/types"
+import type { Company, SelectedCompanyContextType, UserProfile } from "@/lib/types"
 import { useUser, useFirestore, useCollection } from "@/firebase"
 import { useUserProfile } from "@/firebase/auth/use-user-profile"
 import { useRouter, usePathname } from 'next/navigation'
@@ -31,10 +31,19 @@ export const SelectedCompanyContext = React.createContext<SelectedCompanyContext
 function AccountantDashboard({ children }: { children: React.ReactNode }) {
     const firestore = useFirestore();
     const { user, loading: userLoading } = useUser();
+    const { userProfile, loading: profileLoading } = useUserProfile(user?.uid);
     
+    // Create the query for the companies collection, but only if the user profile and companyIds are available.
+    const companiesQuery = React.useMemo(() => {
+        if (!firestore || !userProfile || !userProfile.companyIds || userProfile.companyIds.length === 0) {
+            return null;
+        }
+        return query(collection(firestore, 'companies'), where('__name__', 'in', userProfile.companyIds));
+    }, [firestore, userProfile]);
+
     const { data: companies, loading: companiesLoading } = useCollection<Company>({ 
-      query: firestore ? collection(firestore, 'companies') : null,
-      disabled: userLoading || !user,
+      query: companiesQuery,
+      disabled: userLoading || profileLoading || !companiesQuery,
     });
 
     const [selectedCompany, setSelectedCompany] = React.useState<Company | null>(null);
@@ -42,6 +51,8 @@ function AccountantDashboard({ children }: { children: React.ReactNode }) {
     React.useEffect(() => {
         if (companies && companies.length > 0 && !selectedCompany) {
             setSelectedCompany(companies[0]);
+        } else if (companies && companies.length === 0) {
+            setSelectedCompany(null);
         }
     }, [companies, selectedCompany]);
 
@@ -57,7 +68,7 @@ function AccountantDashboard({ children }: { children: React.ReactNode }) {
         return child;
     });
 
-    if (companiesLoading) {
+    if (companiesLoading || profileLoading) {
         return <div className="flex h-full w-full items-center justify-center"><p>Cargando empresas...</p></div>
     }
 
@@ -106,9 +117,11 @@ function AccountantDashboard({ children }: { children: React.ReactNode }) {
                                     <DropdownMenuContent align="start">
                                         <DropdownMenuLabel>Selecciona una Empresa</DropdownMenuLabel>
                                         <DropdownMenuSeparator />
-                                        {companies?.map((company) => (
+                                        {companies && companies.length > 0 ? companies.map((company) => (
                                             <DropdownMenuItem key={company.id} onSelect={() => handleCompanyChange(company)}>{company.name}</DropdownMenuItem>
-                                        ))}
+                                        )) : (
+                                            <DropdownMenuItem disabled>No tienes empresas asignadas.</DropdownMenuItem>
+                                        )}
                                     </DropdownMenuContent>
                                 </DropdownMenu>
                             </div>
@@ -159,9 +172,12 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
     
     React.useEffect(() => {
         // Wait until we have all the user info.
-        if (userLoading || !user || profileLoading || !userProfile) {
+        if (userLoading || !user || profileLoading) {
             return;
         }
+
+        // if we don't have a user profile, there is nothing to do.
+        if (!userProfile) return;
         
         const isAdminPage = pathname.startsWith('/dashboard/admin');
         
@@ -213,3 +229,5 @@ export default function DashboardLayout({
   
   return <DashboardLayoutContent>{children}</DashboardLayoutContent>;
 }
+
+    
