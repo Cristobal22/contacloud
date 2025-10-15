@@ -1,4 +1,6 @@
+'use client';
 
+import React from 'react';
 import {
     Table,
     TableBody,
@@ -14,15 +16,43 @@ import {
     CardHeader,
     CardTitle,
   } from "@/components/ui/card"
-  import { mockTransactions } from "@/lib/data"
-  
-  export default function JournalPage() {
-    // Usaremos mockTransactions para simular los asientos del libro diario
-    const journalEntries = mockTransactions.flatMap(t => [
-        { ...t, entryType: 'Debit', amount: t.type === 'Debit' ? t.amount : 0 },
-        { ...t, entryType: 'Credit', amount: t.type === 'Credit' ? t.amount : 0 }
-    ]).filter(e => e.amount > 0);
+  import { useCollection } from "@/firebase"
+  import type { Voucher, VoucherEntry } from "@/lib/types";
 
+  type JournalEntry = {
+    id: string;
+    date: string;
+    accountCode: string;
+    accountName: string;
+    description: string;
+    debit: number;
+    credit: number;
+  };
+  
+  export default function JournalPage({ companyId }: { companyId?: string }) {
+    const { data: vouchers, loading } = useCollection<Voucher>({ 
+      path: `companies/${companyId}/vouchers`,
+      companyId: companyId 
+    });
+
+    const journalEntries = React.useMemo(() => {
+        if (!vouchers) return [];
+        const entries: JournalEntry[] = [];
+        vouchers.forEach(voucher => {
+            voucher.entries.forEach((entry, index) => {
+                entries.push({
+                    id: `${voucher.id}-${index}`,
+                    date: voucher.date,
+                    accountCode: entry.account.split(' - ')[0],
+                    accountName: entry.account.split(' - ')[1] || 'N/A',
+                    description: entry.description || voucher.description,
+                    debit: Number(entry.debit) || 0,
+                    credit: Number(entry.credit) || 0,
+                });
+            });
+        });
+        return entries.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    }, [vouchers]);
 
     return (
       <Card>
@@ -42,23 +72,28 @@ import {
               </TableRow>
             </TableHeader>
             <TableBody>
-                {mockTransactions.map((transaction) => (
-                    <TableRow key={transaction.id}>
-                        <TableCell>{transaction.date}</TableCell>
-                        <TableCell>{transaction.account}</TableCell>
-                        <TableCell>{transaction.description}</TableCell>
+                {loading && (
+                    <TableRow>
+                        <TableCell colSpan={5} className="text-center">Cargando...</TableCell>
+                    </TableRow>
+                )}
+                {!loading && journalEntries.map((entry) => (
+                    <TableRow key={entry.id}>
+                        <TableCell>{entry.date}</TableCell>
+                        <TableCell>{entry.accountCode} - {entry.accountName}</TableCell>
+                        <TableCell>{entry.description}</TableCell>
                         <TableCell className="text-right text-red-600">
-                            {transaction.type === 'Debit' ? `$${transaction.amount.toLocaleString('es-CL')}` : '$0'}
+                            {entry.debit > 0 ? `$${entry.debit.toLocaleString('es-CL')}` : '$0'}
                         </TableCell>
                         <TableCell className="text-right text-green-600">
-                            {transaction.type === 'Credit' ? `$${transaction.amount.toLocaleString('es-CL')}` : '$0'}
+                            {entry.credit > 0 ? `$${entry.credit.toLocaleString('es-CL')}` : '$0'}
                         </TableCell>
                     </TableRow>
                 ))}
-                 {mockTransactions.length === 0 && (
+                 {!loading && journalEntries.length === 0 && (
                     <TableRow>
                         <TableCell colSpan={5} className="text-center">
-                            No hay movimientos en el libro diario.
+                            {!companyId ? "Selecciona una empresa para ver el libro diario." : "No hay movimientos en el libro diario para esta empresa."}
                         </TableCell>
                     </TableRow>
                 )}

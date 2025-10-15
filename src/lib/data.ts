@@ -213,15 +213,6 @@ export const mockAccounts: Account[] = [
 ];
 
 
-export const mockTransactions: Transaction[] = [
-    { id: 'txn-1', date: '2023-10-28', description: 'Client payment for Project X', amount: 15000, type: 'Credit', account: 'Service Revenue', status: 'Completed' },
-    { id: 'txn-2', date: '2023-10-27', description: 'October salaries', amount: 25000, type: 'Debit', account: 'Salaries Expense', status: 'Completed' },
-    { id: 'txn-3', date: '2023-10-26', description: 'Invoice #INV-003 from Supplier Co.', amount: 3200, type: 'Debit', account: 'Accounts Payable', status: 'Pending' },
-    { id: 'txn-4', date: '2023-10-25', description: 'Cash withdrawal for petty cash', amount: 500, type: 'Debit', account: 'Cash', status: 'Completed' },
-    { id: 'txn-5', date: '2023-10-24', description: 'Received payment for Invoice #INV-001', amount: 7500, type: 'Credit', account: 'Accounts Receivable', status: 'Completed' },
-    { id: 'txn-6', date: '2023-10-23', description: 'Cloud server hosting - October', amount: 450, type: 'Debit', account: 'Utilities Expense', status: 'Failed' },
-];
-
 export const mockCostCenters: CostCenter[] = [
     { id: 'cc-1', name: 'Producción', description: 'Costos asociados a la línea de producción.' },
     { id: 'cc-2', name: 'Administración', description: 'Costos generales y de administración.' },
@@ -243,11 +234,11 @@ export const mockSubjects: Subject[] = [
 ];
 
 export const mockVouchers: Voucher[] = [
-    { id: 'v-1', date: '2023-11-01', type: 'Ingreso', description: 'Pago factura #101', status: 'Posteado', total: 125000 },
-    { id: 'v-2', date: '2023-11-02', type: 'Egreso', description: 'Pago de arriendo oficina', status: 'Posteado', total: 550000 },
-    { id: 'v-3', date: '2023-11-03', type: 'Traspaso', description: 'Ajuste de caja', status: 'Borrador', total: 15000 },
-    { id: 'v-4', date: '2023-11-04', type: 'Egreso', description: 'Compra de suministros', status: 'Posteado', total: 75000 },
-    { id: 'v-5', date: '2023-11-05', type: 'Ingreso', description: 'Abono cliente Z', status: 'Posteado', total: 200000 },
+    { id: 'v-1', date: '2023-11-01', type: 'Ingreso', description: 'Pago factura #101', status: 'Posteado', total: 125000, entries: [] },
+    { id: 'v-2', date: '2023-11-02', type: 'Egreso', description: 'Pago de arriendo oficina', status: 'Posteado', total: 550000, entries: [] },
+    { id: 'v-3', date: '2023-11-03', type: 'Traspaso', description: 'Ajuste de caja', status: 'Borrador', total: 15000, entries: [] },
+    { id: 'v-4', date: '2023-11-04', type: 'Egreso', description: 'Compra de suministros', status: 'Posteado', total: 75000, entries: [] },
+    { id: 'v-5', date: '2023-11-05', type: 'Ingreso', description: 'Abono cliente Z', status: 'Posteado', total: 200000, entries: [] },
 ];
 
 export const mockPurchases: Purchase[] = [
