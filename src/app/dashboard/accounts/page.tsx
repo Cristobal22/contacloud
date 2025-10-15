@@ -1,4 +1,6 @@
 'use client';
+
+import React from 'react';
 import {
     Table,
     TableBody,
@@ -24,17 +26,89 @@ import {
     DropdownMenuLabel,
     DropdownMenuTrigger,
   } from "@/components/ui/dropdown-menu"
-  import { useCollection } from "@/firebase"
-  import type { Account, DashboardPageProps } from "@/lib/types"
+   import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogDescription,
+    DialogFooter,
+    DialogClose,
+  } from "@/components/ui/dialog"
+  import { Input } from "@/components/ui/input"
+  import { Label } from "@/components/ui/label"
+  import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+  import { useCollection, useFirestore } from "@/firebase"
+  import { collection, addDoc, setDoc, doc } from "firebase/firestore"
+  import type { Account } from "@/lib/types"
 
   
-  export default function AccountsPage({ companyId }: { companyId?: string }) {
-    const { data: accounts, loading } = useCollection<Account>({
-      path: `companies/${companyId}/accounts`,
-      companyId: companyId,
+export default function AccountsPage({ companyId }: { companyId?: string }) {
+  const firestore = useFirestore();
+  const { data: accounts, loading } = useCollection<Account>({
+    path: `companies/${companyId}/accounts`,
+    companyId: companyId,
+  });
+
+  const [isDialogOpen, setIsDialogOpen] = React.useState(false);
+  const [selectedAccount, setSelectedAccount] = React.useState<Partial<Account> | null>(null);
+
+  const handleCreateNew = () => {
+    setSelectedAccount({
+        id: `new-${Date.now()}`,
+        code: '',
+        name: '',
+        type: 'Activo',
+        balance: 0,
     });
-  
-    return (
+    setIsDialogOpen(true);
+  };
+
+  const handleEdit = (account: Account) => {
+      setSelectedAccount(account);
+      setIsDialogOpen(true);
+  };
+
+  const handleSaveAccount = async () => {
+    if (!firestore || !companyId || !selectedAccount) return;
+
+    const isNew = selectedAccount.id?.startsWith('new-');
+    const collectionRef = collection(firestore, `companies/${companyId}/accounts`);
+    
+    const accountData = {
+      code: selectedAccount.code || '',
+      name: selectedAccount.name || '',
+      type: selectedAccount.type || 'Activo',
+      balance: selectedAccount.balance || 0,
+      companyId: companyId
+    };
+    
+    try {
+        if (isNew) {
+            await addDoc(collectionRef, accountData);
+        } else {
+            if (selectedAccount.id) {
+                const docRef = doc(firestore, `companies/${companyId}/accounts`, selectedAccount.id);
+                // Exclude balance from update for existing accounts
+                const { balance, ...updateData } = accountData;
+                await setDoc(docRef, updateData, { merge: true });
+            }
+        }
+        setIsDialogOpen(false);
+        setSelectedAccount(null);
+    } catch (error) {
+        console.error("Error saving account: ", error);
+    }
+  };
+    
+  const handleFieldChange = (field: keyof Account, value: string | number) => {
+    if (selectedAccount) {
+        setSelectedAccount({ ...selectedAccount, [field]: value });
+    }
+  };
+
+  return (
+    <>
       <Card>
         <CardHeader>
             <div className="flex items-center justify-between">
@@ -42,7 +116,7 @@ import {
                     <CardTitle>Plan de Cuentas</CardTitle>
                     <CardDescription>Gestiona tus cuentas contables.</CardDescription>
                 </div>
-                <Button size="sm" className="gap-1">
+                <Button size="sm" className="gap-1" onClick={handleCreateNew} disabled={!companyId}>
                     <PlusCircle className="h-4 w-4" />
                     Agregar Cuenta
                 </Button>
@@ -85,7 +159,7 @@ import {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-                        <DropdownMenuItem>Editar</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleEdit(account)}>Editar</DropdownMenuItem>
                         <DropdownMenuItem>Ver Movimientos</DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -101,5 +175,51 @@ import {
           </Table>
         </CardContent>
       </Card>
-    )
-  }
+
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <DialogContent className="sm:max-w-[425px]">
+              <DialogHeader>
+                  <DialogTitle>{selectedAccount?.id?.startsWith('new-') ? 'Crear Nueva Cuenta' : 'Editar Cuenta'}</DialogTitle>
+                  <DialogDescription>
+                      Rellena los detalles de la cuenta contable.
+                  </DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                  <div className="grid grid-cols-4 items-center gap-4">
+                      <Label htmlFor="code" className="text-right">Código</Label>
+                      <Input id="code" value={selectedAccount?.code || ''} onChange={(e) => handleFieldChange('code', e.target.value)} className="col-span-3" />
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                      <Label htmlFor="name" className="text-right">Nombre</Label>
+                      <Input id="name" value={selectedAccount?.name || ''} onChange={(e) => handleFieldChange('name', e.target.value)} className="col-span-3" />
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                      <Label htmlFor="type" className="text-right">Tipo</Label>
+                      <Select value={selectedAccount?.type || 'Activo'} onValueChange={(value) => handleFieldChange('type', value)}>
+                          <SelectTrigger className="col-span-3">
+                              <SelectValue placeholder="Selecciona un tipo" />
+                          </SelectTrigger>
+                          <SelectContent>
+                              <SelectItem value="Activo">Activo</SelectItem>
+                              <SelectItem value="Pasivo">Pasivo</SelectItem>
+                              <SelectItem value="Patrimonio">Patrimonio</SelectItem>
+                              <SelectItem value="Resultado">Resultado</SelectItem>
+                          </SelectContent>
+                      </Select>
+                  </div>
+                   <div className="grid grid-cols-4 items-center gap-4">
+                      <Label htmlFor="balance" className="text-right">Saldo Inicial</Label>
+                      <Input id="balance" type="number" value={selectedAccount?.balance ?? 0} onChange={(e) => handleFieldChange('balance', parseFloat(e.target.value))} className="col-span-3" disabled={!selectedAccount?.id?.startsWith('new-')} />
+                  </div>
+              </div>
+              <DialogFooter>
+                  <DialogClose asChild>
+                      <Button type="button" variant="secondary">Cancelar</Button>
+                  </DialogClose>
+                  <Button type="submit" onClick={handleSaveAccount}>Guardar Cambios</Button>
+              </DialogFooter>
+          </DialogContent>
+      </Dialog>
+    </>
+  )
+}
