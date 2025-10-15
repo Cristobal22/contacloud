@@ -46,9 +46,9 @@ Asegúrate de que cada comprobante esté perfectamente balanceado (Debe = Haber)
 
 DATOS:
 - Período: Mes {{period.month}}, Año {{period.year}}
-- Resumen RCV: {{{JSONstringify rcvSummary}}}
-- Plan de Cuentas: {{{JSONstringify accounts}}}
-- Configuración de la Empresa: {{{JSONstringify companyConfig}}}
+- Resumen RCV: {{{JSON.stringify rcvSummary}}}
+- Plan de Cuentas: {{{JSON.stringify accounts}}}
+- Configuración de la Empresa: {{{JSON.stringify companyConfig}}}
 `,
 });
 
@@ -84,4 +84,3 @@ const centralizeRcvFlow = ai.defineFlow(
     return finalVouchers;
   }
 );
-
