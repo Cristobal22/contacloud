@@ -79,7 +79,7 @@ export default function UserManagement() {
 
     const { data: users, loading: usersLoading, refetch: refetchUsers } = useCollection<UserProfile>({ 
       query: usersCollection,
-      disabled: !isCurrentUserAdmin,
+      disabled: profileLoading || !isCurrentUserAdmin,
     });
     
     const loading = usersLoading || profileLoading;
@@ -378,5 +378,3 @@ export default function UserManagement() {
         </>
     );
 }
-
-    
