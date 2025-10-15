@@ -32,7 +32,6 @@ import {
   RefreshCw,
   GitMerge,
   Lock,
-  SlidersHorizontal,
   Building,
   HeartPulse,
   Wallet,
@@ -142,7 +141,7 @@ const criticalProcessesSections = [
 const configurationSections = [
     {
         title: 'General',
-        icon: SlidersHorizontal,
+        icon: Settings,
         links: [
             { href: '/dashboard/companies', label: 'Empresas', icon: Building },
             { href: '/dashboard/configuration/monthly-parameters', label: 'Parámetros Mensuales', icon: Book },
