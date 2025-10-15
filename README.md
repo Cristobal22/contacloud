@@ -41,7 +41,7 @@ Contador Cloud is a modern, multi-tenant accounting application designed for acc
 3.  Under "Your apps", create a new **Web app**.
 4.  Copy the `firebaseConfig` object values.
 5.  In this project, rename the `.env.example` file to `.env`.
-6.  Paste your Firebase config values into the `.env` file.
+6.  Paste your Firebase config values into the `.env` file. Make sure to match each value with the correct `NEXT_PUBLIC_` variable name.
 
 ### Running the Development Server
 
