@@ -20,7 +20,6 @@ import {
   import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis } from "recharts"
   import { useCollection } from "@/firebase"
   import type { Account, Company, Voucher } from "@/lib/types"
-  import { SelectedCompanyContext } from "./layout"
   
   export default function DashboardPage({ companyId }: { companyId?: string }) {
     const { data: accounts, loading: accountsLoading } = useCollection<Account>({
@@ -35,17 +34,52 @@ import {
         path: 'companies',
     });
 
-    const totalBalance = accounts
+    const loading = accountsLoading || vouchersLoading || companiesLoading;
+
+    const calculatedBalances = React.useMemo(() => {
+        if (!accounts || !vouchers) return [];
+        
+        const accountMovements = new Map<string, { debit: number; credit: number }>();
+
+        vouchers.forEach(voucher => {
+            if (voucher.status === 'Contabilizado') {
+                voucher.entries.forEach(entry => {
+                    const current = accountMovements.get(entry.account) || { debit: 0, credit: 0 };
+                    current.debit += Number(entry.debit) || 0;
+                    current.credit += Number(entry.credit) || 0;
+                    accountMovements.set(entry.account, current);
+                });
+            }
+        });
+
+        return accounts.map(account => {
+            const movements = accountMovements.get(account.code);
+            let finalBalance = account.balance || 0;
+            if (movements) {
+                 if (account.type === 'Activo' || account.type === 'Resultado') {
+                     finalBalance += movements.debit - movements.credit;
+                 } else { 
+                     finalBalance += movements.credit - movements.debit;
+                 }
+            }
+            return {
+                ...account,
+                balance: finalBalance,
+            };
+        });
+
+    }, [accounts, vouchers]);
+
+    const totalBalance = calculatedBalances
         ?.filter(acc => acc.type === 'Activo')
         .reduce((sum, acc) => sum + acc.balance, 0) || 0;
 
-    const totalLiabilities = accounts
+    const totalLiabilities = calculatedBalances
         ?.filter(acc => acc.type === 'Pasivo')
         .reduce((sum, acc) => sum + acc.balance, 0) || 0;
 
     const recentVouchers = vouchers?.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 5) || [];
 
-    const loading = accountsLoading || vouchersLoading || companiesLoading;
 
     if (loading) {
         return (
@@ -111,7 +145,7 @@ import {
                 </CardHeader>
                 <CardContent>
                     <ResponsiveContainer width="100%" height={300}>
-                        <BarChart data={accounts?.filter(a => a.balance > 0)}>
+                        <BarChart data={calculatedBalances.filter(a => a.balance > 0 && (a.type === 'Activo' || a.type === 'Pasivo'))}>
                             <XAxis
                             dataKey="name"
                             stroke="#888888"
@@ -124,7 +158,7 @@ import {
                             fontSize={12}
                             tickLine={false}
                             axisLine={false}
-                            tickFormatter={(value) => `$${value}`}
+                            tickFormatter={(value) => `$${Number(value).toLocaleString('es-CL')}`}
                             />
                             <Bar dataKey="balance" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
                         </BarChart>
@@ -153,7 +187,7 @@ import {
                     <TableCell>
                       <div className="font-medium">{voucher.description}</div>
                       <div className="text-sm text-muted-foreground">
-                        {voucher.date} - {voucher.type}
+                        {new Date(voucher.date).toLocaleDateString('es-CL', { timeZone: 'UTC' })} - {voucher.type}
                       </div>
                     </TableCell>
                     <TableCell className="text-right">
