@@ -22,6 +22,7 @@ import {
 import { PlusCircle, Trash2 } from "lucide-react";
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
     Select,
     SelectContent,
@@ -47,29 +48,31 @@ export default function VoucherDetailPage() {
     const isNew = id === 'new';
 
     const [voucher, setVoucher] = React.useState<Voucher | null>(null);
+     const [entries, setEntries] = React.useState<VoucherEntry[]>([]);
 
     React.useEffect(() => {
         if (isNew) {
             setVoucher({
-                id: 'new',
+                id: `v-${Date.now()}`,
                 date: new Date().toISOString().substring(0, 10),
                 type: 'Traspaso',
-                description: 'Nuevo Comprobante',
+                description: '',
                 status: 'Borrador',
                 total: 0
             });
+            setEntries([]);
         } else {
             const foundVoucher = mockVouchers.find(v => v.id === id);
             if (foundVoucher) {
                 setVoucher(foundVoucher);
+                // Example entries for a non-new voucher
+                 setEntries([
+                    { id: 1, account: '1101-01', description: 'Inicio de actividades', debit: 100000, credit: 0 },
+                    { id: 2, account: '3101-01', description: 'Aporte inicial', debit: 0, credit: 100000 },
+                ]);
             }
         }
     }, [id, isNew]);
-    
-    const [entries, setEntries] = React.useState<VoucherEntry[]>(isNew ? [] : [
-        { id: 1, account: '1101-01', description: 'Inicio de actividades', debit: 100000, credit: 0 },
-        { id: 2, account: '3101-01', description: 'Aporte inicial', debit: 0, credit: 100000 },
-    ]);
 
     const handleAddEntry = () => {
         setEntries([
@@ -96,8 +99,16 @@ export default function VoucherDetailPage() {
         setEntries(newEntries);
     };
 
+     const handleHeaderChange = (field: keyof Voucher, value: string) => {
+        if (voucher) {
+            setVoucher({ ...voucher, [field]: value });
+        }
+    };
+
     const totalDebit = entries.reduce((sum, entry) => sum + entry.debit, 0);
     const totalCredit = entries.reduce((sum, entry) => sum + entry.credit, 0);
+    const isBalanced = totalDebit === totalCredit;
+    const canSave = isBalanced && entries.length > 0 && voucher?.description;
 
     if (!voucher) {
         return (
@@ -125,7 +136,7 @@ export default function VoucherDetailPage() {
                                 {isNew ? 'Nuevo Comprobante' : `Editar Comprobante #${voucher.id}`}
                             </CardTitle>
                             <CardDescription>
-                                {voucher.description} - {new Date(voucher.date).toLocaleDateString('es-CL', { timeZone: 'UTC' })}
+                                Gestiona los detalles y asientos del comprobante contable.
                             </CardDescription>
                         </div>
                         <Badge variant={voucher.status === 'Posteado' ? 'outline' : 'secondary'}>
@@ -134,6 +145,39 @@ export default function VoucherDetailPage() {
                     </div>
                 </CardHeader>
                 <CardContent>
+                    <div className="grid gap-6 md:grid-cols-3 mb-8">
+                        <div className="space-y-2">
+                            <Label htmlFor="voucher-date">Fecha</Label>
+                            <Input 
+                                id="voucher-date" 
+                                type="date" 
+                                value={voucher.date}
+                                onChange={(e) => handleHeaderChange('date', e.target.value)}
+                            />
+                        </div>
+                        <div className="space-y-2">
+                             <Label htmlFor="voucher-type">Tipo</Label>
+                            <Select value={voucher.type} onValueChange={(value) => handleHeaderChange('type', value)}>
+                                <SelectTrigger id="voucher-type">
+                                    <SelectValue placeholder="Selecciona un tipo"/>
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="Ingreso">Ingreso</SelectItem>
+                                    <SelectItem value="Egreso">Egreso</SelectItem>
+                                    <SelectItem value="Traspaso">Traspaso</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                         <div className="space-y-2">
+                            <Label htmlFor="voucher-description">Descripción</Label>
+                            <Input 
+                                id="voucher-description"
+                                value={voucher.description}
+                                onChange={(e) => handleHeaderChange('description', e.target.value)}
+                                placeholder="Ej: Pago de factura #101"
+                            />
+                        </div>
+                    </div>
                     <Table>
                         <TableHeader>
                             <TableRow>
@@ -217,7 +261,7 @@ export default function VoucherDetailPage() {
                              <TableRow>
                                 <TableCell colSpan={2}></TableCell>
                                 <TableCell className="text-right font-bold" colSpan={2}>
-                                    {totalDebit !== totalCredit ? (
+                                    {!isBalanced ? (
                                          <span className="text-destructive">Diferencia: ${(totalDebit - totalCredit).toLocaleString('es-CL')}</span>
                                     ): (
                                         <span className="text-green-600">Comprobante Cuadrado</span>
@@ -230,7 +274,7 @@ export default function VoucherDetailPage() {
                 </CardContent>
                 <CardFooter className="flex justify-end gap-2">
                     <Button variant="outline">Cancelar</Button>
-                    <Button disabled={totalDebit !== totalCredit || entries.length === 0}>Guardar Comprobante</Button>
+                    <Button disabled={!canSave}>Guardar Comprobante</Button>
                 </CardFooter>
             </Card>
         </div>
