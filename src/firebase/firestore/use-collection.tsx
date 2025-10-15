@@ -51,8 +51,8 @@ export function useCollection<T>({ path, companyId, query: manualQuery, disabled
   }, [firestore, path, companyId, manualQuery, disabled]);
 
   const fetchData = useCallback(() => {
-    if (finalQuery === null) {
-      setData(null);
+    if (!finalQuery) {
+      setData([]);
       setLoading(false);
       return () => {};
     }
@@ -64,6 +64,7 @@ export function useCollection<T>({ path, companyId, query: manualQuery, disabled
       (querySnapshot) => {
         const items = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as unknown as T));
         setData(items);
+        setError(null);
         setLoading(false);
       },
       (err) => {
@@ -88,7 +89,9 @@ export function useCollection<T>({ path, companyId, query: manualQuery, disabled
 
   useEffect(() => {
     const unsubscribe = fetchData();
-    return () => unsubscribe();
+    return () => {
+      if(unsubscribe) unsubscribe();
+    };
   }, [fetchData]);
 
   return { data, loading, error, refetch: fetchData };

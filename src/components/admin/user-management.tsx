@@ -132,7 +132,6 @@ export default function UserManagement() {
 
     const { data: users, loading: usersLoading, error } = useCollection<UserProfile>({ 
         path: 'users',
-        // Disable query until we confirm the user is an admin to prevent permission errors.
         disabled: profileLoading || userProfile?.role !== 'Admin'
     });
     const { data: companies, loading: companiesLoading } = useCollection<Company>({ path: 'companies' });
