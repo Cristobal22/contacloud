@@ -71,7 +71,7 @@ import {
               )}
               {!loading && employees?.map((employee) => (
                 <TableRow key={employee.id}>
-                  <TableCell className="font-medium">{employee.name}</TableCell>
+                  <TableCell className="font-medium">{`${employee.firstName} ${employee.lastName}`}</TableCell>
                   <TableCell>{employee.rut}</TableCell>
                   <TableCell>{employee.position}</TableCell>
                   <TableCell>{employee.costCenter}</TableCell>
@@ -111,3 +111,5 @@ import {
     )
   }
   
+
+    

@@ -57,9 +57,30 @@ export type CostCenter = {
 
 export type Employee = {
   id: string;
-  name: string;
   rut: string;
+  firstName: string;
+  lastName: string;
+  birthDate?: string;
+  nationality?: string;
+  address?: string;
+  commune?: string;
+  region?: string;
+  phone?: string;
+  email?: string;
+  gender?: 'Masculino' | 'Femenino' | 'Otro';
+  civilStatus?: 'Soltero/a' | 'Casado/a' | 'Viudo/a' | 'Divorciado/a';
+  contractType?: 'Indefinido' | 'Plazo Fijo' | 'Por Obra' | 'Honorarios';
   position: string;
+  contractStartDate?: string;
+  contractEndDate?: string;
+  baseSalary?: number;
+  healthSystem?: string;
+  afp?: string;
+  hasUnemploymentInsurance?: boolean;
+  paymentMethod?: 'Transferencia' | 'Cheque' | 'Efectivo';
+  bank?: string;
+  accountType?: 'Cuenta Corriente' | 'Cuenta Vista' | 'Cuenta de Ahorro';
+  accountNumber?: string;
   costCenter: string;
   status: 'Active' | 'Inactive';
   companyId?: string;
@@ -172,3 +193,5 @@ export type SelectedCompanyContextType = {
     selectedCompany: Company | null;
     setSelectedCompany: (company: Company | null) => void;
 };
+
+    
