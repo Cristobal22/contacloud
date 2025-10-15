@@ -9,7 +9,7 @@ import { Logo } from '@/components/logo';
 import React, { useState } from 'react';
 import { useAuth, useFirestore } from '@/firebase';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
-import { collection, doc, getDocs, setDoc } from 'firebase/firestore';
+import { doc, setDoc } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
 import type { UserProfile } from '@/lib/types';
 
@@ -40,12 +40,9 @@ export default function SignupPage() {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
-      // Check if this is the first user
-      const usersCollection = collection(firestore, 'users');
-      const userSnapshot = await getDocs(usersCollection);
-      const isFirstUser = userSnapshot.empty;
-      
-      const userRole = isFirstUser ? 'Admin' : 'Accountant';
+      // All new sign-ups are assigned the 'Accountant' role by default.
+      // The initial 'Admin' user should be created manually in the Firebase console for security.
+      const userRole = 'Accountant';
       
       const userProfile: UserProfile = {
         uid: user.uid,
@@ -113,5 +110,3 @@ export default function SignupPage() {
     </div>
   );
 }
-
-    

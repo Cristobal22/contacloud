@@ -43,6 +43,17 @@ Contador Cloud is a modern, multi-tenant accounting application designed for acc
 5.  In this project, rename the `.env.example` file to `.env`.
 6.  Paste your Firebase config values into the `.env` file. Make sure to match each value with the correct `NEXT_PUBLIC_` variable name.
 
+### IMPORTANT: Creating the First Admin User
+
+For security reasons, the first user with the `Admin` role must be created manually. All users who sign up through the public registration form will be automatically assigned the `Accountant` role.
+
+To create your Admin user:
+1.  Sign up for a new account using the registration page.
+2.  Go to your **Firebase Console** -> **Firestore Database**.
+3.  Navigate to the `users` collection.
+4.  Find the document corresponding to your newly created user (the document ID will be the user's UID).
+5.  Edit the `role` field for that document and change its value from `Accountant` to `Admin`.
+
 ### Running the Development Server
 
 1.  **Install dependencies**:
