@@ -1,4 +1,3 @@
-
 'use client'
 
 import React from "react"
@@ -76,18 +75,29 @@ import {
           description: voucher.description,
           status: voucher.status,
           total: voucher.total,
-          entries: voucher.entries.map(e => ({...e, id: e.id.toString()})),
+          entries: voucher.entries.map(e => ({
+            account: e.account,
+            description: e.description,
+            debit: e.debit,
+            credit: e.credit,
+            id: e.id.toString(), // ensure id is a string
+          })),
           companyId: companyId
         };
         
-        if (isNew) {
-            await addDoc(collectionRef, voucherData);
-        } else {
-            const docRef = doc(firestore, `companies/${companyId}/vouchers`, voucher.id);
-            await setDoc(docRef, voucherData, { merge: true });
+        try {
+            if (isNew) {
+                await addDoc(collectionRef, voucherData);
+            } else {
+                const docRef = doc(firestore, `companies/${companyId}/vouchers`, voucher.id);
+                await setDoc(docRef, voucherData, { merge: true });
+            }
+        } catch (error) {
+            console.error("Error saving voucher:", error);
+        } finally {
+            setIsCreateDialogOpen(false);
+            setSelectedVoucher(null);
         }
-        setIsCreateDialogOpen(false);
-        setSelectedVoucher(null);
     };
 
     const handleCancel = () => {

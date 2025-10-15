@@ -57,13 +57,16 @@ export default function VoucherDetailForm({ voucherData, onSave, onCancel }: Vou
         if (voucherData) {
             setVoucher(voucherData);
             setEntries(voucherData.entries || []);
+        } else {
+            setVoucher(null);
+            setEntries([]);
         }
     }, [voucherData]);
 
     const handleAddEntry = () => {
         setEntries([
             ...entries,
-            { id: `new-${Date.now()}`, account: '', description: '', debit: 0, credit: 0 }
+            { id: `new-entry-${Date.now()}`, account: '', description: '', debit: 0, credit: 0 }
         ]);
     };
 
@@ -119,7 +122,7 @@ export default function VoucherDetailForm({ voucherData, onSave, onCancel }: Vou
 
     return (
         <div className="grid gap-6">
-            <Card>
+            <Card className="border-0 shadow-none">
                 <CardHeader>
                     <div className="flex justify-between items-start">
                         <div>
@@ -135,8 +138,8 @@ export default function VoucherDetailForm({ voucherData, onSave, onCancel }: Vou
                         </Badge>
                     </div>
                 </CardHeader>
-                <CardContent>
-                    <div className="grid gap-6 md:grid-cols-3 mb-8">
+                <CardContent className="max-h-[60vh] overflow-y-auto p-0">
+                    <div className="grid gap-6 md:grid-cols-3 mb-8 px-6">
                         <div className="space-y-2">
                             <Label htmlFor="voucher-date">Fecha</Label>
                             <Input 
@@ -148,7 +151,7 @@ export default function VoucherDetailForm({ voucherData, onSave, onCancel }: Vou
                         </div>
                         <div className="space-y-2">
                              <Label htmlFor="voucher-type">Tipo</Label>
-                            <Select value={voucher.type} onValueChange={(value) => handleHeaderChange('type', value)}>
+                            <Select value={voucher.type} onValueChange={(value) => handleHeaderChange('type', value as 'Ingreso' | 'Egreso' | 'Traspaso')}>
                                 <SelectTrigger id="voucher-type">
                                     <SelectValue placeholder="Selecciona un tipo"/>
                                 </SelectTrigger>
@@ -212,7 +215,7 @@ export default function VoucherDetailForm({ voucherData, onSave, onCancel }: Vou
                                             type="number"
                                             className="text-right"
                                             value={entry.debit}
-                                            onChange={(e) => handleEntryChange(entry.id, 'debit', e.target.value)}
+                                            onChange={(e) => handleEntryChange(entry.id, 'debit', parseFloat(e.target.value) || 0)}
                                         />
                                     </TableCell>
                                     <TableCell>
@@ -220,7 +223,7 @@ export default function VoucherDetailForm({ voucherData, onSave, onCancel }: Vou
                                             type="number"
                                             className="text-right"
                                             value={entry.credit}
-                                            onChange={(e) => handleEntryChange(entry.id, 'credit', e.target.value)}
+                                            onChange={(e) => handleEntryChange(entry.id, 'credit', parseFloat(e.target.value) || 0)}
                                         />
                                     </TableCell>
                                     <TableCell>
@@ -264,7 +267,7 @@ export default function VoucherDetailForm({ voucherData, onSave, onCancel }: Vou
                         </TableFooter>
                     </Table>
                 </CardContent>
-                <CardFooter className="flex justify-end gap-2">
+                <CardFooter className="flex justify-end gap-2 pt-6">
                     <Button variant="outline" onClick={onCancel}>Cancelar</Button>
                     <Button disabled={!canSave} onClick={handleSaveClick}>Guardar Comprobante</Button>
                 </CardFooter>
