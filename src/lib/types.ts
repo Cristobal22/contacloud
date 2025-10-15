@@ -1,6 +1,12 @@
 
 
-
+export type UserProfile = {
+  uid: string;
+  email: string;
+  displayName?: string | null;
+  photoURL?: string | null;
+  role: 'Admin' | 'Accountant';
+};
 
 
 export type User = {
@@ -200,3 +206,5 @@ export type SelectedCompanyContextType = {
     selectedCompany: Company | null;
     setSelectedCompany: (company: Company | null) => void;
 };
+
+    

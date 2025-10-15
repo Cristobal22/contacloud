@@ -1,6 +1,19 @@
 
 {
     "entities": {
+        "UserProfile": {
+            "title": "User Profile",
+            "description": "Represents the profile data for a registered user.",
+            "type": "object",
+            "properties": {
+                "uid": { "type": "string", "description": "The user's unique ID from Firebase Auth." },
+                "email": { "type": "string", "format": "email", "description": "The user's email address." },
+                "displayName": { "type": "string", "description": "The user's display name." },
+                "photoURL": { "type": "string", "description": "URL of the user's profile picture." },
+                "role": { "type": "string", "enum": ["Admin", "Accountant"], "description": "The role of the user within the application." }
+            },
+            "required": ["uid", "email", "role"]
+        },
         "Company": {
             "title": "Company",
             "description": "Represents a company client in the accounting platform.",
@@ -264,6 +277,10 @@
         }
     },
     "firestore": {
+        "/users/{userId}": {
+            "schema": { "$ref": "#/entities/UserProfile" },
+            "description": "Collection to store user profile information."
+        },
         "/companies": {
             "schema": { "$ref": "#/entities/Company" },
             "description": "Collection of all companies managed by the platform."
@@ -329,3 +346,6 @@
         "providers": ["google.com", "password"]
     }
 }
+
+
+    

@@ -7,12 +7,15 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Logo } from '@/components/logo';
 import React, { useState } from 'react';
-import { useAuth } from '@/firebase';
+import { useAuth, useFirestore } from '@/firebase';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { collection, doc, getDocs, setDoc } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
+import type { UserProfile } from '@/lib/types';
 
 export default function SignupPage() {
   const auth = useAuth();
+  const firestore = useFirestore();
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -28,13 +31,33 @@ export default function SignupPage() {
       return;
     }
 
-    if (!auth) {
+    if (!auth || !firestore) {
         setError('Servicio de autenticación no disponible.');
         return;
     }
 
     try {
-      await createUserWithEmailAndPassword(auth, email, password);
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+
+      // Check if this is the first user
+      const usersCollection = collection(firestore, 'users');
+      const userSnapshot = await getDocs(usersCollection);
+      const isFirstUser = userSnapshot.empty;
+      
+      const userRole = isFirstUser ? 'Admin' : 'Accountant';
+      
+      const userProfile: UserProfile = {
+        uid: user.uid,
+        email: user.email!,
+        role: userRole,
+        displayName: user.displayName,
+        photoURL: user.photoURL
+      };
+
+      // Create user profile document in Firestore
+      await setDoc(doc(firestore, "users", user.uid), userProfile);
+
       router.push('/dashboard');
     } catch (error: any) {
       if (error.code === 'auth/email-already-in-use') {
@@ -90,3 +113,5 @@ export default function SignupPage() {
     </div>
   );
 }
+
+    
