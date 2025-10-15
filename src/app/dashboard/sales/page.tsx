@@ -23,9 +23,9 @@ import {
     DropdownMenuLabel,
     DropdownMenuTrigger,
   } from "@/components/ui/dropdown-menu"
-  import { mockSales } from "@/lib/data"
   
   export default function SalesPage() {
+    const mockSales: any[] = [];
     return (
       <Card>
         <CardHeader>

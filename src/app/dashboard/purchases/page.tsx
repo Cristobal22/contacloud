@@ -23,9 +23,9 @@ import {
     DropdownMenuLabel,
     DropdownMenuTrigger,
   } from "@/components/ui/dropdown-menu"
-  import { mockPurchases } from "@/lib/data"
   
   export default function PurchasesPage() {
+    const mockPurchases: any[] = [];
     return (
       <Card>
         <CardHeader>
