@@ -9,7 +9,7 @@ import {
     CardTitle,
 } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { PlusCircle } from "lucide-react"
+import { MoreHorizontal, PlusCircle } from "lucide-react"
   import {
     Dialog,
     DialogContent,
@@ -21,12 +21,28 @@ import { PlusCircle } from "lucide-react"
   } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { useFirestore, useAuth } from "@/firebase"
-import type { UserProfile } from "@/lib/types"
-import { doc, setDoc } from "firebase/firestore"
+import { useFirestore, useAuth, useCollection } from "@/firebase"
+import type { UserProfile, Company } from "@/lib/types"
+import { doc, setDoc, updateDoc, collection } from "firebase/firestore"
 import { createUserWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth'
 import { useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from "@/components/ui/table"
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { Checkbox } from '@/components/ui/checkbox';
 
 type NewUserInput = {
   email: string;
@@ -37,14 +53,29 @@ export default function UserManagement() {
     const firestore = useFirestore();
     const auth = useAuth();
     const { toast } = useToast();
+
+    const { data: users, loading: usersLoading } = useCollection<UserProfile>({ path: 'users' });
+    const { data: companies, loading: companiesLoading } = useCollection<Company>({ path: 'companies' });
     
     const [isCreateFormOpen, setIsCreateFormOpen] = useState(false);
+    const [isEditFormOpen, setIsEditFormOpen] = useState(false);
+
     const [newUser, setNewUser] = useState<NewUserInput>({email: '', displayName: ''});
-    const [isCreating, setIsCreating] = useState(false);
+    const [selectedUser, setSelectedUser] = useState<Partial<UserProfile> | null>(null);
+
+    const [isProcessing, setIsProcessing] = useState(false);
 
     const handleCreateNew = () => {
         setNewUser({email: '', displayName: ''});
         setIsCreateFormOpen(true);
+    };
+
+     const handleEditUser = (user: UserProfile) => {
+        setSelectedUser({
+            ...user,
+            companyIds: user.companyIds || [] // Ensure companyIds is an array
+        });
+        setIsEditFormOpen(true);
     };
 
     const handleCreateUser = async () => {
@@ -57,13 +88,9 @@ export default function UserManagement() {
             return;
         }
 
-        setIsCreating(true);
+        setIsProcessing(true);
 
         try {
-            // NOTE: Firebase Admin SDK's createUser does not sign the user in.
-            // For this client-side implementation, we create the user with a temporary password
-            // and immediately send a password reset email. This is a common pattern when
-            // an admin SDK is not available.
             const tempPassword = Math.random().toString(36).slice(-8) + 'A1!';
             const userCredential = await createUserWithEmailAndPassword(auth, newUser.email, tempPassword);
             const user = userCredential.user;
@@ -96,13 +123,51 @@ export default function UserManagement() {
                 toast({ variant: 'destructive', title: 'Error al Crear Usuario', description: 'Ocurrió un error inesperado.' });
             }
         } finally {
-            setIsCreating(false);
+            setIsProcessing(false);
+        }
+    };
+
+    const handleUpdateUser = async () => {
+        if (!firestore || !selectedUser || !selectedUser.uid) return;
+
+        setIsProcessing(true);
+        const userRef = doc(firestore, 'users', selectedUser.uid);
+
+        try {
+            await updateDoc(userRef, {
+                displayName: selectedUser.displayName,
+                companyIds: selectedUser.companyIds || []
+            });
+            toast({ title: "Usuario actualizado", description: "Los datos del usuario han sido actualizados." });
+            setIsEditFormOpen(false);
+        } catch (error) {
+            toast({ variant: 'destructive', title: 'Error al actualizar', description: 'No se pudieron guardar los cambios.' });
+            console.error('Error updating user:', error);
+        } finally {
+            setIsProcessing(false);
         }
     };
     
     const handleNewUserFieldChange = (field: keyof NewUserInput, value: string) => {
         setNewUser(prev => ({...prev, [field]: value}));
     };
+
+     const handleSelectedUserFieldChange = (field: keyof UserProfile, value: string | string[]) => {
+        setSelectedUser(prev => prev ? ({...prev, [field]: value}) : null);
+    };
+
+    const handleCompanyCheckboxChange = (companyId: string, checked: boolean) => {
+        setSelectedUser(prev => {
+            if (!prev) return null;
+            const currentCompanyIds = prev.companyIds || [];
+            const newCompanyIds = checked 
+                ? [...currentCompanyIds, companyId] 
+                : currentCompanyIds.filter(id => id !== companyId);
+            return { ...prev, companyIds: newCompanyIds };
+        });
+    }
+    
+    const loading = usersLoading || companiesLoading;
 
     return (
         <>
@@ -111,7 +176,7 @@ export default function UserManagement() {
                     <div className="flex items-center justify-between">
                         <div>
                             <CardTitle>Gestión de Usuarios</CardTitle>
-                            <CardDescription>Invita nuevos contadores a la plataforma.</CardDescription>
+                            <CardDescription>Invita nuevos contadores y asígnales empresas.</CardDescription>
                         </div>
                          <Button size="sm" className="gap-1" onClick={handleCreateNew}>
                             <PlusCircle className="h-4 w-4" />
@@ -120,15 +185,47 @@ export default function UserManagement() {
                     </div>
                 </CardHeader>
                 <CardContent>
-                    <div className="text-center py-12 border-2 border-dashed rounded-lg">
-                        <h3 className="text-lg font-semibold text-muted-foreground">La gestión de usuarios se ha simplificado.</h3>
-                        <p className="text-sm text-muted-foreground mt-2">
-                           Utiliza el botón "Agregar Usuario" para invitar nuevos contadores.
-                        </p>
-                         <p className="text-xs text-muted-foreground mt-4 max-w-md mx-auto">
-                           Nota: La funcionalidad para listar y editar usuarios existentes requiere privilegios de administrador elevados que se configuran manualmente en el backend de Firebase (Custom Claims), como se describe en el archivo README.md del proyecto.
-                        </p>
-                    </div>
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Nombre</TableHead>
+                                <TableHead>Email</TableHead>
+                                <TableHead>Rol</TableHead>
+                                <TableHead>Empresas Asignadas</TableHead>
+                                <TableHead><span className="sr-only">Acciones</span></TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {loading && <TableRow><TableCell colSpan={5} className="text-center">Cargando usuarios...</TableCell></TableRow>}
+                            {!loading && users?.map(user => (
+                                <TableRow key={user.uid}>
+                                    <TableCell className="font-medium">{user.displayName}</TableCell>
+                                    <TableCell>{user.email}</TableCell>
+                                    <TableCell>{user.role}</TableCell>
+                                    <TableCell>{user.companyIds?.length || 0}</TableCell>
+                                    <TableCell>
+                                        <DropdownMenu>
+                                            <DropdownMenuTrigger asChild>
+                                                <Button aria-haspopup="true" size="icon" variant="ghost">
+                                                    <MoreHorizontal className="h-4 w-4" />
+                                                    <span className="sr-only">Toggle menu</span>
+                                                </Button>
+                                            </DropdownMenuTrigger>
+                                            <DropdownMenuContent align="end">
+                                                <DropdownMenuLabel>Acciones</DropdownMenuLabel>
+                                                <DropdownMenuItem onSelect={() => handleEditUser(user)}>Editar / Asignar Empresas</DropdownMenuItem>
+                                            </DropdownMenuContent>
+                                        </DropdownMenu>
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                    {users?.length === 0 && !loading && (
+                        <div className="text-center py-12 border-2 border-dashed rounded-lg">
+                             <p className="text-sm text-muted-foreground mt-2">No se encontraron usuarios.</p>
+                        </div>
+                    )}
                 </CardContent>
             </Card>
 
@@ -153,10 +250,54 @@ export default function UserManagement() {
                     </div>
                     <DialogFooter>
                         <DialogClose asChild>
-                            <Button type="button" variant="secondary" disabled={isCreating}>Cancelar</Button>
+                            <Button type="button" variant="secondary" disabled={isProcessing}>Cancelar</Button>
                         </DialogClose>
-                        <Button type="submit" onClick={handleCreateUser} disabled={isCreating}>
-                            {isCreating ? 'Creando e invitando...' : 'Crear e Invitar'}
+                        <Button type="submit" onClick={handleCreateUser} disabled={isProcessing}>
+                            {isProcessing ? 'Creando...' : 'Crear e Invitar'}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+             {/* Edit User Dialog */}
+            <Dialog open={isEditFormOpen} onOpenChange={setIsEditFormOpen}>
+                <DialogContent className="sm:max-w-lg">
+                    <DialogHeader>
+                        <DialogTitle>Editar Usuario</DialogTitle>
+                        <DialogDescription>
+                            Modifica el nombre y asigna las empresas a las que este usuario tiene acceso.
+                        </DialogDescription>
+                    </DialogHeader>
+                    {selectedUser && (
+                        <div className="grid gap-6 py-4">
+                             <div className="grid grid-cols-4 items-center gap-4">
+                                <Label htmlFor="edit-name" className="text-right">Nombre</Label>
+                                <Input id="edit-name" value={selectedUser.displayName || ''} onChange={(e) => handleSelectedUserFieldChange('displayName', e.target.value)} className="col-span-3" />
+                            </div>
+                            <div>
+                                <Label>Empresas Asignadas</Label>
+                                <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-2 rounded-lg border p-4 max-h-60 overflow-y-auto">
+                                    {companiesLoading && <p>Cargando empresas...</p>}
+                                    {companies?.map(company => (
+                                        <div key={company.id} className="flex items-center space-x-2">
+                                            <Checkbox
+                                                id={`company-${company.id}`}
+                                                checked={(selectedUser.companyIds || []).includes(company.id)}
+                                                onCheckedChange={(checked) => handleCompanyCheckboxChange(company.id, !!checked)}
+                                            />
+                                            <Label htmlFor={`company-${company.id}`} className="font-normal">{company.name}</Label>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                    <DialogFooter>
+                        <DialogClose asChild>
+                            <Button type="button" variant="secondary" disabled={isProcessing}>Cancelar</Button>
+                        </DialogClose>
+                        <Button type="submit" onClick={handleUpdateUser} disabled={isProcessing}>
+                            {isProcessing ? 'Guardando...' : 'Guardar Cambios'}
                         </Button>
                     </DialogFooter>
                 </DialogContent>
