@@ -35,19 +35,25 @@ import {
         const accountMovements = new Map<string, { debit: number; credit: number }>();
 
         vouchers?.forEach(voucher => {
-            voucher.entries.forEach(entry => {
-                const current = accountMovements.get(entry.account) || { debit: 0, credit: 0 };
-                current.debit += Number(entry.debit) || 0;
-                current.credit += Number(entry.credit) || 0;
-                accountMovements.set(entry.account, current);
-            });
+            if (voucher.status === 'Posteado') {
+                voucher.entries.forEach(entry => {
+                    const current = accountMovements.get(entry.account) || { debit: 0, credit: 0 };
+                    current.debit += Number(entry.debit) || 0;
+                    current.credit += Number(entry.credit) || 0;
+                    accountMovements.set(entry.account, current);
+                });
+            }
         });
 
         return accounts.map(account => {
             const movements = accountMovements.get(account.code);
             let finalBalance = account.balance;
             if (movements) {
-                finalBalance += movements.debit - movements.credit;
+                 if (account.type === 'Activo' || account.type === 'Resultado') {
+                     finalBalance += movements.debit - movements.credit;
+                 } else { // Pasivo, Patrimonio
+                     finalBalance += movements.credit - movements.debit;
+                 }
             }
             return {
                 ...account,

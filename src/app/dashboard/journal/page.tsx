@@ -41,8 +41,9 @@ import {
 
     const journalEntries = React.useMemo(() => {
         if (!vouchers || !accounts) return [];
-        const entries: JournalEntry[] = [];
+        
         const accountMap = new Map(accounts.map(acc => [acc.code, acc.name]));
+        const entries: JournalEntry[] = [];
 
         vouchers.forEach(voucher => {
             voucher.entries.forEach((entry, index) => {
@@ -50,7 +51,7 @@ import {
                     id: `${voucher.id}-${index}`,
                     date: voucher.date,
                     accountCode: entry.account,
-                    accountName: accountMap.get(entry.account) || 'N/A',
+                    accountName: accountMap.get(entry.account) || 'Cuenta no encontrada',
                     description: entry.description || voucher.description,
                     debit: Number(entry.debit) || 0,
                     credit: Number(entry.credit) || 0,
