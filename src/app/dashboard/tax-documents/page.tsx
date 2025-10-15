@@ -22,6 +22,7 @@ import {
   import { Upload } from "lucide-react"
 
   export default function TaxDocumentsPage() {
+    const fileInputRef = React.useRef<HTMLInputElement>(null);
     const [fileName, setFileName] = React.useState<string | null>(null);
 
     const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -56,8 +57,8 @@ import {
               <div className="grid gap-3">
                 <Label htmlFor="tax-document-file">Archivo del Documento</Label>
                 <div className="flex items-center gap-3">
-                    <Input id="tax-document-file" type="file" className="hidden" onChange={handleFileChange} />
-                    <Button type="button" variant="outline" onClick={() => document.getElementById('tax-document-file')?.click()}>
+                    <Input id="tax-document-file" type="file" ref={fileInputRef} className="hidden" onChange={handleFileChange} />
+                    <Button type="button" variant="outline" onClick={() => fileInputRef.current?.click()}>
                         <Upload className="mr-2 h-4 w-4" />
                         Elegir Archivo
                     </Button>
@@ -68,7 +69,7 @@ import {
                 <p className="text-xs text-muted-foreground">Sube un archivo PDF, XML, o de imagen.</p>
               </div>
               <div className="flex justify-end">
-                <Button>Procesar Documento</Button>
+                <Button disabled={!fileName}>Procesar Documento</Button>
               </div>
             </form>
           </CardContent>

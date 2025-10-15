@@ -19,6 +19,9 @@ import {
 
     const [year, setYear] = React.useState(currentYear.toString());
     const [month, setMonth] = React.useState(currentMonth.toString());
+    const [uf, setUf] = React.useState('');
+    const [utm, setUtm] = React.useState('');
+    const [minWage, setMinWage] = React.useState('');
 
     return (
       <Card>
@@ -63,15 +66,15 @@ import {
                  <div className="grid gap-6 md:grid-cols-3">
                     <div className="space-y-2">
                         <Label htmlFor="uf">Valor UF del mes</Label>
-                        <Input id="uf" type="number" placeholder="Ingresa el valor de la UF" />
+                        <Input id="uf" type="number" placeholder="Ingresa el valor de la UF" value={uf} onChange={e => setUf(e.target.value)} />
                     </div>
                     <div className="space-y-2">
                         <Label htmlFor="utm">Valor UTM del mes</Label>
-                        <Input id="utm" type="number" placeholder="Ingresa el valor de la UTM" />
+                        <Input id="utm" type="number" placeholder="Ingresa el valor de la UTM" value={utm} onChange={e => setUtm(e.target.value)} />
                     </div>
                     <div className="space-y-2">
                         <Label htmlFor="sueldo-minimo">Sueldo Mínimo</Label>
-                        <Input id="sueldo-minimo" type="number" placeholder="Ingresa el sueldo mínimo" />
+                        <Input id="sueldo-minimo" type="number" placeholder="Ingresa el sueldo mínimo" value={minWage} onChange={e => setMinWage(e.target.value)} />
                     </div>
                 </div>
                  <div className="flex justify-end">

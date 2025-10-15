@@ -35,6 +35,7 @@ import {
   Building,
   HeartPulse,
   Wallet,
+  SlidersHorizontal,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './ui/collapsible';
@@ -166,10 +167,10 @@ export function DashboardNav() {
     'Procesos_sub': true,
     'Informes_sub': true,
     'Maestros_sub': true,
-    'Procesos Críticos': true,
+    'Procesos Críticos': false,
     'Centralización_sub': true,
     'Cierres_sub': true,
-    'Configuración': true,
+    'Configuración': false,
     'General_sub': true,
   });
 
@@ -212,16 +213,17 @@ export function DashboardNav() {
   const renderNestedSection = (
       parentTitle: string, 
       ParentIcon: React.ElementType, 
-      subSections: { title: string, icon: React.ElementType, links: { href: string, label: string, icon: React.ElementType }[] }[]
+      subSections: { title: string, icon: React.ElementType, links: { href: string, label: string, icon: React.ElementType }[] }[],
+      defaultOpen = true
     ) => {
         return (
-        <Collapsible open={openSections[parentTitle]} onOpenChange={() => toggleSection(parentTitle)}>
+        <Collapsible open={openSections[parentTitle] ?? defaultOpen} onOpenChange={() => toggleSection(parentTitle)}>
             <CollapsibleTrigger className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-muted-foreground hover:text-primary">
                 <div className="flex items-center gap-3">
                 <ParentIcon className="h-4 w-4" />
                 <span>{parentTitle}</span>
                 </div>
-                {openSections[parentTitle] ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                {openSections[parentTitle] ?? defaultOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
             </CollapsibleTrigger>
             <CollapsibleContent className="ml-7 flex flex-col gap-1 border-l border-muted-foreground/20 pl-5 py-2">
                 {subSections.map((subSection) => (
@@ -248,8 +250,8 @@ export function DashboardNav() {
       <nav className="grid items-start gap-2 px-4 text-sm font-medium">
         {navSections.map(renderSection)}
         {renderNestedSection('Remuneraciones', Users, payrollSections)}
-        {renderNestedSection('Procesos Críticos', RefreshCw, criticalProcessesSections)}
-        {renderNestedSection('Configuración', Settings, configurationSections)}
+        {renderNestedSection('Procesos Críticos', RefreshCw, criticalProcessesSections, false)}
+        {renderNestedSection('Configuración', SlidersHorizontal, configurationSections, false)}
       </nav>
       <nav className="mt-auto grid items-start gap-1 px-4 text-sm font-medium">
         {bottomNavItems.map(renderLink)}
