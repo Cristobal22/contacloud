@@ -34,7 +34,6 @@ function AccountantDashboard({ children }: { children: React.ReactNode }) {
     
     const { data: companies, loading: companiesLoading } = useCollection<Company>({ 
       query: firestore ? collection(firestore, 'companies') : null,
-      // We ensure the query only runs when we have a user
       disabled: userLoading || !user,
     });
 
@@ -172,13 +171,14 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
         )
     }
 
-    if (userProfile?.role === 'Admin') {
-        // The redirection is handling the view, we can show a loader or the children for the brief moment before redirection.
-        return <AdminDashboard>{children}</AdminDashboard>;
-    }
+    if (userProfile) {
+        if (userProfile.role === 'Admin') {
+            return <AdminDashboard>{children}</AdminDashboard>;
+        }
 
-    if (userProfile?.role === 'Accountant') {
-        return <AccountantDashboard>{children}</AccountantDashboard>;
+        if (userProfile.role === 'Accountant') {
+            return <AccountantDashboard>{children}</AccountantDashboard>;
+        }
     }
     
     // Fallback or loading state
