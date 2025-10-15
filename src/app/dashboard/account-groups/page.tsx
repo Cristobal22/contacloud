@@ -49,6 +49,8 @@ import {
   import { Input } from "@/components/ui/input"
   import { Label } from "@/components/ui/label"
   import { buttonVariants } from '@/components/ui/button';
+  import { errorEmitter } from '@/firebase/error-emitter'
+  import { FirestorePermissionError } from '@/firebase/errors'
 
 export default function AccountGroupsPage() {
     const firestore = useFirestore();
@@ -75,38 +77,51 @@ export default function AccountGroupsPage() {
         setIsDeleteDialogOpen(true);
     };
     
-    const handleSave = async () => {
+    const handleSave = () => {
         if (!firestore || !selectedGroup || !selectedGroup.name) return;
 
         const isNew = selectedGroup.id?.startsWith('new-');
         const groupData = { name: selectedGroup.name };
+        
+        setIsFormOpen(false);
+        setSelectedGroup(null);
 
-        try {
-            if (isNew) {
-                await addDoc(collection(firestore, 'account-groups'), groupData);
-            } else if (selectedGroup.id) {
-                const docRef = doc(firestore, 'account-groups', selectedGroup.id);
-                await setDoc(docRef, groupData, { merge: true });
-            }
-        } catch (error) {
-            console.error("Error saving account group:", error);
-        } finally {
-            setIsFormOpen(false);
-            setSelectedGroup(null);
+        if (isNew) {
+            addDoc(collection(firestore, 'account-groups'), groupData)
+                .catch(err => {
+                    errorEmitter.emit('permission-error', new FirestorePermissionError({
+                        path: 'account-groups',
+                        operation: 'create',
+                        requestResourceData: groupData,
+                    }));
+                });
+        } else if (selectedGroup.id) {
+            const docRef = doc(firestore, 'account-groups', selectedGroup.id);
+            setDoc(docRef, groupData, { merge: true })
+                .catch(err => {
+                    errorEmitter.emit('permission-error', new FirestorePermissionError({
+                        path: docRef.path,
+                        operation: 'update',
+                        requestResourceData: groupData,
+                    }));
+                });
         }
     };
 
-    const handleDelete = async () => {
+    const handleDelete = () => {
         if (!firestore || !groupToDelete) return;
-        try {
-            const docRef = doc(firestore, 'account-groups', groupToDelete.id);
-            await deleteDoc(docRef);
-        } catch (error) {
-            console.error("Error deleting account group:", error);
-        } finally {
-            setIsDeleteDialogOpen(false);
-            setGroupToDelete(null);
-        }
+        const docRef = doc(firestore, 'account-groups', groupToDelete.id);
+        
+        setIsDeleteDialogOpen(false);
+        setGroupToDelete(null);
+
+        deleteDoc(docRef)
+            .catch(err => {
+                 errorEmitter.emit('permission-error', new FirestorePermissionError({
+                    path: docRef.path,
+                    operation: 'delete',
+                }));
+            });
     };
 
     return (

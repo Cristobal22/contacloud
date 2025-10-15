@@ -41,6 +41,8 @@ import {
   import { doc, updateDoc } from "firebase/firestore"
   import type { Voucher } from "@/lib/types"
   import Link from "next/link"
+  import { errorEmitter } from '@/firebase/error-emitter'
+  import { FirestorePermissionError } from '@/firebase/errors'
   
   export default function VouchersPage({ companyId }: { companyId?: string }) {
     const firestore = useFirestore();
@@ -57,18 +59,23 @@ import {
         setIsContabilizarDialogOpen(true);
     }
 
-    const handleContabilizarVoucher = async () => {
+    const handleContabilizarVoucher = () => {
         if (!firestore || !companyId || !voucherToContabilizar) return;
 
-        try {
-            const docRef = doc(firestore, `companies/${companyId}/vouchers`, voucherToContabilizar.id);
-            await updateDoc(docRef, { status: 'Contabilizado' });
-        } catch (error) {
-            console.error("Error updating voucher status:", error);
-        } finally {
-            setIsContabilizarDialogOpen(false);
-            setVoucherToContabilizar(null);
-        }
+        const docRef = doc(firestore, `companies/${companyId}/vouchers`, voucherToContabilizar.id);
+        const updateData = { status: 'Contabilizado' };
+
+        setIsContabilizarDialogOpen(false);
+        setVoucherToContabilizar(null);
+
+        updateDoc(docRef, updateData)
+          .catch(err => {
+            errorEmitter.emit('permission-error', new FirestorePermissionError({
+              path: docRef.path,
+              operation: 'update',
+              requestResourceData: updateData,
+            }));
+          });
     };
 
     return (

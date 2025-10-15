@@ -1,4 +1,3 @@
-
 'use client';
 
 import React from 'react';
@@ -28,6 +27,8 @@ import { doc, setDoc, addDoc, collection } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
+import { errorEmitter } from '@/firebase/error-emitter'
+import { FirestorePermissionError } from '@/firebase/errors'
 
 export default function EmployeeFormPage({ params }: { params: { id: string } }) {
     const { id } = params;
@@ -60,23 +61,35 @@ export default function EmployeeFormPage({ params }: { params: { id: string } })
         }
     };
     
-    const handleSaveChanges = async () => {
+    const handleSaveChanges = () => {
         if (!firestore || !selectedCompany || !employee) return;
-
-        const collectionRef = collection(firestore, `companies/${selectedCompany.id}/employees`);
+        
+        const collectionPath = `companies/${selectedCompany.id}/employees`;
+        const collectionRef = collection(firestore, collectionPath);
         
         const employeeData = { ...employee, companyId: selectedCompany.id };
 
-        try {
-            if (isNew) {
-                await addDoc(collectionRef, employeeData);
-            } else {
-                const docRef = doc(firestore, `companies/${selectedCompany.id}/employees`, id);
-                await setDoc(docRef, employeeData, { merge: true });
-            }
-            router.push('/dashboard/employees');
-        } catch (error) {
-            console.error("Error saving employee:", error);
+        router.push('/dashboard/employees');
+
+        if (isNew) {
+            addDoc(collectionRef, employeeData)
+                .catch(err => {
+                    errorEmitter.emit('permission-error', new FirestorePermissionError({
+                        path: collectionPath,
+                        operation: 'create',
+                        requestResourceData: employeeData,
+                    }));
+                });
+        } else {
+            const docRef = doc(firestore, collectionPath, id);
+            setDoc(docRef, employeeData, { merge: true })
+                 .catch(err => {
+                    errorEmitter.emit('permission-error', new FirestorePermissionError({
+                        path: docRef.path,
+                        operation: 'update',
+                        requestResourceData: employeeData,
+                    }));
+                });
         }
     };
 

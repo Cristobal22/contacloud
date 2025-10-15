@@ -41,6 +41,8 @@ import {
   import { useCollection, useFirestore } from "@/firebase"
   import { collection, addDoc, setDoc, doc } from "firebase/firestore"
   import type { Account } from "@/lib/types"
+  import { errorEmitter } from '@/firebase/error-emitter'
+  import { FirestorePermissionError } from '@/firebase/errors'
 
   
 export default function AccountsPage({ companyId }: { companyId?: string }) {
@@ -69,11 +71,12 @@ export default function AccountsPage({ companyId }: { companyId?: string }) {
       setIsDialogOpen(true);
   };
 
-  const handleSaveAccount = async () => {
+  const handleSaveAccount = () => {
     if (!firestore || !companyId || !selectedAccount) return;
 
     const isNew = selectedAccount.id?.startsWith('new-');
-    const collectionRef = collection(firestore, `companies/${companyId}/accounts`);
+    const collectionPath = `companies/${companyId}/accounts`;
+    const collectionRef = collection(firestore, collectionPath);
     
     const accountData = {
       code: selectedAccount.code || '',
@@ -83,21 +86,32 @@ export default function AccountsPage({ companyId }: { companyId?: string }) {
       companyId: companyId
     };
     
-    try {
-        if (isNew) {
-            await addDoc(collectionRef, accountData);
-        } else {
-            if (selectedAccount.id) {
-                const docRef = doc(firestore, `companies/${companyId}/accounts`, selectedAccount.id);
-                // Exclude balance from update for existing accounts
-                const { balance, ...updateData } = accountData;
-                await setDoc(docRef, updateData, { merge: true });
-            }
+    setIsDialogOpen(false);
+    setSelectedAccount(null);
+
+    if (isNew) {
+        addDoc(collectionRef, accountData)
+            .catch(err => {
+                errorEmitter.emit('permission-error', new FirestorePermissionError({
+                    path: collectionPath,
+                    operation: 'create',
+                    requestResourceData: accountData,
+                }));
+            });
+    } else {
+        if (selectedAccount.id) {
+            const docRef = doc(firestore, `companies/${companyId}/accounts`, selectedAccount.id);
+            // Exclude balance from update for existing accounts
+            const { balance, ...updateData } = accountData;
+            setDoc(docRef, updateData, { merge: true })
+                .catch(err => {
+                    errorEmitter.emit('permission-error', new FirestorePermissionError({
+                        path: docRef.path,
+                        operation: 'update',
+                        requestResourceData: updateData,
+                    }));
+                });
         }
-        setIsDialogOpen(false);
-        setSelectedAccount(null);
-    } catch (error) {
-        console.error("Error saving account: ", error);
     }
   };
     

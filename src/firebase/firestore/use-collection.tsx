@@ -3,6 +3,8 @@
 import { useState, useEffect, useMemo } from 'react';
 import { onSnapshot, collection, query, where, Query } from 'firebase/firestore';
 import { useFirestore } from '../provider';
+import { errorEmitter } from '../error-emitter';
+import { FirestorePermissionError } from '../errors';
 
 type UseCollectionProps<T> = {
     path?: string;
@@ -46,14 +48,19 @@ export function useCollection<T>({ path, companyId, query: manualQuery }: UseCol
         setLoading(false);
       },
       (err) => {
-        console.error(err);
         setError(err);
         setLoading(false);
+        const q = finalQuery as Query;
+        const queryPath = (q as any)._query?.path.segments.join('/') || path;
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+          path: queryPath || 'unknown',
+          operation: 'list',
+        }));
       }
     );
 
     return () => unsubscribe();
-  }, [finalQuery]);
+  }, [finalQuery, path]);
 
   return { data, loading, error };
 }

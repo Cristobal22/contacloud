@@ -40,6 +40,8 @@ import {
   import { useCollection, useFirestore } from "@/firebase"
   import { collection, addDoc, setDoc, doc, deleteDoc } from "firebase/firestore"
   import type { CostCenter } from "@/lib/types"
+  import { errorEmitter } from '@/firebase/error-emitter'
+  import { FirestorePermissionError } from '@/firebase/errors'
   
   export default function CostCentersPage({ companyId }: { companyId?: string }) {
     const firestore = useFirestore();
@@ -69,44 +71,59 @@ import {
         setIsDeleteDialogOpen(true);
     };
 
-    const handleSaveChanges = async () => {
+    const handleSaveChanges = () => {
         if (!firestore || !companyId || !selectedCenter) return;
 
         const isNew = selectedCenter.id?.startsWith('new-');
-        const collectionRef = collection(firestore, `companies/${companyId}/cost-centers`);
+        const collectionPath = `companies/${companyId}/cost-centers`;
+        const collectionRef = collection(firestore, collectionPath);
 
         const centerData = {
             name: selectedCenter.name || '',
             description: selectedCenter.description || '',
             companyId: companyId
         };
+        
+        setIsDialogOpen(false);
+        setSelectedCenter(null);
 
-        try {
-            if (isNew) {
-                await addDoc(collectionRef, centerData);
-            } else if (selectedCenter.id) {
-                const docRef = doc(firestore, `companies/${companyId}/cost-centers`, selectedCenter.id);
-                await setDoc(docRef, centerData, { merge: true });
-            }
-        } catch (error) {
-            console.error("Error saving cost center:", error);
-        } finally {
-            setIsDialogOpen(false);
-            setSelectedCenter(null);
+        if (isNew) {
+            addDoc(collectionRef, centerData)
+                .catch(err => {
+                    errorEmitter.emit('permission-error', new FirestorePermissionError({
+                        path: collectionPath,
+                        operation: 'create',
+                        requestResourceData: centerData,
+                    }));
+                });
+        } else if (selectedCenter.id) {
+            const docRef = doc(firestore, collectionPath, selectedCenter.id);
+            setDoc(docRef, centerData, { merge: true })
+                .catch(err => {
+                     errorEmitter.emit('permission-error', new FirestorePermissionError({
+                        path: docRef.path,
+                        operation: 'update',
+                        requestResourceData: centerData,
+                    }));
+                });
         }
     };
 
-    const handleDelete = async () => {
+    const handleDelete = () => {
         if (!firestore || !companyId || !centerToDelete) return;
-        try {
-            const docRef = doc(firestore, `companies/${companyId}/cost-centers`, centerToDelete.id);
-            await deleteDoc(docRef);
-        } catch (error) {
-            console.error("Error deleting cost center:", error);
-        } finally {
-            setIsDeleteDialogOpen(false);
-            setCenterToDelete(null);
-        }
+        
+        const docRef = doc(firestore, `companies/${companyId}/cost-centers`, centerToDelete.id);
+
+        setIsDeleteDialogOpen(false);
+        setCenterToDelete(null);
+
+        deleteDoc(docRef)
+            .catch(err => {
+                 errorEmitter.emit('permission-error', new FirestorePermissionError({
+                    path: docRef.path,
+                    operation: 'delete',
+                }));
+            });
     };
 
     const handleFieldChange = (field: keyof Omit<CostCenter, 'id' | 'companyId'>, value: string) => {

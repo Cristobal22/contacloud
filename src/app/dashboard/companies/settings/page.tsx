@@ -10,12 +10,16 @@ import { useCollection, useFirestore } from '@/firebase';
 import { SelectedCompanyContext } from '../../layout';
 import { doc, updateDoc } from 'firebase/firestore';
 import { AccountSearchInput } from '@/components/account-search-input';
+import { errorEmitter } from '@/firebase/error-emitter'
+import { FirestorePermissionError } from '@/firebase/errors'
+import { useToast } from "@/hooks/use-toast";
 
 
 export default function CompanySettingsPage() {
     const { selectedCompany } = React.useContext(SelectedCompanyContext) || {};
     const [company, setCompany] = React.useState<Partial<Company> | null>(null);
     const firestore = useFirestore();
+    const { toast } = useToast();
 
     React.useEffect(() => {
         if (selectedCompany) {
@@ -42,17 +46,25 @@ export default function CompanySettingsPage() {
         }
     };
 
-    const handleSaveChanges = async () => {
+    const handleSaveChanges = () => {
         if (company && company.id && firestore) {
             const { id, ...companyData } = company;
             const companyRef = doc(firestore, 'companies', id);
-            try {
-                await updateDoc(companyRef, companyData);
-                alert('Cambios guardados exitosamente!');
-            } catch (error) {
-                console.error("Error saving company settings:", error);
-                alert('Hubo un error al guardar los cambios.');
-            }
+            
+            updateDoc(companyRef, companyData)
+                .then(() => {
+                    toast({
+                        title: "Configuración guardada",
+                        description: "Los cambios han sido guardados exitosamente.",
+                    });
+                })
+                .catch((error) => {
+                    errorEmitter.emit('permission-error', new FirestorePermissionError({
+                        path: companyRef.path,
+                        operation: 'update',
+                        requestResourceData: companyData,
+                    }));
+                });
         }
     };
 

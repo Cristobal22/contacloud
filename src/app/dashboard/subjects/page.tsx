@@ -41,6 +41,8 @@ import {
   import { useCollection, useFirestore } from "@/firebase"
   import { collection, addDoc, setDoc, doc } from "firebase/firestore"
   import type { Subject } from "@/lib/types"
+  import { errorEmitter } from '@/firebase/error-emitter'
+  import { FirestorePermissionError } from '@/firebase/errors'
 
   export default function SubjectsPage({ companyId }: { companyId?: string }) {
     const firestore = useFirestore();
@@ -68,11 +70,12 @@ import {
         setIsDialogOpen(true);
     };
 
-    const handleSaveSubject = async () => {
+    const handleSaveSubject = () => {
         if (!firestore || !companyId || !selectedSubject) return;
 
         const isNew = selectedSubject.id?.startsWith('new-');
-        const collectionRef = collection(firestore, `companies/${companyId}/subjects`);
+        const collectionPath = `companies/${companyId}/subjects`;
+        const collectionRef = collection(firestore, collectionPath);
         
         const subjectData = {
           name: selectedSubject.name || '',
@@ -82,19 +85,30 @@ import {
           companyId: companyId
         };
         
-        try {
-            if (isNew) {
-                await addDoc(collectionRef, subjectData);
-            } else {
-                if (selectedSubject.id) {
-                    const docRef = doc(firestore, `companies/${companyId}/subjects`, selectedSubject.id);
-                    await setDoc(docRef, subjectData, { merge: true });
-                }
+        setIsDialogOpen(false);
+        setSelectedSubject(null);
+
+        if (isNew) {
+            addDoc(collectionRef, subjectData)
+                .catch(err => {
+                    errorEmitter.emit('permission-error', new FirestorePermissionError({
+                        path: collectionPath,
+                        operation: 'create',
+                        requestResourceData: subjectData,
+                    }));
+                });
+        } else {
+            if (selectedSubject.id) {
+                const docRef = doc(firestore, collectionPath, selectedSubject.id);
+                setDoc(docRef, subjectData, { merge: true })
+                    .catch(err => {
+                        errorEmitter.emit('permission-error', new FirestorePermissionError({
+                            path: docRef.path,
+                            operation: 'update',
+                            requestResourceData: subjectData,
+                        }));
+                    });
             }
-            setIsDialogOpen(false);
-            setSelectedSubject(null);
-        } catch (error) {
-            console.error("Error saving subject: ", error);
         }
     };
     

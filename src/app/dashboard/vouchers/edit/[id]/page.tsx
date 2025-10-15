@@ -1,4 +1,3 @@
-
 'use client';
 
 import React from 'react';
@@ -37,6 +36,8 @@ import { SelectedCompanyContext } from '@/app/dashboard/layout';
 import { doc, setDoc, addDoc, collection } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { errorEmitter } from '@/firebase/error-emitter'
+import { FirestorePermissionError } from '@/firebase/errors'
 
 export default function VoucherEditPage({ params }: { params: { id: string } }) {
     const { id } = params;
@@ -108,10 +109,11 @@ export default function VoucherEditPage({ params }: { params: { id: string } }) 
     const isBalanced = totalDebit === totalCredit && totalDebit > 0;
     const canSave = isBalanced && entries.length > 1 && voucher?.description && entries.every(e => e.account);
     
-    const handleSaveClick = async () => {
+    const handleSaveClick = () => {
        if (!firestore || !selectedCompany || !voucher || !canSave) return;
 
-        const collectionRef = collection(firestore, `companies/${selectedCompany.id}/vouchers`);
+        const collectionPath = `companies/${selectedCompany.id}/vouchers`;
+        const collectionRef = collection(firestore, collectionPath);
         
         const voucherData = {
           date: voucher.date || new Date().toISOString().substring(0, 10),
@@ -129,16 +131,27 @@ export default function VoucherEditPage({ params }: { params: { id: string } }) 
           companyId: selectedCompany.id
         };
 
-        try {
-            if (isNew) {
-                await addDoc(collectionRef, voucherData);
-            } else {
-                const docRef = doc(firestore, `companies/${selectedCompany.id}/vouchers`, id);
-                await setDoc(docRef, voucherData, { merge: true });
-            }
-            router.push('/dashboard/vouchers');
-        } catch (error) {
-            console.error("Error saving voucher:", error);
+        router.push('/dashboard/vouchers');
+        
+        if (isNew) {
+            addDoc(collectionRef, voucherData)
+                .catch(err => {
+                    errorEmitter.emit('permission-error', new FirestorePermissionError({
+                        path: collectionPath,
+                        operation: 'create',
+                        requestResourceData: voucherData,
+                    }));
+                });
+        } else {
+            const docRef = doc(firestore, collectionPath, id);
+            setDoc(docRef, voucherData, { merge: true })
+                .catch(err => {
+                    errorEmitter.emit('permission-error', new FirestorePermissionError({
+                        path: docRef.path,
+                        operation: 'update',
+                        requestResourceData: voucherData,
+                    }));
+                });
         }
     };
     

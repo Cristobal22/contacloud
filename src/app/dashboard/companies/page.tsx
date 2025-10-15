@@ -55,6 +55,8 @@ import {
   import Link from "next/link"
   import { useRouter } from 'next/navigation'
   import { SelectedCompanyContext } from '../layout'
+  import { errorEmitter } from '@/firebase/error-emitter'
+  import { FirestorePermissionError } from '@/firebase/errors'
 
   
   export default function CompaniesPage() {
@@ -65,7 +67,7 @@ import {
     const { data: companies, loading } = useCollection<Company>({ query: companiesCollection });
 
     const [isFormOpen, setIsFormOpen] = React.useState(false);
-    const [selectedCompany, setSelectedCompanyLocal] = React.useState<Partial<Company> | null>(null);
+    const [selectedCompanyLocal, setSelectedCompanyLocal] = React.useState<Partial<Company> | null>(null);
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false);
     const [companyToDelete, setCompanyToDelete] = React.useState<Company | null>(null);
 
@@ -91,47 +93,60 @@ import {
       }
     };
 
-    const handleDelete = async () => {
+    const handleDelete = () => {
         if (!firestore || !companyToDelete) return;
-        try {
-            const docRef = doc(firestore, 'companies', companyToDelete.id);
-            await deleteDoc(docRef);
-        } catch (error) {
-            console.error("Error deleting company:", error);
-        } finally {
-            setIsDeleteDialogOpen(false);
-            setCompanyToDelete(null);
-        }
+        const docRef = doc(firestore, 'companies', companyToDelete.id);
+        
+        setIsDeleteDialogOpen(false);
+        setCompanyToDelete(null);
+
+        deleteDoc(docRef)
+            .catch(err => {
+                errorEmitter.emit('permission-error', new FirestorePermissionError({
+                    path: docRef.path,
+                    operation: 'delete',
+                }));
+            });
     };
 
-    const handleSave = async () => {
-        if (!firestore || !selectedCompany) return;
+    const handleSave = () => {
+        if (!firestore || !selectedCompanyLocal) return;
 
-        const isNew = selectedCompany.id?.startsWith('new-');
+        const isNew = selectedCompanyLocal.id?.startsWith('new-');
         const companyData = {
-            name: selectedCompany.name || 'Sin Nombre',
-            industry: selectedCompany.industry || 'No especificada',
-            active: selectedCompany.active ?? true,
+            name: selectedCompanyLocal.name || 'Sin Nombre',
+            industry: selectedCompanyLocal.industry || 'No especificada',
+            active: selectedCompanyLocal.active ?? true,
         };
+        
+        setIsFormOpen(false);
+        setSelectedCompanyLocal(null);
 
-        try {
-            if (isNew) {
-                await addDoc(collection(firestore, 'companies'), companyData);
-            } else if (selectedCompany.id) {
-                const docRef = doc(firestore, 'companies', selectedCompany.id);
-                await setDoc(docRef, companyData, { merge: true });
-            }
-        } catch (error) {
-            console.error("Error saving company:", error);
-        } finally {
-            setIsFormOpen(false);
-            setSelectedCompanyLocal(null);
+        if (isNew) {
+            addDoc(collection(firestore, 'companies'), companyData)
+                .catch(err => {
+                    errorEmitter.emit('permission-error', new FirestorePermissionError({
+                        path: 'companies',
+                        operation: 'create',
+                        requestResourceData: companyData,
+                    }));
+                });
+        } else if (selectedCompanyLocal.id) {
+            const docRef = doc(firestore, 'companies', selectedCompanyLocal.id);
+            setDoc(docRef, companyData, { merge: true })
+                .catch(err => {
+                     errorEmitter.emit('permission-error', new FirestorePermissionError({
+                        path: docRef.path,
+                        operation: 'update',
+                        requestResourceData: companyData,
+                    }));
+                });
         }
     };
 
     const handleFieldChange = (field: keyof Omit<Company, 'id'>, value: string | boolean) => {
-        if (selectedCompany) {
-            setSelectedCompanyLocal({ ...selectedCompany, [field]: value });
+        if (selectedCompanyLocal) {
+            setSelectedCompanyLocal({ ...selectedCompanyLocal, [field]: value });
         }
     };
 
@@ -214,7 +229,7 @@ import {
         <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
             <DialogContent className="sm:max-w-[425px]">
                 <DialogHeader>
-                    <DialogTitle>{selectedCompany?.id?.startsWith('new-') ? 'Crear Nueva Empresa' : 'Editar Empresa'}</DialogTitle>
+                    <DialogTitle>{selectedCompanyLocal?.id?.startsWith('new-') ? 'Crear Nueva Empresa' : 'Editar Empresa'}</DialogTitle>
                     <DialogDescription>
                         Rellena los detalles de la empresa.
                     </DialogDescription>
@@ -222,16 +237,16 @@ import {
                 <div className="grid gap-4 py-4">
                     <div className="grid grid-cols-4 items-center gap-4">
                         <Label htmlFor="name" className="text-right">Nombre</Label>
-                        <Input id="name" value={selectedCompany?.name || ''} onChange={(e) => handleFieldChange('name', e.target.value)} className="col-span-3" />
+                        <Input id="name" value={selectedCompanyLocal?.name || ''} onChange={(e) => handleFieldChange('name', e.target.value)} className="col-span-3" />
                     </div>
                     <div className="grid grid-cols-4 items-center gap-4">
                         <Label htmlFor="industry" className="text-right">Industria</Label>
-                        <Input id="industry" value={selectedCompany?.industry || ''} onChange={(e) => handleFieldChange('industry', e.target.value)} className="col-span-3" />
+                        <Input id="industry" value={selectedCompanyLocal?.industry || ''} onChange={(e) => handleFieldChange('industry', e.target.value)} className="col-span-3" />
                     </div>
                      <div className="grid grid-cols-4 items-center gap-4">
                         <Label htmlFor="active" className="text-right">Activa</Label>
                         <div className="col-span-3">
-                           <Switch id="active" checked={selectedCompany?.active || false} onCheckedChange={(checked) => handleFieldChange('active', checked)} />
+                           <Switch id="active" checked={selectedCompanyLocal?.active || false} onCheckedChange={(checked) => handleFieldChange('active', checked)} />
                         </div>
                     </div>
                 </div>
