@@ -7,6 +7,7 @@ import {
   Home,
   Briefcase,
 } from "lucide-react"
+import { collection } from "firebase/firestore"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -20,9 +21,8 @@ import {
 import { DashboardNav } from "@/components/dashboard-nav"
 import { UserNav } from "@/components/user-nav"
 import { Logo } from "@/components/logo"
-import { mockCompanies } from "@/lib/data"
 import type { Company } from "@/lib/types"
-import { useUser } from "@/firebase"
+import { useUser, useFirestore, useCollection } from "@/firebase"
 
 export default function DashboardLayout({
   children,
@@ -30,13 +30,22 @@ export default function DashboardLayout({
   children: React.ReactNode
 }) {
   const { user, loading } = useUser();
-  const [selectedCompany, setSelectedCompany] = React.useState<Company>(mockCompanies[0]);
+  const firestore = useFirestore();
+  const companiesCollection = firestore ? collection(firestore, 'companies') : null;
+  const { data: companies, loading: companiesLoading } = useCollection<Company>(companiesCollection);
+  const [selectedCompany, setSelectedCompany] = React.useState<Company | null>(null);
+
+  React.useEffect(() => {
+    if (companies && companies.length > 0 && !selectedCompany) {
+      setSelectedCompany(companies[0]);
+    }
+  }, [companies, selectedCompany]);
 
   const handleCompanyChange = (company: Company) => {
     setSelectedCompany(company);
   };
 
-  if (loading) {
+  if (loading || companiesLoading) {
     return (
         <div className="flex min-h-screen w-full items-center justify-center">
             <p>Loading...</p>
@@ -74,7 +83,7 @@ export default function DashboardLayout({
                   <DropdownMenuContent align="start">
                     <DropdownMenuLabel>Selecciona una Empresa</DropdownMenuLabel>
                     <DropdownMenuSeparator />
-                    {mockCompanies.map((company) => (
+                    {companies?.map((company) => (
                         <DropdownMenuItem key={company.id} onSelect={() => handleCompanyChange(company)}>{company.name}</DropdownMenuItem>
                     ))}
                   </DropdownMenuContent>
@@ -85,14 +94,14 @@ export default function DashboardLayout({
                         <DropdownMenuTrigger asChild>
                             <Button variant="outline" className="flex items-center gap-2">
                                 <Briefcase className="h-4 w-4" />
-                                <span>{selectedCompany.name}</span>
+                                <span>{selectedCompany?.name || 'Seleccionar Empresa'}</span>
                                 <ChevronDown className="h-4 w-4" />
                             </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="start">
                             <DropdownMenuLabel>Selecciona una Empresa</DropdownMenuLabel>
                             <DropdownMenuSeparator />
-                            {mockCompanies.map((company) => (
+                            {companies?.map((company) => (
                                 <DropdownMenuItem key={company.id} onSelect={() => handleCompanyChange(company)}>{company.name}</DropdownMenuItem>
                             ))}
                         </DropdownMenuContent>

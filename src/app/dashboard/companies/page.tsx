@@ -1,3 +1,5 @@
+'use client';
+
 import {
     Table,
     TableBody,
@@ -23,9 +25,15 @@ import {
     DropdownMenuLabel,
     DropdownMenuTrigger,
   } from "@/components/ui/dropdown-menu"
-  import { mockCompanies } from "@/lib/data"
+  import { useCollection, useFirestore } from "@/firebase"
+  import { collection } from "firebase/firestore"
+  import type { Company } from "@/lib/types"
   
   export default function CompaniesPage() {
+    const firestore = useFirestore();
+    const companiesCollection = firestore ? collection(firestore, 'companies') : null;
+    const { data: companies, loading } = useCollection<Company>(companiesCollection);
+
     return (
       <Card>
         <CardHeader>
@@ -53,35 +61,45 @@ import {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {mockCompanies.map((company) => (
-                <TableRow key={company.id}>
-                  <TableCell className="font-medium">{company.name}</TableCell>
-                  <TableCell>{company.industry}</TableCell>
-                  <TableCell>
-                    <Badge variant={company.active ? "default" : "outline"}>
-                      {company.active ? "Activa" : "Inactiva"}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button aria-haspopup="true" size="icon" variant="ghost">
-                          <MoreHorizontal className="h-4 w-4" />
-                          <span className="sr-only">Toggle menu</span>
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-                        <DropdownMenuItem>Editar</DropdownMenuItem>
-                        <DropdownMenuItem>Ver Detalles</DropdownMenuItem>
-                        <DropdownMenuItem className="text-destructive">
-                          Eliminar
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
+              {loading ? (
+                <TableRow>
+                    <TableCell colSpan={4} className="text-center">Cargando...</TableCell>
                 </TableRow>
-              ))}
+              ) : companies && companies.length > 0 ? (
+                companies.map((company) => (
+                    <TableRow key={company.id}>
+                    <TableCell className="font-medium">{company.name}</TableCell>
+                    <TableCell>{company.industry}</TableCell>
+                    <TableCell>
+                        <Badge variant={company.active ? "default" : "outline"}>
+                        {company.active ? "Activa" : "Inactiva"}
+                        </Badge>
+                    </TableCell>
+                    <TableCell>
+                        <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button aria-haspopup="true" size="icon" variant="ghost">
+                            <MoreHorizontal className="h-4 w-4" />
+                            <span className="sr-only">Toggle menu</span>
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                            <DropdownMenuLabel>Acciones</DropdownMenuLabel>
+                            <DropdownMenuItem>Editar</DropdownMenuItem>
+                            <DropdownMenuItem>Ver Detalles</DropdownMenuItem>
+                            <DropdownMenuItem className="text-destructive">
+                            Eliminar
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                        </DropdownMenu>
+                    </TableCell>
+                    </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                    <TableCell colSpan={4} className="text-center">No se encontraron empresas.</TableCell>
+                </TableRow>
+              )}
             </TableBody>
           </Table>
         </CardContent>
