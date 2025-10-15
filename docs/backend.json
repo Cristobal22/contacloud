@@ -29,6 +29,8 @@
             "properties": {
                 "id": { "type": "string", "description": "Unique identifier for the company." },
                 "name": { "type": "string", "description": "The name of the company." },
+                "rut": { "type": "string", "description": "The company's Rol Único Tributario (RUT)." },
+                "address": { "type": "string", "description": "The physical address of the company." },
                 "industry": { "type": "string", "description": "The industry the company belongs to." },
                 "active": { "type": "boolean", "description": "Whether the company is currently active." },
                 "isDistributor": { "type": "boolean" },
@@ -51,7 +53,7 @@
                 "incomeFeesReceivableAccount": { "type": "string" },
                 "incomeFeesWithholdingAccount": { "type": "string" }
             },
-            "required": ["id", "name", "industry", "active"]
+            "required": ["id", "name", "rut", "address", "industry", "active"]
         },
         "Account": {
             "title": "Account",

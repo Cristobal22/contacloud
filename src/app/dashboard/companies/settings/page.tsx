@@ -91,19 +91,23 @@ export default function CompanySettingsPage() {
             <CardContent className="space-y-8">
                 {/* General */}
                 <div className="space-y-4">
-                    <div className="flex items-center space-x-2">
-                        <Checkbox id="isDistributor" checked={!!company.isDistributor} onCheckedChange={(checked) => handleCheckboxChange('isDistributor', !!checked)} />
-                        <Label htmlFor="isDistributor">Es Distribuidora (recupera imp. Art. 42)</Label>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                         <div className="space-y-2">
-                            <Label htmlFor="companyName">Empresa</Label>
+                            <Label htmlFor="companyName">Nombre/Razón Social</Label>
                             <Input id="companyName" value={company.name || ''} onChange={(e) => handleInputChange('name', e.target.value)} />
                         </div>
                         <div className="space-y-2">
-                            <Label htmlFor="startYear">Año de Inicio</Label>
-                            <Input id="startYear" type="number" value={company.startYear || ''} onChange={(e) => handleInputChange('startYear', parseInt(e.target.value))} />
+                            <Label htmlFor="rut">RUT</Label>
+                            <Input id="rut" value={company.rut || ''} onChange={(e) => handleInputChange('rut', e.target.value)} />
                         </div>
+                         <div className="space-y-2">
+                            <Label htmlFor="address">Dirección</Label>
+                            <Input id="address" value={company.address || ''} onChange={(e) => handleInputChange('address', e.target.value)} />
+                        </div>
+                    </div>
+                     <div className="flex items-center space-x-2 pt-4">
+                        <Checkbox id="isDistributor" checked={!!company.isDistributor} onCheckedChange={(checked) => handleCheckboxChange('isDistributor', !!checked)} />
+                        <Label htmlFor="isDistributor">Es Distribuidora (recupera imp. Art. 42)</Label>
                     </div>
                 </div>
 
@@ -111,6 +115,13 @@ export default function CompanySettingsPage() {
                 <div className="space-y-4">
                     <h3 className="text-lg font-medium">Período de Digitación</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="startYear">Año de Inicio</Label>
+                            <Input id="startYear" type="number" value={company.startYear || ''} onChange={(e) => handleInputChange('startYear', parseInt(e.target.value))} />
+                        </div>
+                        <div className="space-y-2">
+                            {/* Empty div for spacing */}
+                        </div>
                         <div className="space-y-2">
                             <Label htmlFor="periodStartDate">Fecha inicial</Label>
                             <Input id="periodStartDate" type="date" value={company.periodStartDate || ''} onChange={(e) => handleInputChange('periodStartDate', e.target.value)} />

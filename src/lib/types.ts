@@ -25,6 +25,8 @@ export type User = {
 export type Company = {
   id: string;
   name: string;
+  rut: string;
+  address: string;
   industry: string;
   active: boolean;
   isDistributor?: boolean;

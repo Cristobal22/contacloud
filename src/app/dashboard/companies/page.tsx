@@ -57,6 +57,7 @@ import {
   import { SelectedCompanyContext } from '../layout'
   import { errorEmitter } from '@/firebase/error-emitter'
   import { FirestorePermissionError } from '@/firebase/errors'
+import { useToast } from '@/hooks/use-toast';
 
   
   export default function CompaniesPage() {
@@ -65,6 +66,7 @@ import {
     const { setSelectedCompany } = React.useContext(SelectedCompanyContext) || {};
     const companiesCollection = firestore ? collection(firestore, 'companies') : null;
     const { data: companies, loading } = useCollection<Company>({ query: companiesCollection });
+    const { toast } = useToast();
 
     const [isFormOpen, setIsFormOpen] = React.useState(false);
     const [selectedCompanyLocal, setSelectedCompanyLocal] = React.useState<Partial<Company> | null>(null);
@@ -72,7 +74,7 @@ import {
     const [companyToDelete, setCompanyToDelete] = React.useState<Company | null>(null);
 
     const handleCreateNew = () => {
-        setSelectedCompanyLocal({ id: `new-${Date.now()}`, name: '', industry: '', active: true });
+        setSelectedCompanyLocal({ id: `new-${Date.now()}`, name: '', rut: '', address: '', industry: '', active: true });
         setIsFormOpen(true);
     };
 
@@ -113,8 +115,20 @@ import {
         if (!firestore || !selectedCompanyLocal) return;
 
         const isNew = selectedCompanyLocal.id?.startsWith('new-');
+
+        if (isNew && (!selectedCompanyLocal.name || !selectedCompanyLocal.rut || !selectedCompanyLocal.address)) {
+            toast({
+                variant: "destructive",
+                title: "Campos incompletos",
+                description: "Por favor, complete Nombre, RUT y Dirección.",
+            });
+            return;
+        }
+
         const companyData = {
             name: selectedCompanyLocal.name || 'Sin Nombre',
+            rut: selectedCompanyLocal.rut || '',
+            address: selectedCompanyLocal.address || '',
             industry: selectedCompanyLocal.industry || 'No especificada',
             active: selectedCompanyLocal.active ?? true,
         };
@@ -171,6 +185,7 @@ import {
               <TableHeader>
                 <TableRow>
                   <TableHead>Nombre de Empresa</TableHead>
+                  <TableHead>RUT</TableHead>
                   <TableHead>Industria</TableHead>
                   <TableHead>Estado</TableHead>
                   <TableHead>
@@ -181,12 +196,13 @@ import {
               <TableBody>
                 {loading ? (
                   <TableRow>
-                      <TableCell colSpan={4} className="text-center">Cargando...</TableCell>
+                      <TableCell colSpan={5} className="text-center">Cargando...</TableCell>
                   </TableRow>
                 ) : companies && companies.length > 0 ? (
                   companies.map((company) => (
                       <TableRow key={company.id}>
                       <TableCell className="font-medium">{company.name}</TableCell>
+                      <TableCell>{company.rut}</TableCell>
                       <TableCell>{company.industry}</TableCell>
                       <TableCell>
                           <Badge variant={company.active ? "default" : "outline"}>
@@ -218,7 +234,7 @@ import {
                   ))
                 ) : (
                   <TableRow>
-                      <TableCell colSpan={4} className="text-center">No se encontraron empresas.</TableCell>
+                      <TableCell colSpan={5} className="text-center">No se encontraron empresas.</TableCell>
                   </TableRow>
                 )}
               </TableBody>
@@ -236,8 +252,16 @@ import {
                 </DialogHeader>
                 <div className="grid gap-4 py-4">
                     <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="name" className="text-right">Nombre</Label>
+                        <Label htmlFor="name" className="text-right">Nombre/Razón Social</Label>
                         <Input id="name" value={selectedCompanyLocal?.name || ''} onChange={(e) => handleFieldChange('name', e.target.value)} className="col-span-3" />
+                    </div>
+                     <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="rut" className="text-right">RUT</Label>
+                        <Input id="rut" value={selectedCompanyLocal?.rut || ''} onChange={(e) => handleFieldChange('rut', e.target.value)} className="col-span-3" />
+                    </div>
+                     <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="address" className="text-right">Dirección</Label>
+                        <Input id="address" value={selectedCompanyLocal?.address || ''} onChange={(e) => handleFieldChange('address', e.target.value)} className="col-span-3" />
                     </div>
                     <div className="grid grid-cols-4 items-center gap-4">
                         <Label htmlFor="industry" className="text-right">Industria</Label>
