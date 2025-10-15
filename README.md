@@ -32,6 +32,16 @@ Contador Cloud is a modern, multi-tenant accounting application designed for acc
 
 - Node.js (v18 or later recommended)
 - npm or yarn
+- A Firebase project
+
+### Firebase Setup
+
+1.  Create a Firebase project in the [Firebase Console](https://console.firebase.google.com/).
+2.  In your project, go to **Project settings** > **General**.
+3.  Under "Your apps", create a new **Web app**.
+4.  Copy the `firebaseConfig` object values.
+5.  In this project, rename the `.env.example` file to `.env`.
+6.  Paste your Firebase config values into the `.env` file.
 
 ### Running the Development Server
 
