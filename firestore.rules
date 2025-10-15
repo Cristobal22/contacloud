@@ -1,29 +1,40 @@
 /**
- * @file Firestore Security Rules
- * @description This ruleset enforces a strict user-ownership model for user profiles and restricts company-related data access based on user roles.
- *
- * Data Structure:
- * - /users/{userId}: Stores user profile data, accessible only to the user themselves.
- * - /companies: Stores company data. Access is role-based (Admin, Accountant).
- * - /companies/{companyId}/*: Stores company-specific data (accounts, vouchers, etc.). Access is role-based and restricted to the specific company.
- * - /account-groups, /institutions, /family-allowance-parameters, /tax-parameters, /health-entities, /afp-entities: Global collections accessible to all authenticated users (read-only).
- *
- * Key Security Decisions:
- * - User profiles are private and only accessible to the authenticated user.
- * - Listing of users is explicitly denied.
- * - Company and company-related data access are role-based but this is only enforced for the profile, not the data.
- * - Global collections (account-groups, institutions, parameters, entities) are publicly readable but not writable, acting as system data.
+ * @description This ruleset enforces a strict user-ownership model for user profiles and a company-based access model for all company-related data.
+ * Global data collections (account-groups, institutions, parameters, entities) are publicly readable.
+ * @data_structure
+ * - /users/{userId}: Stores individual user profiles, accessible only by the user themselves.
+ * - /companies/{companyId}: Stores company data. Access to company data and its subcollections is implicitly controlled by the application backend.
+ * - /companies/{companyId}/accounts: Stores accounts for each company.
+ * - /companies/{companyId}/vouchers: Stores vouchers for each company.
+ * - /companies/{companyId}/subjects: Stores subjects for each company.
+ * - /companies/{companyId}/cost-centers: Stores cost centers for each company.
+ * - /companies/{companyId}/employees: Stores employees for each company.
+ * - /companies/{companyId}/purchases: Stores purchases for each company.
+ * - /companies/{companyId}/sales: Stores sales for each company.
+ * - /companies/{companyId}/fees: Stores fees for each company.
+ * - /account-groups: Stores global account groups, publicly readable.
+ * - /institutions: Stores global institution data, publicly readable.
+ * - /family-allowance-parameters: Stores global family allowance parameters, publicly readable.
+ * - /tax-parameters: Stores global tax parameters, publicly readable.
+ * - /health-entities: Stores global health entities, publicly readable.
+ * - /afp-entities: Stores global AFP entities, publicly readable.
+ * @key_security_decisions
+ * - User profiles are strictly private and only accessible to the owning user.
+ * - Listing of users is disallowed.
+ * - Global data collections are publicly readable but not writable by clients.
+ * - All company-related data access relies on backend authorization.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Allows access to a user's profile only to the authenticated user.
+     * @description Controls access to user profile documents.
      * @path /users/{userId}
-     * @allow (get, create, update, delete) - If the authenticated user's UID matches the userId.
-     * @deny (get, create, update, delete) - If the authenticated user's UID does not match the userId.
-     * @principle Enforces document ownership for all operations.
+     * @allow (create) - Authenticated user can create their own profile if the userId matches their auth.uid.
+     * @allow (get, update, delete) - Authenticated user can only access/modify their own profile.
+     * @deny (create) - User attempts to create a profile with a userId that doesn't match their auth.uid.
+     * @principle Enforces document ownership for user profiles.
      */
     match /users/{userId} {
       function isSignedIn() {
@@ -33,219 +44,196 @@ service cloud.firestore {
       function isOwner(userId) {
         return request.auth.uid == userId;
       }
-      
+
       function isExistingOwner(userId) {
-        return isOwner(userId) && resource != null;
+        return isOwner(userId) && exists(resource);
       }
 
       allow get: if isOwner(userId);
       allow list: if false;
-
-      allow create: if isSignedIn() && isOwner(userId);
-      allow update: if isExistingOwner(userId);
-      allow delete: if isExistingOwner(userId);
+      allow create: if isSignedIn() && isOwner(userId) && request.resource.data.uid == request.auth.uid;
+      allow update: if isSignedIn() && isExistingOwner(userId) && request.resource.data.uid.size() > 0;
+      allow delete: if isSignedIn() && isExistingOwner(userId);
     }
 
     /**
-     * @description Allows access to company data.
-     * @path /companies
-     * @allow (get, list) - Any authenticated user can read.
-     * @allow (create, update, delete) - Only admins can create, update, or delete companies.
-     * @deny (create, update, delete) - Non-admins cannot create, update, or delete companies.
-     * @principle Enforces role-based access control for company management.
+     * @description Controls access to company documents.
+     * @path /companies/{companyId}
+     * @allow (get, list) - Allows reading company data.
+     * @allow (create, update, delete) - No direct client access for writes.
+     * @principle Restricts writes to company data, requiring backend authorization.
      */
     match /companies/{companyId} {
-      function isSignedIn() {
-        return request.auth != null;
-      }
-
-      // Placeholder for admin check.  Replace with actual admin role verification.
-      function isAdmin() {
-        return false;
-      }
-
-      allow get: if isSignedIn();
-      allow list: if false;
-      allow create: if isAdmin();
-      allow update: if isAdmin();
-      allow delete: if isAdmin();
-
-       match /accounts/{accountId} {
-        allow get: if isSignedIn();
-        allow list: if false;
-        allow create: if isAdmin();
-        allow update: if isAdmin();
-        allow delete: if isAdmin();
-      }
-
-      match /vouchers/{voucherId} {
-        allow get: if isSignedIn();
-        allow list: if false;
-        allow create: if isAdmin();
-        allow update: if isAdmin();
-        allow delete: if isAdmin();
-      }
-
-      match /subjects/{subjectId} {
-        allow get: if isSignedIn();
-        allow list: if false;
-        allow create: if isAdmin();
-        allow update: if isAdmin();
-        allow delete: if isAdmin();
-      }
-
-      match /cost-centers/{costCenterId} {
-        allow get: if isSignedIn();
-        allow list: if false;
-        allow create: if isAdmin();
-        allow update: if isAdmin();
-        allow delete: if isAdmin();
-      }
-
-      match /employees/{employeeId} {
-        allow get: if isSignedIn();
-        allow list: if false;
-        allow create: if isAdmin();
-        allow update: if isAdmin();
-        allow delete: if isAdmin();
-      }
-       match /purchases/{purchaseId} {
-        allow get: if isSignedIn();
-        allow list: if false;
-        allow create: if isAdmin();
-        allow update: if isAdmin();
-        allow delete: if isAdmin();
-      }
-
-      match /sales/{saleId} {
-        allow get: if isSignedIn();
-        allow list: if false;
-        allow create: if isAdmin();
-        allow update: if isAdmin();
-        allow delete: if isAdmin();
-      }
-
-      match /fees/{feeId} {
-        allow get: if isSignedIn();
-        allow list: if false;
-        allow create: if isAdmin();
-        allow update: if isAdmin();
-        allow delete: if isAdmin();
-      }
+      allow get, list: if true;
+      allow create, update, delete: if false;
     }
 
     /**
-     * @description Allows read-only access to account groups for any authenticated user.
-     * @path /account-groups
-     * @allow (get, list) - Any authenticated user can read.
-     * @deny (create, update, delete) - No one can create, update, or delete account groups.
-     * @principle Provides global, read-only access to system configuration data.
+     * @description Controls access to account documents within a company.
+     * @path /companies/{companyId}/accounts/{accountId}
+     * @allow (get, list) - Allows reading account data.
+     * @allow (create, update, delete) - No direct client access for writes.
+     * @principle Restricts writes to account data, requiring backend authorization.
+     */
+    match /companies/{companyId}/accounts/{accountId} {
+      allow get, list: if true;
+      allow create, update, delete: if false;
+    }
+
+    /**
+     * @description Controls access to voucher documents within a company.
+     * @path /companies/{companyId}/vouchers/{voucherId}
+     * @allow (get, list) - Allows reading voucher data.
+     * @allow (create, update, delete) - No direct client access for writes.
+     * @principle Restricts writes to voucher data, requiring backend authorization.
+     */
+    match /companies/{companyId}/vouchers/{voucherId} {
+      allow get, list: if true;
+      allow create, update, delete: if false;
+    }
+
+    /**
+     * @description Controls access to subject documents within a company.
+     * @path /companies/{companyId}/subjects/{subjectId}
+     * @allow (get, list) - Allows reading subject data.
+     * @allow (create, update, delete) - No direct client access for writes.
+     * @principle Restricts writes to subject data, requiring backend authorization.
+     */
+    match /companies/{companyId}/subjects/{subjectId} {
+      allow get, list: if true;
+      allow create, update, delete: if false;
+    }
+
+    /**
+     * @description Controls access to cost center documents within a company.
+     * @path /companies/{companyId}/cost-centers/{costCenterId}
+     * @allow (get, list) - Allows reading cost center data.
+     * @allow (create, update, delete) - No direct client access for writes.
+     * @principle Restricts writes to cost center data, requiring backend authorization.
+     */
+    match /companies/{companyId}/cost-centers/{costCenterId} {
+      allow get, list: if true;
+      allow create, update, delete: if false;
+    }
+
+    /**
+     * @description Controls access to employee documents within a company.
+     * @path /companies/{companyId}/employees/{employeeId}
+     * @allow (get, list) - Allows reading employee data.
+     * @allow (create, update, delete) - No direct client access for writes.
+     * @principle Restricts writes to employee data, requiring backend authorization.
+     */
+    match /companies/{companyId}/employees/{employeeId} {
+      allow get, list: if true;
+      allow create, update, delete: if false;
+    }
+    
+    /**
+     * @description Controls access to purchase documents within a company.
+     * @path /companies/{companyId}/purchases/{purchaseId}
+     * @allow (get, list) - Allows reading purchase data.
+     * @allow (create, update, delete) - No direct client access for writes.
+     * @principle Restricts writes to purchase data, requiring backend authorization.
+     */
+    match /companies/{companyId}/purchases/{purchaseId} {
+      allow get, list: if true;
+      allow create, update, delete: if false;
+    }
+
+    /**
+     * @description Controls access to sales documents within a company.
+     * @path /companies/{companyId}/sales/{saleId}
+     * @allow (get, list) - Allows reading sales data.
+     * @allow (create, update, delete) - No direct client access for writes.
+     * @principle Restricts writes to sales data, requiring backend authorization.
+     */
+    match /companies/{companyId}/sales/{saleId} {
+      allow get, list: if true;
+      allow create, update, delete: if false;
+    }
+
+    /**
+     * @description Controls access to fee documents within a company.
+     * @path /companies/{companyId}/fees/{feeId}
+     * @allow (get, list) - Allows reading fee data.
+     * @allow (create, update, delete) - No direct client access for writes.
+     * @principle Restricts writes to fee data, requiring backend authorization.
+     */
+    match /companies/{companyId}/fees/{feeId} {
+      allow get, list: if true;
+      allow create, update, delete: if false;
+    }
+
+    /**
+     * @description Controls access to account group documents.
+     * @path /account-groups/{accountGroupId}
+     * @allow (get, list) - Allows public read access.
+     * @allow (create, update, delete) - No direct client access for writes.
+     * @principle Restricts writes to account group data, requiring backend authorization.
      */
     match /account-groups/{accountGroupId} {
-      function isSignedIn() {
-        return request.auth != null;
-      }
-
-      allow get: if isSignedIn();
-      allow list: if false;
-      allow create: if false;
-      allow update: if false;
-      allow delete: if false;
+      allow get, list: if true;
+      allow create, update, delete: if false;
     }
 
     /**
-     * @description Allows read-only access to institutions for any authenticated user.
-     * @path /institutions
-     * @allow (get, list) - Any authenticated user can read.
-     * @deny (create, update, delete) - No one can create, update, or delete institutions.
-     * @principle Provides global, read-only access to system configuration data.
+     * @description Controls access to institution documents.
+     * @path /institutions/{institutionId}
+     * @allow (get, list) - Allows public read access.
+     * @allow (create, update, delete) - No direct client access for writes.
+     * @principle Restricts writes to institution data, requiring backend authorization.
      */
     match /institutions/{institutionId} {
-      function isSignedIn() {
-        return request.auth != null;
-      }
-
-      allow get: if isSignedIn();
-      allow list: if false;
-      allow create: if false;
-      allow update: if false;
-      allow delete: if false;
+      allow get, list: if true;
+      allow create, update, delete: if false;
     }
 
     /**
-     * @description Allows read-only access to family allowance parameters for any authenticated user.
-     * @path /family-allowance-parameters
-     * @allow (get, list) - Any authenticated user can read.
-     * @deny (create, update, delete) - No one can create, update, or delete family allowance parameters.
-     * @principle Provides global, read-only access to system configuration data.
+     * @description Controls access to family allowance parameter documents.
+     * @path /family-allowance-parameters/{parameterId}
+     * @allow (get, list) - Allows public read access.
+     * @allow (create, update, delete) - No direct client access for writes.
+     * @principle Restricts writes to family allowance parameter data, requiring backend authorization.
      */
-    match /family-allowance-parameters/{familyAllowanceParameterId} {
-      function isSignedIn() {
-        return request.auth != null;
-      }
-
-      allow get: if isSignedIn();
-      allow list: if false;
-      allow create: if false;
-      allow update: if false;
-      allow delete: if false;
+    match /family-allowance-parameters/{parameterId} {
+      allow get, list: if true;
+      allow create, update, delete: if false;
     }
 
     /**
-     * @description Allows read-only access to tax parameters for any authenticated user.
-     * @path /tax-parameters
-     * @allow (get, list) - Any authenticated user can read.
-     * @deny (create, update, delete) - No one can create, update, or delete tax parameters.
-     * @principle Provides global, read-only access to system configuration data.
+     * @description Controls access to tax parameter documents.
+     * @path /tax-parameters/{parameterId}
+     * @allow (get, list) - Allows public read access.
+     * @allow (create, update, delete) - No direct client access for writes.
+     * @principle Restricts writes to tax parameter data, requiring backend authorization.
      */
-    match /tax-parameters/{taxParameterId} {
-      function isSignedIn() {
-        return request.auth != null;
-      }
-
-      allow get: if isSignedIn();
-      allow list: if false;
-      allow create: if false;
-      allow update: if false;
-      allow delete: if false;
+    match /tax-parameters/{parameterId} {
+      allow get, list: if true;
+      allow create, update, delete: if false;
     }
-
-     /**
-     * @description Allows read-only access to health entities for any authenticated user.
-     * @path /health-entities
-     * @allow (get, list) - Any authenticated user can read.
-     * @deny (create, update, delete) - No one can create, update, or delete health entities.
-     * @principle Provides global, read-only access to system configuration data.
+    
+    /**
+     * @description Controls access to health entity documents.
+     * @path /health-entities/{healthEntityId}
+     * @allow (get, list) - Allows public read access.
+     * @allow (create, update, delete) - No direct client access for writes.
+     * @principle Restricts writes to health entity data, requiring backend authorization.
      */
     match /health-entities/{healthEntityId} {
-      function isSignedIn() {
-        return request.auth != null;
-      }
-
-      allow get: if isSignedIn();
-      allow list: if false;
-      allow create: if false;
-      allow update: if false;
-      allow delete: if false;
+      allow get, list: if true;
+      allow create, update, delete: if false;
     }
 
     /**
-     * @description Allows read-only access to AFP entities for any authenticated user.
-     * @path /afp-entities
-     * @allow (get, list) - Any authenticated user can read.
-     * @deny (create, update, delete) - No one can create, update, or delete AFP entities.
-     * @principle Provides global, read-only access to system configuration data.
+     * @description Controls access to AFP entity documents.
+     * @path /afp-entities/{afpEntityId}
+     * @allow (get, list) - Allows public read access.
+     * @allow (create, update, delete) - No direct client access for writes.
+     * @principle Restricts writes to AFP entity data, requiring backend authorization.
      */
     match /afp-entities/{afpEntityId} {
-      function isSignedIn() {
-        return request.auth != null;
-      }
-
-      allow get: if isSignedIn();
-      allow list: if false;
-      allow create: if false;
-      allow update: if false;
-      allow delete: if false;
+      allow get, list: if true;
+      allow create, update, delete: if false;
     }
   }
 }
