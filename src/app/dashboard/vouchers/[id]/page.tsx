@@ -30,49 +30,37 @@ import {
     SelectTrigger,
     SelectValue,
   } from "@/components/ui/select"
-import { mockVouchers, mockAccounts } from '@/lib/data';
-import { useParams } from 'next/navigation';
-import type { Voucher } from '@/lib/types';
+import { mockAccounts } from '@/lib/data';
+import type { Voucher, VoucherEntry } from '@/lib/types';
+import { useRouter } from 'next/navigation';
 
-interface VoucherEntry {
-    id: number;
-    account: string;
-    description: string;
-    debit: number;
-    credit: number;
+interface VoucherDetailProps {
+    voucherData?: Voucher | null;
+    onSave: (voucher: Voucher, entries: VoucherEntry[]) => void;
+    onCancel: () => void;
 }
 
-export default function VoucherDetailPage() {
-    const params = useParams();
-    const { id } = params;
-    const isNew = id === 'new';
+export default function VoucherDetailForm({ voucherData, onSave, onCancel }: VoucherDetailProps) {
+    const isNew = !voucherData?.id || voucherData.id.startsWith('new');
 
     const [voucher, setVoucher] = React.useState<Voucher | null>(null);
-     const [entries, setEntries] = React.useState<VoucherEntry[]>([]);
+    const [entries, setEntries] = React.useState<VoucherEntry[]>([]);
+     const router = useRouter();
 
     React.useEffect(() => {
-        if (isNew) {
-            setVoucher({
-                id: `v-${Date.now()}`,
-                date: new Date().toISOString().substring(0, 10),
-                type: 'Traspaso',
-                description: '',
-                status: 'Borrador',
-                total: 0
-            });
-            setEntries([]);
-        } else {
-            const foundVoucher = mockVouchers.find(v => v.id === id);
-            if (foundVoucher) {
-                setVoucher(foundVoucher);
+        if (voucherData) {
+            setVoucher(voucherData);
+             if (isNew) {
+                setEntries([]);
+            } else {
                 // Example entries for a non-new voucher
                  setEntries([
-                    { id: 1, account: '1101-01', description: 'Inicio de actividades', debit: 100000, credit: 0 },
-                    { id: 2, account: '3101-01', description: 'Aporte inicial', debit: 0, credit: 100000 },
+                    { id: Date.now() + 1, account: '1101-01', description: 'Inicio de actividades', debit: voucherData.total, credit: 0 },
+                    { id: Date.now() + 2, account: '3101-01', description: 'Aporte inicial', debit: 0, credit: voucherData.total },
                 ]);
             }
         }
-    }, [id, isNew]);
+    }, [voucherData, isNew]);
 
     const handleAddEntry = () => {
         setEntries([
@@ -89,7 +77,7 @@ export default function VoucherDetailPage() {
         const newEntries = entries.map(entry => {
             if (entry.id === entryId) {
                 if (field === 'debit' || field === 'credit') {
-                    const numericValue = typeof value === 'string' ? parseFloat(value) || 0 : value;
+                    const numericValue = typeof value === 'string' ? parseFloat(value.replace(/[^0-9.-]/g, '')) || 0 : value;
                     return { ...entry, [field]: numericValue };
                 }
                 return { ...entry, [field]: value };
@@ -99,7 +87,7 @@ export default function VoucherDetailPage() {
         setEntries(newEntries);
     };
 
-     const handleHeaderChange = (field: keyof Voucher, value: string) => {
+     const handleHeaderChange = (field: keyof Omit<Voucher, 'id' | 'total'>, value: string) => {
         if (voucher) {
             setVoucher({ ...voucher, [field]: value });
         }
@@ -107,8 +95,14 @@ export default function VoucherDetailPage() {
 
     const totalDebit = entries.reduce((sum, entry) => sum + entry.debit, 0);
     const totalCredit = entries.reduce((sum, entry) => sum + entry.credit, 0);
-    const isBalanced = totalDebit === totalCredit;
-    const canSave = isBalanced && entries.length > 0 && voucher?.description;
+    const isBalanced = totalDebit === totalCredit && totalDebit > 0;
+    const canSave = isBalanced && entries.length > 1 && voucher?.description;
+    
+    const handleSaveClick = () => {
+        if (voucher && canSave) {
+            onSave({ ...voucher, total: totalDebit }, entries);
+        }
+    };
 
     if (!voucher) {
         return (
@@ -133,7 +127,7 @@ export default function VoucherDetailPage() {
                     <div className="flex justify-between items-start">
                         <div>
                             <CardTitle>
-                                {isNew ? 'Nuevo Comprobante' : `Editar Comprobante #${voucher.id}`}
+                                {isNew ? 'Nuevo Comprobante' : `Editar Comprobante #${voucher.id.substring(0, 6)}`}
                             </CardTitle>
                             <CardDescription>
                                 Gestiona los detalles y asientos del comprobante contable.
@@ -261,7 +255,7 @@ export default function VoucherDetailPage() {
                              <TableRow>
                                 <TableCell colSpan={2}></TableCell>
                                 <TableCell className="text-right font-bold" colSpan={2}>
-                                    {!isBalanced ? (
+                                    {!isBalanced || totalDebit === 0 ? (
                                          <span className="text-destructive">Diferencia: ${(totalDebit - totalCredit).toLocaleString('es-CL')}</span>
                                     ): (
                                         <span className="text-green-600">Comprobante Cuadrado</span>
@@ -273,8 +267,8 @@ export default function VoucherDetailPage() {
                     </Table>
                 </CardContent>
                 <CardFooter className="flex justify-end gap-2">
-                    <Button variant="outline">Cancelar</Button>
-                    <Button disabled={!canSave}>Guardar Comprobante</Button>
+                    <Button variant="outline" onClick={onCancel}>Cancelar</Button>
+                    <Button disabled={!canSave} onClick={handleSaveClick}>Guardar Comprobante</Button>
                 </CardFooter>
             </Card>
         </div>

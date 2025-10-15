@@ -35,19 +35,48 @@ import {
     DialogTitle,
     DialogFooter,
   } from "@/components/ui/dialog"
-  import { Input } from "@/components/ui/input"
-  import { Label } from "@/components/ui/label"
-   import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-  } from "@/components/ui/select"
   import { mockVouchers } from "@/lib/data"
+  import type { Voucher, VoucherEntry } from "@/lib/types"
+  import VoucherDetailForm from "./[id]/page"
   
   export default function VouchersPage() {
+    const [vouchers, setVouchers] = React.useState<Voucher[]>(mockVouchers);
     const [isCreateDialogOpen, setIsCreateDialogOpen] = React.useState(false);
+    const [selectedVoucher, setSelectedVoucher] = React.useState<Voucher | null>(null);
+
+    const handleCreateNew = () => {
+        setSelectedVoucher({
+            id: `new-${Date.now()}`,
+            date: new Date().toISOString().substring(0, 10),
+            type: 'Traspaso',
+            description: '',
+            status: 'Borrador',
+            total: 0
+        });
+        setIsCreateDialogOpen(true);
+    };
+
+    const handleEdit = (voucher: Voucher) => {
+        setSelectedVoucher(voucher);
+        setIsCreateDialogOpen(true);
+    };
+
+    const handleSaveVoucher = (voucher: Voucher, entries: VoucherEntry[]) => {
+        const isNew = voucher.id.startsWith('new-');
+        if (isNew) {
+            const newVoucher = { ...voucher, id: `v-${Date.now()}` };
+            setVouchers(prev => [newVoucher, ...prev]);
+        } else {
+            setVouchers(prev => prev.map(v => v.id === voucher.id ? voucher : v));
+        }
+        setIsCreateDialogOpen(false);
+        setSelectedVoucher(null);
+    };
+
+    const handleCancel = () => {
+        setIsCreateDialogOpen(false);
+        setSelectedVoucher(null);
+    }
 
     return (
       <>
@@ -58,7 +87,7 @@ import {
                       <CardTitle>Comprobantes Contables</CardTitle>
                       <CardDescription>Gestiona los comprobantes de la empresa.</CardDescription>
                   </div>
-                  <Button size="sm" className="gap-1" onClick={() => setIsCreateDialogOpen(true)}>
+                  <Button size="sm" className="gap-1" onClick={handleCreateNew}>
                       <PlusCircle className="h-4 w-4" />
                       Agregar Comprobante
                   </Button>
@@ -79,7 +108,7 @@ import {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {mockVouchers.map((voucher) => (
+                {vouchers.map((voucher) => (
                   <TableRow key={voucher.id}>
                     <TableCell>{voucher.date}</TableCell>
                     <TableCell>
@@ -105,8 +134,8 @@ import {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-                           <DropdownMenuItem asChild>
-                                <Link href={`/dashboard/vouchers/${voucher.id}`}>Editar</Link>
+                           <DropdownMenuItem onClick={() => handleEdit(voucher)}>
+                                Editar
                            </DropdownMenuItem>
                           <DropdownMenuItem>Anular</DropdownMenuItem>
                         </DropdownMenuContent>
@@ -120,47 +149,12 @@ import {
         </Card>
 
         <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-            <DialogContent className="sm:max-w-[425px]">
-                <DialogHeader>
-                    <DialogTitle>Crear Nuevo Comprobante</DialogTitle>
-                    <DialogDescription>
-                        Ingresa los detalles para crear un nuevo comprobante.
-                    </DialogDescription>
-                </DialogHeader>
-                <div className="grid gap-4 py-4">
-                    <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="date" className="text-right">
-                            Fecha
-                        </Label>
-                        <Input id="date" type="date" defaultValue={new Date().toISOString().substring(0, 10)} className="col-span-3" />
-                    </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="type" className="text-right">
-                            Tipo
-                        </Label>
-                         <Select>
-                            <SelectTrigger id="type" className="col-span-3">
-                                <SelectValue placeholder="Selecciona un tipo" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="ingreso">Ingreso</SelectItem>
-                                <SelectItem value="egreso">Egreso</SelectItem>
-                                <SelectItem value="traspaso">Traspaso</SelectItem>
-                            </SelectContent>
-                        </Select>
-                    </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="description" className="text-right">
-                            Descripción
-                        </Label>
-                        <Input id="description" placeholder="Ej: Pago de factura #101" className="col-span-3" />
-                    </div>
-                </div>
-                <DialogFooter>
-                    <Button asChild>
-                        <Link href="/dashboard/vouchers/new">Continuar</Link>
-                    </Button>
-                </DialogFooter>
+            <DialogContent className="sm:max-w-4xl">
+                 <VoucherDetailForm 
+                    voucherData={selectedVoucher}
+                    onSave={handleSaveVoucher}
+                    onCancel={handleCancel}
+                 />
             </DialogContent>
         </Dialog>
       </>

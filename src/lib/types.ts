@@ -63,6 +63,14 @@ export type Voucher = {
   total: number;
 };
 
+export type VoucherEntry = {
+    id: number;
+    account: string;
+    description: string;
+    debit: number;
+    credit: number;
+};
+
 export type Purchase = {
   id: string;
   date: string;
