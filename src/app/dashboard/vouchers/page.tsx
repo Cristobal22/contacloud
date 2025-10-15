@@ -64,7 +64,7 @@ import {
             const docRef = doc(firestore, `companies/${companyId}/vouchers`, voucherToContabilizar.id);
             await updateDoc(docRef, { status: 'Contabilizado' });
         } catch (error) {
-            console.error("Error posting voucher:", error);
+            console.error("Error updating voucher status:", error);
         } finally {
             setIsContabilizarDialogOpen(false);
             setVoucherToContabilizar(null);

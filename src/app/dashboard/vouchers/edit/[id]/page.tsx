@@ -66,7 +66,7 @@ export default function VoucherEditPage({ params }: { params: { id: string } }) 
                 total: 0,
                 entries: []
             });
-            setEntries([]);
+            setEntries([{ id: `new-entry-${Date.now()}`, account: '', description: '', debit: 0, credit: 0 }]);
         } else if (existingVoucher) {
             setVoucher(existingVoucher);
             setEntries(existingVoucher.entries);
@@ -106,7 +106,7 @@ export default function VoucherEditPage({ params }: { params: { id: string } }) 
     const totalDebit = entries.reduce((sum, entry) => sum + Number(entry.debit || 0), 0);
     const totalCredit = entries.reduce((sum, entry) => sum + Number(entry.credit || 0), 0);
     const isBalanced = totalDebit === totalCredit && totalDebit > 0;
-    const canSave = isBalanced && entries.length > 1 && voucher?.description;
+    const canSave = isBalanced && entries.length > 1 && voucher?.description && entries.every(e => e.account);
     
     const handleSaveClick = async () => {
        if (!firestore || !selectedCompany || !voucher || !canSave) return;
@@ -124,8 +124,7 @@ export default function VoucherEditPage({ params }: { params: { id: string } }) 
             description: e.description || '',
             debit: e.debit || 0,
             credit: e.credit || 0,
-            // make sure id is a string
-            id: e.id ? e.id.toString() : `entry-${Date.now()}`,
+            id: e.id && !e.id.startsWith('new-') ? e.id : `entry-${Date.now()}-${Math.random()}`,
           })),
           companyId: selectedCompany.id
         };
@@ -143,7 +142,7 @@ export default function VoucherEditPage({ params }: { params: { id: string } }) 
         }
     };
     
-    if (voucherLoading) return <p>Cargando comprobante...</p>;
+    if (voucherLoading && !isNew) return <p>Cargando comprobante...</p>;
     if (!isNew && !voucher && !voucherLoading) return <p>No se encontró el comprobante.</p>;
     if (!voucher) return null;
 
