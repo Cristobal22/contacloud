@@ -25,8 +25,10 @@ import {
     DropdownMenuLabel,
     DropdownMenuTrigger,
   } from "@/components/ui/dropdown-menu"
+  import { useCollection } from '@/firebase';
+  import type { Employee } from '@/lib/types';
 
-  type MockPayroll = {
+  type SimulatedPayroll = {
       id: string;
       employeeName: string;
       period: string;
@@ -36,10 +38,29 @@ import {
   }
 
 export default function PayrollPage({ companyId }: { companyId?: string }) {
-    const [mockPayrolls, setMockPayrolls] = React.useState<MockPayroll[]>([
-        { id: '1', employeeName: 'Juan Pérez', period: 'Octubre 2023', baseSalary: 800000, discounts: 160000, netSalary: 640000 },
-        { id: '2', employeeName: 'Ana Gómez', period: 'Octubre 2023', baseSalary: 1200000, discounts: 240000, netSalary: 960000 },
-    ]);
+    const { data: employees, loading } = useCollection<Employee>({ 
+      path: `companies/${companyId}/employees`,
+      companyId: companyId 
+    });
+
+    const simulatedPayrolls = React.useMemo(() => {
+        if (!employees) return [];
+        const currentPeriod = new Date().toLocaleString('es-CL', { month: 'long', year: 'numeric' });
+        
+        return employees.filter(emp => emp.status === 'Active' && emp.baseSalary).map(emp => {
+            const baseSalary = emp.baseSalary || 0;
+            const discounts = baseSalary * 0.20; // 20% mock discount
+            const netSalary = baseSalary - discounts;
+            return {
+                id: emp.id,
+                employeeName: `${emp.firstName} ${emp.lastName}`,
+                period: currentPeriod,
+                baseSalary: baseSalary,
+                discounts: discounts,
+                netSalary: netSalary,
+            };
+        });
+    }, [employees]);
 
 
     return (
@@ -71,7 +92,12 @@ export default function PayrollPage({ companyId }: { companyId?: string }) {
                 </TableRow>
                 </TableHeader>
                 <TableBody>
-                {mockPayrolls.map((payroll) => (
+                {loading && (
+                    <TableRow>
+                        <TableCell colSpan={6} className="text-center">Cargando liquidaciones...</TableCell>
+                    </TableRow>
+                )}
+                {!loading && simulatedPayrolls.map((payroll) => (
                     <TableRow key={payroll.id}>
                     <TableCell className="font-medium">{payroll.employeeName}</TableCell>
                     <TableCell>{payroll.period}</TableCell>
@@ -96,10 +122,10 @@ export default function PayrollPage({ companyId }: { companyId?: string }) {
                     </TableCell>
                     </TableRow>
                 ))}
-                {mockPayrolls.length === 0 && (
+                {!loading && simulatedPayrolls.length === 0 && (
                     <TableRow>
                         <TableCell colSpan={6} className="text-center">
-                            {!companyId ? "Selecciona una empresa para ver sus liquidaciones." : "No se encontraron liquidaciones para esta empresa."}
+                            {!companyId ? "Selecciona una empresa para ver sus liquidaciones." : "No se encontraron empleados activos con sueldo base para procesar."}
                         </TableCell>
                     </TableRow>
                     )}
