@@ -158,21 +158,18 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
     const pathname = usePathname();
     
     React.useEffect(() => {
-        // Don't do anything while the profile is loading
-        if (userLoading || profileLoading) {
+        if (userLoading || !user || profileLoading) {
             return;
         }
         
-        // Once loaded, if the user has an admin role and is not on an admin page, redirect them.
         const isAdminPage = pathname.startsWith('/dashboard/admin');
         if (userProfile?.role === 'Admin' && !isAdminPage) {
             router.replace('/dashboard/admin/users');
         }
 
-    }, [userLoading, profileLoading, userProfile, pathname, router]);
+    }, [userLoading, user, profileLoading, userProfile, pathname, router]);
 
-
-    if (userLoading || profileLoading) {
+    if (userLoading || !user || profileLoading) {
         return (
             <div className="flex min-h-screen w-full items-center justify-center">
                 <p>Cargando perfil...</p>
@@ -180,7 +177,6 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
         );
     }
     
-    // After loading, we decide which dashboard to show.
     if (userProfile?.role === 'Admin') {
         return <AdminDashboard>{children}</AdminDashboard>;
     }
@@ -189,7 +185,6 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
         return <AccountantDashboard>{children}</AccountantDashboard>;
     }
     
-    // Fallback for when profile is loaded but role is not assigned.
     return (
         <div className="flex min-h-screen w-full items-center justify-center">
             <p>No tienes un rol asignado. Contacta al administrador.</p>
@@ -205,7 +200,7 @@ export default function DashboardLayout({
 }) {
   const { user, loading: userLoading } = useUser({ redirectTo: '/login' });
   
-  if (userLoading) {
+  if (userLoading || !user) {
     return (
         <div className="flex min-h-screen w-full items-center justify-center">
             <p>Cargando...</p>
@@ -213,11 +208,5 @@ export default function DashboardLayout({
     )
   }
   
-  if (!user) {
-      // useUser hook handles redirection, so this should not be rendered.
-      // But as a fallback, we can return null.
-      return null;
-  }
-
   return <DashboardLayoutContent>{children}</DashboardLayoutContent>;
 }
