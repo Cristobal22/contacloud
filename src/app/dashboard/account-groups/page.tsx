@@ -19,7 +19,7 @@ import { Button } from "@/components/ui/button"
 import { MoreHorizontal, PlusCircle } from "lucide-react"
 import { useCollection, useFirestore } from "@/firebase"
 import type { AccountGroup } from "@/lib/types"
-import { collection, addDoc, setDoc, doc, deleteDoc } from "firebase/firestore";
+import { collection, addDoc, setDoc, doc, deleteDoc, writeBatch } from "firebase/firestore";
 import {
     Dialog,
     DialogContent,
@@ -51,11 +51,22 @@ import {
   import { buttonVariants } from '@/components/ui/button';
   import { errorEmitter } from '@/firebase/error-emitter'
   import { FirestorePermissionError } from '@/firebase/errors'
+  import { useToast } from '@/hooks/use-toast';
+
+const initialAccountGroups: Omit<AccountGroup, 'id'>[] = [
+    { name: "Activo" },
+    { name: "Pasivo" },
+    { name: "Patrimonio" },
+    { name: "Resultado Ingreso" },
+    { name: "Resultado Egreso" }
+];
+
 
 export default function AccountGroupsPage() {
     const firestore = useFirestore();
+    const { toast } = useToast();
     const accountGroupsCollection = firestore ? collection(firestore, 'account-groups') : null;
-    const { data: accountGroups, loading } = useCollection<AccountGroup>({ query: accountGroupsCollection });
+    const { data: accountGroups, loading, refetch } = useCollection<AccountGroup>({ query: accountGroupsCollection });
 
     const [isFormOpen, setIsFormOpen] = React.useState(false);
     const [selectedGroup, setSelectedGroup] = React.useState<Partial<AccountGroup> | null>(null);
@@ -75,6 +86,32 @@ export default function AccountGroupsPage() {
     const handleOpenDeleteDialog = (group: AccountGroup) => {
         setGroupToDelete(group);
         setIsDeleteDialogOpen(true);
+    };
+
+    const handleSeedData = async () => {
+        if (!firestore) return;
+        const batch = writeBatch(firestore);
+        
+        initialAccountGroups.forEach(groupData => {
+            const docRef = doc(collection(firestore, 'account-groups'));
+            batch.set(docRef, groupData);
+        });
+
+        try {
+            await batch.commit();
+            toast({
+                title: "Datos Cargados",
+                description: "Los grupos de cuentas han sido poblados exitosamente.",
+            });
+            refetch();
+        } catch (error) {
+            console.error("Error seeding account groups: ", error);
+            toast({
+                variant: "destructive",
+                title: "Error al cargar datos",
+                description: "No se pudieron guardar los grupos de cuentas en Firestore.",
+            });
+        }
     };
     
     const handleSave = () => {
@@ -133,10 +170,17 @@ export default function AccountGroupsPage() {
                             <CardTitle>Grupos de Cuentas Contables</CardTitle>
                             <CardDescription>Los grupos principales que clasifican el plan de cuentas.</CardDescription>
                         </div>
-                        <Button size="sm" className="gap-1" onClick={handleCreateNew}>
-                            <PlusCircle className="h-4 w-4" />
-                            Agregar Grupo
-                        </Button>
+                        <div className="flex gap-2">
+                             {accountGroups?.length === 0 && !loading && (
+                                <Button size="sm" className="gap-1" onClick={handleSeedData}>
+                                    Poblar Datos Iniciales
+                                </Button>
+                            )}
+                            <Button size="sm" className="gap-1" onClick={handleCreateNew}>
+                                <PlusCircle className="h-4 w-4" />
+                                Agregar Grupo
+                            </Button>
+                        </div>
                     </div>
                 </CardHeader>
                 <CardContent>
@@ -180,7 +224,7 @@ export default function AccountGroupsPage() {
                             {!loading && accountGroups?.length === 0 && (
                                 <TableRow>
                                     <TableCell colSpan={3} className="text-center">
-                                        No se encontraron grupos de cuentas.
+                                        No se encontraron grupos de cuentas. Puedes poblarlos con datos iniciales.
                                     </TableCell>
                                 </TableRow>
                             )}

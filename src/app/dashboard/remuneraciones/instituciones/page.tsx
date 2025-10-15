@@ -20,12 +20,49 @@ import { PlusCircle } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { useCollection, useFirestore } from "@/firebase"
 import type { Institution } from "@/lib/types"
-import { collection } from "firebase/firestore";
+import { collection, doc, writeBatch } from "firebase/firestore";
+import { useToast } from "@/hooks/use-toast";
+
+const initialInstitutions: Omit<Institution, 'id'>[] = [
+    { name: "AFP", type: "AFP" },
+    { name: "Fonasa", type: "Salud" },
+    { name: "Isapre", type: "Salud" },
+    { name: "Mutual de Seguridad", type: "Mutual" },
+    { name: "Caja de Compensación", type: "Caja de Compensación" }
+];
 
 export default function InstitucionesPage() {
     const firestore = useFirestore();
+    const { toast } = useToast();
     const institutionsCollection = firestore ? collection(firestore, 'institutions') : null;
-    const { data: institutions, loading } = useCollection<Institution>({ query: institutionsCollection });
+    const { data: institutions, loading, refetch } = useCollection<Institution>({ query: institutionsCollection });
+
+    const handleSeedData = async () => {
+        if (!firestore) return;
+        const batch = writeBatch(firestore);
+        
+        initialInstitutions.forEach(instData => {
+            const docRef = doc(collection(firestore, 'institutions'));
+            batch.set(docRef, instData);
+        });
+
+        try {
+            await batch.commit();
+            toast({
+                title: "Datos Cargados",
+                description: "Las instituciones han sido pobladas exitosamente.",
+            });
+            refetch();
+        } catch (error) {
+            console.error("Error seeding institutions: ", error);
+            toast({
+                variant: "destructive",
+                title: "Error al cargar datos",
+                description: "No se pudieron guardar las instituciones en Firestore.",
+            });
+        }
+    };
+
 
     return (
         <Card>
@@ -35,10 +72,17 @@ export default function InstitucionesPage() {
                         <CardTitle>Instituciones Previsionales y de Salud</CardTitle>
                         <CardDescription>Gestiona las instituciones para el cálculo de remuneraciones.</CardDescription>
                     </div>
-                    <Button size="sm" className="gap-1">
-                        <PlusCircle className="h-4 w-4" />
-                        Agregar Institución
-                    </Button>
+                    <div className="flex gap-2">
+                        {institutions?.length === 0 && !loading && (
+                            <Button size="sm" className="gap-1" onClick={handleSeedData}>
+                                Poblar Datos Iniciales
+                            </Button>
+                        )}
+                        <Button size="sm" className="gap-1" disabled>
+                            <PlusCircle className="h-4 w-4" />
+                            Agregar Institución
+                        </Button>
+                    </div>
                 </div>
             </CardHeader>
             <CardContent>
@@ -64,7 +108,7 @@ export default function InstitucionesPage() {
                          {!loading && institutions?.length === 0 && (
                             <TableRow>
                                 <TableCell colSpan={2} className="text-center">
-                                    No se encontraron instituciones.
+                                    No se encontraron instituciones. Puedes poblarlas con datos iniciales.
                                 </TableCell>
                             </TableRow>
                         )}
