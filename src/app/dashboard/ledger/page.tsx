@@ -1,3 +1,4 @@
+'use client';
 
 import {
     Table,
@@ -14,9 +15,15 @@ import {
     CardHeader,
     CardTitle,
   } from "@/components/ui/card"
-  import { mockAccounts } from "@/lib/data"
+  import { useCollection } from "@/firebase"
+  import type { Account } from "@/lib/types"
   
-  export default function LedgerPage() {
+  export default function LedgerPage({ companyId }: { companyId?: string }) {
+    const { data: accounts, loading } = useCollection<Account>({
+        path: `companies/${companyId}/accounts`,
+        companyId: companyId,
+    });
+
     return (
       <Card>
         <CardHeader>
@@ -34,7 +41,12 @@ import {
                     </TableRow>
                 </TableHeader>
                 <TableBody>
-                    {mockAccounts.map((account) => (
+                    {loading && (
+                        <TableRow>
+                            <TableCell colSpan={4} className="text-center">Cargando...</TableCell>
+                        </TableRow>
+                    )}
+                    {!loading && accounts?.map((account) => (
                         <TableRow key={account.id}>
                             <TableCell className="font-medium">{account.code}</TableCell>
                             <TableCell>{account.name}</TableCell>
@@ -44,7 +56,7 @@ import {
                             </TableCell>
                         </TableRow>
                     ))}
-                    {mockAccounts.length === 0 && (
+                    {!loading && accounts?.length === 0 && (
                         <TableRow>
                             <TableCell colSpan={4} className="text-center">
                                 No hay cuentas para mostrar en el libro mayor.

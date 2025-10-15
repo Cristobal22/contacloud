@@ -32,7 +32,7 @@ import {
   export default function CompaniesPage() {
     const firestore = useFirestore();
     const companiesCollection = firestore ? collection(firestore, 'companies') : null;
-    const { data: companies, loading } = useCollection<Company>(companiesCollection);
+    const { data: companies, loading } = useCollection<Company>({ query: companiesCollection });
 
     return (
       <Card>
@@ -106,4 +106,3 @@ import {
       </Card>
     )
   }
-  

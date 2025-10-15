@@ -97,3 +97,13 @@ export type Fee = {
   total: number;
   status: 'Pendiente' | 'Pagada' | 'Vencida';
 };
+
+export type DashboardPageProps = {
+    params: {};
+    searchParams: { [key: string]: string | string[] | undefined };
+};
+
+export type SelectedCompanyContextType = {
+    selectedCompany: Company | null;
+    setSelectedCompany: (company: Company | null) => void;
+};

@@ -30,9 +30,10 @@ import {
     SelectTrigger,
     SelectValue,
   } from "@/components/ui/select"
-import { mockAccounts } from '@/lib/data';
-import type { Voucher, VoucherEntry } from '@/lib/types';
+import { useCollection } from '@/firebase';
+import type { Voucher, VoucherEntry, Account } from '@/lib/types';
 import { useRouter } from 'next/navigation';
+import { SelectedCompanyContext } from '../../layout';
 
 interface VoucherDetailProps {
     voucherData?: Voucher | null;
@@ -42,6 +43,12 @@ interface VoucherDetailProps {
 
 export default function VoucherDetailForm({ voucherData, onSave, onCancel }: VoucherDetailProps) {
     const isNew = !voucherData?.id || voucherData.id.startsWith('new');
+    const { selectedCompany } = React.useContext(SelectedCompanyContext) || {};
+
+    const { data: accounts, loading: accountsLoading } = useCollection<Account>({
+        path: selectedCompany ? `companies/${selectedCompany.id}/accounts` : undefined,
+        companyId: selectedCompany?.id,
+    });
 
     const [voucher, setVoucher] = React.useState<Voucher | null>(null);
     const [entries, setEntries] = React.useState<VoucherEntry[]>([]);
@@ -194,7 +201,8 @@ export default function VoucherDetailForm({ voucherData, onSave, onCancel }: Vou
                                                 <SelectValue placeholder="Selecciona una cuenta" />
                                             </SelectTrigger>
                                             <SelectContent>
-                                                {mockAccounts.map(account => (
+                                                {accountsLoading && <SelectItem value="loading" disabled>Cargando cuentas...</SelectItem>}
+                                                {accounts?.map(account => (
                                                     <SelectItem key={account.id} value={account.code}>
                                                         {account.code} - {account.name}
                                                     </SelectItem>

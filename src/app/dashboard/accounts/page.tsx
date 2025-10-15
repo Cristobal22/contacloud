@@ -1,3 +1,4 @@
+'use client';
 import {
     Table,
     TableBody,
@@ -23,9 +24,16 @@ import {
     DropdownMenuLabel,
     DropdownMenuTrigger,
   } from "@/components/ui/dropdown-menu"
-  import { mockAccounts } from "@/lib/data"
+  import { useCollection } from "@/firebase"
+  import type { Account, DashboardPageProps } from "@/lib/types"
+
   
-  export default function AccountsPage() {
+  export default function AccountsPage({ companyId }: { companyId?: string }) {
+    const { data: accounts, loading } = useCollection<Account>({
+      path: `companies/${companyId}/accounts`,
+      companyId: companyId,
+    });
+  
     return (
       <Card>
         <CardHeader>
@@ -54,7 +62,12 @@ import {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {mockAccounts.map((account) => (
+              {loading && (
+                <TableRow>
+                    <TableCell colSpan={5} className="text-center">Cargando...</TableCell>
+                </TableRow>
+              )}
+              {!loading && accounts?.map((account) => (
                 <TableRow key={account.id}>
                   <TableCell className="font-medium">{account.code}</TableCell>
                   <TableCell>{account.name}</TableCell>
@@ -79,6 +92,11 @@ import {
                   </TableCell>
                 </TableRow>
               ))}
+              {!loading && accounts?.length === 0 && (
+                <TableRow>
+                    <TableCell colSpan={5} className="text-center">No se encontraron cuentas para esta empresa.</TableCell>
+                </TableRow>
+              )}
             </TableBody>
           </Table>
         </CardContent>
