@@ -1,3 +1,4 @@
+
 import {
     Card,
     CardContent,
@@ -11,10 +12,10 @@ import {
       <Card>
         <CardHeader>
           <CardTitle>Resumen Mensual IVA</CardTitle>
-          <CardDescription>Consulta el resumen mensual de IVA.</CardDescription>
+          <CardDescription>Consulta el resumen mensual de IVA (Impuesto al Valor Agregado).</CardDescription>
         </CardHeader>
         <CardContent>
-          <p>Página en construcción.</p>
+            <p className="text-sm text-muted-foreground">Aquí podrás generar y visualizar el resumen de IVA débito y crédito fiscal del mes.</p>
         </CardContent>
       </Card>
     )
