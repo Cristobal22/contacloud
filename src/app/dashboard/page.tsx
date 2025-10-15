@@ -19,29 +19,24 @@ import {
   import { Badge } from "@/components/ui/badge"
   import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis } from "recharts"
   import { useCollection } from "@/firebase"
-  import type { Account, Company, Voucher, UserProfile } from "@/lib/types"
+  import type { Account, Company, Voucher } from "@/lib/types"
   import { useUser } from "@/firebase"
   import { useUserProfile } from "@/firebase/auth/use-user-profile"
+  import UserManagement from "@/components/admin/user-management"
   
-  export default function DashboardPage({ companyId }: { companyId?: string }) {
-    const { user } = useUser();
-    const { userProfile } = useUserProfile(user?.uid);
-
-    const isAccountant = userProfile?.role === 'Accountant';
-
+function AccountantDashboard({ companyId }: { companyId?: string }) {
     const { data: accounts, loading: accountsLoading } = useCollection<Account>({
         path: `companies/${companyId}/accounts`,
         companyId: companyId,
-        disabled: !isAccountant || !companyId
+        disabled: !companyId
     });
     const { data: vouchers, loading: vouchersLoading } = useCollection<Voucher>({
         path: `companies/${companyId}/vouchers`,
         companyId: companyId,
-        disabled: !isAccountant || !companyId
+        disabled: !companyId
     });
     const { data: companies, loading: companiesLoading } = useCollection<Company>({
         path: 'companies',
-        disabled: !isAccountant
     });
 
     const loading = accountsLoading || vouchersLoading || companiesLoading;
@@ -91,7 +86,7 @@ import {
     const recentVouchers = vouchers?.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 5) || [];
 
 
-    if (loading && isAccountant) {
+    if (loading) {
         return (
             <div className="flex min-h-screen w-full items-center justify-center">
                 <p>Cargando dashboard...</p>
@@ -99,10 +94,6 @@ import {
         )
     }
 
-    if (userProfile?.role === 'Admin') {
-        return null; // Admin users should be redirected, but as a fallback, we render nothing.
-    }
-  
     return (
       <div className="grid auto-rows-max items-start gap-4 md:gap-8 lg:col-span-2">
         <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-2 xl:grid-cols-4">
@@ -228,4 +219,23 @@ import {
         </div>
       </div>
     )
+}
+
+export default function DashboardPage({ companyId }: { companyId?: string }) {
+  const { user } = useUser();
+  const { userProfile, loading: profileLoading } = useUserProfile(user?.uid);
+
+  if (profileLoading) {
+      return (
+          <div className="flex min-h-screen w-full items-center justify-center">
+              <p>Cargando dashboard...</p>
+          </div>
+      )
   }
+
+  if (userProfile?.role === 'Admin') {
+      return <UserManagement />;
+  }
+
+  return <AccountantDashboard companyId={companyId} />;
+}

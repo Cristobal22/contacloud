@@ -40,8 +40,6 @@ import {
 import { cn } from '@/lib/utils';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './ui/collapsible';
 import React from 'react';
-import { useUserProfile } from '@/firebase/auth/use-user-profile';
-import { useUser } from '@/firebase';
 
 const accountantNavSections = [
     {
@@ -157,7 +155,7 @@ const adminNavSections = [
         title: 'Administración',
         icon: UserCog,
         links: [
-            { href: '/dashboard/admin/users', label: 'Gestión de Usuarios', icon: Users },
+            { href: '/dashboard', label: 'Gestión de Usuarios', icon: Users },
         ]
     }
 ]

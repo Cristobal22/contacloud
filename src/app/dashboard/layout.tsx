@@ -24,7 +24,6 @@ import { Logo } from "@/components/logo"
 import type { Company, SelectedCompanyContextType, UserProfile } from "@/lib/types"
 import { useUser, useFirestore, useCollection } from "@/firebase"
 import { useUserProfile } from "@/firebase/auth/use-user-profile"
-import { useRouter, usePathname } from 'next/navigation'
 
 export const SelectedCompanyContext = React.createContext<SelectedCompanyContextType | null>(null);
 
@@ -142,7 +141,7 @@ function AdminDashboard({ children }: { children: React.ReactNode }) {
         <div className="flex min-h-screen w-full flex-col bg-muted/40">
             <aside className="fixed inset-y-0 left-0 z-10 hidden w-64 flex-col border-r bg-background sm:flex">
                 <div className="flex h-16 items-center border-b px-6">
-                    <Link href="/dashboard/admin/users" className="flex items-center gap-2 font-semibold">
+                    <Link href="/dashboard" className="flex items-center gap-2 font-semibold">
                         <Logo />
                     </Link>
                 </div>
@@ -167,27 +166,7 @@ function AdminDashboard({ children }: { children: React.ReactNode }) {
 function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
     const { user, loading: userLoading } = useUser();
     const { userProfile, loading: profileLoading } = useUserProfile(user?.uid);
-    const router = useRouter();
-    const pathname = usePathname();
     
-    React.useEffect(() => {
-        // Wait until we have all the user info.
-        if (userLoading || !user || profileLoading) {
-            return;
-        }
-
-        // if we don't have a user profile, there is nothing to do.
-        if (!userProfile) return;
-        
-        const isAdminPage = pathname.startsWith('/dashboard/admin');
-        
-        // If the user is an Admin but is not on an admin page, redirect them.
-        if (userProfile.role === 'Admin' && !isAdminPage) {
-            router.replace('/dashboard/admin/users');
-        }
-
-    }, [userLoading, user, profileLoading, userProfile, pathname, router]);
-
     if (userLoading || !user || profileLoading) {
         return (
             <div className="flex min-h-screen w-full items-center justify-center">
@@ -229,5 +208,3 @@ export default function DashboardLayout({
   
   return <DashboardLayoutContent>{children}</DashboardLayoutContent>;
 }
-
-    
