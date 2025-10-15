@@ -49,18 +49,19 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { useCollection, useFirestore } from "@/firebase"
+import { useCollection, useFirestore, useAuth } from "@/firebase"
 import type { UserProfile } from "@/lib/types"
 import { collection, doc, setDoc, deleteDoc } from "firebase/firestore"
+import { createUserWithEmailAndPassword, sendPasswordResetEmail } from "firebase/auth";
 import { errorEmitter } from '@/firebase/error-emitter'
 import { FirestorePermissionError } from '@/firebase/errors'
 import { useMemo, useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { createUser } from '@/ai/flows/create-user-flow';
 import type { CreateUserInput } from '@/ai/flows/schemas';
 
 export default function UserManagement() {
     const firestore = useFirestore();
+    const auth = useAuth();
     const { toast } = useToast();
     
     const usersCollection = useMemo(() => {
@@ -123,37 +124,56 @@ export default function UserManagement() {
             toast({ variant: 'destructive', title: 'Error', description: 'Por favor, complete todos los campos obligatorios.' });
             return;
         }
-        if (!firestore) {
-            toast({ variant: 'destructive', title: 'Error', description: 'La base de datos no está disponible.' });
+        if (!auth || !firestore) {
+            toast({ variant: 'destructive', title: 'Error', description: 'La base de datos o el servicio de autenticación no están disponibles.' });
             return;
         }
 
         setIsCreating(true);
         try {
-            // Step 1: Call the flow to "create" the auth user and get back the profile
-            const createdUserProfile = await createUser(newUser);
-            toast({ title: 'Usuario "creado"', description: `La autenticación para ${newUser.email} fue simulada.` });
+            // Step 1: Create the auth user directly
+            const userCredential = await createUserWithEmailAndPassword(auth, newUser.email, newUser.password);
+            const authUser = userCredential.user;
+            toast({ title: 'Usuario Creado', description: `La cuenta para ${newUser.email} ha sido creada.` });
+            
+            // Step 2: Create the user profile object for Firestore
+            const newUserProfile: UserProfile = {
+                uid: authUser.uid,
+                email: newUser.email,
+                displayName: newUser.displayName || newUser.email.split('@')[0],
+                role: 'Accountant', // All users created by Admin are Accountants
+                photoURL: `https://i.pravatar.cc/150?u=${authUser.uid}`
+            };
+            
+            // Step 3: Save the profile to Firestore
+            const userDocRef = doc(firestore, "users", authUser.uid);
+            await setDoc(userDocRef, newUserProfile);
 
-            // Step 2: Create the user document in Firestore with the UID from the response
-            const userDocRef = doc(firestore, "users", createdUserProfile.uid);
-            await setDoc(userDocRef, createdUserProfile);
-
-            toast({ title: 'Perfil Creado', description: `El perfil de ${newUser.email} fue guardado en Firestore.` });
+            toast({ title: 'Perfil Guardado', description: `El perfil de ${newUser.email} fue guardado en Firestore.` });
             
             setIsCreateFormOpen(false);
         } catch (error: any) {
             console.error('Error creating user:', error);
-            toast({ variant: 'destructive', title: 'Error al Crear Usuario', description: error.message || 'No se pudo completar el proceso.' });
+            const errorMessage = error.code === 'auth/email-already-in-use' 
+                ? 'El correo electrónico ya está en uso.' 
+                : (error.message || 'No se pudo completar el proceso.');
+            toast({ variant: 'destructive', title: 'Error al Crear Usuario', description: errorMessage });
         } finally {
             setIsCreating(false);
         }
     };
 
+
     const handleDelete = () => {
         if (!firestore || !userToDelete) return;
         const docRef = doc(firestore, 'users', userToDelete.uid);
         
+        // This only deletes the Firestore document, not the auth user.
+        // In a real app, this should be a Cloud Function.
         deleteDoc(docRef)
+            .then(() => {
+                toast({ title: 'Perfil Eliminado', description: `El perfil de ${userToDelete.email} fue eliminado de Firestore.` });
+            })
             .catch(err => {
                  errorEmitter.emit('permission-error', new FirestorePermissionError({
                     path: docRef.path,
