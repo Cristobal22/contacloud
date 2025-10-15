@@ -216,6 +216,51 @@
                 "dtCode": { "type": "string" }
             },
             "required": ["id", "code", "name", "mandatoryContribution", "previredCode", "provisionalRegime", "dtCode"]
+        },
+        "Purchase": {
+            "title": "Purchase",
+            "description": "Represents a purchase document.",
+            "type": "object",
+            "properties": {
+                "id": { "type": "string" },
+                "date": { "type": "string", "format": "date" },
+                "documentNumber": { "type": "string" },
+                "supplier": { "type": "string" },
+                "total": { "type": "number" },
+                "status": { "type": "string", "enum": ["Pendiente", "Pagada", "Vencida"] },
+                "companyId": { "type": "string" }
+            },
+            "required": ["id", "date", "documentNumber", "supplier", "total", "status", "companyId"]
+        },
+        "Sale": {
+            "title": "Sale",
+            "description": "Represents a sales document.",
+            "type": "object",
+            "properties": {
+                "id": { "type": "string" },
+                "date": { "type": "string", "format": "date" },
+                "documentNumber": { "type": "string" },
+                "customer": { "type": "string" },
+                "total": { "type": "number" },
+                "status": { "type": "string", "enum": ["Pendiente", "Pagada", "Vencida"] },
+                "companyId": { "type": "string" }
+            },
+            "required": ["id", "date", "documentNumber", "customer", "total", "status", "companyId"]
+        },
+        "Fee": {
+            "title": "Fee",
+            "description": "Represents a fee document (honorarios).",
+            "type": "object",
+            "properties": {
+                "id": { "type": "string" },
+                "date": { "type": "string", "format": "date" },
+                "documentNumber": { "type": "string" },
+                "issuer": { "type": "string" },
+                "total": { "type": "number" },
+                "status": { "type": "string", "enum": ["Pendiente", "Pagada", "Vencida"] },
+                "companyId": { "type": "string" }
+            },
+            "required": ["id", "date", "documentNumber", "issuer", "total", "status", "companyId"]
         }
     },
     "firestore": {
@@ -242,6 +287,18 @@
         "/companies/{companyId}/employees": {
             "schema": { "$ref": "#/entities/Employee" },
             "description": "Sub-collection of employees for a specific company."
+        },
+         "/companies/{companyId}/purchases": {
+            "schema": { "$ref": "#/entities/Purchase" },
+            "description": "Sub-collection of purchase documents for a specific company."
+        },
+        "/companies/{companyId}/sales": {
+            "schema": { "$ref": "#/entities/Sale" },
+            "description": "Sub-collection of sales documents for a specific company."
+        },
+        "/companies/{companyId}/fees": {
+            "schema": { "$ref": "#/entities/Fee" },
+            "description": "Sub-collection of fee documents for a specific company."
         },
         "/account-groups": {
             "schema": { "$ref": "#/entities/AccountGroup" },

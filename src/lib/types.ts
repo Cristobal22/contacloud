@@ -1,6 +1,7 @@
 
 
 
+
 export type User = {
   id: string;
   name: string;
@@ -123,6 +124,7 @@ export type Purchase = {
   supplier: string;
   total: number;
   status: 'Pendiente' | 'Pagada' | 'Vencida';
+  companyId?: string;
 };
 
 export type Sale = {
@@ -132,6 +134,7 @@ export type Sale = {
   customer: string;
   total: number;
   status: 'Pendiente' | 'Pagada' | 'Vencida';
+  companyId?: string;
 };
 
 export type Fee = {
@@ -141,6 +144,7 @@ export type Fee = {
   issuer: string;
   total: number;
   status: 'Pendiente' | 'Pagada' | 'Vencida';
+  companyId?: string;
 };
 
 export type Institution = {
