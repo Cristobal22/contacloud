@@ -19,12 +19,50 @@ import { Button } from "@/components/ui/button"
 import { PlusCircle } from "lucide-react"
 import { useCollection, useFirestore } from "@/firebase"
 import type { HealthEntity } from "@/lib/types"
-import { collection } from "firebase/firestore";
+import { collection, writeBatch } from "firebase/firestore";
+import { useToast } from "@/hooks/use-toast";
+
+const initialHealthEntities: Omit<HealthEntity, 'id'>[] = [
+    { code: "001", name: "FONASA", mandatoryContribution: 7.00, previredCode: "01", dtCode: "01" },
+    { code: "067", name: "CONSALUD", mandatoryContribution: 7.00, previredCode: "18", dtCode: "02" },
+    { code: "099", name: "CRUZBLANCA", mandatoryContribution: 7.00, previredCode: "07", dtCode: "03" },
+    { code: "081", name: "NUEVA MASVIDA", mandatoryContribution: 7.00, previredCode: "31", dtCode: "04" },
+    { code: "078", name: "BANMEDICA", mandatoryContribution: 7.00, previredCode: "04", dtCode: "05" },
+    { code: "080", name: "VIDA TRES", mandatoryContribution: 7.00, previredCode: "17", dtCode: "06" },
+    { code: "076", name: "COLMENA", mandatoryContribution: 7.00, previredCode: "02", dtCode: "07" },
+];
 
 export default function HealthEntitiesPage() {
     const firestore = useFirestore();
+    const { toast } = useToast();
     const healthEntitiesCollection = firestore ? collection(firestore, 'health-entities') : null;
-    const { data: healthEntities, loading } = useCollection<HealthEntity>({ query: healthEntitiesCollection });
+    const { data: healthEntities, loading, refetch } = useCollection<HealthEntity>({ query: healthEntitiesCollection });
+
+    const handleSeedData = async () => {
+        if (!firestore) return;
+        const batch = writeBatch(firestore);
+        
+        initialHealthEntities.forEach(entityData => {
+            const docRef = collection(firestore, 'health-entities').doc();
+            batch.set(docRef, entityData);
+        });
+
+        try {
+            await batch.commit();
+            toast({
+                title: "Datos Cargados",
+                description: "Las entidades de salud han sido pobladas exitosamente.",
+            });
+            refetch(); // Refetch the data to update the table
+        } catch (error) {
+            console.error("Error seeding health entities: ", error);
+            toast({
+                variant: "destructive",
+                title: "Error al cargar datos",
+                description: "No se pudieron guardar las entidades de salud en Firestore.",
+            });
+        }
+    };
 
     return (
         <Card>
@@ -34,10 +72,17 @@ export default function HealthEntitiesPage() {
                         <CardTitle>Entidades de Salud</CardTitle>
                         <CardDescription>Gestiona las Isapres y Fonasa para el cálculo de remuneraciones.</CardDescription>
                     </div>
-                    <Button size="sm" className="gap-1">
-                        <PlusCircle className="h-4 w-4" />
-                        Agregar Entidad
-                    </Button>
+                    <div className="flex gap-2">
+                        {healthEntities?.length === 0 && !loading && (
+                             <Button size="sm" className="gap-1" onClick={handleSeedData}>
+                                Poblar Datos Iniciales
+                            </Button>
+                        )}
+                        <Button size="sm" className="gap-1" disabled>
+                            <PlusCircle className="h-4 w-4" />
+                            Agregar Entidad
+                        </Button>
+                    </div>
                 </div>
             </CardHeader>
             <CardContent>
@@ -69,7 +114,7 @@ export default function HealthEntitiesPage() {
                          {!loading && healthEntities?.length === 0 && (
                             <TableRow>
                                 <TableCell colSpan={5} className="text-center">
-                                    No se encontraron entidades de salud.
+                                    No se encontraron entidades de salud. Puedes poblarlas con datos iniciales.
                                 </TableCell>
                             </TableRow>
                         )}

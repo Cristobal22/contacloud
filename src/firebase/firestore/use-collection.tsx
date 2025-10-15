@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { onSnapshot, collection, query, where, Query, CollectionReference } from 'firebase/firestore';
 import { useFirestore } from '../provider';
 import { errorEmitter } from '../error-emitter';
@@ -35,11 +35,11 @@ export function useCollection<T>({ path, companyId, query: manualQuery, disabled
     return collection(firestore, path);
   }, [firestore, path, companyId, manualQuery, disabled]);
 
-  useEffect(() => {
+  const fetchData = useCallback(() => {
     if (finalQuery === null || disabled) {
       setData(null);
       setLoading(false);
-      return;
+      return () => {};
     }
     
     setLoading(true);
@@ -62,9 +62,14 @@ export function useCollection<T>({ path, companyId, query: manualQuery, disabled
         }));
       }
     );
-
-    return () => unsubscribe();
+    return unsubscribe;
   }, [finalQuery, path, disabled]);
 
-  return { data, loading, error };
+
+  useEffect(() => {
+    const unsubscribe = fetchData();
+    return () => unsubscribe();
+  }, [fetchData]);
+
+  return { data, loading, error, refetch: fetchData };
 }
