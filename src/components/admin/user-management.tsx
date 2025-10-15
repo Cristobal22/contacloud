@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/card"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { MoreHorizontal, PlusCircle } from "lucide-react"
+import { MoreHorizontal } from "lucide-react"
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -53,11 +53,12 @@ import type { UserProfile } from "@/lib/types"
 import { collection, doc, setDoc, deleteDoc } from "firebase/firestore"
 import { errorEmitter } from '@/firebase/error-emitter'
 import { FirestorePermissionError } from '@/firebase/errors'
+import { useMemo } from 'react';
 
 export default function UserManagement() {
     const firestore = useFirestore();
     
-    const usersCollection = React.useMemo(() => {
+    const usersCollection = useMemo(() => {
         if (!firestore) return null;
         return collection(firestore, 'users');
     }, [firestore]);
@@ -68,15 +69,6 @@ export default function UserManagement() {
     const [selectedUser, setSelectedUser] = React.useState<Partial<UserProfile> | null>(null);
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false);
     const [userToDelete, setUserToDelete] = React.useState<UserProfile | null>(null);
-
-    // NOTE: Creating users via the admin panel is complex as it requires
-    // creating an auth user and then a Firestore user document.
-    // For this prototype, we will focus on editing roles and deleting.
-    const handleCreateNew = () => {
-        // setSelectedUser({ email: '', role: 'Accountant', displayName: '' });
-        // setIsFormOpen(true);
-        alert("La creación de usuarios directamente desde el panel de administración es una función compleja que se implementará en el futuro. Por ahora, los nuevos usuarios deben registrarse a través de la página de registro.");
-    };
 
     const handleEdit = (user: UserProfile) => {
         setSelectedUser(user);
@@ -94,7 +86,6 @@ export default function UserManagement() {
         const { uid, ...userData } = selectedUser;
         const docRef = doc(firestore, 'users', uid);
 
-        // Ensure role is set, default to Accountant if not
         const dataToSave = {
             ...userData,
             role: userData.role || 'Accountant',
@@ -117,8 +108,6 @@ export default function UserManagement() {
         if (!firestore || !userToDelete) return;
         const docRef = doc(firestore, 'users', userToDelete.uid);
         
-        // Note: This only deletes the Firestore document, not the Firebase Auth user.
-        // A full implementation would require a Cloud Function to handle auth user deletion.
         deleteDoc(docRef)
             .catch(err => {
                  errorEmitter.emit('permission-error', new FirestorePermissionError({
@@ -146,10 +135,6 @@ export default function UserManagement() {
                             <CardTitle>Gestión de Usuarios</CardTitle>
                             <CardDescription>Administra los usuarios y sus roles en el sistema.</CardDescription>
                         </div>
-                        <Button size="sm" className="gap-1" onClick={handleCreateNew}>
-                            <PlusCircle className="h-4 w-4" />
-                            Agregar Usuario
-                        </Button>
                     </div>
                 </CardHeader>
                 <CardContent>
