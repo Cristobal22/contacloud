@@ -80,3 +80,12 @@ export type Sale = {
   total: number;
   status: 'Pendiente' | 'Pagada' | 'Vencida';
 };
+
+export type Fee = {
+  id: string;
+  date: string;
+  documentNumber: string;
+  issuer: string;
+  total: number;
+  status: 'Pendiente' | 'Pagada' | 'Vencida';
+};
