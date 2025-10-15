@@ -68,23 +68,24 @@ export type Employee = {
   phone?: string;
   email?: string;
   gender?: 'Masculino' | 'Femenino' | 'Otro';
-  civilStatus?: 'Soltero/a' | 'Casado/a' | 'Viudo/a' | 'Divorciado/a';
-  contractType?: 'Indefinido' | 'Plazo Fijo' | 'Por Obra' | 'Honorarios';
+  civilStatus?: 'Soltero/a' | 'Casado/a' | 'Viudo/a' | 'Divorciado/a' | 'Conviviente Civil';
+  contractType?: 'Indefinido' | 'Plazo Fijo' | 'Por Obra o Faena' | 'Part-Time' | 'Honorarios';
   position: string;
   contractStartDate?: string;
   contractEndDate?: string;
   baseSalary?: number;
-  healthSystem?: string;
-  afp?: string;
+  healthSystem?: 'Fonasa' | 'Consalud' | 'CruzBlanca' | 'Colmena' | 'Banmédica' | 'Vida Tres' | 'Nueva Masvida';
+  afp?: 'Capital' | 'Cuprum' | 'Habitat' | 'Modelo' | 'Planvital' | 'Provida' | 'Uno';
   hasUnemploymentInsurance?: boolean;
-  paymentMethod?: 'Transferencia' | 'Cheque' | 'Efectivo';
-  bank?: string;
+  paymentMethod?: 'Transferencia Bancaria' | 'Cheque' | 'Efectivo';
+  bank?: 'Banco de Chile' | 'Banco Internacional' | 'Scotiabank Chile' | 'BCI' | 'Banco Bice' | 'HSBC Bank (Chile)' | 'Banco Santander-Chile' | 'Itaú Corpbanca' | 'Banco Security' | 'Banco Falabella' | 'Banco Ripley' | 'Banco Consorcio' | 'Scotiabank Azul (Ex-BBVA)' | 'BancoEstado';
   accountType?: 'Cuenta Corriente' | 'Cuenta Vista' | 'Cuenta de Ahorro';
   accountNumber?: string;
-  costCenter: string;
+  costCenter?: string;
   status: 'Active' | 'Inactive';
   companyId?: string;
 };
+
 
 export type Subject = {
   id: string;
@@ -193,5 +194,3 @@ export type SelectedCompanyContextType = {
     selectedCompany: Company | null;
     setSelectedCompany: (company: Company | null) => void;
 };
-
-    

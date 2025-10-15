@@ -1,3 +1,4 @@
+
 {
     "entities": {
         "Company": {
@@ -120,24 +121,24 @@
                 "phone": { "type": "string" },
                 "email": { "type": "string", "format": "email" },
                 "gender": { "type": "string", "enum": ["Masculino", "Femenino", "Otro"] },
-                "civilStatus": { "type": "string", "enum": ["Soltero/a", "Casado/a", "Viudo/a", "Divorciado/a"] },
-                "contractType": { "type": "string", "enum": ["Indefinido", "Plazo Fijo", "Por Obra", "Honorarios"] },
+                "civilStatus": { "type": "string", "enum": ["Soltero/a", "Casado/a", "Viudo/a", "Divorciado/a", "Conviviente Civil"] },
+                "contractType": { "type": "string", "enum": ["Indefinido", "Plazo Fijo", "Por Obra o Faena", "Part-Time", "Honorarios"] },
                 "position": { "type": "string" },
                 "contractStartDate": { "type": "string", "format": "date" },
                 "contractEndDate": { "type": "string", "format": "date" },
                 "baseSalary": { "type": "number" },
-                "healthSystem": { "type": "string", "description": "Can be a reference to a HealthEntity ID or name" },
-                "afp": { "type": "string", "description": "Can be a reference to an AfpEntity ID or name" },
+                "healthSystem": { "type": "string", "enum": ["Fonasa", "Consalud", "CruzBlanca", "Colmena", "Banmédica", "Vida Tres", "Nueva Masvida"]},
+                "afp": { "type": "string", "enum": ["Capital", "Cuprum", "Habitat", "Modelo", "Planvital", "Provida", "Uno"]},
                 "hasUnemploymentInsurance": { "type": "boolean" },
-                "paymentMethod": { "type": "string", "enum": ["Transferencia", "Cheque", "Efectivo"] },
-                "bank": { "type": "string" },
+                "paymentMethod": { "type": "string", "enum": ["Transferencia Bancaria", "Cheque", "Efectivo"] },
+                "bank": { "type": "string", "enum": ["Banco de Chile", "Banco Internacional", "Scotiabank Chile", "BCI", "Banco Bice", "HSBC Bank (Chile)", "Banco Santander-Chile", "Itaú Corpbanca", "Banco Security", "Banco Falabella", "Banco Ripley", "Banco Consorcio", "Scotiabank Azul (Ex-BBVA)", "BancoEstado"] },
                 "accountType": { "type": "string", "enum": ["Cuenta Corriente", "Cuenta Vista", "Cuenta de Ahorro"] },
                 "accountNumber": { "type": "string" },
                 "costCenter": { "type": "string" },
                 "status": { "type": "string", "enum": ["Active", "Inactive"] },
                 "companyId": { "type": "string" }
             },
-            "required": ["id", "rut", "firstName", "lastName", "position", "status", "companyId"]
+            "required": ["id", "rut", "firstName", "lastName", "position", "status"]
         },
         "AccountGroup": {
             "title": "AccountGroup",
@@ -271,5 +272,3 @@
         "providers": ["google.com", "password"]
     }
 }
-
-    
