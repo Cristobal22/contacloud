@@ -1,3 +1,5 @@
+'use client';
+
 import {
     Table,
     TableBody,
@@ -23,9 +25,13 @@ import {
     DropdownMenuLabel,
     DropdownMenuTrigger,
   } from "@/components/ui/dropdown-menu"
-  
+  import type { Fee } from "@/lib/types";
+  import React from "react";
+
   export default function FeesPage() {
-    const mockFees: any[] = [];
+    const [mockFees, setMockFees] = React.useState<Fee[]>([
+        { id: '1', date: '2023-10-31', documentNumber: 'H-1', issuer: 'Profesional Independiente', total: 500000, status: 'Pendiente' },
+    ]);
     return (
       <Card>
         <CardHeader>
@@ -63,7 +69,7 @@ import {
                   <TableCell>
                     <Badge variant={
                         fee.status === 'Pagada' ? 'default' :
-                        fee.status === 'Pendiente' ? 'secondary' : 'destructive'
+                        fee.status === 'Vencida' ? 'destructive' : 'secondary'
                     }>
                         {fee.status}
                     </Badge>
@@ -100,4 +106,3 @@ import {
       </Card>
     )
   }
-  

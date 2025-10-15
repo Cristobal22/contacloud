@@ -1,3 +1,5 @@
+'use client';
+
 import {
     Table,
     TableBody,
@@ -23,9 +25,16 @@ import {
     DropdownMenuLabel,
     DropdownMenuTrigger,
   } from "@/components/ui/dropdown-menu"
-  
+  import type { Purchase } from "@/lib/types";
+  import React from "react";
+
   export default function PurchasesPage() {
-    const mockPurchases: any[] = [];
+    const [mockPurchases, setMockPurchases] = React.useState<Purchase[]>([
+        { id: '1', date: '2023-10-01', documentNumber: 'F-1234', supplier: 'Proveedor A', total: 119000, status: 'Pagada' },
+        { id: '2', date: '2023-10-05', documentNumber: 'F-1235', supplier: 'Proveedor B', total: 75000, status: 'Pendiente' },
+        { id: '3', date: '2023-09-15', documentNumber: 'F-1200', supplier: 'Proveedor C', total: 250000, status: 'Vencida' },
+    ]);
+
     return (
       <Card>
         <CardHeader>
@@ -63,7 +72,7 @@ import {
                   <TableCell>
                     <Badge variant={
                         purchase.status === 'Pagada' ? 'default' :
-                        purchase.status === 'Pendiente' ? 'secondary' : 'destructive'
+                        purchase.status === 'Vencida' ? 'destructive' : 'secondary'
                     }>
                         {purchase.status}
                     </Badge>
@@ -100,4 +109,3 @@ import {
       </Card>
     )
   }
-  

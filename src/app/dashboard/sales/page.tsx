@@ -1,3 +1,5 @@
+'use client';
+
 import {
     Table,
     TableBody,
@@ -23,9 +25,14 @@ import {
     DropdownMenuLabel,
     DropdownMenuTrigger,
   } from "@/components/ui/dropdown-menu"
-  
+  import type { Sale } from "@/lib/types";
+  import React from "react";
+
   export default function SalesPage() {
-    const mockSales: any[] = [];
+    const [mockSales, setMockSales] = React.useState<Sale[]>([
+        { id: '1', date: '2023-10-02', documentNumber: 'B-501', customer: 'Cliente X', total: 50000, status: 'Pagada' },
+        { id: '2', date: '2023-10-10', documentNumber: 'B-502', customer: 'Cliente Y', total: 120000, status: 'Pendiente' },
+    ]);
     return (
       <Card>
         <CardHeader>
@@ -63,7 +70,7 @@ import {
                   <TableCell>
                     <Badge variant={
                         sale.status === 'Pagada' ? 'default' :
-                        sale.status === 'Pendiente' ? 'secondary' : 'destructive'
+                        sale.status === 'Vencida' ? 'destructive' : 'secondary'
                     }>
                         {sale.status}
                     </Badge>
@@ -100,4 +107,3 @@ import {
       </Card>
     )
   }
-  
