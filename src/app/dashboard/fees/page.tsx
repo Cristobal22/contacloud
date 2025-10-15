@@ -14,7 +14,7 @@ import {
           <CardDescription>Gestiona tus boletas de honorarios.</CardDescription>
         </CardHeader>
         <CardContent>
-          <p>Página en construcción.</p>
+          <p className="text-sm text-muted-foreground">Aquí podrás registrar y consultar tus boletas de honorarios emitidas y recibidas.</p>
         </CardContent>
       </Card>
     )

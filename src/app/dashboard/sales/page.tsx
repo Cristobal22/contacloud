@@ -14,7 +14,7 @@ import {
           <CardDescription>Gestiona tus documentos de venta.</CardDescription>
         </CardHeader>
         <CardContent>
-          <p>Página en construcción.</p>
+           <p className="text-sm text-muted-foreground">Aquí podrás visualizar y gestionar tus facturas de venta.</p>
         </CardContent>
       </Card>
     )
