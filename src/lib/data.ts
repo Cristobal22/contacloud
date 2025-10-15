@@ -1,4 +1,4 @@
-import type { User, Company, Account, Transaction, CostCenter, Employee, Subject, Voucher, Purchase } from './types';
+import type { User, Company, Account, Transaction, CostCenter, Employee, Subject, Voucher, Purchase, Sale } from './types';
 
 export const mockUser: User = {
   id: 'user-1',
@@ -255,4 +255,10 @@ export const mockPurchases: Purchase[] = [
     { id: 'pur-2', date: '2023-11-05', documentNumber: 'F-8766', supplier: 'Comercial ABC Ltda.', total: 120000, status: 'Pendiente' },
     { id: 'pur-3', date: '2023-10-15', documentNumber: 'F-8750', supplier: 'Proveedor de Servicios XYZ S.A.', total: 300000, status: 'Vencida' },
     { id: 'pur-4', date: '2023-11-10', documentNumber: 'BH-123', supplier: 'Asesorías Profesionales SpA', total: 85000, status: 'Pendiente' },
+];
+
+export const mockSales: Sale[] = [
+    { id: 'sale-1', date: '2023-11-02', documentNumber: 'FV-101', customer: 'Comercial ABC Ltda.', total: 750000, status: 'Pagada' },
+    { id: 'sale-2', date: '2023-11-08', documentNumber: 'FV-102', customer: 'Cliente Minorista Ejemplo', total: 250000, status: 'Pendiente' },
+    { id: 'sale-3', date: '2023-10-20', documentNumber: 'FV-98', customer: 'Comercial ABC Ltda.', total: 500000, status: 'Vencida' },
 ];

@@ -71,3 +71,12 @@ export type Purchase = {
   total: number;
   status: 'Pendiente' | 'Pagada' | 'Vencida';
 };
+
+export type Sale = {
+  id: string;
+  date: string;
+  documentNumber: string;
+  customer: string;
+  total: number;
+  status: 'Pendiente' | 'Pagada' | 'Vencida';
+};
