@@ -12,6 +12,8 @@ import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
 import type { UserProfile } from '@/lib/types';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 
 export default function SignupPage() {
   const auth = useAuth();
@@ -40,8 +42,6 @@ export default function SignupPage() {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
-      // All new sign-ups are assigned the 'Accountant' role by default.
-      // The initial 'Admin' user should be created manually in the Firebase console for security.
       const userRole = 'Accountant';
       
       const userProfile: UserProfile = {
@@ -52,10 +52,19 @@ export default function SignupPage() {
         photoURL: user.photoURL
       };
 
-      // Create user profile document in Firestore
-      await setDoc(doc(firestore, "users", user.uid), userProfile);
+      const userDocRef = doc(firestore, "users", user.uid);
+      setDoc(userDocRef, userProfile)
+        .then(() => {
+            router.push('/dashboard');
+        })
+        .catch(err => {
+            errorEmitter.emit('permission-error', new FirestorePermissionError({
+                path: userDocRef.path,
+                operation: 'create',
+                requestResourceData: userProfile,
+            }));
+        });
 
-      router.push('/dashboard');
     } catch (error: any) {
       if (error.code === 'auth/email-already-in-use') {
         setError('Este correo electrónico ya está en uso.');
