@@ -56,7 +56,8 @@ import { errorEmitter } from '@/firebase/error-emitter'
 import { FirestorePermissionError } from '@/firebase/errors'
 import { useMemo, useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { createUser, CreateUserInput } from '@/ai/flows/create-user-flow';
+import { createUser } from '@/ai/flows/create-user-flow';
+import type { CreateUserInput } from '@/ai/flows/schemas';
 
 export default function UserManagement() {
     const firestore = useFirestore();
@@ -326,4 +327,3 @@ export default function UserManagement() {
     );
 }
 
-    

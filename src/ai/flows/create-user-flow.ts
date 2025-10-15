@@ -8,19 +8,12 @@
  */
 
 import { ai } from '@/ai/genkit';
-import { z } from 'zod';
-import { UserProfileSchema, type UserProfile } from '@/lib/types';
-
-
-export const CreateUserInputSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(6),
-  displayName: z.string().optional(),
-});
-export type CreateUserInput = z.infer<typeof CreateUserInputSchema>;
-
-export const CreateUserOutputSchema = UserProfileSchema;
-export type CreateUserOutput = z.infer<typeof CreateUserOutputSchema>;
+import { 
+    CreateUserInputSchema, 
+    CreateUserOutputSchema,
+    type CreateUserInput,
+    type CreateUserOutput
+} from './schemas';
 
 
 export async function createUser(input: CreateUserInput): Promise<CreateUserOutput> {
@@ -50,7 +43,7 @@ const createUserFlow = ai.defineFlow(
     // 2. We can't write to firestore from the server side with the client sdk.
     // In a real app this would be an admin SDK call. For now, we just return the profile.
     
-    const newUserProfile: UserProfile = {
+    const newUserProfile: CreateUserOutput = {
       uid: simulatedUid,
       email: input.email,
       displayName: input.displayName || input.email.split('@')[0],
@@ -62,7 +55,7 @@ const createUserFlow = ai.defineFlow(
     // NOTE: This does NOT create an actual Firebase Auth user OR a firestore doc.
     // The user will NOT be able to log in.
     // This is a placeholder to demonstrate the UI/UX flow.
-     console.log(`[Admin Flow] Firestore profile for ${input.email} was NOT created. This is a simulation.`);
+     console.log(`[Admin Flow] Firestore profile for ${newUserProfile.email} was NOT created. This is a simulation.`);
 
     return newUserProfile;
   }
