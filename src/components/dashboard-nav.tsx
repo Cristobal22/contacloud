@@ -207,10 +207,9 @@ export function DashboardNav() {
 
   const renderNestedSection = (
       parentTitle: string, 
-      parentIcon: React.ElementType, 
+      ParentIcon: React.ElementType, 
       subSections: { title: string, icon: React.ElementType, links: { href: string, label: string, icon: React.ElementType }[] }[]
     ) => {
-        const ParentIcon = parentIcon;
         return (
         <Collapsible open={openSections[parentTitle]} onOpenChange={() => toggleSection(parentTitle)}>
             <CollapsibleTrigger className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-muted-foreground hover:text-primary">

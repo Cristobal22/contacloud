@@ -17,7 +17,7 @@ export type Account = {
   id:string;
   code: string;
   name: string;
-  type: 'Asset' | 'Liability' | 'Equity' | 'Revenue' | 'Expense';
+  type: 'Activo' | 'Pasivo' | 'Patrimonio' | 'Resultado';
   balance: number;
 };
 
@@ -61,4 +61,13 @@ export type Voucher = {
   description: string;
   status: 'Borrador' | 'Posteado';
   total: number;
+};
+
+export type Purchase = {
+  id: string;
+  date: string;
+  documentNumber: string;
+  supplier: string;
+  total: number;
+  status: 'Pendiente' | 'Pagada' | 'Vencida';
 };
