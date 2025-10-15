@@ -32,7 +32,8 @@ function AccountantDashboardLayout({ children }: { children: React.ReactNode }) 
     const { user, loading: userLoading } = useUser();
     const { userProfile, loading: profileLoading } = useUserProfile(user?.uid);
     
-    const [isMounted, setIsMounted] = React.useState(false);
+    const [selectedCompany, setSelectedCompany] = React.useState<Company | null>(null);
+    const [isLoadingCompany, setIsLoadingCompany] = React.useState(true);
 
     const companiesQuery = React.useMemo(() => {
         if (!firestore || !userProfile || !userProfile.companyIds || userProfile.companyIds.length === 0) {
@@ -45,41 +46,28 @@ function AccountantDashboardLayout({ children }: { children: React.ReactNode }) 
       query: companiesQuery,
       disabled: !firestore || !userProfile,
     });
-
-    const [selectedCompany, setSelectedCompany] = React.useState<Company | null>(null);
     
     React.useEffect(() => {
-        setIsMounted(true);
-    }, []);
-
-    React.useEffect(() => {
-        if (!isMounted || !companies || companies.length === 0) return;
-
-        const storedCompanyId = localStorage.getItem('selectedCompanyId');
-        if (storedCompanyId) {
-            const foundCompany = companies.find(c => c.id === storedCompanyId);
-            if (foundCompany) {
-                setSelectedCompany(foundCompany);
-                return;
-            }
-        }
-        
-        // Fallback to the first company if nothing is stored or found
-        if (companies[0]) {
-            setSelectedCompany(companies[0]);
-            localStorage.setItem('selectedCompanyId', companies[0].id);
+        if (companiesLoading || profileLoading || userLoading) {
+            return;
         }
 
-    }, [companies, isMounted]);
+        if (companies && companies.length > 0) {
+            const storedCompanyId = localStorage.getItem('selectedCompanyId');
+            const company = companies.find(c => c.id === storedCompanyId) || companies[0];
+            setSelectedCompany(company);
+        }
+        setIsLoadingCompany(false);
+
+    }, [companies, companiesLoading, profileLoading, userLoading]);
+
 
     const handleCompanyChange = (company: Company) => {
         setSelectedCompany(company);
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('selectedCompanyId', company.id);
-        }
+        localStorage.setItem('selectedCompanyId', company.id);
     };
     
-    const isLoading = userLoading || profileLoading || companiesLoading || !isMounted;
+    const isLoading = userLoading || profileLoading || companiesLoading || isLoadingCompany;
 
     return (
         <SelectedCompanyContext.Provider value={{ selectedCompany, setSelectedCompany: handleCompanyChange }}>
@@ -117,7 +105,7 @@ function AccountantDashboardLayout({ children }: { children: React.ReactNode }) 
                             <div className="hidden sm:flex">
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
-                                        <Button variant="outline" className="flex items-center gap-2">
+                                        <Button variant="outline" className="flex items-center gap-2" disabled={isLoading}>
                                             <Briefcase className="h-4 w-4" />
                                             <span>{selectedCompany?.name || 'Seleccionar Empresa'}</span>
                                             <ChevronDown className="h-4 w-4" />

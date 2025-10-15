@@ -220,14 +220,24 @@ function AccountantDashboardContent({ companyId }: { companyId: string }) {
 }
 
 function AccountantDashboard() {
-    const { selectedCompany } = React.useContext(SelectedCompanyContext) || {};
+    const context = React.useContext(SelectedCompanyContext);
+
+    if (!context) {
+      return (
+        <div className="flex h-full w-full items-center justify-center">
+          <p>Cargando contexto de empresa...</p>
+        </div>
+      );
+    }
     
+    const { selectedCompany } = context;
+
     if (!selectedCompany) {
         return (
             <Card>
                 <CardHeader>
                     <CardTitle>Bienvenido a Contador Cloud</CardTitle>
-                    <CardDescription>Por favor, selecciona una empresa desde el menú superior para empezar.</CardDescription>
+                    <CardDescription>Por favor, selecciona una empresa desde el menú superior para empezar a trabajar.</CardDescription>
                 </CardHeader>
                 <CardContent>
                     <p className="text-muted-foreground">No hay ninguna empresa seleccionada.</p>

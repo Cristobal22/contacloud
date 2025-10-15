@@ -1,87 +1,50 @@
-'use client'
 
-import React from "react"
+'use client';
+
+import React from 'react';
 import {
     Card,
     CardContent,
     CardDescription,
     CardHeader,
     CardTitle,
-  } from "@/components/ui/card"
-  import { Button } from "@/components/ui/button"
-  import { Input } from "@/components/ui/input"
-  import { Label } from "@/components/ui/label"
-  import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-  } from "@/components/ui/select"
-  import { Upload } from "lucide-react"
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Upload } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
-  export default function TaxDocumentsPage() {
-    const fileInputRef = React.useRef<HTMLInputElement>(null);
-    const [fileName, setFileName] = React.useState<string | null>(null);
+export default function TaxDocumentsPage() {
+    const { toast } = useToast();
 
-    const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-        if (event.target.files && event.target.files.length > 0) {
-            setFileName(event.target.files[0].name);
-        } else {
-            setFileName(null);
-        }
+    const handlePlaceholderClick = () => {
+        toast({
+            title: "Función en desarrollo",
+            description: "La centralización de documentos tributarios desde el SII aún no está implementada.",
+        });
     };
 
     return (
-      <div className="grid gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Centralización de Documentos Tributarios</CardTitle>
-            <CardDescription>Sube documentos de compra o venta para su centralización.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form className="grid gap-6">
-              <div className="grid gap-3">
-                <Label htmlFor="document-type">Tipo de Documento</Label>
-                <Select>
-                  <SelectTrigger id="document-type">
-                    <SelectValue placeholder="Selecciona el tipo de documento" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="purchase">Documento de Compra</SelectItem>
-                    <SelectItem value="sales">Documento de Venta</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid gap-3">
-                <Label htmlFor="tax-document-file">Archivo del Documento</Label>
-                <div className="flex items-center gap-3">
-                    <Input id="tax-document-file" type="file" ref={fileInputRef} className="hidden" onChange={handleFileChange} />
-                    <Button type="button" variant="outline" onClick={() => fileInputRef.current?.click()}>
-                        <Upload className="mr-2 h-4 w-4" />
-                        Elegir Archivo
-                    </Button>
-                    <span className="text-sm text-muted-foreground">
-                        {fileName || "Ningún archivo seleccionado"}
-                    </span>
-                </div>
-                <p className="text-xs text-muted-foreground">Sube un archivo PDF, XML, o de imagen.</p>
-              </div>
-              <div className="flex justify-end">
-                <Button disabled={!fileName}>Procesar Documento</Button>
-              </div>
-            </form>
-          </CardContent>
-        </Card>
-        <Card>
-            <CardHeader>
-                <CardTitle>Historial de Cargas</CardTitle>
-                <CardDescription>Revisa el estado de las cargas de documentos anteriores.</CardDescription>
-            </Header>
-            <CardContent>
-                <p className="text-sm text-muted-foreground">Aún no hay historial de cargas.</p>
-            </CardContent>
-        </Card>
-      </div>
-    )
-  }
+        <div className="grid gap-6">
+            <Card>
+                <CardHeader>
+                    <CardTitle>Centralización de Documentos Tributarios</CardTitle>
+                    <CardDescription>
+                        Importa y centraliza automáticamente tus documentos tributarios desde el SII.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <div className="flex flex-col items-center justify-center gap-4 rounded-xl border border-dashed p-8 text-center">
+                        <Upload className="h-12 w-12 text-muted-foreground" />
+                        <h3 className="text-lg font-semibold">Conectar con el SII</h3>
+                        <p className="text-sm text-muted-foreground max-w-md">
+                            Esta funcionalidad futura te permitirá conectar tu cuenta del SII para descargar y procesar automáticamente tus documentos de compra y venta.
+                        </p>
+                        <Button onClick={handlePlaceholderClick}>
+                            Iniciar Proceso (Próximamente)
+                        </Button>
+                    </div>
+                </CardContent>
+            </Card>
+        </div>
+    );
+}
