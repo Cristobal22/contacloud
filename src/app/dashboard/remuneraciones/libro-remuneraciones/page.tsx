@@ -1,4 +1,7 @@
 
+'use client';
+
+import React from 'react';
 import {
     Card,
     CardContent,
@@ -7,9 +10,22 @@ import {
     CardTitle,
   } from "@/components/ui/card"
   import { Button } from "@/components/ui/button"
-  import { DateRangePicker } from "@/components/date-range-picker"
+  import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+  } from "@/components/ui/select"
+import { Label } from '@/components/ui/label';
   
   export default function LibroRemuneracionesPage() {
+    const currentYear = new Date().getFullYear();
+    const currentMonth = new Date().getMonth() + 1;
+
+    const [year, setYear] = React.useState(currentYear.toString());
+    const [month, setMonth] = React.useState(currentMonth.toString());
+
     return (
         <div className="grid gap-6">
             <Card>
@@ -19,9 +35,37 @@ import {
                 </CardHeader>
                 <CardContent className="space-y-4">
                     <div className="flex flex-col sm:flex-row gap-4 items-end">
-                        <div className="flex-1">
-                             <p className="text-sm font-medium mb-2">Período de Remuneraciones</p>
-                            <DateRangePicker className="w-full" />
+                        <div className="flex-1 grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <Label htmlFor="month">Mes</Label>
+                                <Select value={month} onValueChange={setMonth}>
+                                    <SelectTrigger id="month">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {Array.from({ length: 12 }, (_, i) => (
+                                            <SelectItem key={i+1} value={(i+1).toString()}>
+                                                {new Date(0, i).toLocaleString('es-CL', { month: 'long' })}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="year">Año</Label>
+                                <Select value={year} onValueChange={setYear}>
+                                    <SelectTrigger id="year">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {Array.from({ length: 5 }, (_, i) => (
+                                            <SelectItem key={currentYear-i} value={(currentYear-i).toString()}>
+                                                {currentYear-i}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
                         </div>
                         <Button>Generar Libro</Button>
                     </div>
