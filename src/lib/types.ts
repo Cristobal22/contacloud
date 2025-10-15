@@ -54,6 +54,7 @@ export type Subject = {
   rut: string;
   type: 'Cliente' | 'Proveedor' | 'Otro';
   status: 'Active' | 'Inactive';
+  companyId?: string;
 };
 
 export type Voucher = {

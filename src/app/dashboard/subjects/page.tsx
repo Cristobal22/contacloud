@@ -1,3 +1,5 @@
+'use client';
+
 import {
     Table,
     TableBody,
@@ -23,9 +25,15 @@ import {
     DropdownMenuLabel,
     DropdownMenuTrigger,
   } from "@/components/ui/dropdown-menu"
-  import { mockSubjects } from "@/lib/data"
+  import { useCollection } from "@/firebase"
+  import type { Subject } from "@/lib/types"
 
-  export default function SubjectsPage() {
+  export default function SubjectsPage({ companyId }: { companyId?: string }) {
+    const { data: subjects, loading } = useCollection<Subject>({ 
+      path: `companies/${companyId}/subjects`,
+      companyId: companyId 
+    });
+
     return (
       <Card>
         <CardHeader>
@@ -34,7 +42,7 @@ import {
                     <CardTitle>Sujetos</CardTitle>
                     <CardDescription>Gestiona los sujetos (clientes, proveedores, etc.).</CardDescription>
                 </div>
-                <Button size="sm" className="gap-1">
+                <Button size="sm" className="gap-1" disabled={!companyId}>
                     <PlusCircle className="h-4 w-4" />
                     Agregar Sujeto
                 </Button>
@@ -54,7 +62,12 @@ import {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {mockSubjects.map((subject) => (
+              {loading && (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center">Cargando...</TableCell>
+                </TableRow>
+              )}
+              {!loading && subjects?.map((subject) => (
                 <TableRow key={subject.id}>
                   <TableCell className="font-medium">{subject.name}</TableCell>
                   <TableCell>{subject.rut}</TableCell>
@@ -83,6 +96,13 @@ import {
                   </TableCell>
                 </TableRow>
               ))}
+              {!loading && subjects?.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center">
+                    {!companyId ? "Selecciona una empresa para ver sus sujetos." : "No se encontraron sujetos para esta empresa."}
+                  </TableCell>
+                </TableRow>
+              )}
             </TableBody>
           </Table>
         </CardContent>
