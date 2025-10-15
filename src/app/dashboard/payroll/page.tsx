@@ -26,7 +26,7 @@ import {
     DropdownMenuTrigger,
   } from "@/components/ui/dropdown-menu"
   import { useCollection } from '@/firebase';
-  import type { Employee } from '@/lib/types';
+  import type { Employee, AfpEntity, HealthEntity } from '@/lib/types';
 
   type SimulatedPayroll = {
       id: string;
@@ -38,29 +38,47 @@ import {
   }
 
 export default function PayrollPage({ companyId }: { companyId?: string }) {
-    const { data: employees, loading } = useCollection<Employee>({ 
+    const { data: employees, loading: employeesLoading } = useCollection<Employee>({ 
       path: `companies/${companyId}/employees`,
       companyId: companyId 
     });
 
+    const { data: afpEntities, loading: afpLoading } = useCollection<AfpEntity>({ path: 'afp-entities' });
+    const { data: healthEntities, loading: healthLoading } = useCollection<HealthEntity>({ path: 'health-entities' });
+
+    const loading = employeesLoading || afpLoading || healthLoading;
+
     const simulatedPayrolls = React.useMemo(() => {
-        if (!employees) return [];
+        if (!employees || !afpEntities || !healthEntities) return [];
+        
         const currentPeriod = new Date().toLocaleString('es-CL', { month: 'long', year: 'numeric' });
         
+        const afpMap = new Map(afpEntities.map(afp => [afp.name, afp.mandatoryContribution]));
+        const healthMap = new Map(healthEntities.map(h => [h.name, h.mandatoryContribution]));
+
         return employees.filter(emp => emp.status === 'Active' && emp.baseSalary).map(emp => {
             const baseSalary = emp.baseSalary || 0;
-            const discounts = baseSalary * 0.20; // 20% mock discount
-            const netSalary = baseSalary - discounts;
+            
+            const afpPercentage = emp.afp ? (afpMap.get(emp.afp) || 10) / 100 : 0; // Default to 10% if not found
+            const healthPercentage = (emp.healthSystem === 'Fonasa' ? 7 : (healthMap.get(emp.healthSystem || '') || 7)) / 100; // 7% for Fonasa or Isapre
+
+            const afpDiscount = baseSalary * afpPercentage;
+            const healthDiscount = baseSalary * healthPercentage;
+            // Simplified: does not include unemployment insurance or other taxes yet
+            const totalDiscounts = afpDiscount + healthDiscount;
+
+            const netSalary = baseSalary - totalDiscounts;
+
             return {
                 id: emp.id,
                 employeeName: `${emp.firstName} ${emp.lastName}`,
                 period: currentPeriod,
                 baseSalary: baseSalary,
-                discounts: discounts,
+                discounts: totalDiscounts,
                 netSalary: netSalary,
             };
         });
-    }, [employees]);
+    }, [employees, afpEntities, healthEntities]);
 
 
     return (
@@ -101,9 +119,9 @@ export default function PayrollPage({ companyId }: { companyId?: string }) {
                     <TableRow key={payroll.id}>
                     <TableCell className="font-medium">{payroll.employeeName}</TableCell>
                     <TableCell>{payroll.period}</TableCell>
-                    <TableCell className="text-right">${payroll.baseSalary.toLocaleString('es-CL')}</TableCell>
-                    <TableCell className="text-right text-destructive">-${payroll.discounts.toLocaleString('es-CL')}</TableCell>
-                    <TableCell className="text-right font-bold">${payroll.netSalary.toLocaleString('es-CL')}</TableCell>
+                    <TableCell className="text-right">${Math.round(payroll.baseSalary).toLocaleString('es-CL')}</TableCell>
+                    <TableCell className="text-right text-destructive">-${Math.round(payroll.discounts).toLocaleString('es-CL')}</TableCell>
+                    <TableCell className="text-right font-bold">${Math.round(payroll.netSalary).toLocaleString('es-CL')}</TableCell>
                     <TableCell>
                         <DropdownMenu>
                         <DropdownMenuTrigger asChild>
