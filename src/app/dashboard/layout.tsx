@@ -43,11 +43,11 @@ function AccountantDashboardLayout({ children }: { children: React.ReactNode }) 
 
     const { data: companies, loading: companiesLoading } = useCollection<Company>({ 
       query: companiesQuery,
-      disabled: userLoading || profileLoading || !companiesQuery,
+      disabled: !firestore || !userProfile,
     });
 
     const [selectedCompany, setSelectedCompany] = React.useState<Company | null>(null);
-
+    
     React.useEffect(() => {
         setIsMounted(true);
     }, []);
@@ -65,7 +65,10 @@ function AccountantDashboardLayout({ children }: { children: React.ReactNode }) 
         }
         
         // Fallback to the first company if nothing is stored or found
-        setSelectedCompany(companies[0]);
+        if (companies[0]) {
+            setSelectedCompany(companies[0]);
+            localStorage.setItem('selectedCompanyId', companies[0].id);
+        }
 
     }, [companies, isMounted]);
 
@@ -73,10 +76,8 @@ function AccountantDashboardLayout({ children }: { children: React.ReactNode }) 
         setSelectedCompany(company);
         localStorage.setItem('selectedCompanyId', company.id);
     };
-
-    if (userLoading || profileLoading || companiesLoading || !isMounted) {
-        return <div className="flex h-full w-full items-center justify-center"><p>Cargando datos del contador...</p></div>
-    }
+    
+    const isLoading = userLoading || profileLoading || companiesLoading || !isMounted;
 
     return (
         <SelectedCompanyContext.Provider value={{ selectedCompany, setSelectedCompany: handleCompanyChange }}>
@@ -135,7 +136,7 @@ function AccountantDashboardLayout({ children }: { children: React.ReactNode }) 
                         <UserNav />
                     </header>
                     <main className="flex-1 p-4 sm:p-6">
-                        {children}
+                        {isLoading ? <div className="flex h-full w-full items-center justify-center"><p>Cargando datos del contador...</p></div> : children}
                     </main>
                 </div>
             </div>
@@ -174,7 +175,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
     const { user, loading: userLoading } = useUser();
     const { userProfile, loading: profileLoading } = useUserProfile(user?.uid);
     
-    if (userLoading || !user || profileLoading) {
+    if (userLoading || profileLoading) {
         return (
             <div className="flex min-h-screen w-full items-center justify-center">
                 <p>Cargando perfil...</p>

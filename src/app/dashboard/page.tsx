@@ -25,13 +25,14 @@ import {
   import UserManagement from "@/components/admin/user-management"
 import { SelectedCompanyContext } from "./layout"
   
-function AccountantDashboardContent({ companyId }: { companyId: string | undefined }) {
-    
+function AccountantDashboardContent({ companyId }: { companyId: string }) {
     const { data: accounts, loading: accountsLoading } = useCollection<Account>({
-        path: companyId ? `companies/${companyId}/accounts` : undefined,
+        path: `companies/${companyId}/accounts`,
+        companyId,
     });
     const { data: vouchers, loading: vouchersLoading } = useCollection<Voucher>({
-        path: companyId ? `companies/${companyId}/vouchers` : undefined,
+        path: `companies/${companyId}/vouchers`,
+        companyId,
     });
      const { data: companies, loading: companiesLoading } = useCollection<Company>({ path: 'companies'});
 
@@ -90,21 +91,6 @@ function AccountantDashboardContent({ companyId }: { companyId: string | undefin
             </div>
         )
     }
-
-    if (!companyId) {
-        return (
-            <Card>
-                <CardHeader>
-                    <CardTitle>Bienvenido a Contador Cloud</CardTitle>
-                    <CardDescription>Por favor, selecciona una empresa desde el menú superior para empezar.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <p className="text-muted-foreground">No hay ninguna empresa seleccionada.</p>
-                </CardContent>
-            </Card>
-        )
-    }
-
 
     return (
       <div className="grid auto-rows-max items-start gap-4 md:gap-8 lg:col-span-2">
@@ -237,16 +223,21 @@ function AccountantDashboard() {
     const context = React.useContext(SelectedCompanyContext);
     
     // The context can be null initially, handle this case gracefully.
-    if (!context) {
+    if (!context || !context.selectedCompany) {
         return (
-            <div className="flex min-h-[400px] w-full items-center justify-center">
-                <p>Cargando empresa...</p>
-            </div>
+            <Card>
+                <CardHeader>
+                    <CardTitle>Bienvenido a Contador Cloud</CardTitle>
+                    <CardDescription>Por favor, selecciona una empresa desde el menú superior para empezar.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <p className="text-muted-foreground">No hay ninguna empresa seleccionada.</p>
+                </CardContent>
+            </Card>
         );
     }
     
-    const { selectedCompany } = context;
-    return <AccountantDashboardContent companyId={selectedCompany?.id} />;
+    return <AccountantDashboardContent companyId={context.selectedCompany.id} />;
 }
 
 export default function DashboardPage() {
