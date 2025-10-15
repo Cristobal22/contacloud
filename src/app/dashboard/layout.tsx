@@ -6,8 +6,6 @@ import {
   ChevronDown,
   Home,
   Briefcase,
-  Users,
-  Settings
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -24,17 +22,31 @@ import { UserNav } from "@/components/user-nav"
 import { Logo } from "@/components/logo"
 import { mockCompanies } from "@/lib/data"
 import type { Company } from "@/lib/types"
+import { useUser } from "@/firebase"
 
 export default function DashboardLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
+  const { user, loading } = useUser();
   const [selectedCompany, setSelectedCompany] = React.useState<Company>(mockCompanies[0]);
 
   const handleCompanyChange = (company: Company) => {
     setSelectedCompany(company);
   };
+
+  if (loading) {
+    return (
+        <div className="flex min-h-screen w-full items-center justify-center">
+            <p>Loading...</p>
+        </div>
+    )
+  }
+  
+  if (!user) {
+      return null; // The useUser hook will handle the redirect
+  }
 
   return (
     <div className="flex min-h-screen w-full flex-col bg-muted/40">
