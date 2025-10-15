@@ -94,13 +94,13 @@
         },
         "CostCenter": {
             "title": "CostCenter",
-            "description": "Represents a cost center for a company.",
+            "description": "Represents a cost center for a specific company, used to track expenses and revenues for a particular department, project, or business unit.",
             "type": "object",
             "properties": {
                 "id": { "type": "string" },
-                "name": { "type": "string" },
-                "description": { "type": "string" },
-                "companyId": { "type": "string" }
+                "name": { "type": "string", "description": "The name of the cost center." },
+                "description": { "type": "string", "description": "A brief description of the cost center's purpose." },
+                "companyId": { "type": "string", "description": "The ID of the company this cost center belongs to." }
             },
             "required": ["id", "name"]
         },
@@ -272,3 +272,5 @@
         "providers": ["google.com", "password"]
     }
 }
+
+    
