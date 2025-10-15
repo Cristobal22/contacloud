@@ -6,9 +6,8 @@ import {
   ChevronDown,
   Home,
   Briefcase,
-  Users,
 } from "lucide-react"
-import { collection } from "firebase/firestore"
+import { collection, query } from "firebase/firestore"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -22,10 +21,9 @@ import {
 import { DashboardNav } from "@/components/dashboard-nav"
 import { UserNav } from "@/components/user-nav"
 import { Logo } from "@/components/logo"
-import type { Company, SelectedCompanyContextType, UserProfile } from "@/lib/types"
+import type { Company, SelectedCompanyContextType } from "@/lib/types"
 import { useUser, useFirestore, useCollection } from "@/firebase"
 import { useUserProfile } from "@/firebase/auth/use-user-profile"
-import UserManagement from "@/components/admin/user-management"
 
 export const SelectedCompanyContext = React.createContext<SelectedCompanyContextType | null>(null);
 
@@ -120,12 +118,12 @@ function AccountantDashboard({ children }: { children: React.ReactNode }) {
     );
 }
 
-function AdminDashboard() {
+function AdminDashboard({ children }: { children: React.ReactNode }) {
     return (
         <div className="flex min-h-screen w-full flex-col bg-muted/40">
             <aside className="fixed inset-y-0 left-0 z-10 hidden w-64 flex-col border-r bg-background sm:flex">
                 <div className="flex h-16 items-center border-b px-6">
-                    <Link href="/dashboard" className="flex items-center gap-2 font-semibold">
+                    <Link href="/dashboard/admin/users" className="flex items-center gap-2 font-semibold">
                         <Logo />
                     </Link>
                 </div>
@@ -139,7 +137,7 @@ function AdminDashboard() {
                     <UserNav />
                 </header>
                 <main className="flex-1 p-4 sm:p-6">
-                    <UserManagement />
+                    {children}
                 </main>
             </div>
         </div>
@@ -160,7 +158,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
     }
 
     if (userProfile?.role === 'Admin') {
-        return <AdminDashboard />;
+        return <AdminDashboard>{children}</AdminDashboard>;
     }
 
     if (userProfile?.role === 'Accountant') {
