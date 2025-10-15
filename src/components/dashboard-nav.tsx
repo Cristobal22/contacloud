@@ -35,6 +35,7 @@ import {
   SlidersHorizontal,
   Building,
   HeartPulse,
+  Wallet,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './ui/collapsible';
@@ -113,6 +114,7 @@ const payrollSections = [
         links: [
             { href: '/dashboard/remuneraciones/instituciones', label: 'Instituciones', icon: Library },
             { href: '/dashboard/remuneraciones/entidades-salud', label: 'Entidades de Salud', icon: HeartPulse },
+            { href: '/dashboard/remuneraciones/afp', label: 'Entidades AFP', icon: Wallet },
             { href: '/dashboard/remuneraciones/parametros-asig-familiar', label: 'Parámetros Asig. Familiar', icon: Book },
             { href: '/dashboard/remuneraciones/parametros-iut', label: 'Parámetros IUT', icon: Book },
         ]

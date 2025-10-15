@@ -179,6 +179,21 @@
                 "dtCode": { "type": "string" }
             },
             "required": ["id", "code", "name", "mandatoryContribution", "previredCode", "dtCode"]
+        },
+        "AfpEntity": {
+            "title": "AfpEntity",
+            "description": "Pension Fund Administrators (AFP) for payroll calculations.",
+            "type": "object",
+            "properties": {
+                "id": { "type": "string" },
+                "code": { "type": "string" },
+                "name": { "type": "string" },
+                "mandatoryContribution": { "type": "number" },
+                "previredCode": { "type": "string" },
+                "provisionalRegime": { "type": "string" },
+                "dtCode": { "type": "string" }
+            },
+            "required": ["id", "code", "name", "mandatoryContribution", "previredCode", "provisionalRegime", "dtCode"]
         }
     },
     "firestore": {
@@ -225,6 +240,10 @@
          "/health-entities": {
             "schema": { "$ref": "#/entities/HealthEntity" },
             "description": "Global collection of health entities (Isapres and Fonasa)."
+        },
+        "/afp-entities": {
+            "schema": { "$ref": "#/entities/AfpEntity" },
+            "description": "Global collection of AFP entities."
         }
     },
     "auth": {

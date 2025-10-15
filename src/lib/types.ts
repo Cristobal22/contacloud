@@ -152,6 +152,16 @@ export type HealthEntity = {
     dtCode: string;
 };
 
+export type AfpEntity = {
+    id: string;
+    code: string;
+    name: string;
+    mandatoryContribution: number;
+    previredCode: string;
+    provisionalRegime: string;
+    dtCode: string;
+};
+
 
 export type DashboardPageProps = {
     params: {};
