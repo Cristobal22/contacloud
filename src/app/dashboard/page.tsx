@@ -25,25 +25,7 @@ import {
   import UserManagement from "@/components/admin/user-management"
 import { SelectedCompanyContext } from "./layout"
   
-function AccountantDashboard() {
-    const { selectedCompany } = React.useContext(SelectedCompanyContext) || {};
-    const companyId = selectedCompany?.id;
-
-    const { data: accounts, loading: accountsLoading } = useCollection<Account>({
-        path: `companies/${companyId}/accounts`,
-        companyId: companyId,
-        disabled: !companyId
-    });
-    const { data: vouchers, loading: vouchersLoading } = useCollection<Voucher>({
-        path: `companies/${companyId}/vouchers`,
-        companyId: companyId,
-        disabled: !companyId
-    });
-    const { data: companies, loading: companiesLoading } = useCollection<Company>({
-        path: 'companies',
-    });
-
-    const loading = accountsLoading || vouchersLoading || companiesLoading;
+function AccountantDashboardContent({ companyId, companies, accounts, vouchers, loading }: { companyId: string | undefined, companies: Company[] | null, accounts: Account[] | null, vouchers: Voucher[] | null, loading: boolean }) {
 
     const calculatedBalances = React.useMemo(() => {
         if (!accounts || !vouchers) return [];
@@ -97,6 +79,21 @@ function AccountantDashboard() {
             </div>
         )
     }
+
+    if (!companyId) {
+        return (
+            <Card>
+                <CardHeader>
+                    <CardTitle>Bienvenido a Contador Cloud</CardTitle>
+                    <CardDescription>Por favor, selecciona una empresa desde el menú superior para empezar.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <p className="text-muted-foreground">No hay ninguna empresa seleccionada.</p>
+                </CardContent>
+            </Card>
+        )
+    }
+
 
     return (
       <div className="grid auto-rows-max items-start gap-4 md:gap-8 lg:col-span-2">
@@ -223,6 +220,35 @@ function AccountantDashboard() {
         </div>
       </div>
     )
+}
+
+function AccountantDashboard() {
+    const { selectedCompany } = React.useContext(SelectedCompanyContext) || {};
+    const companyId = selectedCompany?.id;
+
+    const { data: accounts, loading: accountsLoading } = useCollection<Account>({
+        path: `companies/${companyId}/accounts`,
+        disabled: !companyId
+    });
+    const { data: vouchers, loading: vouchersLoading } = useCollection<Voucher>({
+        path: `companies/${companyId}/vouchers`,
+        disabled: !companyId
+    });
+    const { data: companies, loading: companiesLoading } = useCollection<Company>({
+        path: 'companies',
+    });
+
+    const loading = accountsLoading || vouchersLoading || companiesLoading;
+
+    return (
+        <AccountantDashboardContent 
+            companyId={companyId}
+            companies={companies}
+            accounts={accounts}
+            vouchers={vouchers}
+            loading={loading}
+        />
+    );
 }
 
 export default function DashboardPage() {
