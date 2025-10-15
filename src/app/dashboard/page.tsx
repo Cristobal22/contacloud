@@ -26,19 +26,22 @@ import {
   export default function DashboardPage({ companyId }: { companyId?: string }) {
     const { user } = useUser();
     const { userProfile } = useUserProfile(user?.uid);
+
+    const isAccountant = userProfile?.role === 'Accountant';
+
     const { data: accounts, loading: accountsLoading } = useCollection<Account>({
         path: `companies/${companyId}/accounts`,
         companyId: companyId,
-        disabled: userProfile?.role !== 'Accountant'
+        disabled: !isAccountant || !companyId
     });
     const { data: vouchers, loading: vouchersLoading } = useCollection<Voucher>({
         path: `companies/${companyId}/vouchers`,
         companyId: companyId,
-        disabled: userProfile?.role !== 'Accountant'
+        disabled: !isAccountant || !companyId
     });
     const { data: companies, loading: companiesLoading } = useCollection<Company>({
         path: 'companies',
-        disabled: userProfile?.role !== 'Accountant'
+        disabled: !isAccountant
     });
 
     const loading = accountsLoading || vouchersLoading || companiesLoading;
@@ -88,7 +91,7 @@ import {
     const recentVouchers = vouchers?.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 5) || [];
 
 
-    if (loading) {
+    if (loading && isAccountant) {
         return (
             <div className="flex min-h-screen w-full items-center justify-center">
                 <p>Cargando dashboard...</p>
@@ -226,4 +229,3 @@ import {
       </div>
     )
   }
-  

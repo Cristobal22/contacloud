@@ -168,20 +168,18 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
             <div className="flex min-h-screen w-full items-center justify-center">
                 <p>Cargando perfil...</p>
             </div>
-        )
+        );
     }
 
-    if (userProfile) {
-        if (userProfile.role === 'Admin') {
-            return <AdminDashboard>{children}</AdminDashboard>;
-        }
+    if (userProfile?.role === 'Admin') {
+        return <AdminDashboard>{children}</AdminDashboard>;
+    }
 
-        if (userProfile.role === 'Accountant') {
-            return <AccountantDashboard>{children}</AccountantDashboard>;
-        }
+    if (userProfile?.role === 'Accountant') {
+        return <AccountantDashboard>{children}</AccountantDashboard>;
     }
     
-    // Fallback or loading state
+    // Fallback for when profile is loaded but role is not assigned.
     return (
         <div className="flex min-h-screen w-full items-center justify-center">
             <p>No tienes un rol asignado. Contacta al administrador.</p>
