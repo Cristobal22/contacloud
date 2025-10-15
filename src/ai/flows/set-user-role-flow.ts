@@ -19,8 +19,6 @@ function initializeFirebaseAdmin(): App {
         return apps[0];
     }
     
-    // In a production environment (like Netlify, Vercel, etc.),
-    // the service account key should be stored in an environment variable.
     if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
         try {
             const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
@@ -32,13 +30,12 @@ function initializeFirebaseAdmin(): App {
             throw new Error("Firebase Admin SDK service account key is invalid.");
         }
     }
-    
-    // This part is for local development and should not run in production builds.
-    // We check NODE_ENV to prevent webpack/turbopack from trying to bundle the local file.
+
+    // Fallback for local development, but will throw if not in production and file is missing.
+    // This part should not run in a production build environment like Netlify or Vercel.
     if (process.env.NODE_ENV !== 'production') {
         try {
-            // The require is kept inside the try-catch and conditional block
-            // to ensure it's not evaluated during production builds.
+            // eslint-disable-next-line @typescript-eslint/no-var-requires
             const serviceAccount = require('../../../serviceAccountKey.json');
             return initializeApp({
                 credential: cert(serviceAccount)
@@ -48,7 +45,7 @@ function initializeFirebaseAdmin(): App {
         }
     }
 
-    throw new Error("Firebase Admin SDK could not be initialized. Service account key is missing.");
+    throw new Error("Firebase Admin SDK could not be initialized. Service account key is missing or invalid.");
 }
 
 

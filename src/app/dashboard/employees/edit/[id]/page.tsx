@@ -30,13 +30,7 @@ import Link from 'next/link';
 import { errorEmitter } from '@/firebase/error-emitter'
 import { FirestorePermissionError } from '@/firebase/errors'
 
-type PageProps = {
-    params: {
-        id: string;
-    };
-};
-
-export default function EmployeeFormPage({ params }: PageProps) {
+export default function EmployeeFormPage({ params }: { params: { id: string } }) {
     const { id } = params;
     const isNew = id === 'new';
     const { selectedCompany } = React.useContext(SelectedCompanyContext) || {};
@@ -282,3 +276,5 @@ export default function EmployeeFormPage({ params }: PageProps) {
         </Card>
     );
 }
+
+    
