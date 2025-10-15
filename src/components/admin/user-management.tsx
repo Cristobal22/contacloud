@@ -8,9 +8,10 @@ import {
     CardDescription,
     CardHeader,
     CardTitle,
+    CardFooter,
 } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { MoreHorizontal, PlusCircle } from "lucide-react"
+import { MoreHorizontal, PlusCircle, Terminal } from "lucide-react"
   import {
     Dialog,
     DialogContent,
@@ -22,7 +23,7 @@ import { MoreHorizontal, PlusCircle } from "lucide-react"
   } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { useFirestore, useAuth, useCollection } from "@/firebase"
+import { useFirestore, useAuth, useCollection, useUser } from "@/firebase"
 import type { UserProfile, Company } from "@/lib/types"
 import { doc, setDoc, updateDoc, collection } from "firebase/firestore"
 import { createUserWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth'
@@ -50,6 +51,8 @@ import {
 import { Checkbox } from '@/components/ui/checkbox';
 import { Skeleton } from '../ui/skeleton';
 import { setUserRole } from '@/ai/flows/set-user-role-flow';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { useUserProfile } from '@/firebase/auth/use-user-profile';
 
 
 type NewUserInput = {
@@ -57,12 +60,81 @@ type NewUserInput = {
   displayName: string;
 };
 
+function AdminSetupTool() {
+    const [uid, setUid] = useState('');
+    const [isProcessing, setIsProcessing] = useState(false);
+    const { toast } = useToast();
+
+    const handleAssignRole = async () => {
+        if (!uid.trim()) {
+            toast({
+                variant: 'destructive',
+                title: 'UID Requerido',
+                description: 'Por favor, ingresa el UID del usuario a convertir en Admin.',
+            });
+            return;
+        }
+
+        setIsProcessing(true);
+        try {
+            const result = await setUserRole({ uid, role: 'Admin' });
+
+            if (result.success) {
+                toast({
+                    title: '¡Rol de Administrador Asignado!',
+                    description: 'Cierra sesión y vuelve a iniciarla para que los cambios surtan efecto y puedas ver la lista de usuarios.',
+                });
+            } else {
+                throw new Error(result.message);
+            }
+        } catch (error: any) {
+            console.error("Error al asignar el rol de admin:", error);
+            toast({
+                variant: 'destructive',
+                title: 'Error',
+                description: error.message || 'No se pudo asignar el rol. Revisa que el UID sea correcto y las credenciales de servicio estén configuradas.',
+            });
+        } finally {
+            setIsProcessing(false);
+        }
+    };
+
+    return (
+        <Alert variant="destructive" className="mb-6">
+            <Terminal className="h-4 w-4" />
+            <AlertTitle>Acción Requerida: Configurar Primer Administrador</AlertTitle>
+            <AlertDescription>
+                <p>Para poder gestionar usuarios, primero debes asignarte el rol de 'Admin'. Pega tu UID de Firebase Authentication a continuación y haz clic en el botón.</p>
+                 <div className="flex w-full max-w-sm items-center space-x-2 my-4">
+                    <Input
+                        type="text"
+                        placeholder="Pega tu UID aquí"
+                        value={uid}
+                        onChange={(e) => setUid(e.target.value)}
+                        disabled={isProcessing}
+                    />
+                    <Button onClick={handleAssignRole} disabled={isProcessing}>
+                        {isProcessing ? 'Procesando...' : 'Convertirme en Administrador'}
+                    </Button>
+                </div>
+                <p className="text-xs">Después de hacerlo, **cierra sesión y vuelve a iniciarla** para activar tus nuevos permisos.</p>
+            </AlertDescription>
+        </Alert>
+    )
+}
+
 export default function UserManagement() {
     const firestore = useFirestore();
     const auth = useAuth();
     const { toast } = useToast();
+    const { user: authUser } = useUser();
+    const { userProfile, loading: profileLoading } = useUserProfile(authUser?.uid);
 
-    const { data: users, loading: usersLoading, error } = useCollection<UserProfile>({ path: 'users' });
+    const { data: users, loading: usersLoading, error } = useCollection<UserProfile>({ 
+        path: 'users',
+        // Disable query if the user is not an admin, to prevent permission errors
+        disabled: profileLoading || userProfile?.role !== 'Admin'
+    });
     const { data: companies, loading: companiesLoading } = useCollection<Company>({ path: 'companies' });
     
     const [isCreateFormOpen, setIsCreateFormOpen] = useState(false);
@@ -99,7 +171,6 @@ export default function UserManagement() {
         setIsProcessing(true);
 
         try {
-            // This is a temporary password, user will be forced to reset it.
             const tempPassword = Math.random().toString(36).slice(-8) + 'A1!';
             const userCredential = await createUserWithEmailAndPassword(auth, newUser.email, tempPassword);
             const user = userCredential.user;
@@ -108,15 +179,12 @@ export default function UserManagement() {
                 uid: user.uid,
                 email: user.email!,
                 displayName: newUser.displayName || user.email!.split('@')[0],
-                role: 'Accountant', // All users created here are Accountants by default
+                role: 'Accountant', 
                 photoURL: `https://i.pravatar.cc/150?u=${user.uid}`,
                 companyIds: []
             };
 
-            // Set the user profile in Firestore
             await setDoc(doc(firestore, 'users', user.uid), newUserProfile);
-            
-            // Send password reset email
             await sendPasswordResetEmail(auth, user.email!);
 
             toast({
@@ -196,7 +264,7 @@ export default function UserManagement() {
         setIsProcessing(false);
     }
     
-    const loading = usersLoading || companiesLoading;
+    const loading = usersLoading || companiesLoading || profileLoading;
 
     const renderTableContent = () => {
         if (loading) {
@@ -276,13 +344,14 @@ export default function UserManagement() {
                             <CardTitle>Gestión de Usuarios</CardTitle>
                             <CardDescription>Invita nuevos contadores y asígnales empresas.</CardDescription>
                         </div>
-                         <Button size="sm" className="gap-1" onClick={handleCreateNew}>
+                         <Button size="sm" className="gap-1" onClick={handleCreateNew} disabled={userProfile?.role !== 'Admin'}>
                             <PlusCircle className="h-4 w-4" />
                             Agregar Usuario
                         </Button>
                     </div>
                 </CardHeader>
                 <CardContent>
+                     {userProfile?.role !== 'Admin' && <AdminSetupTool />}
                     <Table>
                         <TableHeader>
                             <TableRow>
@@ -303,7 +372,13 @@ export default function UserManagement() {
                                         </div>
                                     </TableCell>
                                 </TableRow>
-                            ) : renderTableContent()}
+                            ) : (userProfile?.role === 'Admin' ? renderTableContent() : (
+                                 <TableRow>
+                                    <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
+                                        Asigna el rol de administrador para ver la lista de usuarios.
+                                    </TableCell>
+                                </TableRow>
+                            ))}
                         </TableBody>
                     </Table>
                 </CardContent>

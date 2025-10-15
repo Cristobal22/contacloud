@@ -1,3 +1,4 @@
+
 'use client';
 
 // This is a wrapper page for the UserManagement component.
@@ -9,3 +10,4 @@ export default function AdminUsersPage() {
     // So if we are here, the user is an Admin.
     return <UserManagement />;
 }
+

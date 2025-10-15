@@ -1,302 +1,333 @@
 /**
  * @file Firestore Security Rules
- * @description This ruleset enforces a role-based access control model for an accounting platform.
+ * @description This ruleset enforces a multi-tenant security model where users are associated with companies, and access to company data is restricted to authorized users.
  *
  * Data Structure:
- * - User profiles are stored in /users/{userId}.
- * - Companies are stored in /companies/{companyId}.
- * - Company-specific data (accounts, vouchers, subjects, cost centers, employees)
- *   are stored in subcollections under /companies/{companyId}.
- * - Global data (account groups, institutions, parameters) are stored in top-level collections.
+ * - /users/{userId}: Stores user profile data, accessible only to the user themselves.
+ * - /companies/{companyId}: Stores company data. Access to company data requires the user to be associated with the company via the 'companyIds' array in their user profile.
+ * - /companies/{companyId}/*: Subcollections under a company (e.g., accounts, vouchers) inherit the same access control as the parent company.
+ * - /account-groups, /institutions, /family-allowance-parameters, /tax-parameters, /health-entities, /afp-entities: Global collections that are publicly readable.
  *
  * Key Security Decisions:
- * - Users can only read and write their own profile data.
- * - Only authenticated users can access company data.
- * - Listing of users is disallowed for privacy.
- * - Global data is publicly readable.
+ * - Users can only read and write their own user profile data.
+ * - Users can only access data for companies they are explicitly associated with.
+ * - Global collections (account-groups, institutions, parameters) are publicly readable but not writable.
+ * - Data validation is minimized in this prototyping phase to allow flexible data shapes.
  *
  * Denormalization for Authorization:
- * - The `companyIds` array is denormalized onto the user profile to determine company access.
+ * - The 'UserProfile' includes a 'companyIds' array. This denormalization allows rules to quickly check if a user is authorized to access a company's data without additional reads.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Checks if the request is authenticated.
-     */
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    /**
-     * @description Checks if the authenticated user's ID matches the provided userId.
-     */
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
-    }
-
-    /**
-     * @description Checks if the authenticated user's ID matches the provided userId and resource exists.
-     */
-    function isExistingOwner(userId) {
-        return isOwner(userId) && resource != null;
-    }
-
-    /**
-     * @description Checks if the requesting user has access to the specified company.
-     * @details User's `companyIds` array must contain the target `companyId` from path.
-     */
-    function hasCompanyAccess(companyId) {
-      return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyIds.hasAny([companyId]);
-    }
-
-    /**
-     * @description User profile information.
+     * @description Allows users to read and write their own user profile data.
      * @path /users/{userId}
-     * @allow (create) - Authenticated user can create their own profile if the uid matches.
-     * @allow (get) - Authenticated user can read their own profile.
-     * @allow (update) - Authenticated user can update their own profile.
-     * @allow (delete) - Authenticated user can delete their own profile.
-     * @deny (create) - User cannot create a profile for another user.
-     * @deny (get) - User cannot read another user's profile.
-     * @deny (update) - User cannot update another user's profile.
-     * @principle Enforces document ownership for writes.
+     * @allow (get, create, update, delete) User with matching UID can access their profile.
+     * @deny (get, create, update, delete) User attempts to access another user's profile.
+     * @principle Enforces user-ownership for profile data.
      */
     match /users/{userId} {
-        allow get: if isOwner(userId);
-        allow list: if false;
-        allow create: if isOwner(userId) && request.resource.data.uid == userId;
-        allow update: if isExistingOwner(userId) && request.resource.data.uid == resource.data.uid;
-        allow delete: if isExistingOwner(userId);
-    }
-
-     /**
-      * @description Companies managed by the platform.
-      * @path /companies/{companyId}
-      * @allow (get, list) - Any authenticated user can read any company.
-      * @allow (create) - Only authenticated users can create companies.
-      * @allow (update, delete) - Only users with access to the company can update or delete it.
-      * @deny (create, update, delete) - if not authenticated or doesn't have access.
-      * @principle Authenticated users only can create companies, any user can read, only owner can update or delete.
-      */
-    match /companies/{companyId} {
-      allow get, list: if isSignedIn();
-      allow create: if isSignedIn();
-      allow update: if isSignedIn() && hasCompanyAccess(companyId) && resource != null;
-      allow delete: if isSignedIn() && hasCompanyAccess(companyId) && resource != null;
+      function isOwner(userId) {
+        return request.auth != null && request.auth.uid == userId;
+      }
+      allow get: if isOwner(userId);
+      allow list: if false;
+      allow create: if isOwner(userId) && request.resource.data.uid == userId;
+      allow update: if isOwner(userId) && request.resource.data.uid == resource.data.uid;
+      allow delete: if isOwner(userId);
     }
 
     /**
-     * @description Sub-collection of accounts for a specific company.
+     * @description Allows users associated with a company to read company data.
+     * @path /companies/{companyId}
+     * @allow (get, list) User associated with company can read company data.
+     * @deny (get, list) User not associated with company attempts to read company data.
+     * @principle Enforces multi-tenancy; users can only access companies they are associated with.
+     */
+    match /companies/{companyId} {
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
+      function isUserAssociatedWithCompany(companyId) {
+          return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyIds.hasAny([companyId]);
+      }
+      
+      allow get: if isUserAssociatedWithCompany(companyId);
+      allow list: if false;
+      allow create: if false; 
+      allow update: if false;
+      allow delete: if false;
+    }
+
+     /**
+     * @description Allows users associated with a company to manage accounts for that company.
      * @path /companies/{companyId}/accounts/{accountId}
-     * @allow (get, list) - Users with access to the company can read accounts.
-     * @allow (create) - Users with access to the company can create accounts.
-     * @allow (update, delete) - Users with access to the company can update or delete accounts.
-     * @deny (create, update, delete) - if not authenticated or doesn't have access.
-     * @principle Company access is required for all operations.
+     * @allow (get, list) User associated with company can read accounts.
+     * @deny (get, list) User not associated with company attempts to read accounts.
+     * @principle Enforces multi-tenancy; users can only access companies they are associated with.
      */
     match /companies/{companyId}/accounts/{accountId} {
-      allow get, list: if isSignedIn() && hasCompanyAccess(companyId);
-      allow create: if isSignedIn() && hasCompanyAccess(companyId);
-      allow update: if isSignedIn() && hasCompanyAccess(companyId) && resource != null;
-      allow delete: if isSignedIn() && hasCompanyAccess(companyId) && resource != null;
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
+      function isUserAssociatedWithCompany(companyId) {
+          return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyIds.hasAny([companyId]);
+      }
+
+      allow get: if isUserAssociatedWithCompany(companyId);
+      allow list: if isUserAssociatedWithCompany(companyId);
+      allow create: if isUserAssociatedWithCompany(companyId) ;
+      allow update: if isUserAssociatedWithCompany(companyId) && resource != null;
+      allow delete: if isUserAssociatedWithCompany(companyId) && resource != null;
     }
 
     /**
-     * @description Sub-collection of accounting vouchers for a specific company.
+     * @description Allows users associated with a company to manage vouchers for that company.
      * @path /companies/{companyId}/vouchers/{voucherId}
-     * @allow (get, list) - Users with access to the company can read vouchers.
-     * @allow (create) - Users with access to the company can create vouchers.
-     * @allow (update, delete) - Users with access to the company can update or delete vouchers.
-     * @deny (create, update, delete) - if not authenticated or doesn't have access.
-     * @principle Company access is required for all operations.
+     * @allow (get, list) User associated with company can read vouchers.
+     * @deny (get, list) User not associated with company attempts to read vouchers.
+     * @principle Enforces multi-tenancy; users can only access companies they are associated with.
      */
     match /companies/{companyId}/vouchers/{voucherId} {
-      allow get, list: if isSignedIn() && hasCompanyAccess(companyId);
-      allow create: if isSignedIn() && hasCompanyAccess(companyId);
-      allow update: if isSignedIn() && hasCompanyAccess(companyId) && resource != null;
-      allow delete: if isSignedIn() && hasCompanyAccess(companyId) && resource != null;
-    }
+      function isSignedIn() {
+        return request.auth != null;
+      }
 
-    /**
-     * @description Sub-collection of subjects (clients, providers) for a specific company.
-     * @path /companies/{companyId}/subjects/{subjectId}
-     * @allow (get, list) - Users with access to the company can read subjects.
-     * @allow (create) - Users with access to the company can create subjects.
-     * @allow (update, delete) - Users with access to the company can update or delete subjects.
-     * @deny (create, update, delete) - if not authenticated or doesn't have access.
-     * @principle Company access is required for all operations.
-     */
-    match /companies/{companyId}/subjects/{subjectId} {
-      allow get, list: if isSignedIn() && hasCompanyAccess(companyId);
-      allow create: if isSignedIn() && hasCompanyAccess(companyId);
-      allow update: if isSignedIn() && hasCompanyAccess(companyId) && resource != null;
-      allow delete: if isSignedIn() && hasCompanyAccess(companyId) && resource != null;
-    }
+      function isUserAssociatedWithCompany(companyId) {
+          return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyIds.hasAny([companyId]);
+      }
 
-    /**
-     * @description Sub-collection of cost centers for a specific company.
-     * @path /companies/{companyId}/cost-centers/{costCenterId}
-     * @allow (get, list) - Users with access to the company can read cost centers.
-     * @allow (create) - Users with access to the company can create cost centers.
-     * @allow (update, delete) - Users with access to the company can update or delete cost centers.
-     * @deny (create, update, delete) - if not authenticated or doesn't have access.
-     * @principle Company access is required for all operations.
-     */
-    match /companies/{companyId}/cost-centers/{costCenterId} {
-      allow get, list: if isSignedIn() && hasCompanyAccess(companyId);
-      allow create: if isSignedIn() && hasCompanyAccess(companyId);
-      allow update: if isSignedIn() && hasCompanyAccess(companyId) && resource != null;
-      allow delete: if isSignedIn() && hasCompanyAccess(companyId) && resource != null;
-    }
-
-    /**
-     * @description Sub-collection of employees for a specific company.
-     * @path /companies/{companyId}/employees/{employeeId}
-     * @allow (get, list) - Users with access to the company can read employees.
-     * @allow (create) - Users with access to the company can create employees.
-     * @allow (update, delete) - Users with access to the company can update or delete employees.
-     * @deny (create, update, delete) - if not authenticated or doesn't have access.
-     * @principle Company access is required for all operations.
-     */
-    match /companies/{companyId}/employees/{employeeId} {
-      allow get, list: if isSignedIn() && hasCompanyAccess(companyId);
-      allow create: if isSignedIn() && hasCompanyAccess(companyId);
-      allow update: if isSignedIn() && hasCompanyAccess(companyId) && resource != null;
-      allow delete: if isSignedIn() && hasCompanyAccess(companyId) && resource != null;
-    }
-
-    /**
-     * @description Sub-collection of purchase documents for a specific company.
-     * @path /companies/{companyId}/purchases/{purchaseId}
-     * @allow (get, list) - Users with access to the company can read purchases.
-     * @allow (create) - Users with access to the company can create purchases.
-     * @allow (update, delete) - Users with access to the company can update or delete purchases.
-     * @deny (create, update, delete) - if not authenticated or doesn't have access.
-     * @principle Company access is required for all operations.
-     */
-    match /companies/{companyId}/purchases/{purchaseId} {
-      allow get, list: if isSignedIn() && hasCompanyAccess(companyId);
-      allow create: if isSignedIn() && hasCompanyAccess(companyId);
-      allow update: if isSignedIn() && hasCompanyAccess(companyId) && resource != null;
-      allow delete: if isSignedIn() && hasCompanyAccess(companyId) && resource != null;
-    }
-
-    /**
-     * @description Sub-collection of sales documents for a specific company.
-     * @path /companies/{companyId}/sales/{saleId}
-     * @allow (get, list) - Users with access to the company can read sales.
-     * @allow (create) - Users with access to the company can create sales.
-     * @allow (update, delete) - Users with access to the company can update or delete sales.
-     * @deny (create, update, delete) - if not authenticated or doesn't have access.
-     * @principle Company access is required for all operations.
-     */
-    match /companies/{companyId}/sales/{saleId} {
-      allow get, list: if isSignedIn() && hasCompanyAccess(companyId);
-      allow create: if isSignedIn() && hasCompanyAccess(companyId);
-      allow update: if isSignedIn() && hasCompanyAccess(companyId) && resource != null;
-      allow delete: if isSignedIn() && hasCompanyAccess(companyId) && resource != null;
-    }
-
-    /**
-     * @description Sub-collection of fee documents for a specific company.
-     * @path /companies/{companyId}/fees/{feeId}
-     * @allow (get, list) - Users with access to the company can read fees.
-     * @allow (create) - Users with access to the company can create fees.
-     * @allow (update, delete) - Users with access to the company can update or delete fees.
-     * @deny (create, update, delete) - if not authenticated or doesn't have access.
-     * @principle Company access is required for all operations.
-     */
-    match /companies/{companyId}/fees/{feeId} {
-      allow get, list: if isSignedIn() && hasCompanyAccess(companyId);
-      allow create: if isSignedIn() && hasCompanyAccess(companyId);
-      allow update: if isSignedIn() && hasCompanyAccess(companyId) && resource != null;
-      allow delete: if isSignedIn() && hasCompanyAccess(companyId) && resource != null;
-    }
-
-    /**
-     * @description Global collection of account groups.
-     * @path /account-groups/{accountGroupId}
-     * @allow (get, list) - Any authenticated user can read account groups.
-     * @allow (create, update, delete) - No one can create, update, or delete account groups through the client.
-     * @principle Publicly readable, admin-managed.
-     */
-    match /account-groups/{accountGroupId} {
-      allow get, list: if isSignedIn();
-      allow create: if false;
-      allow update: if false && resource != null;
-      allow delete: if false && resource != null;
-    }
-
-    /**
-     * @description Global collection of pension and health institutions.
-     * @path /institutions/{institutionId}
-     * @allow (get, list) - Any authenticated user can read institutions.
-     * @allow (create, update, delete) - No one can create, update, or delete institutions through the client.
-     * @principle Publicly readable, admin-managed.
-     */
-    match /institutions/{institutionId} {
-      allow get, list: if isSignedIn();
-      allow create: if false;
-      allow update: if false && resource != null;
-      allow delete: if false && resource != null;
-    }
-
-    /**
-     * @description Global collection of family allowance parameters.
-     * @path /family-allowance-parameters/{parameterId}
-     * @allow (get, list) - Any authenticated user can read family allowance parameters.
-     * @allow (create, update, delete) - No one can create, update, or delete family allowance parameters through the client.
-     * @principle Publicly readable, admin-managed.
-     */
-    match /family-allowance-parameters/{parameterId} {
-      allow get, list: if isSignedIn();
-      allow create: if false;
-      allow update: if false && resource != null;
-      allow delete: if false && resource != null;
-    }
-
-    /**
-     * @description Global collection of tax parameters for IUT.
-     * @path /tax-parameters/{taxParameterId}
-     * @allow (get, list) - Any authenticated user can read tax parameters.
-     * @allow (create, update, delete) - No one can create, update, or delete tax parameters through the client.
-     * @principle Publicly readable, admin-managed.
-     */
-    match /tax-parameters/{taxParameterId} {
-      allow get, list: if isSignedIn();
-      allow create: if false;
-      allow update: if false && resource != null;
-      allow delete: if false && resource != null;
+      allow get: if isUserAssociatedWithCompany(companyId);
+      allow list: if isUserAssociatedWithCompany(companyId);
+      allow create: if isUserAssociatedWithCompany(companyId);
+      allow update: if isUserAssociatedWithCompany(companyId) && resource != null;
+      allow delete: if isUserAssociatedWithCompany(companyId) && resource != null;
     }
 
      /**
-      * @description Global collection of health entities (Isapres and Fonasa).
-      * @path /health-entities/{healthEntityId}
-      * @allow (get, list) - Any authenticated user can read health entities.
-      * @allow (create, update, delete) - No one can create, update, or delete health entities through the client.
-      * @principle Publicly readable, admin-managed.
-      */
-    match /health-entities/{healthEntityId} {
-      allow get, list: if isSignedIn();
-      allow create: if false;
-      allow update: if false && resource != null;
-      allow delete: if false && resource != null;
+     * @description Allows users associated with a company to manage subjects for that company.
+     * @path /companies/{companyId}/subjects/{subjectId}
+     * @allow (get, list) User associated with company can read subjects.
+     * @deny (get, list) User not associated with company attempts to read subjects.
+     * @principle Enforces multi-tenancy; users can only access companies they are associated with.
+     */
+    match /companies/{companyId}/subjects/{subjectId} {
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
+      function isUserAssociatedWithCompany(companyId) {
+          return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyIds.hasAny([companyId]);
+      }
+
+      allow get: if isUserAssociatedWithCompany(companyId);
+      allow list: if isUserAssociatedWithCompany(companyId);
+      allow create: if isUserAssociatedWithCompany(companyId);
+      allow update: if isUserAssociatedWithCompany(companyId) && resource != null;
+      allow delete: if isUserAssociatedWithCompany(companyId) && resource != null;
     }
 
     /**
-     * @description Global collection of AFP entities.
+     * @description Allows users associated with a company to manage cost centers for that company.
+     * @path /companies/{companyId}/cost-centers/{costCenterId}
+     * @allow (get, list) User associated with company can read cost centers.
+     * @deny (get, list) User not associated with company attempts to read cost centers.
+     * @principle Enforces multi-tenancy; users can only access companies they are associated with.
+     */
+    match /companies/{companyId}/cost-centers/{costCenterId} {
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
+      function isUserAssociatedWithCompany(companyId) {
+          return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyIds.hasAny([companyId]);
+      }
+
+      allow get: if isUserAssociatedWithCompany(companyId);
+      allow list: if isUserAssociatedWithCompany(companyId);
+      allow create: if isUserAssociatedWithCompany(companyId);
+      allow update: if isUserAssociatedWithCompany(companyId) && resource != null;
+      allow delete: if isUserAssociatedWithCompany(companyId) && resource != null;
+    }
+
+    /**
+     * @description Allows users associated with a company to manage employees for that company.
+     * @path /companies/{companyId}/employees/{employeeId}
+     * @allow (get, list) User associated with company can read employees.
+     * @deny (get, list) User not associated with company attempts to read employees.
+     * @principle Enforces multi-tenancy; users can only access companies they are associated with.
+     */
+    match /companies/{companyId}/employees/{employeeId} {
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
+      function isUserAssociatedWithCompany(companyId) {
+          return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyIds.hasAny([companyId]);
+      }
+
+      allow get: if isUserAssociatedWithCompany(companyId);
+      allow list: if isUserAssociatedWithCompany(companyId);
+      allow create: if isUserAssociatedWithCompany(companyId);
+      allow update: if isUserAssociatedWithCompany(companyId) && resource != null;
+      allow delete: if isUserAssociatedWithCompany(companyId) && resource != null;
+    }
+
+    /**
+     * @description Allows users associated with a company to manage purchases for that company.
+     * @path /companies/{companyId}/purchases/{purchaseId}
+     * @allow (get, list) User associated with company can read purchases.
+     * @deny (get, list) User not associated with company attempts to read purchases.
+     * @principle Enforces multi-tenancy; users can only access companies they are associated with.
+     */
+    match /companies/{companyId}/purchases/{purchaseId} {
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
+      function isUserAssociatedWithCompany(companyId) {
+          return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyIds.hasAny([companyId]);
+      }
+
+      allow get: if isUserAssociatedWithCompany(companyId);
+      allow list: if isUserAssociatedWithCompany(companyId);
+      allow create: if isUserAssociatedWithCompany(companyId);
+      allow update: if isUserAssociatedWithCompany(companyId) && resource != null;
+      allow delete: if isUserAssociatedWithCompany(companyId) && resource != null;
+    }
+
+    /**
+     * @description Allows users associated with a company to manage sales for that company.
+     * @path /companies/{companyId}/sales/{saleId}
+     * @allow (get, list) User associated with company can read sales.
+     * @deny (get, list) User not associated with company attempts to read sales.
+     * @principle Enforces multi-tenancy; users can only access companies they are associated with.
+     */
+    match /companies/{companyId}/sales/{saleId} {
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
+      function isUserAssociatedWithCompany(companyId) {
+          return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyIds.hasAny([companyId]);
+      }
+
+      allow get: if isUserAssociatedWithCompany(companyId);
+      allow list: if isUserAssociatedWithCompany(companyId);
+      allow create: if isUserAssociatedWithCompany(companyId);
+      allow update: if isUserAssociatedWithCompany(companyId) && resource != null;
+      allow delete: if isUserAssociatedWithCompany(companyId) && resource != null;
+    }
+
+    /**
+     * @description Allows users associated with a company to manage fees for that company.
+     * @path /companies/{companyId}/fees/{feeId}
+     * @allow (get, list) User associated with company can read fees.
+     * @deny (get, list) User not associated with company attempts to read fees.
+     * @principle Enforces multi-tenancy; users can only access companies they are associated with.
+     */
+    match /companies/{companyId}/fees/{feeId} {
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
+      function isUserAssociatedWithCompany(companyId) {
+          return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyIds.hasAny([companyId]);
+      }
+
+      allow get: if isUserAssociatedWithCompany(companyId);
+      allow list: if isUserAssociatedWithCompany(companyId);
+      allow create: if isUserAssociatedWithCompany(companyId);
+      allow update: if isUserAssociatedWithCompany(companyId) && resource != null;
+      allow delete: if isUserAssociatedWithCompany(companyId) && resource != null;
+    }
+
+    /**
+     * @description Allows anyone to read account groups. Write access is denied.
+     * @path /account-groups/{accountGroupId}
+     * @allow (get, list) Any user can read account groups.
+     * @deny (create, update, delete) No one can modify account groups.
+     * @principle Global read-only collection.
+     */
+    match /account-groups/{accountGroupId} {
+      allow get, list: if true;
+      allow create: if false;
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    /**
+     * @description Allows anyone to read institutions. Write access is denied.
+     * @path /institutions/{institutionId}
+     * @allow (get, list) Any user can read institutions.
+     * @deny (create, update, delete) No one can modify institutions.
+     * @principle Global read-only collection.
+     */
+    match /institutions/{institutionId} {
+      allow get, list: if true;
+      allow create: if false;
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    /**
+     * @description Allows anyone to read family allowance parameters. Write access is denied.
+     * @path /family-allowance-parameters/{familyAllowanceParameterId}
+     * @allow (get, list) Any user can read family allowance parameters.
+     * @deny (create, update, delete) No one can modify family allowance parameters.
+     * @principle Global read-only collection.
+     */
+    match /family-allowance-parameters/{familyAllowanceParameterId} {
+      allow get, list: if true;
+      allow create: if false;
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    /**
+     * @description Allows anyone to read tax parameters. Write access is denied.
+     * @path /tax-parameters/{taxParameterId}
+     * @allow (get, list) Any user can read tax parameters.
+     * @deny (create, update, delete) No one can modify tax parameters.
+     * @principle Global read-only collection.
+     */
+    match /tax-parameters/{taxParameterId} {
+      allow get, list: if true;
+      allow create: if false;
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    /**
+     * @description Allows anyone to read health entities. Write access is denied.
+     * @path /health-entities/{healthEntityId}
+     * @allow (get, list) Any user can read health entities.
+     * @deny (create, update, delete) No one can modify health entities.
+     * @principle Global read-only collection.
+     */
+    match /health-entities/{healthEntityId} {
+      allow get, list: if true;
+      allow create: if false;
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    /**
+     * @description Allows anyone to read AFP entities. Write access is denied.
      * @path /afp-entities/{afpEntityId}
-     * @allow (get, list) - Any authenticated user can read AFP entities.
-     * @allow (create, update, delete) - No one can create, update, or delete AFP entities through the client.
-     * @principle Publicly readable, admin-managed.
+     * @allow (get, list) Any user can read AFP entities.
+     * @deny (create, update, delete) No one can modify AFP entities.
+     * @principle Global read-only collection.
      */
     match /afp-entities/{afpEntityId} {
-      allow get, list: if isSignedIn();
+      allow get, list: if true;
       allow create: if false;
-      allow update: if false && resource != null;
-      allow delete: if false && resource != null;
+      allow update: if false;
+      allow delete: if false;
     }
   }
 }
