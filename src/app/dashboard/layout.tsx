@@ -158,12 +158,15 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
     const pathname = usePathname();
     
     React.useEffect(() => {
-        if (userLoading || !user || profileLoading) {
+        // Wait until we have all the user info.
+        if (userLoading || !user || profileLoading || !userProfile) {
             return;
         }
         
         const isAdminPage = pathname.startsWith('/dashboard/admin');
-        if (userProfile?.role === 'Admin' && !isAdminPage) {
+        
+        // If the user is an Admin but is not on an admin page, redirect them.
+        if (userProfile.role === 'Admin' && !isAdminPage) {
             router.replace('/dashboard/admin/users');
         }
 
