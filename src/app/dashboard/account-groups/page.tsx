@@ -44,22 +44,24 @@ export default function AccountGroupsPage() {
                     <TableHeader>
                         <TableRow>
                             <TableHead>Nombre del Grupo</TableHead>
+                            <TableHead>ID</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         {loading && (
                             <TableRow>
-                                <TableCell colSpan={1} className="text-center">Cargando...</TableCell>
+                                <TableCell colSpan={2} className="text-center">Cargando...</TableCell>
                             </TableRow>
                         )}
                         {!loading && accountGroups?.map((group) => (
                             <TableRow key={group.id}>
                                 <TableCell className="font-medium">{group.name}</TableCell>
+                                <TableCell>{group.id}</TableCell>
                             </TableRow>
                         ))}
                          {!loading && accountGroups?.length === 0 && (
                             <TableRow>
-                                <TableCell colSpan={1} className="text-center">
+                                <TableCell colSpan={2} className="text-center">
                                     No se encontraron grupos de cuentas.
                                 </TableCell>
                             </TableRow>
