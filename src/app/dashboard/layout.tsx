@@ -24,7 +24,7 @@ import { Logo } from "@/components/logo"
 import type { Company, SelectedCompanyContextType } from "@/lib/types"
 import { useUser, useFirestore, useCollection } from "@/firebase"
 import { useUserProfile } from "@/firebase/auth/use-user-profile"
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
 
 export const SelectedCompanyContext = React.createContext<SelectedCompanyContextType | null>(null);
 
@@ -43,7 +43,7 @@ function AccountantDashboard({ children }: { children: React.ReactNode }) {
         if (companies && companies.length > 0 && !selectedCompany) {
             setSelectedCompany(companies[0]);
         }
-    }, [companies]);
+    }, [companies, selectedCompany]);
 
     const handleCompanyChange = (company: Company) => {
         setSelectedCompany(company);
@@ -152,25 +152,35 @@ function AdminDashboard({ children }: { children: React.ReactNode }) {
 
 
 function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
-    const { user } = useUser();
+    const { user, loading: userLoading } = useUser();
     const { userProfile, loading: profileLoading } = useUserProfile(user?.uid);
     const router = useRouter();
+    const pathname = usePathname();
     
     React.useEffect(() => {
-        if (!profileLoading && userProfile?.role === 'Admin') {
+        // Don't do anything while the profile is loading
+        if (userLoading || profileLoading) {
+            return;
+        }
+        
+        // Once loaded, if the user has an admin role and is not on an admin page, redirect them.
+        const isAdminPage = pathname.startsWith('/dashboard/admin');
+        if (userProfile?.role === 'Admin' && !isAdminPage) {
             router.replace('/dashboard/admin/users');
         }
-    }, [profileLoading, userProfile, router]);
+
+    }, [userLoading, profileLoading, userProfile, pathname, router]);
 
 
-    if (profileLoading) {
+    if (userLoading || profileLoading) {
         return (
             <div className="flex min-h-screen w-full items-center justify-center">
                 <p>Cargando perfil...</p>
             </div>
         );
     }
-
+    
+    // After loading, we decide which dashboard to show.
     if (userProfile?.role === 'Admin') {
         return <AdminDashboard>{children}</AdminDashboard>;
     }
