@@ -38,7 +38,6 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { errorEmitter } from '@/firebase/error-emitter'
 import { FirestorePermissionError } from '@/firebase/errors'
-import { AIVoucherGenerator } from '@/components/ai-voucher-generator';
 
 export default function VoucherEditPage({ params }: { params: { id: string } }) {
     const { id } = params;
@@ -163,9 +162,6 @@ export default function VoucherEditPage({ params }: { params: { id: string } }) 
 
     return (
         <div className="grid gap-6">
-            {isNew && (
-                <AIVoucherGenerator />
-            )}
             <Card>
                 <CardHeader>
                     <div className="flex items-center gap-4">

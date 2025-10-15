@@ -12,13 +12,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import React from "react";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { centralizeRcv } from "@/ai/flows/centralize-rcv-flow";
 import { SelectedCompanyContext } from "../../layout";
 import { useCollection, useFirestore } from "@/firebase";
 import type { Account } from "@/lib/types";
-import { collection, addDoc } from "firebase/firestore";
-import { errorEmitter } from "@/firebase/error-emitter";
-import { FirestorePermissionError } from "@/firebase/errors";
 
 export default function CentralizationRcvPage() {
     const currentYear = new Date().getFullYear();
@@ -36,78 +32,12 @@ export default function CentralizationRcvPage() {
     const [isCentralizing, setIsCentralizing] = React.useState(false);
 
     const handleCentralize = async () => {
-        if (!selectedCompany || !accounts || !firestore) {
-             toast({
-                variant: "destructive",
-                title: "Error",
-                description: "Por favor, selecciona una empresa y asegúrate de que tenga un plan de cuentas.",
-            });
-            return;
-        }
-
-        setIsCentralizing(true);
+        // This functionality is a placeholder for now
         toast({
-            title: "Iniciando Centralización",
-            description: "La IA está procesando el RCV. Esto puede tardar un momento...",
+            title: "Función en desarrollo",
+            description: "La centralización automática desde el SII aún no está implementada.",
         });
-
-        // Mock RCV data
-        const mockRcvSummary = {
-            purchases: {
-                netAmount: 1500000,
-                taxAmount: 285000,
-                totalAmount: 1785000,
-            },
-            sales: {
-                netAmount: 3000000,
-                taxAmount: 570000,
-                totalAmount: 3570000,
-            },
-        };
-
-        try {
-            const generatedVouchers = await centralizeRcv({
-                rcvSummary: mockRcvSummary,
-                accounts: accounts,
-                companyConfig: selectedCompany,
-                period: { month: parseInt(month), year: parseInt(year) }
-            });
-
-            if (!generatedVouchers || generatedVouchers.length === 0) {
-                 throw new Error("La IA no pudo generar los comprobantes.");
-            }
-            
-            const collectionPath = `companies/${selectedCompany.id}/vouchers`;
-            const collectionRef = collection(firestore, collectionPath);
-
-            for (const voucher of generatedVouchers) {
-                await addDoc(collectionRef, voucher).catch(err => {
-                    errorEmitter.emit('permission-error', new FirestorePermissionError({
-                        path: collectionPath,
-                        operation: 'create',
-                        requestResourceData: voucher,
-                    }));
-                     throw new Error("Error de permisos al guardar en Firestore.");
-                });
-            }
-
-            toast({
-                title: "¡Centralización Exitosa!",
-                description: "Se han generado y guardado los comprobantes de compra y venta.",
-            });
-
-        } catch (error) {
-            console.error(error);
-            toast({
-                variant: "destructive",
-                title: "Error en la Centralización",
-                description: "No se pudo completar el proceso. Revisa la consola para más detalles.",
-            });
-        } finally {
-            setIsCentralizing(false);
-        }
     }
-
 
     return (
         <Card>
@@ -155,7 +85,7 @@ export default function CentralizationRcvPage() {
                             Esta acción se conectará al SII para obtener los documentos del período seleccionado y generar los asientos contables correspondientes.
                         </p>
                     </div>
-                    <Button className="w-full" onClick={handleCentralize} disabled={isCentralizing || !selectedCompany || accountsLoading}>
+                    <Button className="w-full" onClick={handleCentralize} disabled={!selectedCompany}>
                         {isCentralizing ? "Centralizando..." : "Centralizar Período"}
                     </Button>
                 </div>
