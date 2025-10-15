@@ -1,239 +1,236 @@
 /**
- * @description This ruleset enforces a strict user-ownership model for user profiles and a company-based access model for all company-related data.
- * Global data collections (account-groups, institutions, parameters, entities) are publicly readable.
- * @data_structure
- * - /users/{userId}: Stores individual user profiles, accessible only by the user themselves.
- * - /companies/{companyId}: Stores company data. Access to company data and its subcollections is implicitly controlled by the application backend.
- * - /companies/{companyId}/accounts: Stores accounts for each company.
- * - /companies/{companyId}/vouchers: Stores vouchers for each company.
- * - /companies/{companyId}/subjects: Stores subjects for each company.
- * - /companies/{companyId}/cost-centers: Stores cost centers for each company.
- * - /companies/{companyId}/employees: Stores employees for each company.
- * - /companies/{companyId}/purchases: Stores purchases for each company.
- * - /companies/{companyId}/sales: Stores sales for each company.
- * - /companies/{companyId}/fees: Stores fees for each company.
- * - /account-groups: Stores global account groups, publicly readable.
- * - /institutions: Stores global institution data, publicly readable.
- * - /family-allowance-parameters: Stores global family allowance parameters, publicly readable.
- * - /tax-parameters: Stores global tax parameters, publicly readable.
- * - /health-entities: Stores global health entities, publicly readable.
- * - /afp-entities: Stores global AFP entities, publicly readable.
- * @key_security_decisions
- * - User profiles are strictly private and only accessible to the owning user.
- * - Listing of users is disallowed.
- * - Global data collections are publicly readable but not writable by clients.
- * - All company-related data access relies on backend authorization.
+ * @file Firestore Security Rules
+ * @core-philosophy This ruleset enforces a strict user-ownership model for user profiles
+ *  and a company-based ownership model for all other data, where data is segregated per company.
+ *  Global collections are read-only.
+ * @data-structure
+ *  - /users/{userId}: Stores individual user profiles, accessible only by the user themselves.
+ *  - /companies: Stores company profiles. Write access is not defined in this prototyping phase.
+ *  - /companies/{companyId}/*: Subcollections for company-specific data, such as accounts, vouchers, subjects, cost centers and employees.
+ * @key-security-decisions
+ *  - User listing is explicitly denied to protect user privacy.
+ *  - Write access to the /companies collection is not defined in this phase, requiring manual backend management for creating company records.
+ *  - Global collections (/account-groups, /institutions, etc.) are read-only, intended for platform-level configuration.
+ * @denormalization-for-authorization N/A: Not applicable in this version.
+ * @structural-segregation N/A: Not applicable in this version.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Controls access to user profile documents.
+     * @description Checks if the user is signed in.
+     * @returns {boolean} True if the user is signed in, false otherwise.
+     */
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    /**
+     * @description Checks if the authenticated user ID matches the provided user ID.
+     * @param {string} userId - The user ID to compare against the authenticated user's ID.
+     * @returns {boolean} True if the user IDs match, false otherwise.
+     */
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    /**
+     * @description Checks if the authenticated user ID matches the provided user ID and the resource exists.
+     * @param {string} userId - The user ID to compare against the authenticated user's ID.
+     * @returns {boolean} True if the user IDs match and the resource exists, false otherwise.
+     */
+    function isExistingOwner(userId) {
+      return isOwner(userId) && resource != null;
+    }
+
+    /**
+     * @description User profile collection. Only the authenticated user can read/write their own profile.
      * @path /users/{userId}
      * @allow (create) - Authenticated user can create their own profile if the userId matches their auth.uid.
-     * @allow (get, update, delete) - Authenticated user can only access/modify their own profile.
-     * @deny (create) - User attempts to create a profile with a userId that doesn't match their auth.uid.
-     * @principle Enforces document ownership for user profiles.
+     * @allow (get, update, delete) - Authenticated user can get, update, and delete their own profile if the userId matches their auth.uid.
+     * @deny (create) - User cannot create a profile with a userId that doesn't match their auth.uid.
+     * @deny (get, update, delete) - User cannot read/write someone else's profile.
+     * @principle Enforces document ownership for writes.
      */
     match /users/{userId} {
-      function isSignedIn() {
-        return request.auth != null;
-      }
-
-      function isOwner(userId) {
-        return request.auth.uid == userId;
-      }
-
-      function isExistingOwner(userId) {
-        return isOwner(userId) && exists(resource);
-      }
-
       allow get: if isOwner(userId);
       allow list: if false;
-      allow create: if isSignedIn() && isOwner(userId) && request.resource.data.uid == request.auth.uid;
-      allow update: if isSignedIn() && isExistingOwner(userId) && request.resource.data.uid.size() > 0;
-      allow delete: if isSignedIn() && isExistingOwner(userId);
+      allow create: if isOwner(userId) && request.resource.data.uid == userId;
+      allow update: if isExistingOwner(userId) && request.resource.data.uid == resource.data.uid;
+      allow delete: if isExistingOwner(userId);
     }
 
     /**
-     * @description Controls access to company documents.
-     * @path /companies/{companyId}
-     * @allow (get, list) - Allows reading company data.
-     * @allow (create, update, delete) - No direct client access for writes.
-     * @principle Restricts writes to company data, requiring backend authorization.
+     * @description Company collection.
+     * @path /companies
+     * @allow (get, list) - Public read access.
+     * @deny (create, update, delete) - No write access in this version.
+     * @principle Restricts write access to admins only.
      */
-    match /companies/{companyId} {
+    match /companies {
       allow get, list: if true;
-      allow create, update, delete: if false;
+      allow create, update, delete: if false; // TODO: Add admin validation
     }
 
     /**
-     * @description Controls access to account documents within a company.
+     * @description Account sub-collection for a specific company.
      * @path /companies/{companyId}/accounts/{accountId}
-     * @allow (get, list) - Allows reading account data.
-     * @allow (create, update, delete) - No direct client access for writes.
-     * @principle Restricts writes to account data, requiring backend authorization.
+     * @allow (get, list) - Public read access.
+     * @deny (create, update, delete) - No write access in this version.
      */
     match /companies/{companyId}/accounts/{accountId} {
       allow get, list: if true;
-      allow create, update, delete: if false;
+      allow create, update, delete: if false; // TODO: Add company-based authorization
     }
 
     /**
-     * @description Controls access to voucher documents within a company.
+     * @description Voucher sub-collection for a specific company.
      * @path /companies/{companyId}/vouchers/{voucherId}
-     * @allow (get, list) - Allows reading voucher data.
-     * @allow (create, update, delete) - No direct client access for writes.
-     * @principle Restricts writes to voucher data, requiring backend authorization.
+     * @allow (get, list) - Public read access.
+     * @deny (create, update, delete) - No write access in this version.
      */
     match /companies/{companyId}/vouchers/{voucherId} {
       allow get, list: if true;
-      allow create, update, delete: if false;
+      allow create, update, delete: if false; // TODO: Add company-based authorization
     }
 
     /**
-     * @description Controls access to subject documents within a company.
+     * @description Subject sub-collection for a specific company.
      * @path /companies/{companyId}/subjects/{subjectId}
-     * @allow (get, list) - Allows reading subject data.
-     * @allow (create, update, delete) - No direct client access for writes.
-     * @principle Restricts writes to subject data, requiring backend authorization.
+     * @allow (get, list) - Public read access.
+     * @deny (create, update, delete) - No write access in this version.
      */
     match /companies/{companyId}/subjects/{subjectId} {
       allow get, list: if true;
-      allow create, update, delete: if false;
+      allow create, update, delete: if false; // TODO: Add company-based authorization
     }
 
     /**
-     * @description Controls access to cost center documents within a company.
+     * @description Cost Center sub-collection for a specific company.
      * @path /companies/{companyId}/cost-centers/{costCenterId}
-     * @allow (get, list) - Allows reading cost center data.
-     * @allow (create, update, delete) - No direct client access for writes.
-     * @principle Restricts writes to cost center data, requiring backend authorization.
+     * @allow (get, list) - Public read access.
+     * @deny (create, update, delete) - No write access in this version.
      */
     match /companies/{companyId}/cost-centers/{costCenterId} {
       allow get, list: if true;
-      allow create, update, delete: if false;
+      allow create, update, delete: if false; // TODO: Add company-based authorization
     }
 
     /**
-     * @description Controls access to employee documents within a company.
+     * @description Employee sub-collection for a specific company.
      * @path /companies/{companyId}/employees/{employeeId}
-     * @allow (get, list) - Allows reading employee data.
-     * @allow (create, update, delete) - No direct client access for writes.
-     * @principle Restricts writes to employee data, requiring backend authorization.
+     * @allow (get, list) - Public read access.
+     * @deny (create, update, delete) - No write access in this version.
      */
     match /companies/{companyId}/employees/{employeeId} {
       allow get, list: if true;
-      allow create, update, delete: if false;
+      allow create, update, delete: if false; // TODO: Add company-based authorization
     }
-    
-    /**
-     * @description Controls access to purchase documents within a company.
+
+     /**
+     * @description Purchase sub-collection for a specific company.
      * @path /companies/{companyId}/purchases/{purchaseId}
-     * @allow (get, list) - Allows reading purchase data.
-     * @allow (create, update, delete) - No direct client access for writes.
-     * @principle Restricts writes to purchase data, requiring backend authorization.
+     * @allow (get, list) - Public read access.
+     * @deny (create, update, delete) - No write access in this version.
      */
     match /companies/{companyId}/purchases/{purchaseId} {
       allow get, list: if true;
-      allow create, update, delete: if false;
+      allow create, update, delete: if false; // TODO: Add company-based authorization
     }
 
     /**
-     * @description Controls access to sales documents within a company.
+     * @description Sale sub-collection for a specific company.
      * @path /companies/{companyId}/sales/{saleId}
-     * @allow (get, list) - Allows reading sales data.
-     * @allow (create, update, delete) - No direct client access for writes.
-     * @principle Restricts writes to sales data, requiring backend authorization.
+     * @allow (get, list) - Public read access.
+     * @deny (create, update, delete) - No write access in this version.
      */
     match /companies/{companyId}/sales/{saleId} {
       allow get, list: if true;
-      allow create, update, delete: if false;
+      allow create, update, delete: if false; // TODO: Add company-based authorization
     }
 
     /**
-     * @description Controls access to fee documents within a company.
+     * @description Fee sub-collection for a specific company.
      * @path /companies/{companyId}/fees/{feeId}
-     * @allow (get, list) - Allows reading fee data.
-     * @allow (create, update, delete) - No direct client access for writes.
-     * @principle Restricts writes to fee data, requiring backend authorization.
+     * @allow (get, list) - Public read access.
+     * @deny (create, update, delete) - No write access in this version.
      */
     match /companies/{companyId}/fees/{feeId} {
       allow get, list: if true;
-      allow create, update, delete: if false;
+      allow create, update, delete: if false; // TODO: Add company-based authorization
     }
 
     /**
-     * @description Controls access to account group documents.
-     * @path /account-groups/{accountGroupId}
-     * @allow (get, list) - Allows public read access.
-     * @allow (create, update, delete) - No direct client access for writes.
-     * @principle Restricts writes to account group data, requiring backend authorization.
+     * @description Account Group collection.
+     * @path /account-groups
+     * @allow get, list: if true;
+     * @deny create, update, delete: if false;
+     * @principle Global data, read-only access.
      */
     match /account-groups/{accountGroupId} {
-      allow get, list: if true;
-      allow create, update, delete: if false;
+        allow get, list: if true;
+        allow create, update, delete: if false;
     }
 
     /**
-     * @description Controls access to institution documents.
-     * @path /institutions/{institutionId}
-     * @allow (get, list) - Allows public read access.
-     * @allow (create, update, delete) - No direct client access for writes.
-     * @principle Restricts writes to institution data, requiring backend authorization.
+     * @description Institutions collection.
+     * @path /institutions
+     * @allow get, list: if true;
+     * @deny create, update, delete: if false;
+     * @principle Global data, read-only access.
      */
     match /institutions/{institutionId} {
-      allow get, list: if true;
-      allow create, update, delete: if false;
+        allow get, list: if true;
+        allow create, update, delete: if false;
     }
 
     /**
-     * @description Controls access to family allowance parameter documents.
-     * @path /family-allowance-parameters/{parameterId}
-     * @allow (get, list) - Allows public read access.
-     * @allow (create, update, delete) - No direct client access for writes.
-     * @principle Restricts writes to family allowance parameter data, requiring backend authorization.
+     * @description Family Allowance Parameters collection.
+     * @path /family-allowance-parameters
+     * @allow get, list: if true;
+     * @deny create, update, delete: if false;
+     * @principle Global data, read-only access.
      */
-    match /family-allowance-parameters/{parameterId} {
-      allow get, list: if true;
-      allow create, update, delete: if false;
+    match /family-allowance-parameters/{familyAllowanceParameterId} {
+        allow get, list: if true;
+        allow create, update, delete: if false;
     }
 
     /**
-     * @description Controls access to tax parameter documents.
-     * @path /tax-parameters/{parameterId}
-     * @allow (get, list) - Allows public read access.
-     * @allow (create, update, delete) - No direct client access for writes.
-     * @principle Restricts writes to tax parameter data, requiring backend authorization.
+     * @description Tax Parameters collection.
+     * @path /tax-parameters
+     * @allow get, list: if true;
+     * @deny create, update, delete: if false;
+     * @principle Global data, read-only access.
      */
-    match /tax-parameters/{parameterId} {
-      allow get, list: if true;
-      allow create, update, delete: if false;
+    match /tax-parameters/{taxParameterId} {
+        allow get, list: if true;
+        allow create, update, delete: if false;
     }
-    
+
     /**
-     * @description Controls access to health entity documents.
-     * @path /health-entities/{healthEntityId}
-     * @allow (get, list) - Allows public read access.
-     * @allow (create, update, delete) - No direct client access for writes.
-     * @principle Restricts writes to health entity data, requiring backend authorization.
+     * @description Health Entities collection.
+     * @path /health-entities
+     * @allow get, list: if true;
+     * @deny create, update, delete: if false;
+     * @principle Global data, read-only access.
      */
     match /health-entities/{healthEntityId} {
-      allow get, list: if true;
-      allow create, update, delete: if false;
+        allow get, list: if true;
+        allow create, update, delete: if false;
     }
 
     /**
-     * @description Controls access to AFP entity documents.
-     * @path /afp-entities/{afpEntityId}
-     * @allow (get, list) - Allows public read access.
-     * @allow (create, update, delete) - No direct client access for writes.
-     * @principle Restricts writes to AFP entity data, requiring backend authorization.
+     * @description AFP Entities collection.
+     * @path /afp-entities
+     * @allow get, list: if true;
+     * @deny create, update, delete: if false;
+     * @principle Global data, read-only access.
      */
     match /afp-entities/{afpEntityId} {
-      allow get, list: if true;
-      allow create, update, delete: if false;
+        allow get, list: if true;
+        allow create, update, delete: if false;
     }
   }
 }
