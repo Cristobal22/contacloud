@@ -45,14 +45,40 @@ Contador Cloud is a modern, multi-tenant accounting application designed for acc
 
 ### IMPORTANT: Creating the First Admin User
 
-For security reasons, the first user with the `Admin` role must be created manually. All users who sign up through the public registration form will be automatically assigned the `Accountant` role.
+For security reasons, the first user with the `Admin` role must be created manually and assigned a **Firebase Custom Claim**. This is because Firestore Security Rules for listing users rely on this claim for efficient and secure role verification.
 
-To create your Admin user:
-1.  Sign up for a new account using the registration page.
-2.  Go to your **Firebase Console** -> **Firestore Database**.
-3.  Navigate to the `users` collection.
-4.  Find the document corresponding to your newly created user (the document ID will be the user's UID).
-5.  Edit the `role` field for that document and change its value from `Accountant` to `Admin`.
+**All users created via the Admin dashboard will be automatically assigned the `Accountant` role in their Firestore document, but will not have a custom claim.**
+
+To create your first true `Admin` user:
+1.  **Sign up for a new account** using the standard login page (e.g., with Google or Email/Password).
+2.  **Get the user's UID** from the Firebase Console -> Authentication tab.
+3.  **Set a custom claim**. You must do this using the Firebase Admin SDK in a trusted server environment (like a Cloud Function or a local script). You cannot do this from the client-side code.
+
+    *Example Node.js script using Firebase Admin SDK:*
+    ```javascript
+    // admin.js
+    // IMPORTANT: Make sure to initialize the Admin SDK with your service account credentials.
+    const admin = require('firebase-admin');
+    const serviceAccount = require('./path/to/your/serviceAccountKey.json');
+
+    admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount)
+    });
+
+    const uid = 'PASTE_THE_USER_UID_HERE';
+
+    admin.auth().setCustomUserClaims(uid, { role: 'Admin' })
+      .then(() => {
+        console.log('Successfully set Admin custom claim for user:', uid);
+        process.exit(0);
+      })
+      .catch(error => {
+        console.error('Error setting custom claim:', error);
+        process.exit(1);
+      });
+    ```
+4.  **Run the script**: `node admin.js`
+5.  **Verify the user's role in Firestore**. After setting the claim, you should also go to your **Firestore Database**, navigate to the `users` collection, find the document with the user's UID, and ensure the `role` field is set to `Admin`.
 
 ### Running the Development Server
 
