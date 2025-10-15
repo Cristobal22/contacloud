@@ -1,4 +1,3 @@
-
 'use client';
 
 import Link from 'next/link';
@@ -9,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Logo } from '@/components/logo';
 import { useAuth } from '@/firebase';
 import { GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword } from 'firebase/auth';
+import { FirebaseError } from 'firebase/app';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
@@ -36,11 +36,26 @@ export default function LoginPage() {
     e.preventDefault();
     if (!auth) return;
      try {
+      setError(null);
       await signInWithEmailAndPassword(auth, email, password);
       router.push('/dashboard');
-    } catch (error) {
-      console.error("Error signing in with email", error);
-      setError('Invalid email or password.');
+    } catch (e: any) {
+        if (e instanceof FirebaseError) {
+            switch (e.code) {
+                case 'auth/invalid-credential':
+                case 'auth/user-not-found':
+                case 'auth/wrong-password':
+                    setError('El correo electrónico o la contraseña no son correctos. Por favor, inténtalo de nuevo.');
+                    break;
+                default:
+                    setError('Ocurrió un error inesperado al iniciar sesión.');
+                    console.error("Error signing in with email", e);
+                    break;
+            }
+        } else {
+            setError('Ocurrió un error inesperado.');
+            console.error("An unexpected error occurred", e);
+        }
     }
   }
 
@@ -74,7 +89,7 @@ export default function LoginPage() {
               <Button type="submit" className="w-full">
                 Iniciar Sesión
               </Button>
-              <Button variant="outline" className="w-full" onClick={handleGoogleSignIn}>
+              <Button variant="outline" type="button" className="w-full" onClick={handleGoogleSignIn}>
                 Iniciar Sesión con Google
               </Button>
             </form>
@@ -84,5 +99,3 @@ export default function LoginPage() {
     </div>
   );
 }
-
-    
