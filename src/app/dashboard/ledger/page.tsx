@@ -35,7 +35,7 @@ import {
         const accountMovements = new Map<string, { debit: number; credit: number }>();
 
         vouchers?.forEach(voucher => {
-            if (voucher.status === 'Posteado') {
+            if (voucher.status === 'Contabilizado') {
                 voucher.entries.forEach(entry => {
                     const current = accountMovements.get(entry.account) || { debit: 0, credit: 0 };
                     current.debit += Number(entry.debit) || 0;
@@ -111,3 +111,5 @@ import {
     )
   }
   
+
+    

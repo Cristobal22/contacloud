@@ -160,7 +160,7 @@ import {
                       ${voucher.total.toLocaleString('es-CL')}
                     </TableCell>
                     <TableCell>
-                      <Badge variant={voucher.status === 'Posteado' ? 'outline' : 'secondary'} className="text-xs" >
+                      <Badge variant={voucher.status === 'Contabilizado' ? 'outline' : 'secondary'} className="text-xs" >
                           {voucher.status}
                       </Badge>
                     </TableCell>
@@ -182,3 +182,5 @@ import {
     )
   }
   
+
+    

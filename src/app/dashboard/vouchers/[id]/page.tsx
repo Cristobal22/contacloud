@@ -133,7 +133,7 @@ export default function VoucherDetailForm({ voucherData, onSave, onCancel }: Vou
                                 Gestiona los detalles y asientos del comprobante contable.
                             </CardDescription>
                         </div>
-                        <Badge variant={voucher.status === 'Posteado' ? 'outline' : 'secondary'}>
+                        <Badge variant={voucher.status === 'Contabilizado' ? 'outline' : 'secondary'}>
                             {voucher.status}
                         </Badge>
                     </div>
@@ -275,3 +275,5 @@ export default function VoucherDetailForm({ voucherData, onSave, onCancel }: Vou
         </div>
     );
 }
+
+    

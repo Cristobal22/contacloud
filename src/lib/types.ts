@@ -102,7 +102,7 @@ export type Voucher = {
   date: string;
   type: 'Ingreso' | 'Egreso' | 'Traspaso';
   description: string;
-  status: 'Borrador' | 'Posteado';
+  status: 'Borrador' | 'Contabilizado';
   total: number;
   entries: VoucherEntry[];
   companyId?: string;
@@ -195,3 +195,5 @@ export type SelectedCompanyContextType = {
     selectedCompany: Company | null;
     setSelectedCompany: (company: Company | null) => void;
 };
+
+    

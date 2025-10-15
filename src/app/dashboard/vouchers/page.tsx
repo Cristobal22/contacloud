@@ -54,9 +54,9 @@ import {
     });
 
     const [isDetailOpen, setIsDetailOpen] = React.useState(false);
-    const [isPostDialogOpen, setIsPostDialogOpen] = React.useState(false);
+    const [isContabilizarDialogOpen, setIsContabilizarDialogOpen] = React.useState(false);
     const [selectedVoucher, setSelectedVoucher] = React.useState<Voucher | null>(null);
-    const [voucherToPost, setVoucherToPost] = React.useState<Voucher | null>(null);
+    const [voucherToContabilizar, setVoucherToContabilizar] = React.useState<Voucher | null>(null);
 
 
     const handleCreateNew = () => {
@@ -77,22 +77,22 @@ import {
         setIsDetailOpen(true);
     };
 
-    const handleOpenPostDialog = (voucher: Voucher) => {
-        setVoucherToPost(voucher);
-        setIsPostDialogOpen(true);
+    const handleOpenContabilizarDialog = (voucher: Voucher) => {
+        setVoucherToContabilizar(voucher);
+        setIsContabilizarDialogOpen(true);
     }
 
-    const handlePostVoucher = async () => {
-        if (!firestore || !companyId || !voucherToPost) return;
+    const handleContabilizarVoucher = async () => {
+        if (!firestore || !companyId || !voucherToContabilizar) return;
 
         try {
-            const docRef = doc(firestore, `companies/${companyId}/vouchers`, voucherToPost.id);
-            await updateDoc(docRef, { status: 'Posteado' });
+            const docRef = doc(firestore, `companies/${companyId}/vouchers`, voucherToContabilizar.id);
+            await updateDoc(docRef, { status: 'Contabilizado' });
         } catch (error) {
             console.error("Error posting voucher:", error);
         } finally {
-            setIsPostDialogOpen(false);
-            setVoucherToPost(null);
+            setIsContabilizarDialogOpen(false);
+            setVoucherToContabilizar(null);
         }
     };
 
@@ -185,7 +185,7 @@ import {
                     </TableCell>
                     <TableCell className="font-medium">{voucher.description}</TableCell>
                     <TableCell>
-                      <Badge variant={voucher.status === 'Posteado' ? 'outline' : 'secondary'}>
+                      <Badge variant={voucher.status === 'Contabilizado' ? 'outline' : 'secondary'}>
                         {voucher.status}
                       </Badge>
                     </TableCell>
@@ -200,14 +200,14 @@ import {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-                           <DropdownMenuItem onClick={() => handleEdit(voucher)} disabled={voucher.status === 'Posteado'}>
+                           <DropdownMenuItem onClick={() => handleEdit(voucher)} disabled={voucher.status === 'Contabilizado'}>
                                 Editar
                            </DropdownMenuItem>
                            {voucher.status === 'Borrador' && (
                             <>
                                 <DropdownMenuSeparator />
-                                <DropdownMenuItem onClick={() => handleOpenPostDialog(voucher)}>
-                                    Postear
+                                <DropdownMenuItem onClick={() => handleOpenContabilizarDialog(voucher)}>
+                                    Contabilizar
                                 </DropdownMenuItem>
                             </>
                            )}
@@ -238,20 +238,20 @@ import {
             </DialogContent>
         </Dialog>
 
-        <AlertDialog open={isPostDialogOpen} onOpenChange={setIsPostDialogOpen}>
+        <AlertDialog open={isContabilizarDialogOpen} onOpenChange={setIsContabilizarDialogOpen}>
             <AlertDialogContent>
                 <AlertDialogHeader>
                     <AlertDialogTitle>¿Confirmas la acción?</AlertDialogTitle>
                     <AlertDialogDescription>
-                        Esta acción no se puede deshacer. Al postear el comprobante, se registrará oficialmente en la contabilidad y no podrá ser editado.
+                        Esta acción no se puede deshacer. Al contabilizar el comprobante, se registrará oficialmente en la contabilidad y no podrá ser editado.
                     </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                     <AlertDialogCancel>Cancelar</AlertDialogCancel>
                     <AlertDialogAction
-                        onClick={handlePostVoucher}
+                        onClick={handleContabilizarVoucher}
                     >
-                        Sí, postear comprobante
+                        Sí, contabilizar comprobante
                     </AlertDialogAction>
                 </AlertDialogFooter>
             </AlertDialogContent>
@@ -259,3 +259,5 @@ import {
       </>
     )
   }
+
+    

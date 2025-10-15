@@ -55,7 +55,7 @@
                 "date": { "type": "string", "format": "date" },
                 "type": { "type": "string", "enum": ["Ingreso", "Egreso", "Traspaso"] },
                 "description": { "type": "string" },
-                "status": { "type": "string", "enum": ["Borrador", "Posteado"] },
+                "status": { "type": "string", "enum": ["Borrador", "Contabilizado"] },
                 "total": { "type": "number" },
                 "entries": { 
                     "type": "array", 

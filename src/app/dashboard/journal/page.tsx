@@ -46,7 +46,7 @@ import {
         const entries: JournalEntry[] = [];
 
         vouchers.forEach(voucher => {
-            if(voucher.status !== 'Posteado') return;
+            if(voucher.status !== 'Contabilizado') return;
             voucher.entries.forEach((entry, index) => {
                 entries.push({
                     id: `${voucher.id}-${index}`,
@@ -114,3 +114,5 @@ import {
     )
   }
   
+
+    
