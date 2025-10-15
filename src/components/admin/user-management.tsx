@@ -76,11 +76,11 @@ export default function UserManagement() {
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false);
     const [userToDelete, setUserToDelete] = React.useState<UserProfile | null>(null);
 
-    const [newUser, setNewUser] = useState<CreateUserInput>({email: '', password: ''});
+    const [newUser, setNewUser] = useState<CreateUserInput>({email: '', password: '', displayName: ''});
     const [isCreating, setIsCreating] = useState(false);
 
     const handleCreateNew = () => {
-        setNewUser({email: '', password: ''});
+        setNewUser({email: '', password: '', displayName: ''});
         setIsCreateFormOpen(true);
     };
 
@@ -120,13 +120,11 @@ export default function UserManagement() {
 
     const handleCreateUser = async () => {
         if (!newUser.email || !newUser.password) {
-            toast({ variant: 'destructive', title: 'Error', description: 'Por favor, complete todos los campos.' });
+            toast({ variant: 'destructive', title: 'Error', description: 'Por favor, complete todos los campos obligatorios.' });
             return;
         }
         setIsCreating(true);
         try {
-            // This is a MOCK. In a real app, this flow would trigger a secure backend function.
-            // The user created here will NOT be able to log in.
             await createUser(newUser);
             toast({ title: 'Usuario "creado"', description: `El perfil para ${newUser.email} fue agregado a Firestore. NOTA: Aún no pueden iniciar sesión.` });
             setIsCreateFormOpen(false);
@@ -279,10 +277,14 @@ export default function UserManagement() {
                     <DialogHeader>
                         <DialogTitle>Crear Nuevo Usuario Contador</DialogTitle>
                         <DialogDescription>
-                            Ingresa el email y una contraseña temporal para el nuevo usuario.
+                            Ingresa los datos para la nueva cuenta. Se creará con el rol de "Contador".
                         </DialogDescription>
                     </DialogHeader>
                     <div className="grid gap-4 py-4">
+                        <div className="grid grid-cols-4 items-center gap-4">
+                            <Label htmlFor="new-name" className="text-right">Nombre</Label>
+                            <Input id="new-name" value={newUser.displayName || ''} onChange={(e) => handleNewUserFieldChange('displayName', e.target.value)} className="col-span-3" placeholder="Alex Doe" />
+                        </div>
                         <div className="grid grid-cols-4 items-center gap-4">
                             <Label htmlFor="new-email" className="text-right">Email</Label>
                             <Input id="new-email" type="email" value={newUser.email} onChange={(e) => handleNewUserFieldChange('email', e.target.value)} className="col-span-3" placeholder="usuario@contador.com" />
@@ -326,4 +328,3 @@ export default function UserManagement() {
         </>
     );
 }
-
