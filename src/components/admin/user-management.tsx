@@ -52,12 +52,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useCollection, useFirestore, useAuth } from "@/firebase"
 import type { UserProfile } from "@/lib/types"
 import { collection, doc, setDoc, deleteDoc } from "firebase/firestore"
-import { createUserWithEmailAndPassword, sendPasswordResetEmail } from "firebase/auth";
+import { createUserWithEmailAndPassword } from "firebase/auth";
 import { errorEmitter } from '@/firebase/error-emitter'
 import { FirestorePermissionError } from '@/firebase/errors'
 import { useMemo, useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import type { CreateUserInput } from '@/ai/flows/schemas';
+
+type NewUserInput = {
+  email: string;
+  password: string;
+  displayName: string;
+};
 
 export default function UserManagement() {
     const firestore = useFirestore();
@@ -77,7 +82,7 @@ export default function UserManagement() {
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false);
     const [userToDelete, setUserToDelete] = React.useState<UserProfile | null>(null);
 
-    const [newUser, setNewUser] = useState<CreateUserInput>({email: '', password: '', displayName: ''});
+    const [newUser, setNewUser] = useState<NewUserInput>({email: '', password: '', displayName: ''});
     const [isCreating, setIsCreating] = useState(false);
 
     const handleCreateNew = () => {
@@ -134,7 +139,6 @@ export default function UserManagement() {
             // Step 1: Create the auth user directly
             const userCredential = await createUserWithEmailAndPassword(auth, newUser.email, newUser.password);
             const authUser = userCredential.user;
-            toast({ title: 'Usuario Creado', description: `La cuenta para ${newUser.email} ha sido creada.` });
             
             // Step 2: Create the user profile object for Firestore
             const newUserProfile: UserProfile = {
@@ -149,7 +153,7 @@ export default function UserManagement() {
             const userDocRef = doc(firestore, "users", authUser.uid);
             await setDoc(userDocRef, newUserProfile);
 
-            toast({ title: 'Perfil Guardado', description: `El perfil de ${newUser.email} fue guardado en Firestore.` });
+            toast({ title: 'Usuario Creado', description: `La cuenta y el perfil para ${newUser.email} han sido creados.` });
             
             setIsCreateFormOpen(false);
         } catch (error: any) {
@@ -191,7 +195,7 @@ export default function UserManagement() {
         }
     };
     
-    const handleNewUserFieldChange = (field: keyof CreateUserInput, value: string) => {
+    const handleNewUserFieldChange = (field: keyof NewUserInput, value: string) => {
         setNewUser(prev => ({...prev, [field]: value}));
     };
 

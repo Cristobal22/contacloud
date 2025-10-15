@@ -2,18 +2,6 @@
 import { z } from 'zod';
 import { UserProfileSchema } from '@/lib/types';
 
-// Create User Schemas
-export const CreateUserInputSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(6),
-  displayName: z.string().optional(),
-});
-export type CreateUserInput = z.infer<typeof CreateUserInputSchema>;
-
-export const CreateUserOutputSchema = UserProfileSchema;
-export type CreateUserOutput = z.infer<typeof CreateUserOutputSchema>;
-
-
 // Centralize RCV Schemas
 const RcvSummarySchema = z.object({
   purchases: z.object({
