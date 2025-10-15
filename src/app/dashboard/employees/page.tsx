@@ -29,8 +29,12 @@ import {
   import type { Employee, CostCenter } from "@/lib/types"
   import Link from "next/link"
   import React from "react"
+import { SelectedCompanyContext } from "../layout";
   
-  export default function EmployeesPage({ companyId }: { companyId?: string }) {
+  export default function EmployeesPage() {
+    const { selectedCompany } = React.useContext(SelectedCompanyContext) || {};
+    const companyId = selectedCompany?.id;
+
     const { data: employees, loading: employeesLoading } = useCollection<Employee>({ 
       path: `companies/${companyId}/employees`,
       companyId: companyId 

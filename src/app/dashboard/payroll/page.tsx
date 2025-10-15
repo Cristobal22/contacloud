@@ -27,6 +27,7 @@ import {
   } from "@/components/ui/dropdown-menu"
   import { useCollection } from '@/firebase';
   import type { Employee, AfpEntity, HealthEntity } from '@/lib/types';
+import { SelectedCompanyContext } from '../layout';
 
   type SimulatedPayroll = {
       id: string;
@@ -37,7 +38,10 @@ import {
       netSalary: number;
   }
 
-export default function PayrollPage({ companyId }: { companyId?: string }) {
+export default function PayrollPage() {
+    const { selectedCompany } = React.useContext(SelectedCompanyContext) || {};
+    const companyId = selectedCompany?.id;
+
     const { data: employees, loading: employeesLoading } = useCollection<Employee>({ 
       path: `companies/${companyId}/employees`,
       companyId: companyId 

@@ -52,8 +52,12 @@ import {
   import type { CostCenter } from "@/lib/types"
   import { errorEmitter } from '@/firebase/error-emitter'
   import { FirestorePermissionError } from '@/firebase/errors'
+import { SelectedCompanyContext } from '../layout';
   
-  export default function CostCentersPage({ companyId }: { companyId?: string }) {
+  export default function CostCentersPage() {
+    const { selectedCompany } = React.useContext(SelectedCompanyContext) || {};
+    const companyId = selectedCompany?.id;
+
     const firestore = useFirestore();
     const { data: costCenters, loading } = useCollection<CostCenter>({
         path: `companies/${companyId}/cost-centers`,

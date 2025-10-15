@@ -23,8 +23,12 @@ import {
   import { useUser } from "@/firebase"
   import { useUserProfile } from "@/firebase/auth/use-user-profile"
   import UserManagement from "@/components/admin/user-management"
+import { SelectedCompanyContext } from "./layout"
   
-function AccountantDashboard({ companyId }: { companyId?: string }) {
+function AccountantDashboard() {
+    const { selectedCompany } = React.useContext(SelectedCompanyContext) || {};
+    const companyId = selectedCompany?.id;
+
     const { data: accounts, loading: accountsLoading } = useCollection<Account>({
         path: `companies/${companyId}/accounts`,
         companyId: companyId,
@@ -221,7 +225,7 @@ function AccountantDashboard({ companyId }: { companyId?: string }) {
     )
 }
 
-export default function DashboardPage({ companyId }: { companyId?: string }) {
+export default function DashboardPage() {
   const { user } = useUser();
   const { userProfile, loading: profileLoading } = useUserProfile(user?.uid);
 
@@ -237,5 +241,5 @@ export default function DashboardPage({ companyId }: { companyId?: string }) {
       return <UserManagement />;
   }
 
-  return <AccountantDashboard companyId={companyId} />;
+  return <AccountantDashboard />;
 }

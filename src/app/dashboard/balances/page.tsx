@@ -17,6 +17,7 @@ import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { useCollection } from "@/firebase";
 import type { Account, Voucher } from "@/lib/types";
+import { SelectedCompanyContext } from "../layout";
 
 type BalanceRow = {
     code: string;
@@ -26,7 +27,10 @@ type BalanceRow = {
     balance: number;
 };
 
-export default function BalancesPage({ companyId }: { companyId?: string }) {
+export default function BalancesPage() {
+    const { selectedCompany } = React.useContext(SelectedCompanyContext) || {};
+    const companyId = selectedCompany?.id;
+
     const [date, setDate] = React.useState<DateRange | undefined>({
         from: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
         to: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0),

@@ -53,8 +53,12 @@ import {
   import type { Sale } from "@/lib/types";
   import { errorEmitter } from '@/firebase/error-emitter'
   import { FirestorePermissionError } from '@/firebase/errors'
+import { SelectedCompanyContext } from "../layout";
 
-  export default function SalesPage({ companyId }: { companyId?: string }) {
+  export default function SalesPage() {
+    const { selectedCompany } = React.useContext(SelectedCompanyContext) || {};
+    const companyId = selectedCompany?.id;
+
     const firestore = useFirestore();
     const { data: sales, loading } = useCollection<Sale>({ 
       path: `companies/${companyId}/sales`,

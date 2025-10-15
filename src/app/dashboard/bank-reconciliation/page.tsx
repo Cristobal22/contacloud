@@ -18,6 +18,7 @@ import {
   import { differenceInDays, parseISO } from 'date-fns';
   import { cn } from '@/lib/utils';
   import { ScrollArea } from '@/components/ui/scroll-area';
+import { SelectedCompanyContext } from '../layout';
 
   type BankTransaction = {
     id: string;
@@ -37,7 +38,10 @@ import {
     matched: boolean;
   }
 
-  export default function BankReconciliationPage({ companyId }: { companyId?: string }) {
+  export default function BankReconciliationPage() {
+    const { selectedCompany } = React.useContext(SelectedCompanyContext) || {};
+    const companyId = selectedCompany?.id;
+
     const fileInputRef = React.useRef<HTMLInputElement>(null);
     const [file, setFile] = React.useState<File | null>(null);
     const [fileName, setFileName] = React.useState<string | null>(null);

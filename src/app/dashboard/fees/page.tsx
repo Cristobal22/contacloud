@@ -53,8 +53,12 @@ import {
   import type { Fee } from "@/lib/types";
   import { errorEmitter } from '@/firebase/error-emitter'
   import { FirestorePermissionError } from '@/firebase/errors'
+import { SelectedCompanyContext } from "../layout";
 
-  export default function FeesPage({ companyId }: { companyId?: string }) {
+  export default function FeesPage() {
+    const { selectedCompany } = React.useContext(SelectedCompanyContext) || {};
+    const companyId = selectedCompany?.id;
+
     const firestore = useFirestore();
     const { data: fees, loading } = useCollection<Fee>({ 
       path: `companies/${companyId}/fees`,

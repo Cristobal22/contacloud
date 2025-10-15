@@ -16,6 +16,7 @@ import type { Account, Voucher } from "@/lib/types";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter as TableFooterOriginal } from "@/components/ui/table";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import { SelectedCompanyContext } from "../layout";
 
 type BalanceSheetData = {
     assets: AccountWithBalance[];
@@ -29,7 +30,10 @@ type BalanceSheetData = {
 
 type AccountWithBalance = Account & { finalBalance: number };
 
-export default function GeneralBalancePage({ companyId }: { companyId?: string }) {
+export default function GeneralBalancePage() {
+    const { selectedCompany } = React.useContext(SelectedCompanyContext) || {};
+    const companyId = selectedCompany?.id;
+
     const [date, setDate] = React.useState<DateRange | undefined>({
         from: new Date(new Date().getFullYear(), 0, 1),
         to: new Date(new Date().getFullYear(), 11, 31),

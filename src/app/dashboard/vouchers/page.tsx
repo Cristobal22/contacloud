@@ -43,8 +43,12 @@ import {
   import Link from "next/link"
   import { errorEmitter } from '@/firebase/error-emitter'
   import { FirestorePermissionError } from '@/firebase/errors'
+import { SelectedCompanyContext } from "../layout"
   
-  export default function VouchersPage({ companyId }: { companyId?: string }) {
+  export default function VouchersPage() {
+    const { selectedCompany } = React.useContext(SelectedCompanyContext) || {};
+    const companyId = selectedCompany?.id;
+
     const firestore = useFirestore();
     const { data: vouchers, loading } = useCollection<Voucher>({ 
       path: `companies/${companyId}/vouchers`,

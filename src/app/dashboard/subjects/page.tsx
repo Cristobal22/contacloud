@@ -43,8 +43,12 @@ import {
   import type { Subject } from "@/lib/types"
   import { errorEmitter } from '@/firebase/error-emitter'
   import { FirestorePermissionError } from '@/firebase/errors'
+import { SelectedCompanyContext } from '../layout';
 
-  export default function SubjectsPage({ companyId }: { companyId?: string }) {
+  export default function SubjectsPage() {
+    const { selectedCompany } = React.useContext(SelectedCompanyContext) || {};
+    const companyId = selectedCompany?.id;
+
     const firestore = useFirestore();
     const { data: subjects, loading } = useCollection<Subject>({ 
       path: `companies/${companyId}/subjects`,
@@ -224,8 +228,7 @@ import {
                             </Select>
                         </div>
                         <div className="grid grid-cols-4 items-center gap-4">
-                            <Label htmlFor="status" className="text-right">Estado</Label>
-                            <Select value={selectedSubject?.status || 'Inactive'} onValueChange={(value) => handleFieldChange('status', value)}>
+                            <Label htmlFor="status" className="text-right">Estado</Label>                            <Select value={selectedSubject?.status || 'Inactive'} onValueChange={(value) => handleFieldChange('status', value)}>
                                 <SelectTrigger className="col-span-3">
                                     <SelectValue placeholder="Selecciona un estado" />
                                 </SelectTrigger>

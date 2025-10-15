@@ -18,8 +18,12 @@ import {
   } from "@/components/ui/card"
   import { useCollection } from "@/firebase"
   import type { Account, Voucher } from "@/lib/types"
+import { SelectedCompanyContext } from '../layout';
   
-  export default function LedgerPage({ companyId }: { companyId?: string }) {
+  export default function LedgerPage() {
+    const { selectedCompany } = React.useContext(SelectedCompanyContext) || {};
+    const companyId = selectedCompany?.id;
+
     const { data: accounts, loading: accountsLoading } = useCollection<Account>({
         path: `companies/${companyId}/accounts`,
         companyId: companyId,

@@ -15,8 +15,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFoo
 import { useCollection } from '@/firebase';
 import type { Purchase, Sale } from '@/lib/types';
 import { startOfMonth, endOfMonth } from 'date-fns';
+import { SelectedCompanyContext } from '../layout';
   
-export default function VatSummaryPage({ companyId }: { companyId?: string }) {
+export default function VatSummaryPage() {
+    const { selectedCompany } = React.useContext(SelectedCompanyContext) || {};
+    const companyId = selectedCompany?.id;
+
     const currentYear = new Date().getFullYear();
     const currentMonth = new Date().getMonth();
 

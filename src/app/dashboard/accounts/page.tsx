@@ -43,9 +43,12 @@ import {
   import type { Account } from "@/lib/types"
   import { errorEmitter } from '@/firebase/error-emitter'
   import { FirestorePermissionError } from '@/firebase/errors'
+import { SelectedCompanyContext } from '../layout';
 
   
-export default function AccountsPage({ companyId }: { companyId?: string }) {
+export default function AccountsPage() {
+  const { selectedCompany } = React.useContext(SelectedCompanyContext) || {};
+  const companyId = selectedCompany?.id;
   const firestore = useFirestore();
   const { data: accounts, loading } = useCollection<Account>({
     path: `companies/${companyId}/accounts`,

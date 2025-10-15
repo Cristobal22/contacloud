@@ -18,6 +18,7 @@ import {
   } from "@/components/ui/card"
   import { useCollection } from "@/firebase"
   import type { Voucher, Account } from "@/lib/types";
+import { SelectedCompanyContext } from '../layout';
 
   type JournalEntry = {
     id: string;
@@ -29,7 +30,10 @@ import {
     credit: number;
   };
   
-  export default function JournalPage({ companyId }: { companyId?: string }) {
+  export default function JournalPage() {
+    const { selectedCompany } = React.useContext(SelectedCompanyContext) || {};
+    const companyId = selectedCompany?.id;
+
     const { data: vouchers, loading: vouchersLoading } = useCollection<Voucher>({ 
       path: `companies/${companyId}/vouchers`,
       companyId: companyId 

@@ -59,14 +59,6 @@ function AccountantDashboard({ children }: { children: React.ReactNode }) {
         setSelectedCompany(company);
     };
 
-    const childrenWithProps = React.Children.map(children, child => {
-        if (React.isValidElement(child)) {
-            // @ts-ignore
-            return React.cloneElement(child, { companyId: selectedCompany?.id });
-        }
-        return child;
-    });
-
     if (companiesLoading || profileLoading) {
         return <div className="flex h-full w-full items-center justify-center"><p>Cargando empresas...</p></div>
     }
@@ -128,7 +120,7 @@ function AccountantDashboard({ children }: { children: React.ReactNode }) {
                         <UserNav />
                     </header>
                     <main className="flex-1 p-4 sm:p-6">
-                        {childrenWithProps}
+                        {children}
                     </main>
                 </div>
             </div>

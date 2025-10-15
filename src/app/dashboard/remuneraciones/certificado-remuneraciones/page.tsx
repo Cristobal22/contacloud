@@ -20,8 +20,13 @@ import {
   } from "@/components/ui/select"
   import { useCollection } from "@/firebase"
   import type { Employee } from "@/lib/types"
+import React from "react";
+import { SelectedCompanyContext } from "../../layout";
   
-  export default function CertificadoRemuneracionesPage({ companyId }: { companyId?: string }) {
+  export default function CertificadoRemuneracionesPage() {
+    const { selectedCompany } = React.useContext(SelectedCompanyContext) || {};
+    const companyId = selectedCompany?.id;
+
     const { data: employees, loading } = useCollection<Employee>({ 
         path: `companies/${companyId}/employees`,
         companyId: companyId 
