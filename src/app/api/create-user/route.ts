@@ -25,16 +25,15 @@ const firestore = getFirestore();
 export async function POST(request: Request) {
     try {
         const body = await request.json();
-        const { email, password, displayName } = body;
+        const { email, displayName } = body;
 
-        if (!email || !password) {
-            return NextResponse.json({ error: 'Email and password are required.' }, { status: 400 });
+        if (!email) {
+            return NextResponse.json({ error: 'Email is required.' }, { status: 400 });
         }
 
-        // Step 1: Create the auth user
+        // Step 1: Create the auth user without a password
         const userRecord = await auth.createUser({
             email,
-            password,
             displayName: displayName || email.split('@')[0],
         });
 
@@ -48,8 +47,15 @@ export async function POST(request: Request) {
         };
 
         await firestore.collection('users').doc(userRecord.uid).set(newUserProfile);
+        
+        // Step 3: Generate a password reset link which will act as an invitation
+        const invitationLink = await auth.generatePasswordResetLink(email);
 
-        return NextResponse.json({ uid: userRecord.uid, email: userRecord.email }, { status: 201 });
+        return NextResponse.json({ 
+            uid: userRecord.uid, 
+            email: userRecord.email,
+            invitationLink: invitationLink
+        }, { status: 201 });
 
     } catch (error: any) {
         console.error('Error creating user:', error);

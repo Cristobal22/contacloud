@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/card"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { MoreHorizontal, PlusCircle } from "lucide-react"
+import { MoreHorizontal, PlusCircle, Copy } from "lucide-react"
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -48,7 +48,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { useCollection, useFirestore, useAuth, useUser } from "@/firebase"
+import { useCollection, useFirestore, useUser } from "@/firebase"
 import type { UserProfile } from "@/lib/types"
 import { collection, doc, setDoc, deleteDoc } from "firebase/firestore"
 import { errorEmitter } from '@/firebase/error-emitter'
@@ -59,7 +59,6 @@ import { useUserProfile } from '@/firebase/auth/use-user-profile';
 
 type NewUserInput = {
   email: string;
-  password: string;
   displayName: string;
 };
 
@@ -72,9 +71,9 @@ export default function UserManagement() {
     const isCurrentUserAdmin = currentUserProfile?.role === 'Admin';
     
     const usersCollection = useMemo(() => {
-        if (!firestore || !isCurrentUserAdmin) return null;
+        if (!firestore) return null;
         return collection(firestore, 'users');
-    }, [firestore, isCurrentUserAdmin]);
+    }, [firestore]);
 
     const { data: users, loading: usersLoading } = useCollection<UserProfile>({ 
       query: usersCollection,
@@ -89,11 +88,15 @@ export default function UserManagement() {
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false);
     const [userToDelete, setUserToDelete] = React.useState<UserProfile | null>(null);
 
-    const [newUser, setNewUser] = useState<NewUserInput>({email: '', password: '', displayName: ''});
+    const [newUser, setNewUser] = useState<NewUserInput>({email: '', displayName: ''});
     const [isCreating, setIsCreating] = useState(false);
 
+    const [invitationLink, setInvitationLink] = useState('');
+    const [isSuccessDialogOpen, setIsSuccessDialogOpen] = useState(false);
+
+
     const handleCreateNew = () => {
-        setNewUser({email: '', password: '', displayName: ''});
+        setNewUser({email: '', displayName: ''});
         setIsCreateFormOpen(true);
     };
 
@@ -132,8 +135,8 @@ export default function UserManagement() {
     };
 
     const handleCreateUser = async () => {
-        if (!newUser.email || !newUser.password) {
-            toast({ variant: 'destructive', title: 'Error', description: 'Por favor, complete todos los campos obligatorios.' });
+        if (!newUser.email) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Por favor, complete el correo electrónico.' });
             return;
         }
 
@@ -145,7 +148,6 @@ export default function UserManagement() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     email: newUser.email,
-                    password: newUser.password,
                     displayName: newUser.displayName,
                 }),
             });
@@ -156,8 +158,9 @@ export default function UserManagement() {
                 throw new Error(result.error || 'Failed to create user.');
             }
 
-            toast({ title: 'Usuario Creado', description: `La cuenta y el perfil para ${newUser.email} han sido creados.` });
+            setInvitationLink(result.invitationLink);
             setIsCreateFormOpen(false);
+            setIsSuccessDialogOpen(true);
 
         } catch (error: any) {
             console.error('Error creating user:', error);
@@ -195,6 +198,12 @@ export default function UserManagement() {
     
     const handleNewUserFieldChange = (field: keyof NewUserInput, value: string) => {
         setNewUser(prev => ({...prev, [field]: value}));
+    };
+
+    const copyToClipboard = () => {
+        navigator.clipboard.writeText(invitationLink).then(() => {
+            toast({ title: 'Copiado', description: 'El enlace de invitación se ha copiado al portapapeles.' });
+        });
     };
 
     return (
@@ -312,9 +321,9 @@ export default function UserManagement() {
             <Dialog open={isCreateFormOpen} onOpenChange={setIsCreateFormOpen}>
                 <DialogContent className="sm:max-w-[425px]">
                     <DialogHeader>
-                        <DialogTitle>Crear Nuevo Usuario Contador</DialogTitle>
+                        <DialogTitle>Invitar Nuevo Contador</DialogTitle>
                         <DialogDescription>
-                            Ingresa los datos para la nueva cuenta. Se creará con el rol de "Contador".
+                            Ingresa el correo y nombre del nuevo usuario. Se generará un enlace para que establezca su contraseña.
                         </DialogDescription>
                     </DialogHeader>
                     <div className="grid gap-4 py-4">
@@ -326,18 +335,38 @@ export default function UserManagement() {
                             <Label htmlFor="new-email" className="text-right">Email</Label>
                             <Input id="new-email" type="email" value={newUser.email} onChange={(e) => handleNewUserFieldChange('email', e.target.value)} className="col-span-3" placeholder="usuario@contador.com" />
                         </div>
-                        <div className="grid grid-cols-4 items-center gap-4">
-                            <Label htmlFor="new-password" className="text-right">Contraseña</Label>
-                            <Input id="new-password" type="password" value={newUser.password} onChange={(e) => handleNewUserFieldChange('password', e.target.value)} className="col-span-3" />
-                        </div>
                     </div>
                     <DialogFooter>
                         <DialogClose asChild>
                             <Button type="button" variant="secondary" disabled={isCreating}>Cancelar</Button>
                         </DialogClose>
                         <Button type="submit" onClick={handleCreateUser} disabled={isCreating}>
-                            {isCreating ? 'Creando...' : 'Crear Usuario'}
+                            {isCreating ? 'Generando invitación...' : 'Generar Invitación'}
                         </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+             {/* Invitation Link Success Dialog */}
+            <Dialog open={isSuccessDialogOpen} onOpenChange={setIsSuccessDialogOpen}>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>¡Usuario Creado Exitosamente!</DialogTitle>
+                        <DialogDescription>
+                            Copia el siguiente enlace y envíalo al nuevo usuario para que pueda establecer su contraseña y acceder a la plataforma.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="flex items-center space-x-2">
+                        <Input id="invitation-link" value={invitationLink} readOnly />
+                        <Button type="button" size="sm" onClick={copyToClipboard}>
+                            <Copy className="h-4 w-4" />
+                            <span className="sr-only">Copiar</span>
+                        </Button>
+                    </div>
+                    <DialogFooter className="sm:justify-start">
+                        <DialogClose asChild>
+                            <Button type="button" variant="secondary">Cerrar</Button>
+                        </DialogClose>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
