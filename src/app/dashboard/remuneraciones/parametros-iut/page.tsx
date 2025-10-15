@@ -18,13 +18,52 @@ import {
 import { Button } from "@/components/ui/button"
 import { useCollection, useFirestore } from "@/firebase"
 import type { TaxParameter } from "@/lib/types"
-import { collection } from "firebase/firestore";
+import { collection, doc, writeBatch } from "firebase/firestore";
+import { useToast } from "@/hooks/use-toast";
 
+const initialTaxParameters: Omit<TaxParameter, 'id'>[] = [
+    { tramo: "1", desde: 0, hasta: 13.5, factor: 0, rebaja: 0 },
+    { tramo: "2", desde: 13.5, hasta: 30, factor: 0.04, rebaja: 0.54 },
+    { tramo: "3", desde: 30, hasta: 50, factor: 0.08, rebaja: 1.74 },
+    { tramo: "4", desde: 50, hasta: 70, factor: 0.135, rebaja: 4.49 },
+    { tramo: "5", desde: 70, hasta: 90, factor: 0.23, rebaja: 11.14 },
+    { tramo: "6", desde: 90, hasta: 120, factor: 0.304, rebaja: 17.8 },
+    { tramo: "7", desde: 120, hasta: 310, factor: 0.35, rebaja: 23.32 },
+    { tramo: "8", desde: 310, hasta: Infinity, factor: 0.4, rebaja: 38.82 }
+];
 
 export default function ParametrosIUTPage() {
     const firestore = useFirestore();
+    const { toast } = useToast();
     const paramsCollection = firestore ? collection(firestore, 'tax-parameters') : null;
-    const { data: tablaIUT, loading } = useCollection<TaxParameter>({ query: paramsCollection });
+    const { data: tablaIUT, loading, refetch } = useCollection<TaxParameter>({ query: paramsCollection });
+
+    const handleSeedData = async () => {
+        if (!firestore) return;
+        const batch = writeBatch(firestore);
+        
+        initialTaxParameters.forEach(paramData => {
+            const docRef = doc(collection(firestore, 'tax-parameters'));
+            batch.set(docRef, paramData);
+        });
+
+        try {
+            await batch.commit();
+            toast({
+                title: "Datos Cargados",
+                description: "La tabla de IUT ha sido poblada exitosamente.",
+            });
+            refetch();
+        } catch (error) {
+            console.error("Error seeding tax parameters: ", error);
+            toast({
+                variant: "destructive",
+                title: "Error al cargar datos",
+                description: "No se pudo guardar la tabla de IUT en Firestore.",
+            });
+        }
+    };
+
 
     return (
         <Card>
@@ -34,7 +73,9 @@ export default function ParametrosIUTPage() {
                         <CardTitle>Parámetros del Impuesto Único de Segunda Categoría (IUT)</CardTitle>
                         <CardDescription>Tabla para el cálculo del impuesto único al trabajo dependiente.</CardDescription>
                     </div>
-                     <Button size="sm">Actualizar Tabla</Button>
+                     {tablaIUT?.length === 0 && !loading && (
+                        <Button size="sm" onClick={handleSeedData}>Poblar Datos Iniciales</Button>
+                     )}
                 </div>
             </CardHeader>
             <CardContent>
@@ -62,7 +103,7 @@ export default function ParametrosIUTPage() {
                          {!loading && tablaIUT?.length === 0 && (
                             <TableRow>
                                 <TableCell colSpan={3} className="text-center">
-                                    No se encontraron parámetros de IUT.
+                                    No se encontraron parámetros de IUT. Puedes poblarlos con datos iniciales.
                                 </TableCell>
                             </TableRow>
                         )}

@@ -18,12 +18,48 @@ import {
 import { Button } from "@/components/ui/button"
 import { useCollection, useFirestore } from "@/firebase"
 import type { FamilyAllowanceParameter } from "@/lib/types"
-import { collection } from "firebase/firestore";
+import { collection, writeBatch, doc } from "firebase/firestore";
+import { useToast } from "@/hooks/use-toast";
+
+const initialFamilyAllowanceParameters: Omit<FamilyAllowanceParameter, 'id'>[] = [
+    { tramo: "A", desde: 0, hasta: 515879, monto: 20328 },
+    { tramo: "B", desde: 515880, hasta: 753496, monto: 12475 },
+    { tramo: "C", desde: 753497, hasta: 1175196, monto: 3942 },
+    { tramo: "D", desde: 1175197, hasta: Infinity, monto: 0 }
+];
 
 export default function ParametrosAsigFamiliarPage() {
     const firestore = useFirestore();
+    const { toast } = useToast();
     const paramsCollection = firestore ? collection(firestore, 'family-allowance-parameters') : null;
-    const { data: tramosAsignacion, loading } = useCollection<FamilyAllowanceParameter>({ query: paramsCollection });
+    const { data: tramosAsignacion, loading, refetch } = useCollection<FamilyAllowanceParameter>({ query: paramsCollection });
+
+    const handleSeedData = async () => {
+        if (!firestore) return;
+        const batch = writeBatch(firestore);
+        
+        initialFamilyAllowanceParameters.forEach(paramData => {
+            const docRef = doc(collection(firestore, 'family-allowance-parameters'));
+            batch.set(docRef, paramData);
+        });
+
+        try {
+            await batch.commit();
+            toast({
+                title: "Datos Cargados",
+                description: "Los parámetros de asignación familiar han sido poblados exitosamente.",
+            });
+            refetch();
+        } catch (error) {
+            console.error("Error seeding family allowance parameters: ", error);
+            toast({
+                variant: "destructive",
+                title: "Error al cargar datos",
+                description: "No se pudieron guardar los parámetros en Firestore.",
+            });
+        }
+    };
+
 
     return (
         <Card>
@@ -33,7 +69,9 @@ export default function ParametrosAsigFamiliarPage() {
                         <CardTitle>Parámetros de Asignación Familiar</CardTitle>
                         <CardDescription>Gestiona los tramos y montos para el cálculo de la asignación familiar.</CardDescription>
                     </div>
-                    <Button size="sm">Actualizar Tramos</Button>
+                    {tramosAsignacion?.length === 0 && !loading && (
+                        <Button size="sm" onClick={handleSeedData}>Poblar Datos Iniciales</Button>
+                    )}
                 </div>
             </CardHeader>
             <CardContent>
@@ -63,7 +101,7 @@ export default function ParametrosAsigFamiliarPage() {
                          {!loading && tramosAsignacion?.length === 0 && (
                             <TableRow>
                                 <TableCell colSpan={4} className="text-center">
-                                    No se encontraron parámetros de asignación familiar.
+                                    No se encontraron parámetros. Puedes poblarlos con datos iniciales.
                                 </TableCell>
                             </TableRow>
                          )}
