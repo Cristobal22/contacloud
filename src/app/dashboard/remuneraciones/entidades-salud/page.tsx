@@ -23,6 +23,7 @@ import { collection, writeBatch, doc } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 import { errorEmitter } from "@/firebase/error-emitter"
 import { FirestorePermissionError } from "@/firebase/errors"
+import React from "react";
 
 const initialHealthEntities: Omit<HealthEntity, 'id'>[] = [
     { code: "001", name: "FONASA", mandatoryContribution: 7.00, previredCode: "01", dtCode: "01" },
@@ -37,7 +38,11 @@ const initialHealthEntities: Omit<HealthEntity, 'id'>[] = [
 export default function HealthEntitiesPage() {
     const firestore = useFirestore();
     const { toast } = useToast();
-    const healthEntitiesCollection = firestore ? collection(firestore, 'health-entities') : null;
+    
+    const healthEntitiesCollection = React.useMemo(() => 
+        firestore ? collection(firestore, 'health-entities') : null, 
+    [firestore]);
+    
     const { data: healthEntities, loading, refetch } = useCollection<HealthEntity>({ query: healthEntitiesCollection });
 
     const handleSeedData = async () => {

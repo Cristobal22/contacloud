@@ -23,6 +23,7 @@ import { collection, writeBatch, doc } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 import { errorEmitter } from "@/firebase/error-emitter"
 import { FirestorePermissionError } from "@/firebase/errors"
+import React from "react";
 
 const initialAfpEntities: Omit<AfpEntity, 'id'>[] = [
     { code: "03", name: "CAPITAL", mandatoryContribution: 11.44, previredCode: "33", provisionalRegime: "DL 3.500", dtCode: "02" },
@@ -38,7 +39,11 @@ const initialAfpEntities: Omit<AfpEntity, 'id'>[] = [
 export default function AfpEntitiesPage() {
     const firestore = useFirestore();
     const { toast } = useToast();
-    const afpEntitiesCollection = firestore ? collection(firestore, 'afp-entities') : null;
+    
+    const afpEntitiesCollection = React.useMemo(() => 
+        firestore ? collection(firestore, 'afp-entities') : null, 
+    [firestore]);
+
     const { data: afpEntities, loading, refetch } = useCollection<AfpEntity>({ query: afpEntitiesCollection });
 
     const handleSeedData = async () => {

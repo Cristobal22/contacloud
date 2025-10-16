@@ -22,6 +22,7 @@ import { collection, writeBatch, doc } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 import { errorEmitter } from "@/firebase/error-emitter"
 import { FirestorePermissionError } from "@/firebase/errors"
+import React from "react";
 
 const initialFamilyAllowanceParameters: Omit<FamilyAllowanceParameter, 'id'>[] = [
     { tramo: "A", desde: 0, hasta: 515879, monto: 20328 },
@@ -33,7 +34,11 @@ const initialFamilyAllowanceParameters: Omit<FamilyAllowanceParameter, 'id'>[] =
 export default function ParametrosAsigFamiliarPage() {
     const firestore = useFirestore();
     const { toast } = useToast();
-    const paramsCollection = firestore ? collection(firestore, 'family-allowance-parameters') : null;
+    
+    const paramsCollection = React.useMemo(() => 
+        firestore ? collection(firestore, 'family-allowance-parameters') : null, 
+    [firestore]);
+
     const { data: tramosAsignacion, loading, refetch } = useCollection<FamilyAllowanceParameter>({ query: paramsCollection });
 
     const handleSeedData = async () => {

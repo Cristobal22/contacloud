@@ -65,7 +65,11 @@ const initialAccountGroups: Omit<AccountGroup, 'id'>[] = [
 export default function AccountGroupsPage() {
     const firestore = useFirestore();
     const { toast } = useToast();
-    const accountGroupsCollection = firestore ? collection(firestore, 'account-groups') : null;
+    
+    const accountGroupsCollection = React.useMemo(() => 
+        firestore ? collection(firestore, 'account-groups') : null,
+    [firestore]);
+
     const { data: accountGroups, loading, refetch } = useCollection<AccountGroup>({ query: accountGroupsCollection });
 
     const [isFormOpen, setIsFormOpen] = React.useState(false);

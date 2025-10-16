@@ -24,6 +24,7 @@ import { collection, doc, writeBatch } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 import { errorEmitter } from "@/firebase/error-emitter"
 import { FirestorePermissionError } from "@/firebase/errors"
+import React from "react";
 
 const initialInstitutions: Omit<Institution, 'id'>[] = [
     { name: "AFP", type: "AFP" },
@@ -36,7 +37,11 @@ const initialInstitutions: Omit<Institution, 'id'>[] = [
 export default function InstitucionesPage() {
     const firestore = useFirestore();
     const { toast } = useToast();
-    const institutionsCollection = firestore ? collection(firestore, 'institutions') : null;
+    
+    const institutionsCollection = React.useMemo(() => 
+        firestore ? collection(firestore, 'institutions') : null, 
+    [firestore]);
+
     const { data: institutions, loading, refetch } = useCollection<Institution>({ query: institutionsCollection });
 
     const handleSeedData = async () => {

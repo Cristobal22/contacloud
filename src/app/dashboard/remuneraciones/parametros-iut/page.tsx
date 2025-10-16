@@ -22,6 +22,7 @@ import { collection, doc, writeBatch } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 import { errorEmitter } from "@/firebase/error-emitter"
 import { FirestorePermissionError } from "@/firebase/errors"
+import React from "react";
 
 const initialTaxParameters: Omit<TaxParameter, 'id'>[] = [
     { tramo: "1", desde: 0, hasta: 13.5, factor: 0, rebaja: 0 },
@@ -37,7 +38,11 @@ const initialTaxParameters: Omit<TaxParameter, 'id'>[] = [
 export default function ParametrosIUTPage() {
     const firestore = useFirestore();
     const { toast } = useToast();
-    const paramsCollection = firestore ? collection(firestore, 'tax-parameters') : null;
+    
+    const paramsCollection = React.useMemo(() => 
+        firestore ? collection(firestore, 'tax-parameters') : null,
+    [firestore]);
+
     const { data: tablaIUT, loading, refetch } = useCollection<TaxParameter>({ query: paramsCollection });
 
     const handleSeedData = async () => {
