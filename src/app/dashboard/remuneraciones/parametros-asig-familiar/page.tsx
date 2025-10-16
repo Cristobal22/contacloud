@@ -40,7 +40,7 @@ export default function ParametrosAsigFamiliarPage() {
         firestore && user ? collection(firestore, `users/${user.uid}/family-allowance-parameters`) : null, 
     [firestore, user]);
 
-    const { data: tramosAsignacion, loading, refetch } = useCollection<FamilyAllowanceParameter>({ query: paramsCollection });
+    const { data: tramosAsignacion, loading } = useCollection<FamilyAllowanceParameter>({ query: paramsCollection });
 
     const handleSeedData = async () => {
         if (!firestore || !user) return;
@@ -59,7 +59,6 @@ export default function ParametrosAsigFamiliarPage() {
                 title: "Datos Cargados",
                 description: "Los parámetros de asignación familiar han sido poblados exitosamente.",
             });
-            refetch();
         } catch (error) {
             console.error("Error seeding family allowance parameters: ", error);
              errorEmitter.emit('permission-error', new FirestorePermissionError({

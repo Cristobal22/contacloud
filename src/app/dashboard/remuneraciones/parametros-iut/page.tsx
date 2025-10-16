@@ -44,7 +44,7 @@ export default function ParametrosIUTPage() {
         firestore && user ? collection(firestore, `users/${user.uid}/tax-parameters`) : null,
     [firestore, user]);
 
-    const { data: tablaIUT, loading, refetch } = useCollection<TaxParameter>({ query: paramsCollection });
+    const { data: tablaIUT, loading } = useCollection<TaxParameter>({ query: paramsCollection });
 
     const handleSeedData = async () => {
         if (!firestore || !user) return;
@@ -63,7 +63,6 @@ export default function ParametrosIUTPage() {
                 title: "Datos Cargados",
                 description: "La tabla de IUT ha sido poblada exitosamente.",
             });
-            refetch();
         } catch (error) {
             console.error("Error seeding tax parameters: ", error);
             errorEmitter.emit('permission-error', new FirestorePermissionError({

@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { PlusCircle } from "lucide-react"
-import { useCollection, useFirestore } from "@/firebase"
+import { useCollection, useFirestore, useUser } from "@/firebase"
 import type { HealthEntity } from "@/lib/types"
 import { collection, writeBatch, doc } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
@@ -37,20 +37,22 @@ const initialHealthEntities: Omit<HealthEntity, 'id'>[] = [
 
 export default function HealthEntitiesPage() {
     const firestore = useFirestore();
+    const { user } = useUser();
     const { toast } = useToast();
     
     const healthEntitiesCollection = React.useMemo(() => 
-        firestore ? collection(firestore, 'health-entities') : null, 
-    [firestore]);
+        firestore && user ? collection(firestore, `users/${user.uid}/health-entities`) : null, 
+    [firestore, user]);
     
-    const { data: healthEntities, loading, refetch } = useCollection<HealthEntity>({ query: healthEntitiesCollection });
+    const { data: healthEntities, loading } = useCollection<HealthEntity>({ query: healthEntitiesCollection });
 
     const handleSeedData = async () => {
-        if (!firestore) return;
+        if (!firestore || !user) return;
+        const collectionPath = `users/${user.uid}/health-entities`;
         const batch = writeBatch(firestore);
         
         initialHealthEntities.forEach(entityData => {
-            const docRef = doc(collection(firestore, 'health-entities'));
+            const docRef = doc(collection(firestore, collectionPath));
             batch.set(docRef, entityData);
         });
 
@@ -60,11 +62,10 @@ export default function HealthEntitiesPage() {
                 title: "Datos Cargados",
                 description: "Las entidades de salud han sido pobladas exitosamente.",
             });
-            refetch(); // Refetch the data to update the table
         } catch (error) {
             console.error("Error seeding health entities: ", error);
              errorEmitter.emit('permission-error', new FirestorePermissionError({
-                path: 'health-entities',
+                path: collectionPath,
                 operation: 'create',
             }));
         }

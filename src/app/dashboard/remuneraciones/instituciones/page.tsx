@@ -18,7 +18,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { PlusCircle } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
-import { useCollection, useFirestore } from "@/firebase"
+import { useCollection, useFirestore, useUser } from "@/firebase"
 import type { Institution } from "@/lib/types"
 import { collection, doc, writeBatch } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
@@ -36,20 +36,22 @@ const initialInstitutions: Omit<Institution, 'id'>[] = [
 
 export default function InstitucionesPage() {
     const firestore = useFirestore();
+    const { user } = useUser();
     const { toast } = useToast();
     
     const institutionsCollection = React.useMemo(() => 
-        firestore ? collection(firestore, 'institutions') : null, 
-    [firestore]);
+        firestore && user ? collection(firestore, `users/${user.uid}/institutions`) : null, 
+    [firestore, user]);
 
-    const { data: institutions, loading, refetch } = useCollection<Institution>({ query: institutionsCollection });
+    const { data: institutions, loading } = useCollection<Institution>({ query: institutionsCollection });
 
     const handleSeedData = async () => {
-        if (!firestore) return;
+        if (!firestore || !user) return;
+        const collectionPath = `users/${user.uid}/institutions`;
         const batch = writeBatch(firestore);
         
         initialInstitutions.forEach(instData => {
-            const docRef = doc(collection(firestore, 'institutions'));
+            const docRef = doc(collection(firestore, collectionPath));
             batch.set(docRef, instData);
         });
 
@@ -59,11 +61,10 @@ export default function InstitucionesPage() {
                 title: "Datos Cargados",
                 description: "Las instituciones han sido pobladas exitosamente.",
             });
-            refetch();
         } catch (error) {
             console.error("Error seeding institutions: ", error);
             errorEmitter.emit('permission-error', new FirestorePermissionError({
-                path: 'institutions',
+                path: collectionPath,
                 operation: 'create',
             }));
         }

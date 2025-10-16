@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { MoreHorizontal, PlusCircle } from "lucide-react"
-import { useCollection, useFirestore } from "@/firebase"
+import { useCollection, useFirestore, useUser } from "@/firebase"
 import type { AccountGroup } from "@/lib/types"
 import { collection, addDoc, setDoc, doc, deleteDoc, writeBatch } from "firebase/firestore";
 import {
@@ -64,13 +64,14 @@ const initialAccountGroups: Omit<AccountGroup, 'id'>[] = [
 
 export default function AccountGroupsPage() {
     const firestore = useFirestore();
+    const { user } = useUser();
     const { toast } = useToast();
     
     const accountGroupsCollection = React.useMemo(() => 
-        firestore ? collection(firestore, 'account-groups') : null,
-    [firestore]);
+        firestore && user ? collection(firestore, `users/${user.uid}/account-groups`) : null,
+    [firestore, user]);
 
-    const { data: accountGroups, loading, refetch } = useCollection<AccountGroup>({ query: accountGroupsCollection });
+    const { data: accountGroups, loading } = useCollection<AccountGroup>({ query: accountGroupsCollection });
 
     const [isFormOpen, setIsFormOpen] = React.useState(false);
     const [selectedGroup, setSelectedGroup] = React.useState<Partial<AccountGroup> | null>(null);
@@ -93,11 +94,12 @@ export default function AccountGroupsPage() {
     };
 
     const handleSeedData = async () => {
-        if (!firestore) return;
+        if (!firestore || !user) return;
+        const collectionPath = `users/${user.uid}/account-groups`;
         const batch = writeBatch(firestore);
         
         initialAccountGroups.forEach(groupData => {
-            const docRef = doc(collection(firestore, 'account-groups'));
+            const docRef = doc(collection(firestore, collectionPath));
             batch.set(docRef, groupData);
         });
 
@@ -107,20 +109,19 @@ export default function AccountGroupsPage() {
                 title: "Datos Cargados",
                 description: "Los grupos de cuentas han sido poblados exitosamente.",
             });
-            refetch();
         } catch (error) {
             console.error("Error seeding account groups: ", error);
-            const path = 'account-groups';
              errorEmitter.emit('permission-error', new FirestorePermissionError({
-                path: path,
+                path: collectionPath,
                 operation: 'create',
             }));
         }
     };
     
     const handleSave = () => {
-        if (!firestore || !selectedGroup || !selectedGroup.name) return;
+        if (!firestore || !user || !selectedGroup || !selectedGroup.name) return;
 
+        const collectionPath = `users/${user.uid}/account-groups`;
         const isNew = selectedGroup.id?.startsWith('new-');
         const groupData = { name: selectedGroup.name };
         
@@ -128,16 +129,16 @@ export default function AccountGroupsPage() {
         setSelectedGroup(null);
 
         if (isNew) {
-            addDoc(collection(firestore, 'account-groups'), groupData)
+            addDoc(collection(firestore, collectionPath), groupData)
                 .catch(err => {
                     errorEmitter.emit('permission-error', new FirestorePermissionError({
-                        path: 'account-groups',
+                        path: collectionPath,
                         operation: 'create',
                         requestResourceData: groupData,
                     }));
                 });
         } else if (selectedGroup.id) {
-            const docRef = doc(firestore, 'account-groups', selectedGroup.id);
+            const docRef = doc(firestore, collectionPath, selectedGroup.id);
             setDoc(docRef, groupData, { merge: true })
                 .catch(err => {
                     errorEmitter.emit('permission-error', new FirestorePermissionError({
@@ -150,8 +151,8 @@ export default function AccountGroupsPage() {
     };
 
     const handleDelete = () => {
-        if (!firestore || !groupToDelete) return;
-        const docRef = doc(firestore, 'account-groups', groupToDelete.id);
+        if (!firestore || !user || !groupToDelete) return;
+        const docRef = doc(firestore, `users/${user.uid}/account-groups`, groupToDelete.id);
         
         setIsDeleteDialogOpen(false);
         setGroupToDelete(null);

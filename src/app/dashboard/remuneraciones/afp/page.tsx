@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { PlusCircle } from "lucide-react"
-import { useCollection, useFirestore } from "@/firebase"
+import { useCollection, useFirestore, useUser } from "@/firebase"
 import type { AfpEntity } from "@/lib/types"
 import { collection, writeBatch, doc } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
@@ -38,20 +38,22 @@ const initialAfpEntities: Omit<AfpEntity, 'id'>[] = [
 
 export default function AfpEntitiesPage() {
     const firestore = useFirestore();
+    const { user } = useUser();
     const { toast } = useToast();
     
     const afpEntitiesCollection = React.useMemo(() => 
-        firestore ? collection(firestore, 'afp-entities') : null, 
-    [firestore]);
+        firestore && user ? collection(firestore, `users/${user.uid}/afp-entities`) : null, 
+    [firestore, user]);
 
-    const { data: afpEntities, loading, refetch } = useCollection<AfpEntity>({ query: afpEntitiesCollection });
+    const { data: afpEntities, loading } = useCollection<AfpEntity>({ query: afpEntitiesCollection });
 
     const handleSeedData = async () => {
-        if (!firestore) return;
+        if (!firestore || !user) return;
+        const collectionPath = `users/${user.uid}/afp-entities`;
         const batch = writeBatch(firestore);
         
         initialAfpEntities.forEach(entityData => {
-            const docRef = doc(collection(firestore, 'afp-entities'));
+            const docRef = doc(collection(firestore, collectionPath));
             batch.set(docRef, entityData);
         });
 
@@ -61,11 +63,10 @@ export default function AfpEntitiesPage() {
                 title: "Datos Cargados",
                 description: "Las entidades de AFP han sido pobladas exitosamente.",
             });
-            refetch();
         } catch (error) {
             console.error("Error seeding AFP entities: ", error);
              errorEmitter.emit('permission-error', new FirestorePermissionError({
-                path: 'afp-entities',
+                path: collectionPath,
                 operation: 'create',
             }));
         }
