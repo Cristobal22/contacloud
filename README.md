@@ -45,7 +45,7 @@ Contador Cloud is a modern, multi-tenant accounting application designed for acc
 
 ### IMPORTANT: Creating the First Admin User
 
-For security and functionality, the first user with the `Admin` role must be created and configured manually. This is a **one-time setup** for your first administrator and is required to view the user management page.
+For security and functionality, the first user with the `Admin` role must be created and configured manually. This is a **one-time setup** for your first administrator and is required to view the user management page and create new companies.
 
 **All users created via the Admin dashboard within the app will be automatically assigned the `Accountant` role.**
 
