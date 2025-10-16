@@ -39,14 +39,11 @@ function AccountantDashboardLayout({ children }: { children: React.ReactNode }) 
     const companiesQuery = React.useMemo(() => {
         if (!firestore || !userProfile) return null;
 
-        // Admins can see all companies
         if (userProfile.role === 'Admin') {
             return collection(firestore, 'companies');
         }
 
-        // Accountants see only their assigned companies
         if (userProfile.companyIds && userProfile.companyIds.length > 0) {
-            // Firestore 'in' queries are limited to 30 elements.
             return query(collection(firestore, 'companies'), where(documentId(), 'in', userProfile.companyIds.slice(0, 30)));
         }
 
@@ -55,7 +52,7 @@ function AccountantDashboardLayout({ children }: { children: React.ReactNode }) 
 
     const { data: companies, loading: companiesLoading } = useCollection<Company>({ 
       query: companiesQuery,
-      disabled: !companiesQuery,
+      disabled: profileLoading || !companiesQuery,
     });
     
     React.useEffect(() => {

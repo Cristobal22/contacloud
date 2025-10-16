@@ -51,7 +51,7 @@ import {
   import { Label } from "@/components/ui/label"
   import { Switch } from "@/components/ui/switch"
   import { useFirestore, useUser, useCollection } from "@/firebase"
-  import { collection, addDoc, setDoc, doc, deleteDoc, updateDoc, arrayUnion, query, where, getDocs, documentId } from "firebase/firestore"
+  import { collection, addDoc, setDoc, doc, deleteDoc, updateDoc, arrayUnion, query, where, documentId, writeBatch } from "firebase/firestore"
   import type { Company } from "@/lib/types"
   import { useRouter } from 'next/navigation'
   import { SelectedCompanyContext } from '../layout'
@@ -77,15 +77,17 @@ import {
         }
 
         if (userProfile.companyIds && userProfile.companyIds.length > 0) {
+            // Firestore 'in' queries are limited to 30 elements. We slice to stay within limits.
             return query(collection(firestore, 'companies'), where(documentId(), 'in', userProfile.companyIds.slice(0, 30)));
         }
 
-        return null; // For accountants with no companies assigned.
+        return null; // For accountants with no companies assigned, this will result in an empty query.
     }, [firestore, userProfile]);
 
     const { data: companies, loading: companiesLoading, error } = useCollection<Company>({ 
       query: companiesQuery,
-      disabled: profileLoading || !companiesQuery,
+      // Disable query if the user profile is loading or if there's no valid query (e.g., an accountant with no companies)
+      disabled: profileLoading || !companiesQuery
     });
     
     const [isFormOpen, setIsFormOpen] = React.useState(false);
@@ -151,7 +153,7 @@ import {
 
         setIsFormOpen(false);
         
-        const companyData: Partial<Company> = {
+        const companyData: Omit<Company, 'id'> = {
             name: selectedCompanyLocal.name,
             rut: selectedCompanyLocal.rut,
             active: true,
@@ -162,25 +164,28 @@ import {
 
         if (isNew) {
             try {
-                const docRef = await addDoc(collection(firestore, 'companies'), companyData);
-                const newCompanyId = docRef.id;
+                const batch = writeBatch(firestore);
+                const newCompanyRef = doc(collection(firestore, 'companies'));
 
-                await updateDoc(docRef, { id: newCompanyId });
+                // Set the company data in the batch
+                batch.set(newCompanyRef, companyData);
                 
                 // If creator is an accountant, add company to their list
                 if (userProfile?.role === 'Accountant') {
                     const userProfileRef = doc(firestore, 'users', user.uid);
-                    await updateDoc(userProfileRef, {
-                        companyIds: arrayUnion(newCompanyId)
+                    batch.update(userProfileRef, {
+                        companyIds: arrayUnion(newCompanyRef.id)
                     });
                 }
                 
+                await batch.commit();
+
                 toast({
                     title: "Empresa Creada",
                     description: `${companyData.name} ha sido creada. Redirigiendo a configuración...`,
                 });
                 
-                const newCompany: Company = { id: newCompanyId, ...companyData } as Company;
+                const newCompany: Company = { id: newCompanyRef.id, ...companyData };
                 
                 if (setSelectedCompany) {
                     setSelectedCompany(newCompany);
@@ -196,7 +201,7 @@ import {
             }
         } else if (selectedCompanyLocal.id) {
             const docRef = doc(firestore, 'companies', selectedCompanyLocal.id);
-            const { ownerId, ...updateData } = companyData; // Don't allow changing ownerId on edit
+            const { ownerId, ...updateData } = companyData; 
 
             setDoc(docRef, updateData, { merge: true })
                 .then(() => {
@@ -370,7 +375,5 @@ import {
       </>
     )
   }
-    
 
     
-
