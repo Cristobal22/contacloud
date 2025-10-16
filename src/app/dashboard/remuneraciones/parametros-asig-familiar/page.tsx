@@ -16,7 +16,7 @@ import {
     CardTitle,
 } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { useCollection, useFirestore } from "@/firebase"
+import { useCollection, useFirestore, useUser } from "@/firebase"
 import type { FamilyAllowanceParameter } from "@/lib/types"
 import { collection, writeBatch, doc } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
@@ -34,19 +34,22 @@ const initialFamilyAllowanceParameters: Omit<FamilyAllowanceParameter, 'id'>[] =
 export default function ParametrosAsigFamiliarPage() {
     const firestore = useFirestore();
     const { toast } = useToast();
+    const { user } = useUser();
     
     const paramsCollection = React.useMemo(() => 
-        firestore ? collection(firestore, 'family-allowance-parameters') : null, 
-    [firestore]);
+        firestore && user ? collection(firestore, `users/${user.uid}/family-allowance-parameters`) : null, 
+    [firestore, user]);
 
     const { data: tramosAsignacion, loading, refetch } = useCollection<FamilyAllowanceParameter>({ query: paramsCollection });
 
     const handleSeedData = async () => {
-        if (!firestore) return;
+        if (!firestore || !user) return;
+        
+        const collectionPath = `users/${user.uid}/family-allowance-parameters`;
         const batch = writeBatch(firestore);
         
         initialFamilyAllowanceParameters.forEach(paramData => {
-            const docRef = doc(collection(firestore, 'family-allowance-parameters'));
+            const docRef = doc(collection(firestore, collectionPath));
             batch.set(docRef, paramData);
         });
 
@@ -60,7 +63,7 @@ export default function ParametrosAsigFamiliarPage() {
         } catch (error) {
             console.error("Error seeding family allowance parameters: ", error);
              errorEmitter.emit('permission-error', new FirestorePermissionError({
-                path: 'family-allowance-parameters',
+                path: collectionPath,
                 operation: 'create',
             }));
         }
