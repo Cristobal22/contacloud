@@ -13,34 +13,51 @@ type UseCollectionProps<T> = {
     disabled?: boolean;
 };
 
+// Helper function to generate a stable key from a query
+function getQueryKey(q: Query | CollectionReference | null | undefined): string {
+    if (!q) return 'null';
+    if ('path' in q) { // It's a CollectionReference
+        return q.path;
+    }
+    // It's a Query, build a key from its internal properties
+    const queryParts: string[] = [(q as any)._query.path.segments.join('/')];
+    (q as any)._query.explicitOrderBy.forEach((orderBy: any) => {
+        queryParts.push(`orderBy:${orderBy.field.segments.join('.')}:${orderBy.dir}`);
+    });
+    (q as any)._query.filters.forEach((filter: any) => {
+        const filterStr = `${filter.field.segments.join('.')}${filter.op}${filter.value}`;
+        queryParts.push(`filter:${filterStr}`);
+    });
+    return queryParts.join('|');
+}
+
+
 export function useCollection<T>({ path, companyId, query: manualQuery, disabled = false }: UseCollectionProps<T>) {
   const firestore = useFirestore();
   const [data, setData] = useState<T[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
-  // This memoizes the final query object itself.
-  // It will only be re-created if firestore, path, companyId, or manualQuery change.
   const finalQuery = useMemo(() => {
     if (disabled) return null;
     if (manualQuery) return manualQuery;
     if (!firestore || !path) return null;
-    // Special case for paths that require a companyId
     if (path.includes('{companyId}') && !companyId) {
         return null; 
     }
     const resolvedPath = path.replace('{companyId}', companyId || '');
-    // If after replacement, it's still undefined, then it's not ready.
     if (resolvedPath.includes('undefined')) {
         return null;
     }
     return collection(firestore, resolvedPath) as Query<T>;
   }, [disabled, manualQuery, firestore, path, companyId]);
 
+  // Use a serialized key of the query for the useEffect dependency
+  const queryKey = useMemo(() => getQueryKey(finalQuery), [finalQuery]);
+
   useEffect(() => {
-    // If the query isn't ready, don't do anything
     if (!finalQuery) {
-        setData([]); // Set to empty array to indicate "no data" state
+        setData([]);
         setLoading(false);
         return;
     }
@@ -60,11 +77,9 @@ export function useCollection<T>({ path, companyId, query: manualQuery, disabled
         setLoading(false);
         
         let queryPath = 'unknown path';
-        // Try to get path safely
         if ('path' in finalQuery) {
           queryPath = (finalQuery as CollectionReference).path;
         } else if ((finalQuery as any)._query) {
-           // This is a more fragile way to get the path for a query, but it works for debugging
            queryPath = (finalQuery as any)._query.path.segments.join('/');
         }
         
@@ -75,9 +90,8 @@ export function useCollection<T>({ path, companyId, query: manualQuery, disabled
       }
     );
 
-    // Cleanup subscription on unmount
     return () => unsubscribe();
-  }, [finalQuery]); // Only re-run the effect if the final query object changes
+  }, [queryKey]); // This dependency is now a stable string
 
   return { data, loading, error };
 }
