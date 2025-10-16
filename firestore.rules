@@ -1,32 +1,23 @@
 /**
  * @file Firestore Security Rules
- * @core-philosophy This ruleset enforces a role-based access control model, with specific rules
- *  for user profiles and company data.  Global collections for configurations are read accessible.
- * @data-structure
- *  - /users/{userId}: Stores individual user profiles. Access is restricted to the owner of the profile.
- *  - /companies/{companyId}: Stores company information. Write access requires 'Admin' role.
- *  - /companies/{companyId}/accounts: Stores accounts for a specific company. Write access requires 'Admin' role.
- *  - /companies/{companyId}/vouchers: Stores vouchers for a specific company. Write access requires 'Admin' role.
- *  - /companies/{companyId}/subjects: Stores subjects for a specific company. Write access requires 'Admin' role.
- *  - /companies/{companyId}/cost-centers: Stores cost centers for a specific company. Write access requires 'Admin' role.
- *  - /companies/{companyId}/employees: Stores employees for a specific company. Write access requires 'Admin' role.
- *  - /companies/{companyId}/purchases: Stores purchase documents for a specific company. Write access requires 'Admin' role.
- *  - /companies/{companyId}/sales: Stores sales documents for a specific company. Write access requires 'Admin' role.
- *  - /companies/{companyId}/fees: Stores fee documents for a specific company. Write access requires 'Admin' role.
- *  - /account-groups: Stores global account group data. Read-only for all users.
- *  - /institutions: Stores global institution data. Read-only for all users.
- *  - /family-allowance-parameters: Stores global family allowance parameters. Read-only for all users.
- *  - /tax-parameters: Stores global tax parameters. Read-only for all users.
- *  - /health-entities: Stores global health entities. Read-only for all users.
- *  - /afp-entities: Stores global AFP entities. Read-only for all users.
- * @key-security-decisions
- *  - User listing is explicitly denied to protect user privacy.
- *  - Write access to company and related data is strictly limited to 'Admin' users.
- *  - Global configuration collections (e.g., /institutions) are publicly readable but not writable.
- *  - Default security posture for ambiguous relationships is strict owner-only access.
- *  - No schema validation is enforced beyond authorization and relational integrity checks, allowing for rapid data shape iteration.
- * @denormalization-for-authorization N/A
- * @structural-segregation N/A
+ * @description This ruleset enforces a strict user-ownership model for user-specific data,
+ * and allows company-level data to be managed by authorized users. It provides basic
+ * role-based access control for administrative tasks.
+ *
+ * Data Structure:
+ * - /users/{userId}: Stores individual user profiles.
+ * - /companies: Stores company data.
+ * - /companies/{companyId}/...: Stores company-specific data like accounts, vouchers, etc.
+ * - /users/{userId}/...: Stores user-specific data like account groups and institutions.
+ *
+ * Key Security Decisions:
+ * - Users can only read/write their own profile data under /users/{userId}.
+ * - Users can only manage their own account groups and institutions under /users/{userId}/...
+ * - Company data is accessible based on user role and association with the company (denormalized in the user profile).
+ * - Listing user-specific collections (e.g., family-allowance-parameters) is restricted to the owning user.
+ *
+ * Denormalization for Authorization:
+ * - User profiles contain an array of `companyIds` to quickly determine which companies a user is associated with.
  */
 rules_version = '2';
 service cloud.firestore {
@@ -34,277 +25,232 @@ service cloud.firestore {
 
     /**
      * @description Checks if the user is signed in.
-     * @param None
-     * @return {bool} True if the user is signed in, false otherwise.
      */
     function isSignedIn() {
       return request.auth != null;
     }
 
     /**
-     * @description Checks if the user's ID matches the provided user ID.
-     * @param {string} userId - The user ID to compare against.
-     * @return {bool} True if the user is signed in and their ID matches, false otherwise.
+     * @description Checks if the authenticated user's UID matches the provided userId.
      */
     function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
+      return request.auth.uid == userId;
     }
 
     /**
-     * @description Checks if the user's ID matches the provided user ID and the resource exists.
-     * @param {string} userId - The user ID to compare against.
-     * @return {bool} True if the user is signed in and their ID matches and the resource exists, false otherwise.
+     * @description Checks if the authenticated user is the owner of an existing document.
      */
     function isExistingOwner(userId) {
       return isOwner(userId) && resource != null;
     }
-
+    
     /**
-     * @description Checks if the user has the 'Admin' role.
-     * @return {bool} True if the user has the 'Admin' role, false otherwise.
+     * @description Checks if the user has Admin role.
      */
     function isAdmin() {
-      return isSignedIn() && (request.auth.token.role == 'Admin');
+        return isSignedIn() && (request.auth.token.role == 'Admin');
     }
 
     /**
-     * @description User profile collection.
+     * @description Checks if the user is associated with a company based on their profile.
+     */
+    function isAssociatedWithCompany(companyId) {
+        return isSignedIn() && (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyIds.hasAny([companyId]) || isAdmin());
+    }
+
+    /**
+     * @description Rule for user profile documents.
      * @path /users/{userId}
-     * @allow (create) - Authenticated user creates their profile with matching UID.
-     * @allow (get, update, delete) - Authenticated user accesses their own profile.
-     * @deny (list) - Prevents listing all user profiles.
-     * @deny (create) - Non-authenticated user cannot create profile.
-     * @deny (update,delete) - Non-authenticated user cannot update or delete profile.
-     * @principle Enforces document ownership for writes and restricts access to a user's own data tree.
+     * @allow (create) - A user can create their own profile if the userId matches their auth UID.
+     * @allow (get, update, delete) - A user can get, update, or delete their own profile.
+     * @deny (create) - A user cannot create a profile with a userId that doesn't match their auth UID.
+     * @deny (update, delete) - A user cannot update or delete another user's profile.
+     * @principle Enforces document ownership for writes, restricts access to a user's own data.
      */
     match /users/{userId} {
       allow get: if isOwner(userId);
       allow list: if false;
+      allow create: if isOwner(userId) && request.resource.data.uid == request.auth.uid;
+      allow update: if isExistingOwner(userId) && request.resource.data.uid == resource.data.uid;
+      allow delete: if isExistingOwner(userId);
+    }
+
+    /**
+     * @description Rule for company documents.
+     * @path /companies
+     * @allow (get, list) - Anyone can read company data.
+     * @allow (create) - Only an admin can create a company.
+     * @allow (update, delete) - Only an admin can update or delete a company.
+     * @deny (create) - Non-admins cannot create companies.
+     * @deny (update, delete) - Non-admins cannot update or delete companies.
+     * @principle Allows public read access but restricts writes to admins.
+     */
+    match /companies/{companyId} {
+      allow get, list: if true;
+      allow create: if isAdmin();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+
+        /**
+         * @description Rule for account documents within a company.
+         * @path /companies/{companyId}/accounts
+         */
+        match /accounts/{accountId} {
+          allow get, list: if isAssociatedWithCompany(companyId);
+          allow create: if isAssociatedWithCompany(companyId);
+          allow update: if isAssociatedWithCompany(companyId);
+          allow delete: if isAssociatedWithCompany(companyId);
+        }
+
+        /**
+         * @description Rule for voucher documents within a company.
+         * @path /companies/{companyId}/vouchers
+         */
+        match /vouchers/{voucherId} {
+          allow get, list: if isAssociatedWithCompany(companyId);
+          allow create: if isAssociatedWithCompany(companyId);
+          allow update: if isAssociatedWithCompany(companyId);
+          allow delete: if isAssociatedWithCompany(companyId);
+        }
+
+        /**
+         * @description Rule for subject documents within a company.
+         * @path /companies/{companyId}/subjects
+         */
+        match /subjects/{subjectId} {
+          allow get, list: if isAssociatedWithCompany(companyId);
+          allow create: if isAssociatedWithCompany(companyId);
+          allow update: if isAssociatedWithCompany(companyId);
+          allow delete: if isAssociatedWithCompany(companyId);
+        }
+
+        /**
+         * @description Rule for cost center documents within a company.
+         * @path /companies/{companyId}/cost-centers
+         */
+        match /cost-centers/{costCenterId} {
+          allow get, list: if isAssociatedWithCompany(companyId);
+          allow create: if isAssociatedWithCompany(companyId);
+          allow update: if isAssociatedWithCompany(companyId);
+          allow delete: if isAssociatedWithCompany(companyId);
+        }
+
+        /**
+         * @description Rule for employee documents within a company.
+         * @path /companies/{companyId}/employees
+         */
+        match /employees/{employeeId} {
+          allow get, list: if isAssociatedWithCompany(companyId);
+          allow create: if isAssociatedWithCompany(companyId);
+          allow update: if isAssociatedWithCompany(companyId);
+          allow delete: if isAssociatedWithCompany(companyId);
+        }
+      
+        /**
+         * @description Rule for purchase documents within a company.
+         * @path /companies/{companyId}/purchases
+         */
+        match /purchases/{purchaseId} {
+          allow get, list: if isAssociatedWithCompany(companyId);
+          allow create: if isAssociatedWithCompany(companyId);
+          allow update: if isAssociatedWithCompany(companyId);
+          allow delete: if isAssociatedWithCompany(companyId);
+        }
+
+        /**
+         * @description Rule for sale documents within a company.
+         * @path /companies/{companyId}/sales
+         */
+        match /sales/{saleId} {
+          allow get, list: if isAssociatedWithCompany(companyId);
+          allow create: if isAssociatedWithCompany(companyId);
+          allow update: if isAssociatedWithCompany(companyId);
+          allow delete: if isAssociatedWithCompany(companyId);
+        }
+
+        /**
+         * @description Rule for fee documents within a company.
+         * @path /companies/{companyId}/fees
+         */
+        match /fees/{feeId} {
+          allow get, list: if isAssociatedWithCompany(companyId);
+          allow create: if isAssociatedWithCompany(companyId);
+          allow update: if isAssociatedWithCompany(companyId);
+          allow delete: if isAssociatedWithCompany(companyId);
+        }
+    }
+
+    /**
+     * @description Rule for user-specific account groups.
+     * @path /users/{userId}/account-groups/{accountGroupId}
+     * @allow (get, list, create, update, delete) - Only the user can manage their own account groups.
+     * @deny (get, list, create, update, delete) - Other users cannot access or modify these groups.
+     * @principle Enforces user-ownership of data.
+     */
+    match /users/{userId}/account-groups/{accountGroupId} {
+      allow get, list: if isOwner(userId);
       allow create: if isOwner(userId);
       allow update: if isExistingOwner(userId);
       allow delete: if isExistingOwner(userId);
     }
 
     /**
-     * @description Company collection.
-     * @path /companies/{companyId}
-     * @allow (get, list) - Public read access.
-     * @allow (create) - Admin user can create.
-     * @allow (update, delete) - Admin user can update or delete.
-     * @deny (create, update, delete) - Non-admin user cannot create, update or delete.
-     * @principle Requires admin role for create, update, and delete operations.
+     * @description Rule for user-specific institutions.
+     * @path /users/{userId}/institutions/{institutionId}
      */
-    match /companies/{companyId} {
-      allow get, list: if true;
-      allow create: if isAdmin();
-      allow update: if isAdmin() && resource != null;
-      allow delete: if isAdmin() && resource != null;
+    match /users/{userId}/institutions/{institutionId} {
+      allow get, list: if isOwner(userId);
+      allow create: if isOwner(userId);
+      allow update: if isExistingOwner(userId);
+      allow delete: if isExistingOwner(userId);
     }
 
     /**
-     * @description Accounts sub-collection for a specific company.
-     * @path /companies/{companyId}/accounts/{accountId}
-     * @allow (get, list) - Public read access.
-     * @allow (create) - Admin user can create.
-     * @allow (update, delete) - Admin user can update or delete.
-     * @deny (create, update, delete) - Non-admin user cannot create, update or delete.
-     * @principle Requires admin role for create, update, and delete operations.
+     * @description Rule for user-specific family allowance parameters.
+     * @path /users/{userId}/family-allowance-parameters/{parameterId}
+     * @allow (get, create, update, delete) - Only the user can manage their own parameters.
+     * @deny (get, create, update, delete) - Other users cannot access or modify these parameters.
+     * @principle Enforces user-ownership of data.
      */
-    match /companies/{companyId}/accounts/{accountId} {
-      allow get, list: if true;
-      allow create: if isAdmin();
-      allow update: if isAdmin() && resource != null;
-      allow delete: if isAdmin() && resource != null;
+    match /users/{userId}/family-allowance-parameters/{parameterId} {
+      allow get: if isOwner(userId);
+      allow list: if isOwner(userId);
+      allow create: if isOwner(userId);
+      allow update: if isExistingOwner(userId);
+      allow delete: if isExistingOwner(userId);
     }
 
     /**
-     * @description Vouchers sub-collection for a specific company.
-     * @path /companies/{companyId}/vouchers/{voucherId}
-     * @allow (get, list) - Public read access.
-     * @allow (create) - Admin user can create.
-     * @allow (update, delete) - Admin user can update or delete.
-     * @deny (create, update, delete) - Non-admin user cannot create, update or delete.
-     * @principle Requires admin role for create, update, and delete operations.
+     * @description Rule for user-specific tax parameters.
+     * @path /users/{userId}/tax-parameters/{parameterId}
      */
-    match /companies/{companyId}/vouchers/{voucherId} {
-      allow get, list: if true;
-      allow create: if isAdmin();
-      allow update: if isAdmin() && resource != null;
-      allow delete: if isAdmin() && resource != null;
+    match /users/{userId}/tax-parameters/{parameterId} {
+      allow get, list: if isOwner(userId);
+      allow create: if isOwner(userId);
+      allow update: if isExistingOwner(userId);
+      allow delete: if isExistingOwner(userId);
     }
 
     /**
-     * @description Subjects sub-collection for a specific company.
-     * @path /companies/{companyId}/subjects/{subjectId}
-     * @allow (get, list) - Public read access.
-     * @allow (create) - Admin user can create.
-     * @allow (update, delete) - Admin user can update or delete.
-     * @deny (create, update, delete) - Non-admin user cannot create, update or delete.
-     * @principle Requires admin role for create, update, and delete operations.
+     * @description Rule for user-specific health entities.
+     * @path /users/{userId}/health-entities/{healthEntityId}
      */
-    match /companies/{companyId}/subjects/{subjectId} {
-      allow get, list: if true;
-      allow create: if isAdmin();
-      allow update: if isAdmin() && resource != null;
-      allow delete: if isAdmin() && resource != null;
+    match /users/{userId}/health-entities/{healthEntityId} {
+      allow get, list: if isOwner(userId);
+      allow create: if isOwner(userId);
+      allow update: if isExistingOwner(userId);
+      allow delete: if isExistingOwner(userId);
     }
 
     /**
-     * @description Cost centers sub-collection for a specific company.
-     * @path /companies/{companyId}/cost-centers/{costCenterId}
-     * @allow (get, list) - Public read access.
-     * @allow (create) - Admin user can create.
-     * @allow (update, delete) - Admin user can update or delete.
-     * @deny (create, update, delete) - Non-admin user cannot create, update or delete.
-     * @principle Requires admin role for create, update, and delete operations.
+     * @description Rule for user-specific AFP entities.
+     * @path /users/{userId}/afp-entities/{afpEntityId}
      */
-    match /companies/{companyId}/cost-centers/{costCenterId} {
-      allow get, list: if true;
-      allow create: if isAdmin();
-      allow update: if isAdmin() && resource != null;
-      allow delete: if isAdmin() && resource != null;
-    }
-
-    /**
-     * @description Employees sub-collection for a specific company.
-     * @path /companies/{companyId}/employees/{employeeId}
-     * @allow (get, list) - Public read access.
-     * @allow (create) - Admin user can create.
-     * @allow (update, delete) - Admin user can update or delete.
-     * @deny (create, update, delete) - Non-admin user cannot create, update or delete.
-     * @principle Requires admin role for create, update, and delete operations.
-     */
-    match /companies/{companyId}/employees/{employeeId} {
-      allow get, list: if true;
-      allow create: if isAdmin();
-      allow update: if isAdmin() && resource != null;
-      allow delete: if isAdmin() && resource != null;
-    }
-
-    /**
-     * @description Purchases sub-collection for a specific company.
-     * @path /companies/{companyId}/purchases/{purchaseId}
-     * @allow (get, list) - Public read access.
-     * @allow (create) - Admin user can create.
-     * @allow (update, delete) - Admin user can update or delete.
-     * @deny (create, update, delete) - Non-admin user cannot create, update or delete.
-     * @principle Requires admin role for create, update, and delete operations.
-     */
-    match /companies/{companyId}/purchases/{purchaseId} {
-      allow get, list: if true;
-      allow create: if isAdmin();
-      allow update: if isAdmin() && resource != null;
-      allow delete: if isAdmin() && resource != null;
-    }
-
-    /**
-     * @description Sales sub-collection for a specific company.
-     * @path /companies/{companyId}/sales/{saleId}
-     * @allow (get, list) - Public read access.
-     * @allow (create) - Admin user can create.
-     * @allow (update, delete) - Admin user can update or delete.
-     * @deny (create, update, delete) - Non-admin user cannot create, update or delete.
-     * @principle Requires admin role for create, update, and delete operations.
-     */
-    match /companies/{companyId}/sales/{saleId} {
-      allow get, list: if true;
-      allow create: if isAdmin();
-      allow update: if isAdmin() && resource != null;
-      allow delete: if isAdmin() && resource != null;
-    }
-
-    /**
-     * @description Fees sub-collection for a specific company.
-     * @path /companies/{companyId}/fees/{feeId}
-     * @allow (get, list) - Public read access.
-     * @allow (create) - Admin user can create.
-     * @allow (update, delete) - Admin user can update or delete.
-     * @deny (create, update, delete) - Non-admin user cannot create, update or delete.
-     * @principle Requires admin role for create, update, and delete operations.
-     */
-    match /companies/{companyId}/fees/{feeId} {
-      allow get, list: if true;
-      allow create: if isAdmin();
-      allow update: if isAdmin() && resource != null;
-      allow delete: if isAdmin() && resource != null;
-    }
-
-    /**
-     * @description Account groups collection.
-     * @path /account-groups/{accountGroupId}
-     * @allow (get, list) - Public read access.
-     * @deny (create, update, delete) - No write access allowed.
-     */
-    match /account-groups/{accountGroupId} {
-      allow get, list: if true;
-      allow create: if false;
-      allow update: if false;
-      allow delete: if false;
-    }
-
-    /**
-     * @description Institutions collection.
-     * @path /institutions/{institutionId}
-     * @allow (get, list) - Public read access.
-     * @deny (create, update, delete) - No write access allowed.
-     */
-    match /institutions/{institutionId} {
-      allow get, list: if true;
-      allow create: if false;
-      allow update: if false;
-      allow delete: if false;
-    }
-
-    /**
-     * @description Family allowance parameters collection.
-     * @path /family-allowance-parameters/{familyAllowanceParameterId}
-     * @allow (get, list) - Public read access.
-     * @deny (create, update, delete) - No write access allowed.
-     */
-    match /family-allowance-parameters/{familyAllowanceParameterId} {
-      allow get, list: if true;
-      allow create: if false;
-      allow update: if false;
-      allow delete: if false;
-    }
-
-    /**
-     * @description Tax parameters collection.
-     * @path /tax-parameters/{taxParameterId}
-     * @allow (get, list) - Public read access.
-     * @deny (create, update, delete) - No write access allowed.
-     */
-    match /tax-parameters/{taxParameterId} {
-      allow get, list: if true;
-      allow create: if false;
-      allow update: if false;
-      allow delete: if false;
-    }
-
-    /**
-     * @description Health entities collection.
-     * @path /health-entities/{healthEntityId}
-     * @allow (get, list) - Public read access.
-     * @deny (create, update, delete) - No write access allowed.
-     */
-    match /health-entities/{healthEntityId} {
-      allow get, list: if true;
-      allow create: if isAdmin();
-      allow update: if isAdmin() && resource != null;
-      allow delete: if isAdmin() && resource != null;
-    }
-
-    /**
-     * @description AFP entities collection.
-     * @path /afp-entities/{afpEntityId}
-     * @allow (get, list) - Public read access.
-     * @deny (create, update, delete) - No write access allowed.
-     */
-    match /afp-entities/{afpEntityId} {
-      allow get, list: if true;
-      allow create: if isAdmin();
-      allow update: if isAdmin() && resource != null;
-      allow delete: if isAdmin() && resource != null;
+    match /users/{userId}/afp-entities/{afpEntityId} {
+      allow get, list: if isOwner(userId);
+      allow create: if isOwner(userId);
+      allow update: if isExistingOwner(userId);
+      allow delete: if isExistingOwner(userId);
     }
   }
 }
