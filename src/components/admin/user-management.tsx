@@ -75,7 +75,10 @@ export default function UserManagement() {
         path: 'users',
         disabled: profileLoading || userProfile?.role !== 'Admin'
     });
-    const { data: companies, loading: companiesLoading } = useCollection<Company>({ path: 'companies' });
+    const { data: companies, loading: companiesLoading } = useCollection<Company>({ 
+        path: 'companies',
+        disabled: profileLoading || userProfile?.role !== 'Admin' 
+    });
     
     const [isCreateFormOpen, setIsCreateFormOpen] = useState(false);
     const [isEditFormOpen, setIsEditFormOpen] = useState(false);
