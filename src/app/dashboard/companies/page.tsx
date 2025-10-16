@@ -1,4 +1,3 @@
-
 'use client';
 
 import React from 'react';
@@ -51,23 +50,41 @@ import {
   import { Label } from "@/components/ui/label"
   import { Switch } from "@/components/ui/switch"
   import { useCollection, useFirestore, useUser } from "@/firebase"
-  import { collection, addDoc, setDoc, doc, deleteDoc, updateDoc, arrayUnion } from "firebase/firestore"
+  import { collection, addDoc, setDoc, doc, deleteDoc, updateDoc, arrayUnion, query, where } from "firebase/firestore"
   import type { Company } from "@/lib/types"
   import { useRouter } from 'next/navigation'
   import { SelectedCompanyContext } from '../layout'
   import { errorEmitter } from '@/firebase/error-emitter'
   import { FirestorePermissionError } from '@/firebase/errors'
   import { useToast } from '@/hooks/use-toast';
+  import { useUserProfile } from '@/firebase/auth/use-user-profile';
 
   
   export default function CompaniesPage() {
     const firestore = useFirestore();
     const { user } = useUser();
+    const { userProfile } = useUserProfile(user?.uid);
     const router = useRouter();
     const { setSelectedCompany } = React.useContext(SelectedCompanyContext) || {};
-    const companiesCollection = firestore ? collection(firestore, 'companies') : null;
-    const { data: companies, loading } = useCollection<Company>({ query: companiesCollection });
     const { toast } = useToast();
+
+    const companiesQuery = React.useMemo(() => {
+        if (!firestore || !userProfile) return null;
+        // Admins can see all companies
+        if (userProfile.role === 'Admin') {
+            return collection(firestore, 'companies');
+        }
+        // Accountants only see their assigned companies
+        if (userProfile.companyIds && userProfile.companyIds.length > 0) {
+            return query(collection(firestore, 'companies'), where('__name__', 'in', userProfile.companyIds.slice(0, 30)));
+        }
+        return null; // No companies assigned or user not loaded
+    }, [firestore, userProfile]);
+
+    const { data: companies, loading } = useCollection<Company>({ 
+      query: companiesQuery,
+      disabled: !companiesQuery
+    });
 
     const [isFormOpen, setIsFormOpen] = React.useState(false);
     const [selectedCompanyLocal, setSelectedCompanyLocal] = React.useState<Partial<Company> | null>(null);
