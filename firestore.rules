@@ -1,331 +1,271 @@
 /**
- * @fileoverview Firestore Security Rules for the accounting platform.
- *
- * Core Philosophy:
- * This ruleset enforces a hybrid security model. User profiles are private and
- * owned by the individual user. Company data is shared between authorized users
- * (Accountants and Admins) who are explicitly associated with the company.
+ * @file Firestore Security Rules
+ * @description This ruleset enforces a role-based access control system where 'Admin' users have broad access and 'Accountant' users have more restricted access, primarily scoped to data associated with Companies they are linked to.
  *
  * Data Structure:
- * - /users/{userId}: User profile information, accessible only by the user themselves.
- * - /companies/{companyId}: Company information.
- * - /companies/{companyId}/{subcollections}: Data related to a specific company (accounts, vouchers, etc.).
- * - /users/{userId}/{subcollections}: Data related to specific users (account groups, institutions, etc.).
+ * - /users/{userId}: Stores user profile information, including roles and associated company IDs.
+ * - /companies/{companyId}: Stores company data.
+ * - /companies/{companyId}/[...]: Subcollections for company-specific data (accounts, vouchers, etc.).
+ * - /users/{userId}/[...]: User-specific collections for configuration data (account groups, institutions, etc.).
  *
  * Key Security Decisions:
- * - Users can only read and write their own profile data.
- * - Company data access is restricted to authorized users. This authorization is based on the 'companyIds' field in the user's profile.
- * - Listing of users is disallowed to prevent information disclosure.
- * - The rules prioritize security and assume that all write operations are potentially dangerous.
+ * - User listing is disallowed.
+ * - The 'companies' collection can only be created by admins, not accountants.
+ * - Subcollections under 'companies/{companyId}' are accessible only to users associated with that company (Accountants or Admins).
+ * - User-specific collections under '/users/{userId}' are strictly owned by the user.
  *
  * Denormalization for Authorization:
- * - User profiles contain a `companyIds` array. This array is used to quickly determine if a user is authorized to access data for a given company.
- *
- * Structural Segregation:
- * - User-specific data (AccountGroups, Institutions, etc.) is stored in user subcollections to maintain privacy and avoid mixing private and shared data.
+ * - User profiles store an array of `companyIds` to avoid requiring queries against a separate memberships collection to authorize access to company-related data.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Checks if the current user is signed in.
+     * @description Checks if the user is signed in.
      */
     function isSignedIn() {
       return request.auth != null;
     }
 
     /**
-     * @description Checks if the current user is the owner of the given user ID.
+     * @description Checks if the user is the owner of the resource.
      */
     function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
+      return request.auth.uid == userId;
     }
 
     /**
-     * @description Checks if the current user is an existing owner of the given user ID (i.e., the document exists and they own it).
+     * @description Checks if the user is an existing owner of the resource.
      */
     function isExistingOwner(userId) {
-      return isOwner(userId) && resource != null;
+        return isOwner(userId) && resource != null;
     }
 
     /**
-     * @description Checks if the user's profile indicates they have access to the given company ID.
+     * @description Checks if the user has the 'Admin' role.
      */
-    function isAuthorizedForCompany(companyId) {
-        return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyIds.hasAny([companyId]);
+    function isAdmin() {
+      return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Admin';
     }
 
     /**
-     * @description Rule for user profile documents.
+     * @description Checks if the user has the 'Accountant' role.
+     */
+    function isAccountant() {
+      return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Accountant';
+    }
+
+    /**
+     * @description Checks if the user is associated with the company (either Admin or Accountant with companyId in their profile).
+     */
+    function isAssociatedWithCompany(companyId) {
+        return isAdmin() || (isAccountant() && (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyIds).hasAny([companyId]));
+    }
+
+    /**
+     * @description Secures the user profiles.
      * @path /users/{userId}
-     * @allow (create) User 'alice' with UID 'alice_uid' can create her profile if request.auth.uid == 'alice_uid'.
-     * @allow (get) User 'bob' with UID 'bob_uid' can read his profile if request.auth.uid == 'bob_uid'.
-     * @deny (create) User 'mallory' with UID 'mallory_uid' cannot create a profile for 'alice' at /users/alice_uid if request.auth.uid != 'alice_uid'.
-     * @deny (get) User 'eve' with UID 'eve_uid' cannot read 'alice's profile at /users/alice_uid if request.auth.uid != 'alice_uid'.
-     * @principle Enforces document ownership, restricting access to the user's own profile data.
+     * @allow (create) User with ID 'user123' creates their own profile.
+     * @allow (get) User with ID 'user123' reads their own profile.
+     * @deny (create) User with ID 'user123' attempts to create a profile for 'user456'.
+     * @deny (update) User with ID 'user123' attempts to update the profile of 'user456'.
+     * @principle Enforces document ownership for user profiles.
      */
     match /users/{userId} {
       allow get: if isOwner(userId);
       allow list: if false;
-      allow create: if isOwner(userId) && request.resource.data.uid == request.auth.uid;
+      allow create: if isOwner(userId) && request.resource.data.uid == userId;
       allow update: if isExistingOwner(userId) && request.resource.data.uid == resource.data.uid;
       allow delete: if isExistingOwner(userId);
     }
 
     /**
-     * @description Rule for company documents.
-     * @path /companies/{companyId}
-     * @allow (get) User 'alice' can read company 'acme' details if her profile contains 'acme' id in companyIds array.
-     * @allow (create) User 'alice' can create company 'acme' if her profile contains 'acme' id in companyIds array.
-     * @deny (get) User 'mallory' cannot read company 'acme' details if her profile does not contains 'acme' id in companyIds array.
-     * @deny (update) User 'eve' cannot update company 'acme' details if her profile does not contains 'acme' id in companyIds array.
-     * @principle Requires user to be explicitly authorized for a company via profile's companyIds.
+     * @description Secures the companies collection.
+     * @path /companies
+     * @allow (create) Admin user creates a new company.
+     * @deny (create) Non-admin user attempts to create a new company.
+     * @deny (get) - Listing all companies is not allowed. Access to companies should be controlled by user roles and companyId associations.
+     * @principle Restricts company creation to admin users and enforces access control based on company associations.
      */
-    match /companies/{companyId} {
-      allow get: if isAuthorizedForCompany(companyId);
-      allow list: if false; // Listing companies is not allowed.
-      allow create: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Admin';
-      allow update: if isAuthorizedForCompany(companyId);
-      allow delete: if false; // Deleting companies is not allowed.
+    match /companies {
+      allow get: if false;
+      allow list: if false;
+      allow create: if isAdmin();
+      allow update: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
     }
 
     /**
-     * @description Rule for account documents under a company.
-     * @path /companies/{companyId}/accounts/{accountId}
-     * @allow (get) User 'alice' can read account 'cash' of company 'acme' if her profile contains 'acme' id in companyIds array.
-     * @allow (create) User 'bob' can create account 'bank' of company 'beta' if his profile contains 'beta' id in companyIds array.
-     * @deny (get) User 'mallory' cannot read account 'receivables' of company 'alpha' if her profile does not contain 'alpha' id in companyIds array.
-     * @deny (update) User 'eve' cannot update account 'PPE' of company 'gamma' if her profile does not contain 'gamma' id in companyIds array.
-     * @principle Requires user to be explicitly authorized for the parent company via profile's companyIds.
+     * @description Secures the accounts sub-collection for a company.
+     * @path /companies/{companyId}/accounts
+     * @allow (create) Accountant associated with company 'company123' creates a new account for it.
+     * @deny (create) Accountant not associated with 'company123' attempts to create an account for it.
      */
     match /companies/{companyId}/accounts/{accountId} {
-      allow get: if isAuthorizedForCompany(companyId);
-      allow list: if isAuthorizedForCompany(companyId);
-      allow create: if isAuthorizedForCompany(companyId);
-      allow update: if isAuthorizedForCompany(companyId) && resource != null;
-      allow delete: if isAuthorizedForCompany(companyId) && resource != null;
+        allow get: if isAssociatedWithCompany(companyId);
+        allow list: if isAssociatedWithCompany(companyId);
+        allow create: if isAssociatedWithCompany(companyId) && request.resource.data.companyId == companyId;
+        allow update: if isAssociatedWithCompany(companyId) && resource.data.companyId == companyId;
+        allow delete: if isAssociatedWithCompany(companyId) && resource.data.companyId == companyId;
     }
 
     /**
-     * @description Rule for voucher documents under a company.
-     * @path /companies/{companyId}/vouchers/{voucherId}
-     * @allow (get) User 'alice' can read voucher 'voucher-1' of company 'acme' if her profile contains 'acme' id in companyIds array.
-     * @allow (create) User 'bob' can create voucher 'voucher-2' of company 'beta' if his profile contains 'beta' id in companyIds array.
-     * @deny (get) User 'mallory' cannot read voucher 'voucher-3' of company 'alpha' if her profile does not contain 'alpha' id in companyIds array.
-     * @deny (update) User 'eve' cannot update voucher 'voucher-4' of company 'gamma' if her profile does not contain 'gamma' id in companyIds array.
-     * @principle Requires user to be explicitly authorized for the parent company via profile's companyIds.
+     * @description Secures the vouchers sub-collection for a company.
+     * @path /companies/{companyId}/vouchers
+     * @allow (create) Accountant associated with company 'company123' creates a new voucher for it.
+     * @deny (create) Accountant not associated with 'company123' attempts to create a voucher for it.
      */
     match /companies/{companyId}/vouchers/{voucherId} {
-      allow get: if isAuthorizedForCompany(companyId);
-      allow list: if isAuthorizedForCompany(companyId);
-      allow create: if isAuthorizedForCompany(companyId);
-      allow update: if isAuthorizedForCompany(companyId) && resource != null;
-      allow delete: if isAuthorizedForCompany(companyId) && resource != null;
+        allow get: if isAssociatedWithCompany(companyId);
+        allow list: if isAssociatedWithCompany(companyId);
+        allow create: if isAssociatedWithCompany(companyId) && request.resource.data.companyId == companyId;
+        allow update: if isAssociatedWithCompany(companyId) && resource.data.companyId == companyId;
+        allow delete: if isAssociatedWithCompany(companyId) && resource.data.companyId == companyId;
     }
 
-        /**
-     * @description Rule for subject documents under a company.
-     * @path /companies/{companyId}/subjects/{subjectId}
-     * @allow (get) User 'alice' can read subject 'client-1' of company 'acme' if her profile contains 'acme' id in companyIds array.
-     * @allow (create) User 'bob' can create subject 'provider-1' of company 'beta' if his profile contains 'beta' id in companyIds array.
-     * @deny (get) User 'mallory' cannot read subject 'client-2' of company 'alpha' if her profile does not contain 'alpha' id in companyIds array.
-     * @deny (update) User 'eve' cannot update subject 'provider-2' of company 'gamma' if her profile does not contain 'gamma' id in companyIds array.
-     * @principle Requires user to be explicitly authorized for the parent company via profile's companyIds.
+    /**
+     * @description Secures the subjects sub-collection for a company.
+     * @path /companies/{companyId}/subjects
      */
     match /companies/{companyId}/subjects/{subjectId} {
-      allow get: if isAuthorizedForCompany(companyId);
-      allow list: if isAuthorizedForCompany(companyId);
-      allow create: if isAuthorizedForCompany(companyId);
-      allow update: if isAuthorizedForCompany(companyId) && resource != null;
-      allow delete: if isAuthorizedForCompany(companyId) && resource != null;
+        allow get: if isAssociatedWithCompany(companyId);
+        allow list: if isAssociatedWithCompany(companyId);
+        allow create: if isAssociatedWithCompany(companyId) && request.resource.data.companyId == companyId;
+        allow update: if isAssociatedWithCompany(companyId) && resource.data.companyId == companyId;
+        allow delete: if isAssociatedWithCompany(companyId) && resource.data.companyId == companyId;
     }
 
     /**
-     * @description Rule for cost-center documents under a company.
-     * @path /companies/{companyId}/cost-centers/{costCenterId}
-     * @allow (get) User 'alice' can read cost-center 'dept-1' of company 'acme' if her profile contains 'acme' id in companyIds array.
-     * @allow (create) User 'bob' can create cost-center 'project-1' of company 'beta' if his profile contains 'beta' id in companyIds array.
-     * @deny (get) User 'mallory' cannot read cost-center 'dept-2' of company 'alpha' if her profile does not contain 'alpha' id in companyIds array.
-     * @deny (update) User 'eve' cannot update cost-center 'project-2' of company 'gamma' if her profile does not contain 'gamma' id in companyIds array.
-     * @principle Requires user to be explicitly authorized for the parent company via profile's companyIds.
+     * @description Secures the cost-centers sub-collection for a company.
+     * @path /companies/{companyId}/cost-centers
      */
     match /companies/{companyId}/cost-centers/{costCenterId} {
-      allow get: if isAuthorizedForCompany(companyId);
-      allow list: if isAuthorizedForCompany(companyId);
-      allow create: if isAuthorizedForCompany(companyId);
-      allow update: if isAuthorizedForCompany(companyId) && resource != null;
-      allow delete: if isAuthorizedForCompany(companyId) && resource != null;
+        allow get: if isAssociatedWithCompany(companyId);
+        allow list: if isAssociatedWithCompany(companyId);
+        allow create: if isAssociatedWithCompany(companyId) && request.resource.data.companyId == companyId;
+        allow update: if isAssociatedWithCompany(companyId) && resource.data.companyId == companyId;
+        allow delete: if isAssociatedWithCompany(companyId) && resource.data.companyId == companyId;
     }
 
     /**
-     * @description Rule for employee documents under a company.
-     * @path /companies/{companyId}/employees/{employeeId}
-     * @allow (get) User 'alice' can read employee 'emp-1' of company 'acme' if her profile contains 'acme' id in companyIds array.
-     * @allow (create) User 'bob' can create employee 'emp-2' of company 'beta' if his profile contains 'beta' id in companyIds array.
-     * @deny (get) User 'mallory' cannot read employee 'emp-3' of company 'alpha' if her profile does not contain 'alpha' id in companyIds array.
-     * @deny (update) User 'eve' cannot update employee 'emp-4' of company 'gamma' if her profile does not contain 'gamma' id in companyIds array.
-     * @principle Requires user to be explicitly authorized for the parent company via profile's companyIds.
+     * @description Secures the employees sub-collection for a company.
+     * @path /companies/{companyId}/employees
      */
     match /companies/{companyId}/employees/{employeeId} {
-      allow get: if isAuthorizedForCompany(companyId);
-      allow list: if isAuthorizedForCompany(companyId);
-      allow create: if isAuthorizedForCompany(companyId);
-      allow update: if isAuthorizedForCompany(companyId) && resource != null;
-      allow delete: if isAuthorizedForCompany(companyId) && resource != null;
-    }
-
-        /**
-     * @description Rule for purchase documents under a company.
-     * @path /companies/{companyId}/purchases/{purchaseId}
-     * @allow (get) User 'alice' can read purchase 'purchase-1' of company 'acme' if her profile contains 'acme' id in companyIds array.
-     * @allow (create) User 'bob' can create purchase 'purchase-2' of company 'beta' if his profile contains 'beta' id in companyIds array.
-     * @deny (get) User 'mallory' cannot read purchase 'purchase-3' of company 'alpha' if her profile does not contain 'alpha' id in companyIds array.
-     * @deny (update) User 'eve' cannot update purchase 'purchase-4' of company 'gamma' if her profile does not contain 'gamma' id in companyIds array.
-     * @principle Requires user to be explicitly authorized for the parent company via profile's companyIds.
-     */
-    match /companies/{companyId}/purchases/{purchaseId} {
-      allow get: if isAuthorizedForCompany(companyId);
-      allow list: if isAuthorizedForCompany(companyId);
-      allow create: if isAuthorizedForCompany(companyId);
-      allow update: if isAuthorizedForCompany(companyId) && resource != null;
-      allow delete: if isAuthorizedForCompany(companyId) && resource != null;
+        allow get: if isAssociatedWithCompany(companyId);
+        allow list: if isAssociatedWithCompany(companyId);
+        allow create: if isAssociatedWithCompany(companyId) && request.resource.data.companyId == companyId;
+        allow update: if isAssociatedWithCompany(companyId) && resource.data.companyId == companyId;
+        allow delete: if isAssociatedWithCompany(companyId) && resource.data.companyId == companyId;
     }
 
     /**
-     * @description Rule for sales documents under a company.
-     * @path /companies/{companyId}/sales/{saleId}
-     * @allow (get) User 'alice' can read sale 'sale-1' of company 'acme' if her profile contains 'acme' id in companyIds array.
-     * @allow (create) User 'bob' can create sale 'sale-2' of company 'beta' if his profile contains 'beta' id in companyIds array.
-     * @deny (get) User 'mallory' cannot read sale 'sale-3' of company 'alpha' if her profile does not contain 'alpha' id in companyIds array.
-     * @deny (update) User 'eve' cannot update sale 'sale-4' of company 'gamma' if her profile does not contain 'gamma' id in companyIds array.
-     * @principle Requires user to be explicitly authorized for the parent company via profile's companyIds.
+     * @description Secures the purchases sub-collection for a company.
+     * @path /companies/{companyId}/purchases
+     */
+     match /companies/{companyId}/purchases/{purchaseId} {
+        allow get: if isAssociatedWithCompany(companyId);
+        allow list: if isAssociatedWithCompany(companyId);
+        allow create: if isAssociatedWithCompany(companyId) && request.resource.data.companyId == companyId;
+        allow update: if isAssociatedWithCompany(companyId) && resource.data.companyId == companyId;
+        allow delete: if isAssociatedWithCompany(companyId) && resource.data.companyId == companyId;
+    }
+
+    /**
+     * @description Secures the sales sub-collection for a company.
+     * @path /companies/{companyId}/sales
      */
     match /companies/{companyId}/sales/{saleId} {
-      allow get: if isAuthorizedForCompany(companyId);
-      allow list: if isAuthorizedForCompany(companyId);
-      allow create: if isAuthorizedForCompany(companyId);
-      allow update: if isAuthorizedForCompany(companyId) && resource != null;
-      allow delete: if isAuthorizedForCompany(companyId) && resource != null;
+        allow get: if isAssociatedWithCompany(companyId);
+        allow list: if isAssociatedWithCompany(companyId);
+        allow create: if isAssociatedWithCompany(companyId) && request.resource.data.companyId == companyId;
+        allow update: if isAssociatedWithCompany(companyId) && resource.data.companyId == companyId;
+        allow delete: if isAssociatedWithCompany(companyId) && resource.data.companyId == companyId;
     }
 
-        /**
-     * @description Rule for fee documents under a company.
-     * @path /companies/{companyId}/fees/{feeId}
-     * @allow (get) User 'alice' can read fee 'fee-1' of company 'acme' if her profile contains 'acme' id in companyIds array.
-     * @allow (create) User 'bob' can create fee 'fee-2' of company 'beta' if his profile contains 'beta' id in companyIds array.
-     * @deny (get) User 'mallory' cannot read fee 'fee-3' of company 'alpha' if her profile does not contain 'alpha' id in companyIds array.
-     * @deny (update) User 'eve' cannot update fee 'fee-4' of company 'gamma' if her profile does not contain 'gamma' id in companyIds array.
-     * @principle Requires user to be explicitly authorized for the parent company via profile's companyIds.
+    /**
+     * @description Secures the fees sub-collection for a company.
+     * @path /companies/{companyId}/fees
      */
     match /companies/{companyId}/fees/{feeId} {
-      allow get: if isAuthorizedForCompany(companyId);
-      allow list: if isAuthorizedForCompany(companyId);
-      allow create: if isAuthorizedForCompany(companyId);
-      allow update: if isAuthorizedForCompany(companyId) && resource != null;
-      allow delete: if isAuthorizedForCompany(companyId) && resource != null;
+        allow get: if isAssociatedWithCompany(companyId);
+        allow list: if isAssociatedWithCompany(companyId);
+        allow create: if isAssociatedWithCompany(companyId) && request.resource.data.companyId == companyId;
+        allow update: if isAssociatedWithCompany(companyId) && resource.data.companyId == companyId;
+        allow delete: if isAssociatedWithCompany(companyId) && resource.data.companyId == companyId;
     }
 
     /**
-     * @description Rule for account-group documents under a user.
-     * @path /users/{userId}/account-groups/{accountGroupId}
-     * @allow (get) User 'alice' can read account-group 'group-1' if request.auth.uid == 'alice'.
-     * @allow (create) User 'bob' can create account-group 'group-2' if request.auth.uid == 'bob'.
-     * @deny (get) User 'mallory' cannot read account-group 'group-3' of user 'alice' if request.auth.uid != 'alice'.
-     * @deny (update) User 'eve' cannot update account-group 'group-4' of user 'gamma' if request.auth.uid != 'gamma'.
-     * @principle Requires user to be the owner of the parent user document.
+     * @description Secures the account-groups sub-collection for a user.
+     * @path /users/{userId}/account-groups
      */
     match /users/{userId}/account-groups/{accountGroupId} {
-      allow get: if isOwner(userId);
-      allow list: if isOwner(userId);
-      allow create: if isOwner(userId);
-      allow update: if isExistingOwner(userId);
-      allow delete: if isExistingOwner(userId);
+        allow get: if isOwner(userId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId);
+        allow update: if isExistingOwner(userId);
+        allow delete: if isExistingOwner(userId);
     }
 
     /**
-     * @description Rule for institution documents under a user.
-     * @path /users/{userId}/institutions/{institutionId}
-     * @allow (get) User 'alice' can read institution 'afp-1' if request.auth.uid == 'alice'.
-     * @allow (create) User 'bob' can create institution 'health-1' if request.auth.uid == 'bob'.
-     * @deny (get) User 'mallory' cannot read institution 'afp-2' of user 'alice' if request.auth.uid != 'alice'.
-     * @deny (update) User 'eve' cannot update institution 'health-2' of user 'gamma' if request.auth.uid != 'gamma'.
-     * @principle Requires user to be the owner of the parent user document.
+     * @description Secures the institutions sub-collection for a user.
+     * @path /users/{userId}/institutions
      */
     match /users/{userId}/institutions/{institutionId} {
-      allow get: if isOwner(userId);
-      allow list: if isOwner(userId);
-      allow create: if isOwner(userId);
-      allow update: if isExistingOwner(userId);
-      allow delete: if isExistingOwner(userId);
+        allow get: if isOwner(userId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId);
+        allow update: if isExistingOwner(userId);
+        allow delete: if isExistingOwner(userId);
     }
 
-        /**
-     * @description Rule for family-allowance-parameter documents under a user.
-     * @path /users/{userId}/family-allowance-parameters/{familyAllowanceParameterId}
-     * @allow (get) User 'alice' can read family-allowance-parameter 'param-1' if request.auth.uid == 'alice'.
-     * @allow (create) User 'bob' can create family-allowance-parameter 'param-2' if request.auth.uid == 'bob'.
-     * @deny (get) User 'mallory' cannot read family-allowance-parameter 'param-3' of user 'alice' if request.auth.uid != 'alice'.
-     * @deny (update) User 'eve' cannot update family-allowance-parameter 'param-4' of user 'gamma' if request.auth.uid != 'gamma'.
-     * @principle Requires user to be the owner of the parent user document.
+    /**
+     * @description Secures the family-allowance-parameters sub-collection for a user.
+     * @path /users/{userId}/family-allowance-parameters
      */
     match /users/{userId}/family-allowance-parameters/{familyAllowanceParameterId} {
-      allow get: if isOwner(userId);
-      allow list: if isOwner(userId);
-      allow create: if isOwner(userId);
-      allow update: if isExistingOwner(userId);
-      allow delete: if isExistingOwner(userId);
+        allow get: if isOwner(userId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId);
+        allow update: if isExistingOwner(userId);
+        allow delete: if isExistingOwner(userId);
     }
 
     /**
-     * @description Rule for tax-parameter documents under a user.
-     * @path /users/{userId}/tax-parameters/{taxParameterId}
-     * @allow (get) User 'alice' can read tax-parameter 'tax-1' if request.auth.uid == 'alice'.
-     * @allow (create) User 'bob' can create tax-parameter 'tax-2' if request.auth.uid == 'bob'.
-     * @deny (get) User 'mallory' cannot read tax-parameter 'tax-3' of user 'alice' if request.auth.uid != 'alice'.
-     * @deny (update) User 'eve' cannot update tax-parameter 'tax-4' of user 'gamma' if request.auth.uid != 'gamma'.
-     * @principle Requires user to be the owner of the parent user document.
+     * @description Secures the tax-parameters sub-collection for a user.
+     * @path /users/{userId}/tax-parameters
      */
     match /users/{userId}/tax-parameters/{taxParameterId} {
-      allow get: if isOwner(userId);
-      allow list: if isOwner(userId);
-      allow create: if isOwner(userId);
-      allow update: if isExistingOwner(userId);
-      allow delete: if isExistingOwner(userId);
+        allow get: if isOwner(userId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId);
+        allow update: if isExistingOwner(userId);
+        allow delete: if isExistingOwner(userId);
     }
 
     /**
-     * @description Rule for health-entity documents under a user.
-     * @path /users/{userId}/health-entities/{healthEntityId}
-     * @allow (get) User 'alice' can read health-entity 'health-1' if request.auth.uid == 'alice'.
-     * @allow (create) User 'bob' can create health-entity 'health-2' if request.auth.uid == 'bob'.
-     * @deny (get) User 'mallory' cannot read health-entity 'health-3' of user 'alice' if request.auth.uid != 'alice'.
-     * @deny (update) User 'eve' cannot update health-entity 'health-4' of user 'gamma' if request.auth.uid != 'gamma'.
-     * @principle Requires user to be the owner of the parent user document.
+     * @description Secures the health-entities sub-collection for a user.
+     * @path /users/{userId}/health-entities
      */
     match /users/{userId}/health-entities/{healthEntityId} {
-      allow get: if isOwner(userId);
-      allow list: if isOwner(userId);
-      allow create: if isOwner(userId);
-      allow update: if isExistingOwner(userId);
-      allow delete: if isExistingOwner(userId);
+         allow get: if isOwner(userId);
+         allow list: if isOwner(userId);
+         allow create: if isOwner(userId);
+         allow update: if isExistingOwner(userId);
+         allow delete: if isExistingOwner(userId);
     }
 
     /**
-     * @description Rule for afp-entity documents under a user.
-     * @path /users/{userId}/afp-entities/{afpEntityId}
-     * @allow (get) User 'alice' can read afp-entity 'afp-1' if request.auth.uid == 'alice'.
-     * @allow (create) User 'bob' can create afp-entity 'afp-2' if request.auth.uid == 'bob'.
-     * @deny (get) User 'mallory' cannot read afp-entity 'afp-3' of user 'alice' if request.auth.uid != 'alice'.
-     * @deny (update) User 'eve' cannot update afp-entity 'afp-4' of user 'gamma' if request.auth.uid != 'gamma'.
-     * @principle Requires user to be the owner of the parent user document.
+     * @description Secures the afp-entities sub-collection for a user.
+     * @path /users/{userId}/afp-entities
      */
     match /users/{userId}/afp-entities/{afpEntityId} {
-      allow get: if isOwner(userId);
-      allow list: if isOwner(userId);
-      allow create: if isOwner(userId);
-      allow update: if isExistingOwner(userId);
-      allow delete: if isExistingOwner(userId);
+        allow get: if isOwner(userId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId);
+        allow update: if isExistingOwner(userId);
+        allow delete: if isExistingOwner(userId);
     }
   }
 }
