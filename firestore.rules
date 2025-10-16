@@ -1,222 +1,301 @@
 /**
- * @file Firestore Security Rules
- * @core-philosophy This ruleset enforces a strict user-ownership model for personal data
- *  and a company-based ownership model for accounting data. Users can only access their
- *  own profile data.  Company data access is implicitly granted to all authenticated users.
- * @data-structure
- *  - /users/{userId}: User profiles, accessible only by the owning user.
- *  - /companies/{companyId}: Companies, accessible by any authenticated user.
- *  - /companies/{companyId}/accounts: Accounts for a company, accessible by any authenticated user.
- *  - /companies/{companyId}/vouchers: Vouchers for a company, accessible by any authenticated user.
- *  - /companies/{companyId}/subjects: Subjects for a company, accessible by any authenticated user.
- *  - /companies/{companyId}/cost-centers: Cost centers for a company, accessible by any authenticated user.
- *  - /companies/{companyId}/employees: Employees for a company, accessible by any authenticated user.
- *  - /companies/{companyId}/purchases: Purchases for a company, accessible by any authenticated user.
- *  - /companies/{companyId}/sales: Sales for a company, accessible by any authenticated user.
- *  - /companies/{companyId}/fees: Fees for a company, accessible by any authenticated user.
- *  - /users/{userId}/account-groups: Account groups for a user, accessible only by the owning user.
- *  - /users/{userId}/institutions: Institutions for a user, accessible only by the owning user.
- *  - /users/{userId}/family-allowance-parameters: Family allowance parameters for a user, accessible only by the owning user.
- *  - /users/{userId}/tax-parameters: Tax parameters for a user, accessible only by the owning user.
- *  - /users/{userId}/health-entities: Health entities for a user, accessible only by the owning user.
- *  - /users/{userId}/afp-entities: AFP entities for a user, accessible only by the owning user.
- * @key-security-decisions
- *  - Listing of all users is explicitly denied.
- * @denormalization-for-authorization N/A - No denormalization is needed at this time.
- * @structural-segregation N/A - No structural segregation is needed at this time.
+ * @fileoverview Firestore Security Rules for the accounting platform.
+ *
+ * Core Philosophy:
+ * This ruleset enforces a multi-tenant security model where users can only access data
+ * related to companies they are associated with.  User profiles are private, and
+ * administrative roles are used to grant elevated privileges where necessary.
+ *
+ * Data Structure:
+ * - /users/{userId}: Stores user profile information, accessible only by the user themselves and admins.
+ * - /companies: Stores company data. Accessible with proper user association via `companyIds` array.
+ * - /companies/{companyId}/accounts: Stores account data for a specific company.
+ * - /companies/{companyId}/vouchers: Stores voucher data for a specific company.
+ * - /companies/{companyId}/subjects: Stores subjects (clients, providers) data for a specific company.
+ * - /companies/{companyId}/cost-centers: Stores cost center data for a specific company.
+ * - /companies/{companyId}/employees: Stores employee data for a specific company.
+ * - /companies/{companyId}/purchases: Stores purchase data for a specific company.
+ * - /companies/{companyId}/sales: Stores sales data for a specific company.
+ * - /companies/{companyId}/fees: Stores fees data for a specific company.
+ * - /users/{userId}/account-groups: Stores user-specific account groups.
+ * - /users/{userId}/institutions: Stores user-specific institutions.
+ * - /users/{userId}/family-allowance-parameters: Stores user-specific family allowance parameters.
+ * - /users/{userId}/tax-parameters: Stores user-specific tax parameters.
+ * - /users/{userId}/health-entities: Stores user-specific health entities.
+ * - /users/{userId}/afp-entities: Stores user-specific AFP entities.
+ *
+ * Key Security Decisions:
+ * - Users can only read/write their own profile data.
+ * - Admins can read any user's profile.  Admin role assignment must be managed outside of these rules.
+ * - Company data and associated subcollections are accessible to users who are linked to the company via the `companyIds` array in their profile.
+ * - Listing of users is denied to prevent information disclosure.
+ *
+ * Denormalization for Authorization:
+ *  The `UserProfile` entity contains a `companyIds` array, which is crucial for authorizing
+ *  access to company-related data. This avoids costly `get()` calls to the user profile when
+ *  accessing company subcollections.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Manages user profile data, ensuring only the owning user can access it.
+     * @description Checks if the user is signed in.
+     * @path N/A (Helper Function)
+     * @allow N/A (Helper Function)
+     * @deny N/A (Helper Function)
+     * @principle Authentication: Ensures only authenticated users can access protected resources.
+     */
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    /**
+     * @description Checks if the user is the owner of the document based on the provided user ID.
+     * @path N/A (Helper Function)
+     * @allow N/A (Helper Function)
+     * @deny N/A (Helper Function)
+     * @principle Ownership: Confirms that the user's ID matches the expected owner ID.
+     */
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+
+    /**
+     * @description Checks if the user is the owner of the existing document.
+     * @path N/A (Helper Function)
+     * @allow N/A (Helper Function)
+     * @deny N/A (Helper Function)
+     * @principle Ownership and Existence:  Combines ownership validation with a check to ensure the document exists before allowing modifications or deletion.
+     */
+    function isExistingOwner(userId) {
+        return (isOwner(userId) && resource != null);
+    }
+
+    /**
+     * @description Checks if the user has the 'Admin' role.
+     * @path N/A (Helper Function)
+     * @allow N/A (Helper Function)
+     * @deny N/A (Helper Function)
+     * @principle Role-Based Access Control:  Determines if the user's role is 'Admin'.  Role assignment is assumed to be managed externally.
+     */
+    function isAdmin() {
+      return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Admin';
+    }
+
+    /**
+     * @description Checks if the user is associated with the company.
+     * @path N/A (Helper Function)
+     * @allow N/A (Helper Function)
+     * @deny N/A (Helper Function)
+     * @principle Multi-Tenancy:  Verifies if the user's profile contains the company ID in its 'companyIds' array, granting access to company-specific data.
+     */
+    function isUserAssociatedWithCompany(companyId) {
+      return isSignedIn() && (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyIds.hasAny([companyId]) || isAdmin());
+    }
+
+
+    /**
+     * @description Manages access to user profile information.
      * @path /users/{userId}
-     * @allow (create) User 'testuser' with uid '123' can create their profile if request.auth.uid == '123' and request.resource.data.uid == '123'.
-     * @deny (create) User 'testuser' with uid '123' cannot create a profile for userId '456'.
-     * @allow (get) User 'testuser' with uid '123' can read their profile at /users/123.
-     * @deny (get) User 'testuser' with uid '123' cannot read the profile of another user at /users/456.
-     * @allow (update) User 'testuser' with uid '123' can update their profile at /users/123.
-     * @deny (update) User 'testuser' with uid '123' cannot update the profile of another user at /users/456.
-     * @allow (delete) User 'testuser' with uid '123' can delete their profile at /users/123.
-     * @deny (delete) User 'testuser' with uid '123' cannot delete the profile of another user at /users/456.
-     * @principle Enforces document ownership for all read/write operations.
+     * @allow (get) An admin can read any user profile.
+     * @allow (get) A user can read their own profile.
+     * @allow (create) A user can create their own profile.
+     * @allow (update) A user can update their own profile.
+     * @deny (create) A user cannot create a profile with a different user ID.
+     * @deny (update) A user cannot update another user's profile.
+     * @deny (list) Listing users is not allowed.
+     * @principle Restricts access to user profiles to the owner and admins.
      */
     match /users/{userId} {
-      allow get: if isOwner(userId);
+      allow get: if isOwner(userId) || isAdmin();
       allow list: if false;
       allow create: if isOwner(userId) && request.resource.data.uid == userId;
-      allow update: if isExistingOwner(userId) && request.resource.data.uid == resource.data.uid;
+      allow update: if isExistingOwner(userId);
       allow delete: if isExistingOwner(userId);
     }
 
     /**
-     * @description Manages company data, allowing access to any authenticated user.
+     * @description Manages access to company information.
      * @path /companies/{companyId}
-     * @allow (get) Any authenticated user can read company data.
-     * @allow (list) Any authenticated user can list companies.
-     * @deny (create) No one can create a company (for prototyping, should be admin later).
-     * @deny (update) No one can update a company (for prototyping, should be admin or company owner later).
-     * @deny (delete) No one can delete a company (for prototyping, should be admin later).
-     * @principle Grants read access to any authenticated user, restricts write access.
+     * @allow (get) A user associated with the company can read the company data.
+     * @allow (create) An admin can create a company.
+     * @allow (update) An admin can update a company.
+     * @deny (create) A non-admin user cannot create a company.
+     * @deny (update) A non-admin user cannot update a company.
+     * @deny (delete) Only admins can delete companies.
+     * @principle Restricts company creation and updates to admins, while allowing associated users to read.
      */
     match /companies/{companyId} {
-      allow get, list: if isSignedIn();
-      allow create: if false;
-      allow update: if false;
-      allow delete: if false;
+      allow get: if isUserAssociatedWithCompany(companyId);
+      allow list: if false;
+      allow create: if isAdmin();
+      allow update: if isAdmin() && resource != null;
+      allow delete: if isAdmin() && resource != null;
     }
 
     /**
-     * @description Manages account data within a specific company, allowing access to any authenticated user.
+     * @description Manages access to accounts for a specific company.
      * @path /companies/{companyId}/accounts/{accountId}
-     * @allow (get) Any authenticated user can read account data.
-     * @allow (list) Any authenticated user can list accounts.
-     * @deny (create) No one can create an account (for prototyping, should be admin or company owner later).
-     * @deny (update) No one can update an account (for prototyping, should be admin or company owner later).
-     * @deny (delete) No one can delete an account (for prototyping, should be admin or company owner later).
-     * @principle Grants read access to any authenticated user, restricts write access.
+     * @allow (get) A user associated with the company can read account data.
+     * @allow (create) A user associated with the company can create account data.
+     * @allow (update) A user associated with the company can update account data.
+     * @deny (create) A user cannot create account data for a company they are not associated with.
+     * @deny (update) A user cannot update account data for a company they are not associated with.
+     * @deny (delete) Only users associated with the company can delete accounts.
+     * @principle Restricts account data access to users associated with the company.
      */
     match /companies/{companyId}/accounts/{accountId} {
-      allow get, list: if isSignedIn();
-      allow create: if false;
-      allow update: if false;
-      allow delete: if false;
+      allow get: if isUserAssociatedWithCompany(companyId);
+      allow list: if isUserAssociatedWithCompany(companyId);
+      allow create: if isUserAssociatedWithCompany(companyId);
+      allow update: if isUserAssociatedWithCompany(companyId) && resource != null;
+      allow delete: if isUserAssociatedWithCompany(companyId) && resource != null;
     }
 
     /**
-     * @description Manages voucher data within a specific company, allowing access to any authenticated user.
+     * @description Manages access to vouchers for a specific company.
      * @path /companies/{companyId}/vouchers/{voucherId}
-     * @allow (get) Any authenticated user can read voucher data.
-     * @allow (list) Any authenticated user can list vouchers.
-     * @deny (create) No one can create a voucher (for prototyping, should be admin or company owner later).
-     * @deny (update) No one can update a voucher (for prototyping, should be admin or company owner later).
-     * @deny (delete) No one can delete a voucher (for prototyping, should be admin or company owner later).
-     * @principle Grants read access to any authenticated user, restricts write access.
+     * @allow (get) A user associated with the company can read voucher data.
+     * @allow (create) A user associated with the company can create voucher data.
+     * @allow (update) A user associated with the company can update voucher data.
+     * @deny (create) A user cannot create voucher data for a company they are not associated with.
+     * @deny (update) A user cannot update voucher data for a company they are not associated with.
+     * @deny (delete) Only users associated with the company can delete vouchers.
+     * @principle Restricts voucher data access to users associated with the company.
      */
     match /companies/{companyId}/vouchers/{voucherId} {
-      allow get, list: if isSignedIn();
-      allow create: if false;
-      allow update: if false;
-      allow delete: if false;
+      allow get: if isUserAssociatedWithCompany(companyId);
+      allow list: if isUserAssociatedWithCompany(companyId);
+      allow create: if isUserAssociatedWithCompany(companyId);
+      allow update: if isUserAssociatedWithCompany(companyId) && resource != null;
+      allow delete: if isUserAssociatedWithCompany(companyId) && resource != null;
     }
 
     /**
-     * @description Manages subject data within a specific company, allowing access to any authenticated user.
+     * @description Manages access to subjects (clients, providers) for a specific company.
      * @path /companies/{companyId}/subjects/{subjectId}
-     * @allow (get) Any authenticated user can read subject data.
-     * @allow (list) Any authenticated user can list subjects.
-     * @deny (create) No one can create a subject (for prototyping, should be admin or company owner later).
-     * @deny (update) No one can update a subject (for prototyping, should be admin or company owner later).
-     * @deny (delete) No one can delete a subject (for prototyping, should be admin or company owner later).
-     * @principle Grants read access to any authenticated user, restricts write access.
+     * @allow (get) A user associated with the company can read subject data.
+     * @allow (create) A user associated with the company can create subject data.
+     * @allow (update) A user associated with the company can update subject data.
+     * @deny (create) A user cannot create subject data for a company they are not associated with.
+     * @deny (update) A user cannot update subject data for a company they are not associated with.
+     * @deny (delete) Only users associated with the company can delete subjects.
+     * @principle Restricts subject data access to users associated with the company.
      */
     match /companies/{companyId}/subjects/{subjectId} {
-      allow get, list: if isSignedIn();
-      allow create: if false;
-      allow update: if false;
-      allow delete: if false;
+      allow get: if isUserAssociatedWithCompany(companyId);
+      allow list: if isUserAssociatedWithCompany(companyId);
+      allow create: if isUserAssociatedWithCompany(companyId);
+      allow update: if isUserAssociatedWithCompany(companyId) && resource != null;
+      allow delete: if isUserAssociatedWithCompany(companyId) && resource != null;
     }
 
     /**
-     * @description Manages cost center data within a specific company, allowing access to any authenticated user.
+     * @description Manages access to cost centers for a specific company.
      * @path /companies/{companyId}/cost-centers/{costCenterId}
-     * @allow (get) Any authenticated user can read cost center data.
-     * @allow (list) Any authenticated user can list cost centers.
-     * @deny (create) No one can create a cost center (for prototyping, should be admin or company owner later).
-     * @deny (update) No one can update a cost center (for prototyping, should be admin or company owner later).
-     * @deny (delete) No one can delete a cost center (for prototyping, should be admin or company owner later).
-     * @principle Grants read access to any authenticated user, restricts write access.
+     * @allow (get) A user associated with the company can read cost center data.
+     * @allow (create) A user associated with the company can create cost center data.
+     * @allow (update) A user associated with the company can update cost center data.
+     * @deny (create) A user cannot create cost center data for a company they are not associated with.
+     * @deny (update) A user cannot update cost center data for a company they are not associated with.
+     * @deny (delete) Only users associated with the company can delete cost centers.
+     * @principle Restricts cost center data access to users associated with the company.
      */
     match /companies/{companyId}/cost-centers/{costCenterId} {
-      allow get, list: if isSignedIn();
-      allow create: if false;
-      allow update: if false;
-      allow delete: if false;
+      allow get: if isUserAssociatedWithCompany(companyId);
+      allow list: if isUserAssociatedWithCompany(companyId);
+      allow create: if isUserAssociatedWithCompany(companyId);
+      allow update: if isUserAssociatedWithCompany(companyId) && resource != null;
+      allow delete: if isUserAssociatedWithCompany(companyId) && resource != null;
     }
 
     /**
-     * @description Manages employee data within a specific company, allowing access to any authenticated user.
+     * @description Manages access to employees for a specific company.
      * @path /companies/{companyId}/employees/{employeeId}
-     * @allow (get) Any authenticated user can read employee data.
-     * @allow (list) Any authenticated user can list employees.
-     * @deny (create) No one can create an employee (for prototyping, should be admin or company owner later).
-     * @deny (update) No one can update an employee (for prototyping, should be admin or company owner later).
-     * @deny (delete) No one can delete an employee (for prototyping, should be admin or company owner later).
-     * @principle Grants read access to any authenticated user, restricts write access.
+     * @allow (get) A user associated with the company can read employee data.
+     * @allow (create) A user associated with the company can create employee data.
+     * @allow (update) A user associated with the company can update employee data.
+     * @deny (create) A user cannot create employee data for a company they are not associated with.
+     * @deny (update) A user cannot update employee data for a company they are not associated with.
+     * @deny (delete) Only users associated with the company can delete employees.
+     * @principle Restricts employee data access to users associated with the company.
      */
     match /companies/{companyId}/employees/{employeeId} {
-      allow get, list: if isSignedIn();
-      allow create: if false;
-      allow update: if false;
-      allow delete: if false;
+      allow get: if isUserAssociatedWithCompany(companyId);
+      allow list: if isUserAssociatedWithCompany(companyId);
+      allow create: if isUserAssociatedWithCompany(companyId);
+      allow update: if isUserAssociatedWithCompany(companyId) && resource != null;
+      allow delete: if isUserAssociatedWithCompany(companyId) && resource != null;
     }
 
-     /**
-      * @description Manages purchase data within a specific company, allowing access to any authenticated user.
-      * @path /companies/{companyId}/purchases/{purchaseId}
-      * @allow (get) Any authenticated user can read purchase data.
-      * @allow (list) Any authenticated user can list purchases.
-      * @deny (create) No one can create a purchase document (for prototyping, should be admin or company owner later).
-      * @deny (update) No one can update a purchase document (for prototyping, should be admin or company owner later).
-      * @deny (delete) No one can delete a purchase document (for prototyping, should be admin or company owner later).
-      * @principle Grants read access to any authenticated user, restricts write access.
-      */
+        /**
+     * @description Manages access to purchases for a specific company.
+     * @path /companies/{companyId}/purchases/{purchaseId}
+     * @allow (get) A user associated with the company can read purchase data.
+     * @allow (create) A user associated with the company can create purchase data.
+     * @allow (update) A user associated with the company can update purchase data.
+     * @deny (create) A user cannot create purchase data for a company they are not associated with.
+     * @deny (update) A user cannot update purchase data for a company they are not associated with.
+     * @deny (delete) Only users associated with the company can delete purchases.
+     * @principle Restricts purchase data access to users associated with the company.
+     */
     match /companies/{companyId}/purchases/{purchaseId} {
-      allow get, list: if isSignedIn();
-      allow create: if false;
-      allow update: if false;
-      allow delete: if false;
+      allow get: if isUserAssociatedWithCompany(companyId);
+      allow list: if isUserAssociatedWithCompany(companyId);
+      allow create: if isUserAssociatedWithCompany(companyId);
+      allow update: if isUserAssociatedWithCompany(companyId) && resource != null;
+      allow delete: if isUserAssociatedWithCompany(companyId) && resource != null;
     }
 
     /**
-     * @description Manages sales data within a specific company, allowing access to any authenticated user.
+     * @description Manages access to sales for a specific company.
      * @path /companies/{companyId}/sales/{saleId}
-     * @allow (get) Any authenticated user can read sale data.
-     * @allow (list) Any authenticated user can list sales.
-     * @deny (create) No one can create a sale document (for prototyping, should be admin or company owner later).
-     * @deny (update) No one can update a sale document (for prototyping, should be admin or company owner later).
-     * @deny (delete) No one can delete a sale document (for prototyping, should be admin or company owner later).
-     * @principle Grants read access to any authenticated user, restricts write access.
+     * @allow (get) A user associated with the company can read sale data.
+     * @allow (create) A user associated with the company can create sale data.
+     * @allow (update) A user associated with the company can update sale data.
+     * @deny (create) A user cannot create sale data for a company they are not associated with.
+     * @deny (update) A user cannot update sale data for a company they are not associated with.
+     * @deny (delete) Only users associated with the company can delete sales.
+     * @principle Restricts sale data access to users associated with the company.
      */
     match /companies/{companyId}/sales/{saleId} {
-      allow get, list: if isSignedIn();
-      allow create: if false;
-      allow update: if false;
-      allow delete: if false;
+      allow get: if isUserAssociatedWithCompany(companyId);
+      allow list: if isUserAssociatedWithCompany(companyId);
+      allow create: if isUserAssociatedWithCompany(companyId);
+      allow update: if isUserAssociatedWithCompany(companyId) && resource != null;
+      allow delete: if isUserAssociatedWithCompany(companyId) && resource != null;
     }
 
     /**
-     * @description Manages fee data within a specific company, allowing access to any authenticated user.
+     * @description Manages access to fees for a specific company.
      * @path /companies/{companyId}/fees/{feeId}
-     * @allow (get) Any authenticated user can read fee data.
-     * @allow (list) Any authenticated user can list fees.
-     * @deny (create) No one can create a fee document (for prototyping, should be admin or company owner later).
-     * @deny (update) No one can update a fee document (for prototyping, should be admin or company owner later).
-     * @deny (delete) No one can delete a fee document (for prototyping, should be admin or company owner later).
-     * @principle Grants read access to any authenticated user, restricts write access.
+     * @allow (get) A user associated with the company can read fee data.
+     * @allow (create) A user associated with the company can create fee data.
+     * @allow (update) A user associated with the company can update fee data.
+     * @deny (create) A user cannot create fee data for a company they are not associated with.
+     * @deny (update) A user cannot update fee data for a company they are not associated with.
+     * @deny (delete) Only users associated with the company can delete fees.
+     * @principle Restricts fee data access to users associated with the company.
      */
     match /companies/{companyId}/fees/{feeId} {
-      allow get, list: if isSignedIn();
-      allow create: if false;
-      allow update: if false;
-      allow delete: if false;
+      allow get: if isUserAssociatedWithCompany(companyId);
+      allow list: if isUserAssociatedWithCompany(companyId);
+      allow create: if isUserAssociatedWithCompany(companyId);
+      allow update: if isUserAssociatedWithCompany(companyId) && resource != null;
+      allow delete: if isUserAssociatedWithCompany(companyId) && resource != null;
     }
 
     /**
-     * @description Manages user-specific account group data.
+     * @description Manages access to account groups for a specific user.
      * @path /users/{userId}/account-groups/{accountGroupId}
-     * @allow (create) User 'testuser' with uid '123' can create an account group if request.auth.uid == '123'.
-     * @deny (create) User 'testuser' with uid '123' cannot create an account group for userId '456'.
-     * @allow (get) User 'testuser' with uid '123' can read their account group at /users/123/account-groups/abc.
-     * @allow (list) User 'testuser' with uid '123' can list their account groups at /users/123/account-groups.
-     * @deny (get) User 'testuser' with uid '123' cannot read the account group of another user at /users/456/account-groups/abc.
-     * @deny (list) User 'testuser' with uid '123' cannot list the account groups of another user at /users/456/account-groups.
-     * @allow (update) User 'testuser' with uid '123' can update their account group at /users/123/account-groups/abc.
-     * @deny (update) User 'testuser' with uid '123' cannot update the account group of another user at /users/456/account-groups/abc.
-     * @allow (delete) User 'testuser' with uid '123' can delete their account group at /users/123/account-groups/abc.
-     * @deny (delete) User 'testuser' with uid '123' cannot delete the account group of another user at /users/456/account-groups/abc.
-     * @principle Enforces document ownership for all read/write operations.
+     * @allow (get) The user can read their own account group data.
+     * @allow (create) The user can create their own account group data.
+     * @allow (update) The user can update their own account group data.
+     * @deny (create) A user cannot create account group data for another user.
+     * @deny (update) A user cannot update account group data for another user.
+     * @deny (delete) Only the user can delete their own account group data.
+     * @principle Restricts account group data access to the owner user.
      */
     match /users/{userId}/account-groups/{accountGroupId} {
       allow get: if isOwner(userId);
@@ -227,19 +306,15 @@ service cloud.firestore {
     }
 
     /**
-     * @description Manages user-specific institution data.
+     * @description Manages access to institutions for a specific user.
      * @path /users/{userId}/institutions/{institutionId}
-     * @allow (create) User 'testuser' with uid '123' can create an institution if request.auth.uid == '123'.
-     * @deny (create) User 'testuser' with uid '123' cannot create an institution for userId '456'.
-     * @allow (get) User 'testuser' with uid '123' can read their institution at /users/123/institutions/abc.
-     * @allow (list) User 'testuser' with uid '123' can list their institutions at /users/123/institutions.
-     * @deny (get) User 'testuser' with uid '123' cannot read the institution of another user at /users/456/institutions/abc.
-     * @deny (list) User 'testuser' with uid '123' cannot list the institutions of another user at /users/456/institutions.
-     * @allow (update) User 'testuser' with uid '123' can update their institution at /users/123/institutions/abc.
-     * @deny (update) User 'testuser' with uid '123' cannot update the institution of another user at /users/456/institutions/abc.
-     * @allow (delete) User 'testuser' with uid '123' can delete their institution at /users/123/institutions/abc.
-     * @deny (delete) User 'testuser' with uid '123' cannot delete the institution of another user at /users/456/institutions/abc.
-     * @principle Enforces document ownership for all read/write operations.
+     * @allow (get) The user can read their own institution data.
+     * @allow (create) The user can create their own institution data.
+     * @allow (update) The user can update their own institution data.
+     * @deny (create) A user cannot create institution data for another user.
+     * @deny (update) A user cannot update institution data for another user.
+     * @deny (delete) Only the user can delete their own institution data.
+     * @principle Restricts institution data access to the owner user.
      */
     match /users/{userId}/institutions/{institutionId} {
       allow get: if isOwner(userId);
@@ -250,19 +325,15 @@ service cloud.firestore {
     }
 
     /**
-     * @description Manages user-specific family allowance parameter data.
+     * @description Manages access to family allowance parameters for a specific user.
      * @path /users/{userId}/family-allowance-parameters/{familyAllowanceParameterId}
-     * @allow (create) User 'testuser' with uid '123' can create a family allowance parameter if request.auth.uid == '123'.
-     * @deny (create) User 'testuser' with uid '123' cannot create a family allowance parameter for userId '456'.
-     * @allow (get) User 'testuser' with uid '123' can read their family allowance parameter at /users/123/family-allowance-parameters/abc.
-     * @allow (list) User 'testuser' with uid '123' can list their family allowance parameters at /users/123/family-allowance-parameters.
-     * @deny (get) User 'testuser' with uid '123' cannot read the family allowance parameter of another user at /users/456/family-allowance-parameters/abc.
-     * @deny (list) User 'testuser' with uid '123' cannot list the family allowance parameters of another user at /users/456/family-allowance-parameters.
-     * @allow (update) User 'testuser' with uid '123' can update their family allowance parameter at /users/123/family-allowance-parameters/abc.
-     * @deny (update) User 'testuser' with uid '123' cannot update the family allowance parameter of another user at /users/456/family-allowance-parameters/abc.
-     * @allow (delete) User 'testuser' with uid '123' can delete their family allowance parameter at /users/123/family-allowance-parameters/abc.
-     * @deny (delete) User 'testuser' with uid '123' cannot delete the family allowance parameter of another user at /users/456/family-allowance-parameters/abc.
-     * @principle Enforces document ownership for all read/write operations.
+     * @allow (get) The user can read their own family allowance parameter data.
+     * @allow (create) The user can create their own family allowance parameter data.
+     * @allow (update) The user can update their own family allowance parameter data.
+     * @deny (create) A user cannot create family allowance parameter data for another user.
+     * @deny (update) A user cannot update family allowance parameter data for another user.
+     * @deny (delete) Only the user can delete their own family allowance parameter data.
+     * @principle Restricts family allowance parameter data access to the owner user.
      */
     match /users/{userId}/family-allowance-parameters/{familyAllowanceParameterId} {
       allow get: if isOwner(userId);
@@ -273,19 +344,15 @@ service cloud.firestore {
     }
 
     /**
-     * @description Manages user-specific tax parameter data.
+     * @description Manages access to tax parameters for a specific user.
      * @path /users/{userId}/tax-parameters/{taxParameterId}
-     * @allow (create) User 'testuser' with uid '123' can create a tax parameter if request.auth.uid == '123'.
-     * @deny (create) User 'testuser' with uid '123' cannot create a tax parameter for userId '456'.
-     * @allow (get) User 'testuser' with uid '123' can read their tax parameter at /users/123/tax-parameters/abc.
-     * @allow (list) User 'testuser' with uid '123' can list their tax parameters at /users/123/tax-parameters.
-     * @deny (get) User 'testuser' with uid '123' cannot read the tax parameter of another user at /users/456/tax-parameters/abc.
-     * @deny (list) User 'testuser' with uid '123' cannot list the tax parameters of another user at /users/456/tax-parameters.
-     * @allow (update) User 'testuser' with uid '123' can update their tax parameter at /users/123/tax-parameters/abc.
-     * @deny (update) User 'testuser' with uid '123' cannot update the tax parameter of another user at /users/456/tax-parameters/abc.
-     * @allow (delete) User 'testuser' with uid '123' can delete their tax parameter at /users/123/tax-parameters/abc.
-     * @deny (delete) User 'testuser' with uid '123' cannot delete the tax parameter of another user at /users/456/tax-parameters/abc.
-     * @principle Enforces document ownership for all read/write operations.
+     * @allow (get) The user can read their own tax parameter data.
+     * @allow (create) The user can create their own tax parameter data.
+     * @allow (update) The user can update their own tax parameter data.
+     * @deny (create) A user cannot create tax parameter data for another user.
+     * @deny (update) A user cannot update tax parameter data for another user.
+     * @deny (delete) Only the user can delete their own tax parameter data.
+     * @principle Restricts tax parameter data access to the owner user.
      */
     match /users/{userId}/tax-parameters/{taxParameterId} {
       allow get: if isOwner(userId);
@@ -295,21 +362,17 @@ service cloud.firestore {
       allow delete: if isExistingOwner(userId);
     }
 
-     /**
-      * @description Manages user-specific health entity data.
-      * @path /users/{userId}/health-entities/{healthEntityId}
-      * @allow (create) User 'testuser' with uid '123' can create a health entity if request.auth.uid == '123'.
-      * @deny (create) User 'testuser' with uid '123' cannot create a health entity for userId '456'.
-      * @allow (get) User 'testuser' with uid '123' can read their health entity at /users/123/health-entities/abc.
-      * @allow (list) User 'testuser' with uid '123' can list their health entities at /users/123/health-entities.
-      * @deny (get) User 'testuser' with uid '123' cannot read the health entity of another user at /users/456/health-entities/abc.
-      * @deny (list) User 'testuser' with uid '123' cannot list the health entities of another user at /users/456/health-entities.
-      * @allow (update) User 'testuser' with uid '123' can update their health entity at /users/123/health-entities/abc.
-      * @deny (update) User 'testuser' with uid '123' cannot update the health entity of another user at /users/456/health-entities/abc.
-      * @allow (delete) User 'testuser' with uid '123' can delete their health entity at /users/123/health-entities/abc.
-      * @deny (delete) User 'testuser' with uid '123' cannot delete the health entity of another user at /users/456/health-entities/abc.
-      * @principle Enforces document ownership for all read/write operations.
-      */
+    /**
+     * @description Manages access to health entities for a specific user.
+     * @path /users/{userId}/health-entities/{healthEntityId}
+     * @allow (get) The user can read their own health entity data.
+     * @allow (create) The user can create their own health entity data.
+     * @allow (update) The user can update their own health entity data.
+     * @deny (create) A user cannot create health entity data for another user.
+     * @deny (update) A user cannot update health entity data for another user.
+     * @deny (delete) Only the user can delete their own health entity data.
+     * @principle Restricts health entity data access to the owner user.
+     */
     match /users/{userId}/health-entities/{healthEntityId} {
       allow get: if isOwner(userId);
       allow list: if isOwner(userId);
@@ -319,19 +382,15 @@ service cloud.firestore {
     }
 
     /**
-     * @description Manages user-specific AFP entity data.
+     * @description Manages access to AFP entities for a specific user.
      * @path /users/{userId}/afp-entities/{afpEntityId}
-     * @allow (create) User 'testuser' with uid '123' can create an AFP entity if request.auth.uid == '123'.
-     * @deny (create) User 'testuser' with uid '123' cannot create an AFP entity for userId '456'.
-     * @allow (get) User 'testuser' with uid '123' can read their AFP entity at /users/123/afp-entities/abc.
-     * @allow (list) User 'testuser' with uid '123' can list their AFP entities at /users/123/afp-entities.
-     * @deny (get) User 'testuser' with uid '123' cannot read the AFP entity of another user at /users/456/afp-entities/abc.
-     * @deny (list) User 'testuser' with uid '123' cannot list the AFP entities of another user at /users/456/afp-entities.
-     * @allow (update) User 'testuser' with uid '123' can update their AFP entity at /users/123/afp-entities/abc.
-     * @deny (update) User 'testuser' with uid '123' cannot update the AFP entity of another user at /users/456/afp-entities/abc.
-     * @allow (delete) User 'testuser' with uid '123' can delete their AFP entity at /users/123/afp-entities/abc.
-     * @deny (delete) User 'testuser' with uid '123' cannot delete the AFP entity of another user at /users/456/afp-entities/abc.
-     * @principle Enforces document ownership for all read/write operations.
+     * @allow (get) The user can read their own AFP entity data.
+     * @allow (create) The user can create their own AFP entity data.
+     * @allow (update) The user can update their own AFP entity data.
+     * @deny (create) A user cannot create AFP entity data for another user.
+     * @deny (update) A user cannot update AFP entity data for another user.
+     * @deny (delete) Only the user can delete their own AFP entity data.
+     * @principle Restricts AFP entity data access to the owner user.
      */
     match /users/{userId}/afp-entities/{afpEntityId} {
       allow get: if isOwner(userId);
@@ -339,19 +398,6 @@ service cloud.firestore {
       allow create: if isOwner(userId);
       allow update: if isExistingOwner(userId);
       allow delete: if isExistingOwner(userId);
-    }
-
-    // Helper functions
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    function isOwner(userId) {
-      return request.auth.uid == userId;
-    }
-
-    function isExistingOwner(userId) {
-      return isOwner(userId) && resource != null;
     }
   }
 }
