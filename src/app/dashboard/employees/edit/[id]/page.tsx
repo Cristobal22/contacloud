@@ -20,8 +20,8 @@ import {
     SelectValue,
   } from "@/components/ui/select"
 import { Checkbox } from '@/components/ui/checkbox';
-import { useCollection, useDoc, useFirestore } from '@/firebase';
-import type { Employee, CostCenter } from '@/lib/types';
+import { useCollection, useDoc, useFirestore, useUser } from '@/firebase';
+import type { Employee, CostCenter, AfpEntity, HealthEntity } from '@/lib/types';
 import { SelectedCompanyContext } from '@/app/dashboard/layout';
 import { doc, setDoc, addDoc, collection } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
@@ -36,6 +36,7 @@ export default function EmployeeFormPage({ params }: { params: { id: string } })
     const { selectedCompany } = React.useContext(SelectedCompanyContext) || {};
     const firestore = useFirestore();
     const router = useRouter();
+    const { user } = useUser();
 
     const employeeRef = React.useMemo(() => 
         !isNew && firestore && selectedCompany ? doc(firestore, `companies/${selectedCompany.id}/employees`, id) : null
@@ -48,6 +49,13 @@ export default function EmployeeFormPage({ params }: { params: { id: string } })
     const { data: costCenters, loading: costCentersLoading } = useCollection<CostCenter>({
         path: selectedCompany ? `companies/${selectedCompany.id}/cost-centers` : undefined,
         companyId: selectedCompany?.id
+    });
+
+    const { data: afpEntities, loading: afpLoading } = useCollection<AfpEntity>({
+        path: user ? `users/${user.uid}/afp-entities` : undefined,
+    });
+     const { data: healthEntities, loading: healthLoading } = useCollection<HealthEntity>({
+        path: user ? `users/${user.uid}/health-entities` : undefined,
     });
 
     React.useEffect(() => {
@@ -201,27 +209,21 @@ export default function EmployeeFormPage({ params }: { params: { id: string } })
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                        <div className="space-y-2">
                             <Label>Sistema de Salud</Label>
-                            <Select value={employee.healthSystem} onValueChange={(v) => handleFieldChange('healthSystem', v)}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent>
-                                <SelectItem value="Fonasa">Fonasa</SelectItem>
-                                <SelectItem value="Consalud">Consalud</SelectItem>
-                                <SelectItem value="CruzBlanca">CruzBlanca</SelectItem>
-                                <SelectItem value="Colmena">Colmena</SelectItem>
-                                <SelectItem value="Banmédica">Banmédica</SelectItem>
-                                <SelectItem value="Vida Tres">Vida Tres</SelectItem>
-                                <SelectItem value="Nueva Masvida">Nueva Masvida</SelectItem>
-                            </SelectContent></Select>
+                            <Select value={employee.healthSystem} onValueChange={(v) => handleFieldChange('healthSystem', v)} disabled={healthLoading}>
+                                <SelectTrigger><SelectValue placeholder="Selecciona..."/></SelectTrigger>
+                                <SelectContent>
+                                    {healthEntities?.map(entity => <SelectItem key={entity.id} value={entity.name}>{entity.name}</SelectItem>)}
+                                </SelectContent>
+                            </Select>
                         </div>
                          <div className="space-y-2">
                             <Label>AFP</Label>
-                             <Select value={employee.afp} onValueChange={(v) => handleFieldChange('afp', v)}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent>
-                                <SelectItem value="Capital">Capital</SelectItem>
-                                <SelectItem value="Cuprum">Cuprum</SelectItem>
-                                <SelectItem value="Habitat">Habitat</SelectItem>
-                                <SelectItem value="Modelo">Modelo</SelectItem>
-                                <SelectItem value="Planvital">Planvital</SelectItem>
-                                <SelectItem value="Provida">Provida</SelectItem>
-                                <SelectItem value="Uno">Uno</SelectItem>
-                            </SelectContent></Select>
+                             <Select value={employee.afp} onValueChange={(v) => handleFieldChange('afp', v)} disabled={afpLoading}>
+                                 <SelectTrigger><SelectValue placeholder="Selecciona..."/></SelectTrigger>
+                                 <SelectContent>
+                                    {afpEntities?.map(entity => <SelectItem key={entity.id} value={entity.name}>{entity.name}</SelectItem>)}
+                                </SelectContent>
+                            </Select>
                         </div>
                         <div className="flex items-center space-x-2 pt-6">
                             <Checkbox id="hasUnemploymentInsurance" checked={!!employee.hasUnemploymentInsurance} onCheckedChange={(checked) => handleFieldChange('hasUnemploymentInsurance', !!checked)} />
@@ -278,6 +280,5 @@ export default function EmployeeFormPage({ params }: { params: { id: string } })
             </CardFooter>
         </Card>
     );
-}
 
     
