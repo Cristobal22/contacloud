@@ -37,7 +37,10 @@ export default function EmployeeFormPage({ params }: { params: { id: string } })
     const firestore = useFirestore();
     const router = useRouter();
 
-    const employeeRef = !isNew && firestore && selectedCompany ? doc(firestore, `companies/${selectedCompany.id}/employees`, id) : null;
+    const employeeRef = React.useMemo(() => 
+        !isNew && firestore && selectedCompany ? doc(firestore, `companies/${selectedCompany.id}/employees`, id) : null
+    , [isNew, firestore, selectedCompany, id]);
+
     const { data: existingEmployee, loading: employeeLoading } = useDoc<Employee>(employeeRef);
 
     const [employee, setEmployee] = React.useState<Partial<Employee> | null>(null);
