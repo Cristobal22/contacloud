@@ -40,7 +40,7 @@ export default function EmployeeFormPage({ params }: { params: { id: string } })
     const { user } = useUser();
 
     const employeeRef = React.useMemo(() => 
-        !isNew && firestore && companyId ? doc(firestore, `companies/${companyId}/employees`, id) : null
+        !isNew && firestore && companyId ? doc(firestore, `companies/${companyId}/employees`, id) as doc<Employee> : null
     , [isNew, firestore, companyId, id]);
 
     const { data: existingEmployee, loading: employeeLoading } = useDoc<Employee>(employeeRef);
@@ -61,13 +61,19 @@ export default function EmployeeFormPage({ params }: { params: { id: string } })
 
     React.useEffect(() => {
         if (isNew) {
-            setEmployee({ status: 'Active', hasUnemploymentInsurance: true, companyId: companyId });
+            setEmployee({ 
+                status: 'Active', 
+                hasUnemploymentInsurance: true, 
+                companyId: companyId,
+                healthContributionType: 'Porcentaje',
+                healthContributionValue: 7,
+            });
         } else if (existingEmployee) {
             setEmployee(existingEmployee);
         }
     }, [isNew, existingEmployee, companyId]);
 
-    const handleFieldChange = (field: keyof Employee, value: string | number | boolean) => {
+    const handleFieldChange = (field: keyof Employee, value: string | number | boolean | undefined) => {
         if (employee) {
             setEmployee({ ...employee, [field]: value });
         }
@@ -169,8 +175,8 @@ export default function EmployeeFormPage({ params }: { params: { id: string } })
 
                 {/* Contract Data */}
                 <section className="space-y-4">
-                    <h3 className="text-lg font-medium border-b pb-2">Datos Contractuales</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <h3 className="text-lg font-medium border-b pb-2">Datos Contractuales y de Remuneración</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                         <div className="space-y-2">
                             <Label>Tipo de Contrato</Label>
                              <Select value={employee.contractType} onValueChange={(v) => handleFieldChange('contractType', v)}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent>
@@ -184,7 +190,10 @@ export default function EmployeeFormPage({ params }: { params: { id: string } })
                         <div className="space-y-2"><Label>Cargo</Label><Input value={employee.position || ''} onChange={(e) => handleFieldChange('position', e.target.value)} /></div>
                         <div className="space-y-2"><Label>Fecha Inicio Contrato</Label><Input type="date" value={employee.contractStartDate || ''} onChange={(e) => handleFieldChange('contractStartDate', e.target.value)} /></div>
                         <div className="space-y-2"><Label>Fecha Término Contrato</Label><Input type="date" value={employee.contractEndDate || ''} onChange={(e) => handleFieldChange('contractEndDate', e.target.value)} /></div>
-                        <div className="space-y-2"><Label>Sueldo Base</Label><Input type="number" value={employee.baseSalary ?? ''} onChange={(e) => handleFieldChange('baseSalary', parseFloat(e.target.value))} /></div>
+                        <div className="space-y-2"><Label>Sueldo Base</Label><Input type="number" value={employee.baseSalary ?? ''} onChange={(e) => handleFieldChange('baseSalary', parseFloat(e.target.value) || 0)} /></div>
+                        <div className="space-y-2"><Label>Gratificación Legal</Label><Input type="number" value={employee.gratification ?? ''} onChange={(e) => handleFieldChange('gratification', parseFloat(e.target.value) || 0)} /></div>
+                        <div className="space-y-2"><Label>Movilización</Label><Input type="number" value={employee.mobilization ?? ''} onChange={(e) => handleFieldChange('mobilization', parseFloat(e.target.value) || 0)} /></div>
+                        <div className="space-y-2"><Label>Colación</Label><Input type="number" value={employee.collation ?? ''} onChange={(e) => handleFieldChange('collation', parseFloat(e.target.value) || 0)} /></div>
                          <div className="space-y-2">
                             <Label>Centro de Costo</Label>
                             <Select value={employee.costCenterId || ''} onValueChange={(v) => handleFieldChange('costCenterId', v)} disabled={costCentersLoading}>
@@ -207,8 +216,8 @@ export default function EmployeeFormPage({ params }: { params: { id: string } })
                 {/* Previsional Data */}
                 <section className="space-y-4">
                     <h3 className="text-lg font-medium border-b pb-2">Datos Previsionales</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                       <div className="space-y-2">
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                       <div className="space-y-2 col-span-2">
                             <Label>Sistema de Salud</Label>
                             <Select value={employee.healthSystem} onValueChange={(v) => handleFieldChange('healthSystem', v)} disabled={healthLoading}>
                                 <SelectTrigger><SelectValue placeholder="Selecciona..."/></SelectTrigger>
@@ -217,7 +226,19 @@ export default function EmployeeFormPage({ params }: { params: { id: string } })
                                 </SelectContent>
                             </Select>
                         </div>
-                         <div className="space-y-2">
+                        <div className="space-y-2">
+                            <Label>Tipo Cotización Salud</Label>
+                            <Select value={employee.healthContributionType} onValueChange={(v) => handleFieldChange('healthContributionType', v)}>
+                                <SelectTrigger><SelectValue /></SelectTrigger><SelectContent>
+                                    <SelectItem value="Porcentaje">Porcentaje (%)</SelectItem>
+                                    <SelectItem value="Monto Fijo">Monto Fijo (UF)</SelectItem>
+                                </SelectContent></Select>
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Valor Cotización Salud</Label>
+                            <Input type="number" value={employee.healthContributionValue ?? ''} onChange={(e) => handleFieldChange('healthContributionValue', parseFloat(e.target.value) || 0)} />
+                        </div>
+                         <div className="space-y-2 col-span-2">
                             <Label>AFP</Label>
                              <Select value={employee.afp} onValueChange={(v) => handleFieldChange('afp', v)} disabled={afpLoading}>
                                  <SelectTrigger><SelectValue placeholder="Selecciona..."/></SelectTrigger>
@@ -226,9 +247,19 @@ export default function EmployeeFormPage({ params }: { params: { id: string } })
                                 </SelectContent>
                             </Select>
                         </div>
+                        <div className="space-y-2">
+                            <Label>Tipo Contrato (Seg. Cesantía)</Label>
+                             <Select value={employee.unemploymentInsuranceType} onValueChange={(v) => handleFieldChange('unemploymentInsuranceType', v)}>
+                                 <SelectTrigger><SelectValue placeholder="Selecciona..."/></SelectTrigger>
+                                 <SelectContent>
+                                    <SelectItem value="Indefinido">Indefinido</SelectItem>
+                                    <SelectItem value="Plazo Fijo">Plazo Fijo</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
                         <div className="flex items-center space-x-2 pt-6">
                             <Checkbox id="hasUnemploymentInsurance" checked={!!employee.hasUnemploymentInsurance} onCheckedChange={(checked) => handleFieldChange('hasUnemploymentInsurance', !!checked)} />
-                            <Label htmlFor="hasUnemploymentInsurance">Tiene Seguro de Cesantía</Label>
+                            <Label htmlFor="hasUnemploymentInsurance">Acogido a Seguro de Cesantía</Label>
                         </div>
                     </div>
                 </section>

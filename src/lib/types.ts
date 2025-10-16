@@ -97,8 +97,14 @@ export type Employee = {
   contractStartDate?: string;
   contractEndDate?: string;
   baseSalary?: number;
+  gratification?: number;
+  mobilization?: number;
+  collation?: number;
   healthSystem?: 'Fonasa' | 'Consalud' | 'CruzBlanca' | 'Colmena' | 'Banmédica' | 'Vida Tres' | 'Nueva Masvida';
+  healthContributionType?: 'Porcentaje' | 'Monto Fijo';
+  healthContributionValue?: number;
   afp?: 'Capital' | 'Cuprum' | 'Habitat' | 'Modelo' | 'Planvital' | 'Provida' | 'Uno';
+  unemploymentInsuranceType?: 'Indefinido' | 'Plazo Fijo';
   hasUnemploymentInsurance?: boolean;
   paymentMethod?: 'Transferencia Bancaria' | 'Cheque' | 'Efectivo';
   bank?: 'Banco de Chile' | 'Banco Internacional' | 'Scotiabank Chile' | 'BCI' | 'Banco Bice' | 'HSBC Bank (Chile)' | 'Banco Santander-Chile' | 'Itaú Corpbanca' | 'Banco Security' | 'Banco Falabella' | 'Banco Ripley' | 'Banco Consorcio' | 'Scotiabank Azul (Ex-BBVA)' | 'BancoEstado';
