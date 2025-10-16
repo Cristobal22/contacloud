@@ -58,3 +58,6 @@ dist
 build
 .eslintcache
 next-env.d.ts
+
+# Local Netlify folder
+.netlify
