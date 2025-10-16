@@ -33,7 +33,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useFirestore, useAuth, useCollection, useUser } from "@/firebase"
 import type { UserProfile, Company } from "@/lib/types"
-import { doc, setDoc, updateDoc, collection, deleteDoc } from "firebase/firestore"
+import { doc, setDoc, updateDoc, collection, deleteDoc, query, where } from "firebase/firestore"
 import { createUserWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth'
 import { useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
@@ -70,11 +70,18 @@ export default function UserManagement() {
     const { user: authUser } = useUser();
     const { userProfile, loading: profileLoading } = useUserProfile(authUser?.uid);
 
-    // Disable query until we know the user is an admin to prevent permission errors
+    const usersQuery = React.useMemo(() => {
+        if (!firestore || !authUser || userProfile?.role !== 'Admin') return null;
+        // Query for users created by the current admin
+        return query(collection(firestore, 'users'), where('createdBy', '==', authUser.uid));
+    }, [firestore, authUser, userProfile]);
+
     const { data: users, loading: usersLoading, error } = useCollection<UserProfile>({ 
-        path: 'users',
-        disabled: profileLoading || userProfile?.role !== 'Admin'
+        query: usersQuery,
+        disabled: !usersQuery
     });
+    
+    // Admins can see all companies to assign them
     const { data: companies, loading: companiesLoading } = useCollection<Company>({ 
         path: 'companies',
         disabled: profileLoading || userProfile?.role !== 'Admin' 
@@ -110,7 +117,7 @@ export default function UserManagement() {
 
 
     const handleCreateUser = async () => {
-        if (!auth || !firestore) {
+        if (!auth || !firestore || !authUser) {
             toast({ variant: 'destructive', title: 'Error', description: 'Servicios de Firebase no disponibles.' });
             return;
         }
@@ -133,7 +140,8 @@ export default function UserManagement() {
                 displayName: newUser.displayName || user.email!.split('@')[0],
                 role: 'Accountant', 
                 photoURL: `https://i.pravatar.cc/150?u=${user.uid}`,
-                companyIds: []
+                companyIds: [],
+                createdBy: authUser.uid, // Set the creator
             };
 
             await setDoc(doc(firestore, 'users', user.uid), newUserProfile);
@@ -218,7 +226,6 @@ export default function UserManagement() {
         });
     }
     
-    const loading = usersLoading || companiesLoading || profileLoading;
     const isReadyForAdminView = !profileLoading && userProfile?.role === 'Admin';
 
 
@@ -237,8 +244,8 @@ export default function UserManagement() {
              return (
                 <TableRow>
                     <TableCell colSpan={5} className="h-24 text-center text-destructive">
-                        <p className="font-bold">Error de permisos: No se pueden listar los usuarios.</p>
-                        <p className='text-xs text-muted-foreground'>Esto es esperado si aún no eres Administrador. Sigue las instrucciones del README para asignarte el rol de Admin.</p>
+                        <p className="font-bold">Error de permisos.</p>
+                        <p className='text-xs text-muted-foreground'>Asegúrate de tener los permisos correctos en las reglas de Firestore.</p>
                     </TableCell>
                 </TableRow>
             );
@@ -248,7 +255,7 @@ export default function UserManagement() {
             return (
                 <TableRow>
                     <TableCell colSpan={5} className="h-24 text-center">
-                        No se encontraron usuarios.
+                        No has creado usuarios. ¡Agrega tu primer contador!
                     </TableCell>
                 </TableRow>
             );
@@ -404,7 +411,7 @@ export default function UserManagement() {
                         <AlertDialogDescription>
                             Esta acción eliminará el perfil de <span className="font-bold">{userToDelete?.displayName}</span> de la aplicación.
                             No se puede deshacer. Para eliminar completamente la autenticación del usuario, deberás hacerlo desde la Consola de Firebase.
-                        </AlertDialogDescription>
+                        </d:description>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                         <AlertDialogCancel onClick={() => setUserToDelete(null)}>Cancelar</AlertDialogCancel>
