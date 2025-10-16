@@ -83,12 +83,14 @@ import {
             try {
                 let companiesQuery;
                  if (userProfile.role === 'Admin') {
+                    // Admin can fetch all companies
                     companiesQuery = collection(firestore, 'companies');
                 } else if (userProfile.companyIds && userProfile.companyIds.length > 0) {
-                    // Firestore 'in' queries are limited to 30 elements, chunking might be needed for more
+                    // Accountant fetches only assigned companies
+                    // Firestore 'in' queries are limited to 30 elements, chunking might be needed for more.
                     const companyIdsToShow = userProfile.companyIds.slice(0, 30);
                     if (companyIdsToShow.length > 0) {
-                        companiesQuery = query(collection(firestore, 'companies'), where('__name__', 'in', companyIdsToShow));
+                        companiesQuery = query(collection(firestore, 'companies'), where('id', 'in', companyIdsToShow));
                     }
                 }
 
@@ -122,7 +124,7 @@ import {
     const [companyToDelete, setCompanyToDelete] = React.useState<Company | null>(null);
 
     const handleCreateNew = () => {
-        setSelectedCompanyLocal({ id: `new-${Date.now()}`, name: '', rut: '', address: '', giro: '', active: true });
+        setSelectedCompanyLocal({ id: `new-${Date.now()}`, name: '', rut: '', address: '', giro: '', active: true, ownerId: user?.uid });
         setIsFormOpen(true);
     };
 
@@ -179,7 +181,7 @@ import {
         setIsFormOpen(false);
         
         if (isNew) {
-            const companyData = {
+            const companyData: Partial<Company> = {
                 name: selectedCompanyLocal.name,
                 rut: selectedCompanyLocal.rut,
                 active: true,
@@ -192,6 +194,10 @@ import {
                 const docRef = await addDoc(collection(firestore, 'companies'), companyData);
                 const newCompanyId = docRef.id;
 
+                // Update the document with its own ID
+                await updateDoc(docRef, { id: newCompanyId });
+                
+                // If creator is an accountant, add company to their list
                 if (userProfile?.role === 'Accountant') {
                     const userProfileRef = doc(firestore, 'users', user.uid);
                     await updateDoc(userProfileRef, {
@@ -204,7 +210,7 @@ import {
                     description: `${companyData.name} ha sido creada. Redirigiendo a configuración...`,
                 });
                 
-                const newCompany: Company = { id: newCompanyId, ...companyData };
+                const newCompany: Company = { id: newCompanyId, ...companyData } as Company;
                 setCompanies(prev => [...prev, newCompany]);
                 
                 if (setSelectedCompany) {
@@ -402,4 +408,6 @@ import {
       </>
     )
   }
+    
+
     

@@ -1,3 +1,4 @@
+
 'use client'
 
 import React from "react"
@@ -21,7 +22,7 @@ import {
 import { DashboardNav } from "@/components/dashboard-nav"
 import { UserNav } from "@/components/user-nav"
 import { Logo } from "@/components/logo"
-import type { Company, SelectedCompanyContextType, UserProfile } from "@/lib/types"
+import type { Company, SelectedCompanyContextType } from "@/lib/types"
 import { useUser, useFirestore, useCollection } from "@/firebase"
 import { useUserProfile } from "@/firebase/auth/use-user-profile"
 
@@ -36,11 +37,20 @@ function AccountantDashboardLayout({ children }: { children: React.ReactNode }) 
     const [isLoadingCompany, setIsLoadingCompany] = React.useState(true);
 
     const companiesQuery = React.useMemo(() => {
-        if (!firestore || !userProfile || !userProfile.companyIds || userProfile.companyIds.length === 0) {
-            return null;
+        if (!firestore || !userProfile) return null;
+
+        // Admins can see all companies
+        if (userProfile.role === 'Admin') {
+            return collection(firestore, 'companies');
         }
-        // Firestore 'in' queries are limited to 30 elements.
-        return query(collection(firestore, 'companies'), where('__name__', 'in', userProfile.companyIds.slice(0,30)));
+
+        // Accountants see only their assigned companies
+        if (userProfile.companyIds && userProfile.companyIds.length > 0) {
+            // Firestore 'in' queries are limited to 30 elements.
+            return query(collection(firestore, 'companies'), where('id', 'in', userProfile.companyIds.slice(0, 30)));
+        }
+
+        return null;
     }, [firestore, userProfile]);
 
     const { data: companies, loading: companiesLoading } = useCollection<Company>({ 
@@ -210,3 +220,5 @@ export default function DashboardLayout({
   
   return <DashboardLayoutContent>{children}</DashboardLayoutContent>;
 }
+
+    
