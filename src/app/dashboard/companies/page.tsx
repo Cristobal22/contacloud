@@ -50,19 +50,19 @@ import {
   import { Input } from "@/components/ui/input"
   import { Label } from "@/components/ui/label"
   import { Switch } from "@/components/ui/switch"
-  import { useCollection, useFirestore } from "@/firebase"
-  import { collection, addDoc, setDoc, doc, deleteDoc } from "firebase/firestore"
+  import { useCollection, useFirestore, useUser } from "@/firebase"
+  import { collection, addDoc, setDoc, doc, deleteDoc, updateDoc, arrayUnion } from "firebase/firestore"
   import type { Company } from "@/lib/types"
-  import Link from "next/link"
   import { useRouter } from 'next/navigation'
   import { SelectedCompanyContext } from '../layout'
   import { errorEmitter } from '@/firebase/error-emitter'
   import { FirestorePermissionError } from '@/firebase/errors'
-import { useToast } from '@/hooks/use-toast';
+  import { useToast } from '@/hooks/use-toast';
 
   
   export default function CompaniesPage() {
     const firestore = useFirestore();
+    const { user } = useUser();
     const router = useRouter();
     const { setSelectedCompany } = React.useContext(SelectedCompanyContext) || {};
     const companiesCollection = firestore ? collection(firestore, 'companies') : null;
@@ -104,6 +104,9 @@ import { useToast } from '@/hooks/use-toast';
         setCompanyToDelete(null);
 
         deleteDoc(docRef)
+            .then(() => {
+                toast({ title: "Empresa eliminada", description: "La empresa ha sido eliminada exitosamente." });
+            })
             .catch(err => {
                 errorEmitter.emit('permission-error', new FirestorePermissionError({
                     path: docRef.path,
@@ -112,16 +115,16 @@ import { useToast } from '@/hooks/use-toast';
             });
     };
 
-    const handleSave = () => {
+    const handleSave = async () => {
         if (!firestore || !selectedCompanyLocal) return;
 
         const isNew = selectedCompanyLocal.id?.startsWith('new-');
 
-        if (isNew && (!selectedCompanyLocal.name || !selectedCompanyLocal.rut || !selectedCompanyLocal.address)) {
+        if (!selectedCompanyLocal.name || !selectedCompanyLocal.rut) {
             toast({
                 variant: "destructive",
-                title: "Campos incompletos",
-                description: "Por favor, complete Nombre, RUT y Dirección.",
+                title: "Campos requeridos",
+                description: "Por favor, complete al menos el Nombre y el RUT de la empresa.",
             });
             return;
         }
@@ -135,20 +138,44 @@ import { useToast } from '@/hooks/use-toast';
         };
         
         setIsFormOpen(false);
-        setSelectedCompanyLocal(null);
-
+        
         if (isNew) {
-            addDoc(collection(firestore, 'companies'), companyData)
-                .catch(err => {
-                    errorEmitter.emit('permission-error', new FirestorePermissionError({
-                        path: 'companies',
-                        operation: 'create',
-                        requestResourceData: companyData,
-                    }));
+            try {
+                const docRef = await addDoc(collection(firestore, 'companies'), companyData);
+                const newCompanyId = docRef.id;
+
+                if (user?.uid) {
+                    const userProfileRef = doc(firestore, 'users', user.uid);
+                    await updateDoc(userProfileRef, {
+                        companyIds: arrayUnion(newCompanyId)
+                    });
+                }
+                
+                toast({
+                    title: "Empresa Creada",
+                    description: `${companyData.name} ha sido creada. Redirigiendo a configuración...`,
                 });
+                
+                const newCompany: Company = { id: newCompanyId, ...companyData };
+                
+                if (setSelectedCompany) {
+                    setSelectedCompany(newCompany);
+                }
+                router.push('/dashboard/companies/settings');
+
+            } catch (err) {
+                 errorEmitter.emit('permission-error', new FirestorePermissionError({
+                    path: 'companies',
+                    operation: 'create',
+                    requestResourceData: companyData,
+                }));
+            }
         } else if (selectedCompanyLocal.id) {
             const docRef = doc(firestore, 'companies', selectedCompanyLocal.id);
             setDoc(docRef, companyData, { merge: true })
+                .then(() => {
+                    toast({ title: "Empresa actualizada", description: "Los cambios han sido guardados."});
+                })
                 .catch(err => {
                      errorEmitter.emit('permission-error', new FirestorePermissionError({
                         path: docRef.path,
@@ -157,6 +184,7 @@ import { useToast } from '@/hooks/use-toast';
                     }));
                 });
         }
+        setSelectedCompanyLocal(null);
     };
 
     const handleFieldChange = (field: keyof Omit<Company, 'id'>, value: string | boolean) => {
@@ -307,6 +335,4 @@ import { useToast } from '@/hooks/use-toast';
       </>
     )
   }
-    
-
     
