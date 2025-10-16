@@ -1,4 +1,3 @@
-
 'use client'
 
 import React from "react"
@@ -36,30 +35,23 @@ function AccountantDashboardLayout({ children }: { children: React.ReactNode }) 
     const [selectedCompany, setSelectedCompany] = React.useState<Company | null>(null);
     const [isLoadingCompany, setIsLoadingCompany] = React.useState(true);
 
-    // This query is now specific and secure for the user's role.
     const companiesQuery = React.useMemo(() => {
         if (!firestore || !userProfile) return null;
 
-        // Admins can query the entire collection.
         if (userProfile.role === 'Admin') {
             return collection(firestore, 'companies');
         }
 
-        // Accountants must use a constrained query.
-        // If they have no assigned companies, the query will correctly return nothing.
-        const userCompanyIds = userProfile.companyIds || [];
-        if (userCompanyIds.length > 0) {
+        if (userProfile.role === 'Accountant' && userProfile.companyIds && userProfile.companyIds.length > 0) {
             // Firestore 'in' queries are limited to 30 elements. We slice to stay within limits.
-            return query(collection(firestore, 'companies'), where(documentId(), 'in', userCompanyIds.slice(0, 30)));
+            return query(collection(firestore, 'companies'), where(documentId(), 'in', userProfile.companyIds.slice(0, 30)));
         }
-
-        // Return null if accountant has no companies, preventing an unnecessary full collection query.
+        
         return null;
     }, [firestore, userProfile]);
 
     const { data: companies, loading: companiesLoading } = useCollection<Company>({ 
       query: companiesQuery,
-      // Disable the query until we know the user's profile and have a valid query to run.
       disabled: profileLoading || !companiesQuery
     });
     
