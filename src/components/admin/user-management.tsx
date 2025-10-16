@@ -411,7 +411,7 @@ export default function UserManagement() {
                         <AlertDialogDescription>
                             Esta acción eliminará el perfil de <span className="font-bold">{userToDelete?.displayName}</span> de la aplicación.
                             No se puede deshacer. Para eliminar completamente la autenticación del usuario, deberás hacerlo desde la Consola de Firebase.
-                        </d:description>
+                        </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                         <AlertDialogCancel onClick={() => setUserToDelete(null)}>Cancelar</AlertDialogCancel>
