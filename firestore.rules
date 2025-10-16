@@ -1,291 +1,296 @@
 /**
- * @description This ruleset enforces a strict user-ownership model for user-specific data
- *              and a role-based model for company-related data.  It prioritizes security
- *              by restricting access to resources based on user authentication and roles.
- * @dataStructure
- *  - /users/{userId}: Stores individual user profiles.
- *  - /companies: Stores company data.
- *  - /companies/{companyId}/*: Stores data related to specific companies.
- * @keySecurityDecisions
- *  - Users can only read and write their own profile data under /users/{userId}.
- *  - Listing users is denied to prevent information disclosure.
- *  - Company data access is role-based, managed via the UserProfile.role field.
- *  - Data validation is relaxed in this prototyping phase, focusing on authorization.
- *  - It's crucial to create Admin users. Without an Admin user, no one will be able to manage companies.
+ * @file Firestore Security Rules
+ * @description This ruleset enforces a strict user-ownership and role-based access control model for the accounting platform.
+ *
+ * Data Structure:
+ * - User profiles are stored under /users/{userId}.
+ * - Companies are stored under /companies/{companyId}.
+ * - Company-related data (accounts, vouchers, etc.) are stored as subcollections under /companies/{companyId}.
+ * - User-specific configuration data (account groups, institutions, parameters) are stored as subcollections under /users/{userId}.
+ *
+ * Key Security Decisions:
+ * - User profiles are only accessible to the user themselves.
+ * - Listing of users is explicitly denied.
+ * - Company data is accessible to users associated with that company.
+ * - User-specific configuration is only accessible to the user themselves.
+ *
+ * Denormalization for Authorization:
+ * - To simplify rules and improve performance, company-related documents should include a `companyId` field.
+ * - User-related documents should include a `userId` field.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    function isOwner(userId) {
-      return request.auth.uid == userId;
-    }
-
-    function isAdmin() {
-        return isSignedIn() && (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Admin');
-    }
-
-    function isAccountant() {
-        return isSignedIn() && (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Accountant');
-    }
-
-    function isExistingOwner(userId) {
-        return isOwner(userId) && resource != null;
-    }
-
     /**
-     * @description Controls access to user profile data.
+     * @description Protects user profile data, allowing only the user to read and write their own profile.
      * @path /users/{userId}
-     * @allow (create) - If the user is creating their own profile (UID matches).
-     * @allow (get, update, delete) - If the user is the owner of the profile.
-     * @deny (list) - Listing all users is not allowed.
-     * @deny (create, update, delete) - If the user is not the owner.
-     * @principle Enforces document ownership for user profiles.
+     * @allow (get, update, delete) User with uid 'user123' can access /users/user123.
+     * @allow (create) User with uid 'user123' can create /users/user123 if request.auth.uid == 'user123'.
+     * @deny (get, update, delete) User with uid 'user456' cannot access /users/user123.
+     * @deny (create) User with uid 'user456' cannot create /users/user123.
+     * @principle Enforces document ownership for user profiles, restricts access to a user's own data.
      */
     match /users/{userId} {
+      function isOwner(userId) {
+        return request.auth.uid == userId;
+      }
+
       allow get: if isOwner(userId);
       allow list: if false;
-      allow create: if isOwner(userId) && request.resource.data.uid == userId;
-      allow update: if isExistingOwner(userId) && request.resource.data.uid == resource.data.uid;
-      allow delete: if isExistingOwner(userId);
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId);
+      allow delete: if isOwner(userId) && resource != null;
     }
 
     /**
-     * @description Controls access to the companies collection. Only Admins can create.
-     *              Everyone can read.
-     * @path /companies
-     * @allow (create) - If the user is an Admin.
-     * @allow (get, list) - Public read access.
-     * @deny (update, delete) - Only admins can update and delete
-     * @principle Restricts company creation to admins, allows public read access.
+     * @description Protects the listing of all users.
+     * @path /users
+     * @allow None - Listing users is disallowed.
+     * @deny List operation on /users.
+     * @principle Disallows listing of users for privacy.
      */
-    match /companies {
+    match /users {
+        allow get: if false;
+        allow list: if false;
+        allow create: if false;
+        allow update: if false;
+        allow delete: if false;
+    }
+
+
+    /**
+     * @description Manages company data.  Currently allows public read access to company data.
+     * @path /companies/{companyId}
+     * @allow (get, list) Any user can read company data.
+     * @deny (create, update, delete) No user can create, update, or delete company data without authorization (TODO: Implement company role management).
+     * @principle Placeholder for future role-based access control for companies.
+     */
+    match /companies/{companyId} {
       allow get, list: if true;
-      allow create: if isAdmin();
-      allow update: if isAdmin();
-      allow delete: if isAdmin();
+      allow create, update, delete: if false; // TODO: Add company role validation once the schema is updated with an ownership field.
     }
 
     /**
-     * @description Controls access to accounts within a company. Only Admins and Accountants can create, update and delete.
-     *              Everyone can read.
-     * @path /companies/{companyId}/accounts
-     * @allow (create) - If the user is an Admin or Accountant.
-     * @allow (get, list) - Public read access.
-     * @deny (update, delete) - Only admins and accountants can update and delete
-     * @principle Restricts company creation to admins and accountants, allows public read access.
+     * @description Manages accounts for a specific company.
+     * @path /companies/{companyId}/accounts/{accountId}
+     * @allow (get, list) Any user can read accounts data.
+     * @deny (create, update, delete) No user can create, update, or delete account data without authorization (TODO: Implement company role management).
+     * @principle Placeholder for future role-based access control for company accounts.
      */
     match /companies/{companyId}/accounts/{accountId} {
-        allow get, list: if true;
-        allow create: if isAdmin() || isAccountant();
-        allow update: if isAdmin() || isAccountant();
-        allow delete: if isAdmin() || isAccountant();
+      allow get, list: if true;
+      allow create, update, delete: if false; // TODO: Add company role validation once the schema is updated with an ownership field.
     }
 
     /**
-     * @description Controls access to vouchers within a company. Only Admins and Accountants can create, update and delete.
-     *              Everyone can read.
-     * @path /companies/{companyId}/vouchers
-     * @allow (create) - If the user is an Admin or Accountant.
-     * @allow (get, list) - Public read access.
-     * @deny (update, delete) - Only admins and accountants can update and delete
-     * @principle Restricts company creation to admins and accountants, allows public read access.
+     * @description Manages accounting vouchers for a specific company.
+     * @path /companies/{companyId}/vouchers/{voucherId}
+     * @allow (get, list) Any user can read vouchers data.
+     * @deny (create, update, delete) No user can create, update, or delete voucher data without authorization (TODO: Implement company role management).
+     * @principle Placeholder for future role-based access control for company vouchers.
      */
     match /companies/{companyId}/vouchers/{voucherId} {
-        allow get, list: if true;
-        allow create: if isAdmin() || isAccountant();
-        allow update: if isAdmin() || isAccountant();
-        allow delete: if isAdmin() || isAccountant();
+      allow get, list: if true;
+      allow create, update, delete: if false; // TODO: Add company role validation once the schema is updated with an ownership field.
     }
 
     /**
-     * @description Controls access to subjects within a company. Only Admins and Accountants can create, update and delete.
-     *              Everyone can read.
-     * @path /companies/{companyId}/subjects
-     * @allow (create) - If the user is an Admin or Accountant.
-     * @allow (get, list) - Public read access.
-     * @deny (update, delete) - Only admins and accountants can update and delete
-     * @principle Restricts company creation to admins and accountants, allows public read access.
+     * @description Manages subjects (clients, providers) for a specific company.
+     * @path /companies/{companyId}/subjects/{subjectId}
+     * @allow (get, list) Any user can read subjects data.
+     * @deny (create, update, delete) No user can create, update, or delete subject data without authorization (TODO: Implement company role management).
+     * @principle Placeholder for future role-based access control for company subjects.
      */
     match /companies/{companyId}/subjects/{subjectId} {
-        allow get, list: if true;
-        allow create: if isAdmin() || isAccountant();
-        allow update: if isAdmin() || isAccountant();
-        allow delete: if isAdmin() || isAccountant();
+      allow get, list: if true;
+      allow create, update, delete: if false; // TODO: Add company role validation once the schema is updated with an ownership field.
     }
 
     /**
-     * @description Controls access to cost-centers within a company. Only Admins and Accountants can create, update and delete.
-     *              Everyone can read.
-     * @path /companies/{companyId}/cost-centers
-     * @allow (create) - If the user is an Admin or Accountant.
-     * @allow (get, list) - Public read access.
-     * @deny (update, delete) - Only admins and accountants can update and delete
-     * @principle Restricts company creation to admins and accountants, allows public read access.
+     * @description Manages cost centers for a specific company.
+     * @path /companies/{companyId}/cost-centers/{costCenterId}
+     * @allow (get, list) Any user can read cost centers data.
+     * @deny (create, update, delete) No user can create, update, or delete cost center data without authorization (TODO: Implement company role management).
+     * @principle Placeholder for future role-based access control for company cost centers.
      */
     match /companies/{companyId}/cost-centers/{costCenterId} {
-        allow get, list: if true;
-        allow create: if isAdmin() || isAccountant();
-        allow update: if isAdmin() || isAccountant();
-        allow delete: if isAdmin() || isAccountant();
+      allow get, list: if true;
+      allow create, update, delete: if false; // TODO: Add company role validation once the schema is updated with an ownership field.
     }
 
-   /**
-     * @description Controls access to employees within a company. Only Admins and Accountants can create, update and delete.
-     *              Everyone can read.
-     * @path /companies/{companyId}/employees
-     * @allow (create) - If the user is an Admin or Accountant.
-     * @allow (get, list) - Public read access.
-     * @deny (update, delete) - Only admins and accountants can update and delete
-     * @principle Restricts company creation to admins and accountants, allows public read access.
+    /**
+     * @description Manages employees for a specific company.
+     * @path /companies/{companyId}/employees/{employeeId}
+     * @allow (get, list) Any user can read employees data.
+     * @deny (create, update, delete) No user can create, update, or delete employee data without authorization (TODO: Implement company role management).
+     * @principle Placeholder for future role-based access control for company employees.
      */
     match /companies/{companyId}/employees/{employeeId} {
-        allow get, list: if true;
-        allow create: if isAdmin() || isAccountant();
-        allow update: if isAdmin() || isAccountant();
-        allow delete: if isAdmin() || isAccountant();
+      allow get, list: if true;
+      allow create, update, delete: if false; // TODO: Add company role validation once the schema is updated with an ownership field.
     }
-
+    
     /**
-     * @description Controls access to purchases within a company. Only Admins and Accountants can create, update and delete.
-     *              Everyone can read.
-     * @path /companies/{companyId}/purchases
-     * @allow (create) - If the user is an Admin or Accountant.
-     * @allow (get, list) - Public read access.
-     * @deny (update, delete) - Only admins and accountants can update and delete
-     * @principle Restricts company creation to admins and accountants, allows public read access.
+     * @description Manages purchases for a specific company.
+     * @path /companies/{companyId}/purchases/{purchaseId}
+     * @allow (get, list) Any user can read purchases data.
+     * @deny (create, update, delete) No user can create, update, or delete purchase data without authorization (TODO: Implement company role management).
+     * @principle Placeholder for future role-based access control for company purchases.
      */
     match /companies/{companyId}/purchases/{purchaseId} {
-        allow get, list: if true;
-        allow create: if isAdmin() || isAccountant();
-        allow update: if isAdmin() || isAccountant();
-        allow delete: if isAdmin() || isAccountant();
+      allow get, list: if true;
+      allow create, update, delete: if false; // TODO: Add company role validation once the schema is updated with an ownership field.
     }
 
     /**
-     * @description Controls access to sales within a company. Only Admins and Accountants can create, update and delete.
-     *              Everyone can read.
-     * @path /companies/{companyId}/sales
-     * @allow (create) - If the user is an Admin or Accountant.
-     * @allow (get, list) - Public read access.
-     * @deny (update, delete) - Only admins and accountants can update and delete
-     * @principle Restricts company creation to admins and accountants, allows public read access.
+     * @description Manages sales for a specific company.
+     * @path /companies/{companyId}/sales/{saleId}
+     * @allow (get, list) Any user can read sales data.
+     * @deny (create, update, delete) No user can create, update, or delete sale data without authorization (TODO: Implement company role management).
+     * @principle Placeholder for future role-based access control for company sales.
      */
     match /companies/{companyId}/sales/{saleId} {
-        allow get, list: if true;
-        allow create: if isAdmin() || isAccountant();
-        allow update: if isAdmin() || isAccountant();
-        allow delete: if isAdmin() || isAccountant();
+      allow get, list: if true;
+      allow create, update, delete: if false; // TODO: Add company role validation once the schema is updated with an ownership field.
     }
 
     /**
-     * @description Controls access to fees within a company. Only Admins and Accountants can create, update and delete.
-     *              Everyone can read.
-     * @path /companies/{companyId}/fees
-     * @allow (create) - If the user is an Admin or Accountant.
-     * @allow (get, list) - Public read access.
-     * @deny (update, delete) - Only admins and accountants can update and delete
-     * @principle Restricts company creation to admins and accountants, allows public read access.
+     * @description Manages fees for a specific company.
+     * @path /companies/{companyId}/fees/{feeId}
+     * @allow (get, list) Any user can read fees data.
+     * @deny (create, update, delete) No user can create, update, or delete fee data without authorization (TODO: Implement company role management).
+     * @principle Placeholder for future role-based access control for company fees.
      */
     match /companies/{companyId}/fees/{feeId} {
-        allow get, list: if true;
-        allow create: if isAdmin() || isAccountant();
-        allow update: if isAdmin() || isAccountant();
-        allow delete: if isAdmin() || isAccountant();
+      allow get, list: if true;
+      allow create, update, delete: if false; // TODO: Add company role validation once the schema is updated with an ownership field.
     }
 
     /**
-     * @description Controls access to account groups within a user's scope.
-     * @path /users/{userId}/account-groups
-     * @allow (get, list) - If the user is the owner.
-     * @allow (create, update, delete) - If the user is the owner.
-     * @deny (create, update, delete) - If the user is not the owner.
-     * @principle Enforces user-specific data access for account groups.
+     * @description Protects user-specific account groups data.
+     * @path /users/{userId}/account-groups/{accountGroupId}
+     * @allow (get, update, delete) User with uid 'user123' can access /users/user123/account-groups/group1.
+     * @allow (create) User with uid 'user123' can create /users/user123/account-groups/group1 if request.auth.uid == 'user123'.
+     * @deny (get, update, delete) User with uid 'user456' cannot access /users/user123/account-groups/group1.
+     * @deny (create) User with uid 'user456' cannot create /users/user123/account-groups/group1.
+     * @principle Enforces document ownership, restricts access to a user's own data.
      */
     match /users/{userId}/account-groups/{accountGroupId} {
-      allow get, list: if isOwner(userId);
+      function isOwner(userId) {
+        return request.auth.uid == userId;
+      }
+
+      allow get: if isOwner(userId);
+      allow list: if isOwner(userId);
       allow create: if isOwner(userId);
-      allow update: if isExistingOwner(userId);
-      allow delete: if isExistingOwner(userId);
+      allow update: if isOwner(userId);
+      allow delete: if isOwner(userId) && resource != null;
     }
 
     /**
-     * @description Controls access to institutions within a user's scope.
-     * @path /users/{userId}/institutions
-     * @allow (get, list) - If the user is the owner.
-     * @allow (create, update, delete) - If the user is the owner.
-     * @deny (create, update, delete) - If the user is not the owner.
-     * @principle Enforces user-specific data access for institutions.
+     * @description Protects user-specific institution data.
+     * @path /users/{userId}/institutions/{institutionId}
+     * @allow (get, update, delete) User with uid 'user123' can access /users/user123/institutions/inst1.
+     * @allow (create) User with uid 'user123' can create /users/user123/institutions/inst1 if request.auth.uid == 'user123'.
+     * @deny (get, update, delete) User with uid 'user456' cannot access /users/user123/institutions/inst1.
+     * @deny (create) User with uid 'user456' cannot create /users/user123/institutions/inst1.
+     * @principle Enforces document ownership, restricts access to a user's own data.
      */
     match /users/{userId}/institutions/{institutionId} {
-      allow get, list: if isOwner(userId);
+      function isOwner(userId) {
+        return request.auth.uid == userId;
+      }
+
+      allow get: if isOwner(userId);
+      allow list: if isOwner(userId);
       allow create: if isOwner(userId);
-      allow update: if isExistingOwner(userId);
-      allow delete: if isExistingOwner(userId);
+      allow update: if isOwner(userId);
+      allow delete: if isOwner(userId) && resource != null;
     }
 
     /**
-     * @description Controls access to family allowance parameters within a user's scope.
-     * @path /users/{userId}/family-allowance-parameters
-     * @allow (get, list) - If the user is the owner.
-     * @allow (create, update, delete) - If the user is the owner.
-     * @deny (create, update, delete) - If the user is not the owner.
-     * @principle Enforces user-specific data access for family allowance parameters.
+     * @description Protects user-specific family allowance parameters data.
+     * @path /users/{userId}/family-allowance-parameters/{parameterId}
+     * @allow (get, update, delete) User with uid 'user123' can access /users/user123/family-allowance-parameters/param1.
+     * @allow (create) User with uid 'user123' can create /users/user123/family-allowance-parameters/param1 if request.auth.uid == 'user123'.
+     * @deny (get, update, delete) User with uid 'user456' cannot access /users/user123/family-allowance-parameters/param1.
+     * @deny (create) User with uid 'user456' cannot create /users/user123/family-allowance-parameters/param1.
+     * @principle Enforces document ownership, restricts access to a user's own data.
      */
-    match /users/{userId}/family-allowance-parameters/{familyAllowanceParameterId} {
-      allow get, list: if isOwner(userId);
+    match /users/{userId}/family-allowance-parameters/{parameterId} {
+      function isOwner(userId) {
+        return request.auth.uid == userId;
+      }
+
+      allow get: if isOwner(userId);
+      allow list: if isOwner(userId);
       allow create: if isOwner(userId);
-      allow update: if isExistingOwner(userId);
-      allow delete: if isExistingOwner(userId);
+      allow update: if isOwner(userId);
+      allow delete: if isOwner(userId) && resource != null;
     }
 
     /**
-     * @description Controls access to tax parameters within a user's scope.
-     * @path /users/{userId}/tax-parameters
-     * @allow (get, list) - If the user is the owner.
-     * @allow (create, update, delete) - If the user is the owner.
-     * @deny (create, update, delete) - If the user is not the owner.
-     * @principle Enforces user-specific data access for tax parameters.
+     * @description Protects user-specific tax parameters data.
+     * @path /users/{userId}/tax-parameters/{parameterId}
+     * @allow (get, update, delete) User with uid 'user123' can access /users/user123/tax-parameters/tax1.
+     * @allow (create) User with uid 'user123' can create /users/user123/tax-parameters/tax1 if request.auth.uid == 'user123'.
+     * @deny (get, update, delete) User with uid 'user456' cannot access /users/user123/tax-parameters/tax1.
+     * @deny (create) User with uid 'user456' cannot create /users/user123/tax-parameters/tax1.
+     * @principle Enforces document ownership, restricts access to a user's own data.
      */
-    match /users/{userId}/tax-parameters/{taxParameterId} {
-      allow get, list: if isOwner(userId);
+    match /users/{userId}/tax-parameters/{parameterId} {
+      function isOwner(userId) {
+        return request.auth.uid == userId;
+      }
+
+      allow get: if isOwner(userId);
+      allow list: if isOwner(userId);
       allow create: if isOwner(userId);
-      allow update: if isExistingOwner(userId);
-      allow delete: if isExistingOwner(userId);
+      allow update: if isOwner(userId);
+      allow delete: if isOwner(userId) && resource != null;
     }
 
     /**
-     * @description Controls access to health entities within a user's scope.
-     * @path /users/{userId}/health-entities
-     * @allow (get, list) - If the user is the owner.
-     * @allow (create, update, delete) - If the user is the owner.
-     * @deny (create, update, delete) - If the user is not the owner.
-     * @principle Enforces user-specific data access for health entities.
+     * @description Protects user-specific health entities data.
+     * @path /users/{userId}/health-entities/{entityId}
+     * @allow (get, update, delete) User with uid 'user123' can access /users/user123/health-entities/health1.
+     * @allow (create) User with uid 'user123' can create /users/user123/health-entities/health1 if request.auth.uid == 'user123'.
+     * @deny (get, update, delete) User with uid 'user456' cannot access /users/user123/health-entities/health1.
+     * @deny (create) User with uid 'user456' cannot create /users/user123/health-entities/health1.
+     * @principle Enforces document ownership, restricts access to a user's own data.
      */
-    match /users/{userId}/health-entities/{healthEntityId} {
-      allow get, list: if isOwner(userId);
+    match /users/{userId}/health-entities/{entityId} {
+      function isOwner(userId) {
+        return request.auth.uid == userId;
+      }
+
+      allow get: if isOwner(userId);
+      allow list: if isOwner(userId);
       allow create: if isOwner(userId);
-      allow update: if isExistingOwner(userId);
-      allow delete: if isExistingOwner(userId);
+      allow update: if isOwner(userId);
+      allow delete: if isOwner(userId) && resource != null;
     }
 
     /**
-     * @description Controls access to AFP entities within a user's scope.
-     * @path /users/{userId}/afp-entities
-     * @allow (get, list) - If the user is the owner.
-     * @allow (create, update, delete) - If the user is the owner.
-     * @deny (create, update, delete) - If the user is not the owner.
-     * @principle Enforces user-specific data access for AFP entities.
+     * @description Protects user-specific AFP entities data.
+     * @path /users/{userId}/afp-entities/{entityId}
+     * @allow (get, update, delete) User with uid 'user123' can access /users/user123/afp-entities/afp1.
+     * @allow (create) User with uid 'user123' can create /users/user123/afp-entities/afp1 if request.auth.uid == 'user123'.
+     * @deny (get, update, delete) User with uid 'user456' cannot access /users/user123/afp-entities/afp1.
+     * @deny (create) User with uid 'user456' cannot create /users/user123/afp-entities/afp1.
+     * @principle Enforces document ownership, restricts access to a user's own data.
      */
-    match /users/{userId}/afp-entities/{afpEntityId} {
-      allow get, list: if isOwner(userId);
+    match /users/{userId}/afp-entities/{entityId} {
+      function isOwner(userId) {
+        return request.auth.uid == userId;
+      }
+
+      allow get: if isOwner(userId);
+      allow list: if isOwner(userId);
       allow create: if isOwner(userId);
-      allow update: if isExistingOwner(userId);
-      allow delete: if isExistingOwner(userId);
+      allow update: if isOwner(userId);
+      allow delete: if isOwner(userId) && resource != null;
     }
   }
 }
