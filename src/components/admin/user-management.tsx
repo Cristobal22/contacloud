@@ -32,7 +32,7 @@ import { MoreHorizontal, PlusCircle } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useFirestore, useAuth, useCollection, useUser } from "@/firebase"
-import type { UserProfile, Company } from "@/lib/types"
+import type { UserProfile } from "@/lib/types"
 import { doc, setDoc, updateDoc, collection, deleteDoc, query, where } from "firebase/firestore"
 import { createUserWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth'
 import { useState } from 'react';
@@ -53,8 +53,6 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Checkbox } from '@/components/ui/checkbox';
-import { Skeleton } from '../ui/skeleton';
 import { useUserProfile } from '@/firebase/auth/use-user-profile';
 
 
@@ -81,12 +79,6 @@ export default function UserManagement() {
         disabled: !usersQuery
     });
     
-    // Admins can see all companies to assign them
-    const { data: companies, loading: companiesLoading } = useCollection<Company>({ 
-        path: 'companies',
-        disabled: profileLoading || userProfile?.role !== 'Admin' 
-    });
-    
     const [isCreateFormOpen, setIsCreateFormOpen] = useState(false);
     const [isEditFormOpen, setIsEditFormOpen] = useState(false);
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -103,10 +95,7 @@ export default function UserManagement() {
     };
 
      const handleEditUser = (user: UserProfile) => {
-        setSelectedUser({
-            ...user,
-            companyIds: user.companyIds || [] // Ensure companyIds is an array
-        });
+        setSelectedUser(user);
         setIsEditFormOpen(true);
     };
 
@@ -174,11 +163,11 @@ export default function UserManagement() {
         const userRef = doc(firestore, 'users', selectedUser.uid);
 
         try {
+            // Admin can only update the displayName
             await updateDoc(userRef, {
                 displayName: selectedUser.displayName,
-                companyIds: selectedUser.companyIds || []
             });
-            toast({ title: "Usuario actualizado", description: "Los datos del usuario han sido actualizados." });
+            toast({ title: "Usuario actualizado", description: "El nombre del usuario ha sido actualizado." });
             setIsEditFormOpen(false);
         } catch (error) {
             toast({ variant: 'destructive', title: 'Error al actualizar', description: 'No se pudieron guardar los cambios.' });
@@ -195,8 +184,10 @@ export default function UserManagement() {
         const userRef = doc(firestore, 'users', userToDelete.uid);
 
         try {
+            // Note: This deletes the Firestore document, not the Firebase Auth user.
+            // That needs to be done manually in the Firebase console for security reasons.
             await deleteDoc(userRef);
-            toast({ title: "Usuario eliminado", description: `El perfil de ${userToDelete.displayName} ha sido eliminado de la aplicación.` });
+            toast({ title: "Perfil de usuario eliminado", description: `El perfil de ${userToDelete.displayName} ha sido eliminado de la aplicación.` });
             setIsDeleteDialogOpen(false);
             setUserToDelete(null);
         } catch (error) {
@@ -214,17 +205,6 @@ export default function UserManagement() {
      const handleSelectedUserFieldChange = (field: keyof UserProfile, value: string | string[]) => {
         setSelectedUser(prev => prev ? ({...prev, [field]: value}) : null);
     };
-
-    const handleCompanyCheckboxChange = (companyId: string, checked: boolean) => {
-        setSelectedUser(prev => {
-            if (!prev) return null;
-            const currentCompanyIds = prev.companyIds || [];
-            const newCompanyIds = checked 
-                ? [...currentCompanyIds, companyId] 
-                : currentCompanyIds.filter(id => id !== companyId);
-            return { ...prev, companyIds: newCompanyIds };
-        });
-    }
     
     const isReadyForAdminView = !profileLoading && userProfile?.role === 'Admin';
 
@@ -245,7 +225,7 @@ export default function UserManagement() {
                 <TableRow>
                     <TableCell colSpan={5} className="h-24 text-center text-destructive">
                         <p className="font-bold">Error de permisos.</p>
-                        <p className='text-xs text-muted-foreground'>Asegúrate de tener los permisos correctos en las reglas de Firestore.</p>
+                        <p className='text-xs text-muted-foreground'>Asegúrate de tener los permisos correctos en las reglas de Firestore para listar usuarios.</p>
                     </TableCell>
                 </TableRow>
             );
@@ -277,10 +257,10 @@ export default function UserManagement() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                             <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-                            <DropdownMenuItem onSelect={() => handleEditUser(user)}>Editar / Asignar Empresas</DropdownMenuItem>
+                            <DropdownMenuItem onSelect={() => handleEditUser(user)}>Editar Usuario</DropdownMenuItem>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem onSelect={() => handleOpenDeleteDialog(user)} className="text-destructive">
-                                Eliminar Usuario
+                                Eliminar Perfil
                             </DropdownMenuItem>
                         </DropdownMenuContent>
                     </DropdownMenu>
@@ -296,7 +276,7 @@ export default function UserManagement() {
                     <div className="flex items-center justify-between">
                         <div>
                             <CardTitle>Gestión de Usuarios</CardTitle>
-                            <CardDescription>Invita nuevos contadores y asígnales empresas.</CardDescription>
+                            <CardDescription>Invita nuevos contadores y gestiona sus perfiles.</CardDescription>
                         </div>
                          <Button size="sm" className="gap-1" onClick={handleCreateNew} disabled={!isReadyForAdminView}>
                             <PlusCircle className="h-4 w-4" />
@@ -358,7 +338,7 @@ export default function UserManagement() {
                     <DialogHeader>
                         <DialogTitle>Editar Usuario</DialogTitle>
                         <DialogDescription>
-                            Modifica el nombre y asigna las empresas a las que este usuario tiene acceso.
+                            Modifica el nombre del usuario.
                         </DialogDescription>
                     </DialogHeader>
                     {selectedUser && (
@@ -366,29 +346,6 @@ export default function UserManagement() {
                              <div className="grid grid-cols-4 items-center gap-4">
                                 <Label htmlFor="edit-name" className="text-right">Nombre</Label>
                                 <Input id="edit-name" value={selectedUser.displayName || ''} onChange={(e) => handleSelectedUserFieldChange('displayName', e.target.value)} className="col-span-3" />
-                            </div>
-                            <div>
-                                <Label>Empresas Asignadas</Label>
-                                <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-2 rounded-lg border p-4 max-h-60 overflow-y-auto">
-                                    {companiesLoading && (
-                                        <div className="col-span-full space-y-2">
-                                            <Skeleton className="h-5 w-3/4" />
-                                            <Skeleton className="h-5 w-1/2" />
-                                            <Skeleton className="h-5 w-2/3" />
-                                        </div>
-                                    )}
-                                    {companies?.map(company => (
-                                        <div key={company.id} className="flex items-center space-x-2">
-                                            <Checkbox
-                                                id={`company-${company.id}`}
-                                                checked={(selectedUser.companyIds || []).includes(company.id)}
-                                                onCheckedChange={(checked) => handleCompanyCheckboxChange(company.id, !!checked)}
-                                            />
-                                            <Label htmlFor={`company-${company.id}`} className="font-normal">{company.name}</Label>
-                                        </div>
-                                    ))}
-                                    {!companiesLoading && companies?.length === 0 && <p className="text-sm text-muted-foreground">No hay empresas para asignar.</p>}
-                                </div>
                             </div>
                         </div>
                     )}
@@ -407,9 +364,9 @@ export default function UserManagement() {
             <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
                 <AlertDialogContent>
                     <AlertDialogHeader>
-                        <AlertDialogTitle>¿Estás seguro de eliminar a este usuario?</AlertDialogTitle>
+                        <AlertDialogTitle>¿Estás seguro de eliminar este perfil?</AlertDialogTitle>
                         <AlertDialogDescription>
-                            Esta acción eliminará el perfil de <span className="font-bold">{userToDelete?.displayName}</span> de la aplicación.
+                            Esta acción eliminará el perfil de <span className="font-bold">{userToDelete?.displayName}</span> de la base de datos de la aplicación.
                             No se puede deshacer. Para eliminar completamente la autenticación del usuario, deberás hacerlo desde la Consola de Firebase.
                         </AlertDialogDescription>
                     </AlertDialogHeader>

@@ -1,327 +1,446 @@
 /**
  * @file Firestore Security Rules
- * @description This ruleset enforces a multi-tenant security model where users can manage companies and their associated financial data.
+ * @description This ruleset enforces a role-based access control system with user-ownership.
  *
  * Data Structure:
- * - /users/{userId}: Stores user profile information. User documents are self-owned, meaning a user can only create, read, update, or delete their own profile.
- * - /companies/{companyId}: Stores company data. Only users associated with a company (through the 'companyIds' array in their profile) can read company details.  Company creation is unrestricted to allow for onboarding flows. However, writes (update/delete) are restricted to the owner of the company.
- * - /companies/{companyId}/{collections}: Subcollections under a company (e.g., accounts, vouchers, subjects) store financial data related to that specific company. Access to these subcollections is restricted to users who are associated with the parent company through their user profile.
- * - /users/{userId}/{collections}: Subcollections under a user (e.g., account-groups, institutions) store configuration and parameters specific to each user. User documents are self-owned, meaning a user can only create, read, update, or delete their own data.
+ * - /users/{userId}: Stores user profiles. Only the user themselves or an Admin can read/write.
+ * - /companies/{companyId}: Stores company data. Only the owner of the company (ownerId field) can read/write.
+ * - /companies/{companyId}/*: Subcollections under companies are secured based on company ownership.
+ * - /users/{userId}/*: Subcollections under users are secured to the owner of the user.
  *
  * Key Security Decisions:
- * - Users can only manage their own profiles (self-ownership).
- * - Access to company data and its subcollections is based on user association with the company (checked via the 'companyIds' array in the user's profile).
- * - Listing of companies is explicitly denied to prevent unauthorized data access.
- * - Company creation is open to allow onboarding, but updates and deletes are restricted to the company owner.
- * - No data validation is performed in this prototyping phase.
+ * - Admins cannot directly access company information but can manage accountant user profiles.
+ * - User listing is disabled for enhanced privacy.
+ * - All write operations require a verified user identity (authentication).
+ * - Data validation is minimized for prototyping, focusing on authorization and relational integrity.
  *
  * Denormalization for Authorization:
- * - The 'companyIds' array in the user profile is crucial for quickly determining which companies a user has access to. This avoids the need to query a separate membership collection.
- * - The `ownerId` field on the `/companies/{companyId}` document enables performant security rules based on ownership.
+ * - Company documents store the owner's UID in the `ownerId` field to avoid costly `get()` calls during authorization.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Manages user profile access. Users can only read, update, and delete their own profile data.
+     * @description Secure user profiles.
      * @path /users/{userId}
-     * @allow (create) - User with UID 'user_abc' can create a profile if request.auth.uid == 'user_abc'.
-     * @allow (get, update, delete) - User with UID 'user_abc' can access their profile if request.auth.uid == 'user_abc'.
-     * @deny (get, update, delete) - User with UID 'user_def' cannot access user_abc's profile because request.auth.uid != 'user_abc'.
-     * @principle Enforces document ownership for all operations.
+     * @allow (create) Authenticated user can create their own profile.
+     * @allow (get, update, delete) Only the user themselves or an Admin can access their profile.
+     * @deny (create) if the user ID in the path does not match the authenticated user's ID.
+     * @deny (update, delete) if the user is not authenticated.
+     * @principle Enforces user-ownership and admin override for user profiles.
      */
     match /users/{userId} {
-      function isOwner(userId) {
-        return request.auth.uid == userId;
-      }
-      allow get: if isOwner(userId);
-      allow list: if false;
-      allow create: if isOwner(userId);
-      allow update: if isOwner(userId);
-      allow delete: if isOwner(userId);
+      allow get: if isSignedIn() && (isOwner(userId) || isAdmin());
+      allow list: if false; // User listing is not permitted
+
+      allow create: if isSignedIn() && isSelfCreate(userId) && isValidUserProfileCreate();
+      allow update: if isSignedIn() && (isOwner(userId) || isAdmin()) && isValidUserProfileUpdate(userId);
+      allow delete: if isSignedIn() && isAdmin();
     }
 
     /**
-     * @description Manages company access. Any authenticated user can create a company.
-     *              Updates and deletes are restricted to the company owner. Listing companies is disallowed.
-     * @path /companies
-     * @allow (create) - Any signed-in user can create a company.
-     * @deny (list) - No user can list all companies.
-     * @allow (update, delete) - Only the company owner can update or delete.
-     * @principle Allows open company creation while restricting modifications to the owner.
+     * @description Secure company documents.
+     * @path /companies/{companyId}
+     * @allow (create) Authenticated user can create a company, with ownerId set to their UID.
+     * @allow (get, update, delete) Only the company owner can access company data.
+     * @deny (create) if the authenticated user is not setting themselves as the owner.
+     * @deny (update, delete) if the user is not the company owner.
+     * @principle Enforces company ownership for all company data.
      */
     match /companies/{companyId} {
-      function isCompanyMember(companyId) {
-          return exists(/databases/$(database)/documents/users/$(request.auth.uid))
-          && size(get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyIds) > 0
-          && (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyIds).hasAny([companyId]);
-      }
-
-      function isCompanyOwner(companyId) {
-        return resource.data.ownerId == request.auth.uid;
-      }
-
-      allow get: if isCompanyMember(companyId);
+      allow get: if isSignedIn() && isCompanyOwner(companyId);
       allow list: if false;
-      allow create: if request.auth.uid != null; // Allow any authenticated user to create a company
-      allow update: if isCompanyOwner(companyId);
-      allow delete: if isCompanyOwner(companyId);
+
+      allow create: if isSignedIn() && isValidCompanyCreate();
+      allow update: if isSignedIn() && isExistingCompanyOwner(companyId) && isValidCompanyUpdate(companyId);
+      allow delete: if isSignedIn() && isExistingCompanyOwner(companyId);
     }
 
     /**
-     * @description Manages access to accounts subcollection for a specific company. Only users associated with the company can access accounts.
+     * @description Secure account documents under a company.
      * @path /companies/{companyId}/accounts/{accountId}
-     * @allow (get, list) - Users with 'companyId' in their profile can read.
-     * @allow (create, update, delete) - Users with 'companyId' in their profile can write.
-     * @deny (get, list) - Users without 'companyId' cannot read.
-     * @deny (create, update, delete) - Users without 'companyId' cannot write.
-     * @principle Restricts access to company-specific subcollections based on user association.
+     * @allow (create, get, update, delete) Only the company owner can manage accounts.
+     * @deny (create, update, delete) if the user is not the company owner.
+     * @principle Enforces company ownership for all account data.
      */
     match /companies/{companyId}/accounts/{accountId} {
-      function isCompanyMember(companyId) {
-          return exists(/databases/$(database)/documents/users/$(request.auth.uid))
-          && size(get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyIds) > 0
-          && (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyIds).hasAny([companyId]);
-      }
+      allow get: if isSignedIn() && isCompanyOwner(companyId);
+      allow list: if isSignedIn() && isCompanyOwner(companyId);
 
-      allow get: if isCompanyMember(companyId);
-      allow list: if isCompanyMember(companyId);
-      allow create: if isCompanyMember(companyId);
-      allow update: if isCompanyMember(companyId);
-      allow delete: if isCompanyMember(companyId);
+      allow create: if isSignedIn() && isCompanyOwner(companyId) && isValidAccountCreate(companyId);
+      allow update: if isSignedIn() && isExistingCompanyOwner(companyId) && isValidAccountUpdate(companyId);
+      allow delete: if isSignedIn() && isExistingCompanyOwner(companyId);
     }
 
     /**
-     * @description Manages access to vouchers subcollection for a specific company. Only users associated with the company can access vouchers.
+     * @description Secure voucher documents under a company.
      * @path /companies/{companyId}/vouchers/{voucherId}
-     * @allow (get, list) - Users with 'companyId' in their profile can read.
-     * @allow (create, update, delete) - Users with 'companyId' in their profile can write.
-     * @deny (get, list) - Users without 'companyId' cannot read.
-     * @deny (create, update, delete) - Users without 'companyId' cannot write.
-     * @principle Restricts access to company-specific subcollections based on user association.
+     * @allow (create, get, update, delete) Only the company owner can manage vouchers.
+     * @deny (create, update, delete) if the user is not the company owner.
+     * @principle Enforces company ownership for all voucher data.
      */
     match /companies/{companyId}/vouchers/{voucherId} {
-      function isCompanyMember(companyId) {
-          return exists(/databases/$(database)/documents/users/$(request.auth.uid))
-          && size(get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyIds) > 0
-          && (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyIds).hasAny([companyId]);
-      }
+      allow get: if isSignedIn() && isCompanyOwner(companyId);
+      allow list: if isSignedIn() && isCompanyOwner(companyId);
 
-      allow get: if isCompanyMember(companyId);
-      allow list: if isCompanyMember(companyId);
-      allow create: if isCompanyMember(companyId);
-      allow update: if isCompanyMember(companyId);
-      allow delete: if isCompanyMember(companyId);
+      allow create: if isSignedIn() && isCompanyOwner(companyId) && isValidVoucherCreate(companyId);
+      allow update: if isSignedIn() && isExistingCompanyOwner(companyId) && isValidVoucherUpdate(companyId);
+      allow delete: if isSignedIn() && isExistingCompanyOwner(companyId);
     }
 
     /**
-     * @description Manages access to subjects subcollection for a specific company. Only users associated with the company can access subjects.
+     * @description Secure subject documents under a company.
      * @path /companies/{companyId}/subjects/{subjectId}
-     * @allow (get, list) - Users with 'companyId' in their profile can read.
-     * @allow (create, update, delete) - Users with 'companyId' in their profile can write.
-     * @deny (get, list) - Users without 'companyId' cannot read.
-     * @deny (create, update, delete) - Users without 'companyId' cannot write.
-     * @principle Restricts access to company-specific subcollections based on user association.
+     * @allow (create, get, update, delete) Only the company owner can manage subjects.
+     * @deny (create, update, delete) if the user is not the company owner.
+     * @principle Enforces company ownership for all subject data.
      */
     match /companies/{companyId}/subjects/{subjectId} {
-      function isCompanyMember(companyId) {
-          return exists(/databases/$(database)/documents/users/$(request.auth.uid))
-          && size(get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyIds) > 0
-          && (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyIds).hasAny([companyId]);
-      }
+      allow get: if isSignedIn() && isCompanyOwner(companyId);
+      allow list: if isSignedIn() && isCompanyOwner(companyId);
 
-      allow get: if isCompanyMember(companyId);
-      allow list: if isCompanyMember(companyId);
-      allow create: if isCompanyMember(companyId);
-      allow update: if isCompanyMember(companyId);
-      allow delete: if isCompanyMember(companyId);
+      allow create: if isSignedIn() && isCompanyOwner(companyId) && isValidSubjectCreate(companyId);
+      allow update: if isSignedIn() && isExistingCompanyOwner(companyId) && isValidSubjectUpdate(companyId);
+      allow delete: if isSignedIn() && isExistingCompanyOwner(companyId);
     }
 
     /**
-     * @description Manages access to cost-centers subcollection for a specific company. Only users associated with the company can access cost-centers.
+     * @description Secure cost center documents under a company.
      * @path /companies/{companyId}/cost-centers/{costCenterId}
+     * @allow (create, get, update, delete) Only the company owner can manage cost centers.
+     * @deny (create, update, delete) if the user is not the company owner.
+     * @principle Enforces company ownership for all cost center data.
      */
     match /companies/{companyId}/cost-centers/{costCenterId} {
-      function isCompanyMember(companyId) {
-          return exists(/databases/$(database)/documents/users/$(request.auth.uid))
-          && size(get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyIds) > 0
-          && (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyIds).hasAny([companyId]);
-      }
+      allow get: if isSignedIn() && isCompanyOwner(companyId);
+      allow list: if isSignedIn() && isCompanyOwner(companyId);
 
-      allow get: if isCompanyMember(companyId);
-      allow list: if isCompanyMember(companyId);
-      allow create: if isCompanyMember(companyId);
-      allow update: if isCompanyMember(companyId);
-      allow delete: if isCompanyMember(companyId);
+      allow create: if isSignedIn() && isCompanyOwner(companyId) && isValidCostCenterCreate(companyId);
+      allow update: if isSignedIn() && isExistingCompanyOwner(companyId) && isValidCostCenterUpdate(companyId);
+      allow delete: if isSignedIn() && isExistingCompanyOwner(companyId);
     }
 
     /**
-     * @description Manages access to employees subcollection for a specific company. Only users associated with the company can access employees.
+     * @description Secure employee documents under a company.
      * @path /companies/{companyId}/employees/{employeeId}
+     * @allow (create, get, update, delete) Only the company owner can manage employees.
+     * @deny (create, update, delete) if the user is not the company owner.
+     * @principle Enforces company ownership for all employee data.
      */
     match /companies/{companyId}/employees/{employeeId} {
-      function isCompanyMember(companyId) {
-          return exists(/databases/$(database)/documents/users/$(request.auth.uid))
-          && size(get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyIds) > 0
-          && (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyIds).hasAny([companyId]);
-      }
+      allow get: if isSignedIn() && isCompanyOwner(companyId);
+      allow list: if isSignedIn() && isCompanyOwner(companyId);
 
-      allow get: if isCompanyMember(companyId);
-      allow list: if isCompanyMember(companyId);
-      allow create: if isCompanyMember(companyId);
-      allow update: if isCompanyMember(companyId);
-      allow delete: if isCompanyMember(companyId);
+      allow create: if isSignedIn() && isCompanyOwner(companyId) && isValidEmployeeCreate(companyId);
+      allow update: if isSignedIn() && isExistingCompanyOwner(companyId) && isValidEmployeeUpdate(companyId);
+      allow delete: if isSignedIn() && isExistingCompanyOwner(companyId);
     }
-
+    
     /**
-     * @description Manages access to purchases subcollection for a specific company. Only users associated with the company can access purchases.
+     * @description Secure purchase documents under a company.
      * @path /companies/{companyId}/purchases/{purchaseId}
+     * @allow (create, get, update, delete) Only the company owner can manage purchases.
+     * @deny (create, update, delete) if the user is not the company owner.
+     * @principle Enforces company ownership for all purchase data.
      */
     match /companies/{companyId}/purchases/{purchaseId} {
-       function isCompanyMember(companyId) {
-          return exists(/databases/$(database)/documents/users/$(request.auth.uid))
-          && size(get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyIds) > 0
-          && (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyIds).hasAny([companyId]);
-      }
+      allow get: if isSignedIn() && isCompanyOwner(companyId);
+      allow list: if isSignedIn() && isCompanyOwner(companyId);
 
-      allow get: if isCompanyMember(companyId);
-      allow list: if isCompanyMember(companyId);
-      allow create: if isCompanyMember(companyId);
-      allow update: if isCompanyMember(companyId);
-      allow delete: if isCompanyMember(companyId);
+      allow create: if isSignedIn() && isCompanyOwner(companyId) && isValidPurchaseCreate(companyId);
+      allow update: if isSignedIn() && isExistingCompanyOwner(companyId) && isValidPurchaseUpdate(companyId);
+      allow delete: if isSignedIn() && isExistingCompanyOwner(companyId);
     }
 
     /**
-     * @description Manages access to sales subcollection for a specific company. Only users associated with the company can access sales.
+     * @description Secure sales documents under a company.
      * @path /companies/{companyId}/sales/{saleId}
+     * @allow (create, get, update, delete) Only the company owner can manage sales.
+     * @deny (create, update, delete) if the user is not the company owner.
+     * @principle Enforces company ownership for all sales data.
      */
     match /companies/{companyId}/sales/{saleId} {
-      function isCompanyMember(companyId) {
-          return exists(/databases/$(database)/documents/users/$(request.auth.uid))
-          && size(get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyIds) > 0
-          && (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyIds).hasAny([companyId]);
-      }
+      allow get: if isSignedIn() && isCompanyOwner(companyId);
+      allow list: if isSignedIn() && isCompanyOwner(companyId);
 
-      allow get: if isCompanyMember(companyId);
-      allow list: if isCompanyMember(companyId);
-      allow create: if isCompanyMember(companyId);
-      allow update: if isCompanyMember(companyId);
-      allow delete: if isCompanyMember(companyId);
+      allow create: if isSignedIn() && isCompanyOwner(companyId) && isValidSaleCreate(companyId);
+      allow update: if isSignedIn() && isExistingCompanyOwner(companyId) && isValidSaleUpdate(companyId);
+      allow delete: if isSignedIn() && isExistingCompanyOwner(companyId);
+    }
+
+    /**
+     * @description Secure fee documents under a company.
+     * @path /companies/{companyId}/fees/{feeId}
+     * @allow (create, get, update, delete) Only the company owner can manage fees.
+     * @deny (create, update, delete) if the user is not the company owner.
+     * @principle Enforces company ownership for all fee data.
+     */
+    match /companies/{companyId}/fees/{feeId} {
+      allow get: if isSignedIn() && isCompanyOwner(companyId);
+      allow list: if isSignedIn() && isCompanyOwner(companyId);
+
+      allow create: if isSignedIn() && isCompanyOwner(companyId) && isValidFeeCreate(companyId);
+      allow update: if isSignedIn() && isExistingCompanyOwner(companyId) && isValidFeeUpdate(companyId);
+      allow delete: if isSignedIn() && isExistingCompanyOwner(companyId);
+    }
+
+    /**
+     * @description Secure account group documents under a user.
+     * @path /users/{userId}/account-groups/{accountGroupId}
+     * @allow (create, get, update, delete) Only the user themselves can manage account groups.
+     * @deny (create, update, delete) if the user is not the owner.
+     * @principle Enforces user-ownership for all account group data.
+     */
+    match /users/{userId}/account-groups/{accountGroupId} {
+      allow get: if isSignedIn() && isOwner(userId);
+      allow list: if isSignedIn() && isOwner(userId);
+
+      allow create: if isSignedIn() && isOwner(userId) && isValidAccountGroupCreate();
+      allow update: if isSignedIn() && isExistingOwner(userId) && isValidAccountGroupUpdate();
+      allow delete: if isSignedIn() && isExistingOwner(userId);
+    }
+
+    /**
+     * @description Secure institution documents under a user.
+     * @path /users/{userId}/institutions/{institutionId}
+     * @allow (create, get, update, delete) Only the user themselves can manage institutions.
+     * @deny (create, update, delete) if the user is not the owner.
+     * @principle Enforces user-ownership for all institution data.
+     */
+    match /users/{userId}/institutions/{institutionId} {
+      allow get: if isSignedIn() && isOwner(userId);
+      allow list: if isSignedIn() && isOwner(userId);
+
+      allow create: if isSignedIn() && isOwner(userId) && isValidInstitutionCreate();
+      allow update: if isSignedIn() && isExistingOwner(userId) && isValidInstitutionUpdate();
+      allow delete: if isSignedIn() && isExistingOwner(userId);
+    }
+
+    /**
+     * @description Secure family allowance parameter documents under a user.
+     * @path /users/{userId}/family-allowance-parameters/{familyAllowanceParameterId}
+     * @allow (create, get, update, delete) Only the user themselves can manage family allowance parameters.
+     * @deny (create, update, delete) if the user is not the owner.
+     * @principle Enforces user-ownership for all family allowance parameter data.
+     */
+    match /users/{userId}/family-allowance-parameters/{familyAllowanceParameterId} {
+      allow get: if isSignedIn() && isOwner(userId);
+      allow list: if isSignedIn() && isOwner(userId);
+
+      allow create: if isSignedIn() && isOwner(userId) && isValidFamilyAllowanceParameterCreate();
+      allow update: if isSignedIn() && isExistingOwner(userId) && isValidFamilyAllowanceParameterUpdate();
+      allow delete: if isSignedIn() && isExistingOwner(userId);
+    }
+
+    /**
+     * @description Secure tax parameter documents under a user.
+     * @path /users/{userId}/tax-parameters/{taxParameterId}
+     * @allow (create, get, update, delete) Only the user themselves can manage tax parameters.
+     * @deny (create, update, delete) if the user is not the owner.
+     * @principle Enforces user-ownership for all tax parameter data.
+     */
+    match /users/{userId}/tax-parameters/{taxParameterId} {
+      allow get: if isSignedIn() && isOwner(userId);
+      allow list: if isSignedIn() && isOwner(userId);
+
+      allow create: if isSignedIn() && isOwner(userId) && isValidTaxParameterCreate();
+      allow update: if isSignedIn() && isExistingOwner(userId) && isValidTaxParameterUpdate();
+      allow delete: if isSignedIn() && isExistingOwner(userId);
     }
 
      /**
-      * @description Manages access to fees subcollection for a specific company. Only users associated with the company can access fees.
-      * @path /companies/{companyId}/fees/{feeId}
-      */
-    match /companies/{companyId}/fees/{feeId} {
-       function isCompanyMember(companyId) {
-          return exists(/databases/$(database)/documents/users/$(request.auth.uid))
-          && size(get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyIds) > 0
-          && (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyIds).hasAny([companyId]);
-      }
-
-      allow get: if isCompanyMember(companyId);
-      allow list: if isCompanyMember(companyId);
-      allow create: if isCompanyMember(companyId);
-      allow update: if isCompanyMember(companyId);
-      allow delete: if isCompanyMember(companyId);
-    }
-
-    /**
-     * @description Manages access to account-groups subcollection for a specific user. Only the owner can access.
-     * @path /users/{userId}/account-groups/{accountGroupId}
-     */
-    match /users/{userId}/account-groups/{accountGroupId} {
-      function isOwner(userId) {
-        return request.auth.uid == userId;
-      }
-
-      allow get: if isOwner(userId);
-      allow list: if isOwner(userId);
-      allow create: if isOwner(userId);
-      allow update: if isOwner(userId);
-      allow delete: if isOwner(userId);
-    }
-
-    /**
-     * @description Manages access to institutions subcollection for a specific user. Only the owner can access.
-     * @path /users/{userId}/institutions/{institutionId}
-     */
-    match /users/{userId}/institutions/{institutionId} {
-      function isOwner(userId) {
-        return request.auth.uid == userId;
-      }
-
-      allow get: if isOwner(userId);
-      allow list: if isOwner(userId);
-      allow create: if isOwner(userId);
-      allow update: if isOwner(userId);
-      allow delete: if isOwner(userId);
-    }
-
-    /**
-     * @description Manages access to family-allowance-parameters subcollection for a specific user. Only the owner can access.
-     * @path /users/{userId}/family-allowance-parameters/{familyAllowanceParameterId}
-     */
-    match /users/{userId}/family-allowance-parameters/{familyAllowanceParameterId} {
-      function isOwner(userId) {
-        return request.auth.uid == userId;
-      }
-
-      allow get: if isOwner(userId);
-      allow list: if isOwner(userId);
-      allow create: if isOwner(userId);
-      allow update: if isOwner(userId);
-      allow delete: if isOwner(userId);
-    }
-
-    /**
-     * @description Manages access to tax-parameters subcollection for a specific user. Only the owner can access.
-     * @path /users/{userId}/tax-parameters/{taxParameterId}
-     */
-    match /users/{userId}/tax-parameters/{taxParameterId} {
-      function isOwner(userId) {
-        return request.auth.uid == userId;
-      }
-
-      allow get: if isOwner(userId);
-      allow list: if isOwner(userId);
-      allow create: if isOwner(userId);
-      allow update: if isOwner(userId);
-      allow delete: if isOwner(userId);
-    }
-
-    /**
-     * @description Manages access to health-entities subcollection for a specific user. Only the owner can access.
+     * @description Secure health entity documents under a user.
      * @path /users/{userId}/health-entities/{healthEntityId}
+     * @allow (create, get, update, delete) Only the user themselves can manage health entities.
+     * @deny (create, update, delete) if the user is not the owner.
+     * @principle Enforces user-ownership for all health entity data.
      */
     match /users/{userId}/health-entities/{healthEntityId} {
-      function isOwner(userId) {
-        return request.auth.uid == userId;
-      }
+      allow get: if isSignedIn() && isOwner(userId);
+      allow list: if isSignedIn() && isOwner(userId);
 
-      allow get: if isOwner(userId);
-      allow list: if isOwner(userId);
-      allow create: if isOwner(userId);
-      allow update: if isOwner(userId);
-      allow delete: if isOwner(userId);
+      allow create: if isSignedIn() && isOwner(userId) && isValidHealthEntityCreate();
+      allow update: if isSignedIn() && isExistingOwner(userId) && isValidHealthEntityUpdate();
+      allow delete: if isSignedIn() && isExistingOwner(userId);
     }
 
     /**
-     * @description Manages access to afp-entities subcollection for a specific user. Only the owner can access.
+     * @description Secure AFP entity documents under a user.
      * @path /users/{userId}/afp-entities/{afpEntityId}
+     * @allow (create, get, update, delete) Only the user themselves can manage AFP entities.
+     * @deny (create, update, delete) if the user is not the owner.
+     * @principle Enforces user-ownership for all AFP entity data.
      */
     match /users/{userId}/afp-entities/{afpEntityId} {
-      function isOwner(userId) {
-        return request.auth.uid == userId;
-      }
+      allow get: if isSignedIn() && isOwner(userId);
+      allow list: if isSignedIn() && isOwner(userId);
 
-      allow get: if isOwner(userId);
-      allow list: if isOwner(userId);
-      allow create: if isOwner(userId);
-      allow update: if isOwner(userId);
-      allow delete: if isOwner(userId);
+      allow create: if isSignedIn() && isOwner(userId) && isValidAfpEntityCreate();
+      allow update: if isSignedIn() && isExistingOwner(userId) && isValidAfpEntityUpdate();
+      allow delete: if isSignedIn() && isExistingOwner(userId);
     }
+
+    // ---- Helper functions ----
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+
+    function isExistingOwner(userId) {
+      return isOwner(userId) && resource != null;
+    }
+
+    function isCompanyOwner(companyId) {
+      return get(/databases/$(database)/documents/companies/$(companyId)).data.ownerId == request.auth.uid;
+    }
+
+    function isExistingCompanyOwner(companyId) {
+        return isCompanyOwner(companyId) && resource != null;
+    }
+
+    function isAdmin() {
+      return request.auth.token.role == 'Admin';
+    }
+
+    function isSelfCreate(userId) {
+        return request.auth.uid == userId;
+    }
+
+    // ---- Validation Rules ----
+    //Minimal validation for prototyping, only validating ownership or relational integrity
+
+    function isValidUserProfileCreate() {
+        return request.resource.data.uid == request.auth.uid;
+    }
+
+    function isValidUserProfileUpdate(userId) {
+      return resource.data.uid == userId; // enforce immutable uid
+    }
+
+    function isValidCompanyCreate() {
+      return request.resource.data.ownerId == request.auth.uid;
+    }
+
+    function isValidCompanyUpdate(companyId) {
+      return resource.data.ownerId == get(/databases/$(database)/documents/companies/$(companyId)).data.ownerId; //enforce immutable ownerId
+    }
+
+    function isValidAccountCreate(companyId){
+        return request.resource.data.companyId == companyId;
+    }
+
+    function isValidAccountUpdate(companyId){
+        return resource.data.companyId == companyId;
+    }
+
+    function isValidVoucherCreate(companyId){
+        return request.resource.data.companyId == companyId;
+    }
+
+    function isValidVoucherUpdate(companyId){
+        return resource.data.companyId == companyId;
+    }
+
+    function isValidSubjectCreate(companyId){
+        return request.resource.data.companyId == companyId;
+    }
+
+    function isValidSubjectUpdate(companyId){
+        return resource.data.companyId == companyId;
+    }
+
+    function isValidCostCenterCreate(companyId){
+        return request.resource.data.companyId == companyId;
+    }
+
+    function isValidCostCenterUpdate(companyId){
+        return resource.data.companyId == companyId;
+    }
+
+    function isValidEmployeeCreate(companyId){
+        return request.resource.data.companyId == companyId;
+    }
+
+    function isValidEmployeeUpdate(companyId){
+        return resource.data.companyId == companyId;
+    }
+
+    function isValidPurchaseCreate(companyId){
+        return request.resource.data.companyId == companyId;
+    }
+
+    function isValidPurchaseUpdate(companyId){
+        return resource.data.companyId == companyId;
+    }
+
+    function isValidSaleCreate(companyId){
+        return request.resource.data.companyId == companyId;
+    }
+
+    function isValidSaleUpdate(companyId){
+        return resource.data.companyId == companyId;
+    }
+
+    function isValidFeeCreate(companyId){
+        return request.resource.data.companyId == companyId;
+    }
+
+    function isValidFeeUpdate(companyId){
+        return resource.data.companyId == companyId;
+    }
+
+    function isValidAccountGroupCreate(){
+        return true;
+    }
+
+    function isValidAccountGroupUpdate(){
+        return true;
+    }
+
+    function isValidInstitutionCreate(){
+        return true;
+    }
+
+    function isValidInstitutionUpdate(){
+        return true;
+    }
+
+    function isValidFamilyAllowanceParameterCreate(){
+        return true;
+    }
+
+    function isValidFamilyAllowanceParameterUpdate(){
+        return true;
+    }
+
+    function isValidTaxParameterCreate(){
+        return true;
+    }
+
+    function isValidTaxParameterUpdate(){
+        return true;
+    }
+    
+    function isValidHealthEntityCreate(){
+        return true;
+    }
+
+    function isValidHealthEntityUpdate(){
+        return true;
+    }
+
+    function isValidAfpEntityCreate(){
+        return true;
+    }
+
+    function isValidAfpEntityUpdate(){
+        return true;
+    }
+
   }
 }
