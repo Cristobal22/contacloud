@@ -1,4 +1,3 @@
-
 'use client';
 
 import React from 'react';
@@ -9,7 +8,7 @@ import {
     CardHeader,
     CardTitle,
 } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
+import { Button, buttonVariants } from "@/components/ui/button"
 import { MoreHorizontal, PlusCircle } from "lucide-react"
   import {
     Dialog,
@@ -20,11 +19,21 @@ import { MoreHorizontal, PlusCircle } from "lucide-react"
     DialogFooter,
     DialogClose,
   } from "@/components/ui/dialog"
+    import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+  } from "@/components/ui/alert-dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useFirestore, useAuth, useCollection, useUser } from "@/firebase"
 import type { UserProfile, Company } from "@/lib/types"
-import { doc, setDoc, updateDoc, collection } from "firebase/firestore"
+import { doc, setDoc, updateDoc, collection, deleteDoc } from "firebase/firestore"
 import { createUserWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth'
 import { useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
@@ -41,11 +50,8 @@ import {
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuLabel,
+    DropdownMenuSeparator,
     DropdownMenuTrigger,
-    DropdownMenuSub,
-    DropdownMenuSubTrigger,
-    DropdownMenuPortal,
-    DropdownMenuSubContent
 } from "@/components/ui/dropdown-menu"
 import { Checkbox } from '@/components/ui/checkbox';
 import { Skeleton } from '../ui/skeleton';
@@ -73,9 +79,11 @@ export default function UserManagement() {
     
     const [isCreateFormOpen, setIsCreateFormOpen] = useState(false);
     const [isEditFormOpen, setIsEditFormOpen] = useState(false);
+    const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
     const [newUser, setNewUser] = useState<NewUserInput>({email: '', displayName: ''});
     const [selectedUser, setSelectedUser] = useState<Partial<UserProfile> | null>(null);
+    const [userToDelete, setUserToDelete] = useState<UserProfile | null>(null);
 
     const [isProcessing, setIsProcessing] = useState(false);
 
@@ -91,6 +99,12 @@ export default function UserManagement() {
         });
         setIsEditFormOpen(true);
     };
+
+    const handleOpenDeleteDialog = (user: UserProfile) => {
+        setUserToDelete(user);
+        setIsDeleteDialogOpen(true);
+    };
+
 
     const handleCreateUser = async () => {
         if (!auth || !firestore) {
@@ -163,6 +177,25 @@ export default function UserManagement() {
         }
     };
     
+    const handleDeleteUser = async () => {
+        if (!firestore || !userToDelete) return;
+
+        setIsProcessing(true);
+        const userRef = doc(firestore, 'users', userToDelete.uid);
+
+        try {
+            await deleteDoc(userRef);
+            toast({ title: "Usuario eliminado", description: `El perfil de ${userToDelete.displayName} ha sido eliminado de la aplicación.` });
+            setIsDeleteDialogOpen(false);
+            setUserToDelete(null);
+        } catch (error) {
+            toast({ variant: 'destructive', title: 'Error al eliminar', description: 'No se pudo eliminar el perfil del usuario.' });
+            console.error('Error deleting user:', error);
+        } finally {
+            setIsProcessing(false);
+        }
+    };
+    
     const handleNewUserFieldChange = (field: keyof NewUserInput, value: string) => {
         setNewUser(prev => ({...prev, [field]: value}));
     };
@@ -181,9 +214,6 @@ export default function UserManagement() {
             return { ...prev, companyIds: newCompanyIds };
         });
     }
-    
-    // The ability to change roles is removed as it required a backend flow
-    // that was causing instability. This must now be done via a secure, manual script.
     
     const loading = usersLoading || companiesLoading || profileLoading;
     const isReadyForAdminView = !profileLoading && userProfile?.role === 'Admin';
@@ -238,6 +268,10 @@ export default function UserManagement() {
                         <DropdownMenuContent align="end">
                             <DropdownMenuLabel>Acciones</DropdownMenuLabel>
                             <DropdownMenuItem onSelect={() => handleEditUser(user)}>Editar / Asignar Empresas</DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem onSelect={() => handleOpenDeleteDialog(user)} className="text-destructive">
+                                Eliminar Usuario
+                            </DropdownMenuItem>
                         </DropdownMenuContent>
                     </DropdownMenu>
                 </TableCell>
@@ -358,6 +392,29 @@ export default function UserManagement() {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+
+            {/* Delete User Dialog */}
+            <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>¿Estás seguro de eliminar a este usuario?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Esta acción eliminará el perfil de <span className="font-bold">{userToDelete?.displayName}</span> de la aplicación.
+                            No se puede deshacer. Para eliminar completamente la autenticación del usuario, deberás hacerlo desde la Consola de Firebase.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel onClick={() => setUserToDelete(null)}>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction
+                            className={buttonVariants({ variant: "destructive" })}
+                            onClick={handleDeleteUser}
+                            disabled={isProcessing}
+                        >
+                             {isProcessing ? 'Eliminando...' : 'Sí, eliminar perfil'}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </>
     );
 }
