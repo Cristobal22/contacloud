@@ -16,6 +16,7 @@ const PeriodSchema = z.object({
 });
 
 const VoucherEntrySchema = z.object({
+    id: z.string().optional(),
     account: z.string().describe("El código de la cuenta contable a utilizar."),
     description: z.string().describe("La descripción para el asiento contable."),
     debit: z.number().describe("El monto para el Debe."),
@@ -93,7 +94,5 @@ export const CentralizeRemunerationsInputSchema = z.object({
 });
 export type CentralizeRemunerationsInput = z.infer<typeof CentralizeRemunerationsInputSchema>;
 
-export const CentralizeRemunerationsOutputSchema = VoucherSchema.omit({ entries: true }).extend({
-    entries: z.array(VoucherEntrySchema.omit({ id: true }))
-});
+export const CentralizeRemunerationsOutputSchema = VoucherSchema;
 export type CentralizeRemunerationsOutput = z.infer<typeof CentralizeRemunerationsOutputSchema>;

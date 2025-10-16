@@ -1,7 +1,8 @@
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { onSnapshot, collection, query, Query, CollectionReference } from 'firebase/firestore';
+import { onSnapshot, collection, query, Query, CollectionReference, DocumentData } from 'firebase/firestore';
 import { useFirestore } from '../provider';
 import { errorEmitter } from '../error-emitter';
 import { FirestorePermissionError } from '../errors';
@@ -9,7 +10,7 @@ import { FirestorePermissionError } from '../errors';
 type UseCollectionProps<T> = {
     path?: string;
     companyId?: string | null;
-    query?: Query<T> | CollectionReference<T> | null;
+    query?: Query<T> | CollectionReference<T> | Query<DocumentData> | CollectionReference<DocumentData> | null;
     disabled?: boolean;
 };
 
@@ -55,7 +56,7 @@ export function useCollection<T>({ path, companyId, query: manualQuery, disabled
   }, [disabled, manualQuery, firestore, path, companyId]);
 
   // Use a serialized key of the query for the useEffect dependency
-  const queryKey = useMemo(() => getQueryKey(finalQuery), [finalQuery]);
+  const queryKey = useMemo(() => getQueryKey(finalQuery as Query | CollectionReference | null | undefined), [finalQuery]);
 
   useEffect(() => {
     // If there's no valid query, set state to empty and not loading.
@@ -68,7 +69,7 @@ export function useCollection<T>({ path, companyId, query: manualQuery, disabled
     setLoading(true);
 
     const unsubscribe = onSnapshot(
-      finalQuery,
+      finalQuery as Query,
       (querySnapshot) => {
         const items = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as unknown as T));
         setData(items);

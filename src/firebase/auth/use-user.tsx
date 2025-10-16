@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -30,8 +31,8 @@ export function useUser({ redirectTo, redirectIfFound }: UseUserOptions = {}) {
       setUser(user);
       setLoading(false);
       
-      if (redirectIfFound && user) {
-        router.push(redirectIfFound);
+      if (redirectIfFound && user && typeof redirectTo === 'string') {
+        router.push(redirectTo);
       }
       if (redirectTo && !user && !pathname?.includes(redirectTo)) {
         router.push(redirectTo);

@@ -1,3 +1,4 @@
+
 'use client'
 
 import React from "react"
@@ -7,7 +8,7 @@ import {
   Home,
   Briefcase,
 } from "lucide-react"
-import { collection, query, where, documentId } from "firebase/firestore"
+import { collection, query, where, documentId, Query, CollectionReference } from "firebase/firestore"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -41,7 +42,7 @@ function AccountantDashboardLayout({ children }: { children: React.ReactNode }) 
             return null;
         }
         // Firestore 'in' queries are limited to 30 elements. We slice to stay within limits.
-        return query(collection(firestore, 'companies'), where(documentId(), 'in', userProfile.companyIds.slice(0, 30)));
+        return query(collection(firestore, 'companies'), where(documentId(), 'in', userProfile.companyIds.slice(0, 30))) as Query<Company>;
     }, [firestore, userProfile]);
 
     const { data: companies, loading: companiesLoading } = useCollection<Company>({ 
@@ -68,9 +69,13 @@ function AccountantDashboardLayout({ children }: { children: React.ReactNode }) 
     }, [companies, companiesLoading, profileLoading, userLoading]);
 
 
-    const handleCompanyChange = (company: Company) => {
+    const handleCompanyChange = (company: Company | null) => {
         setSelectedCompany(company);
-        localStorage.setItem('selectedCompanyId', company.id);
+        if (company) {
+            localStorage.setItem('selectedCompanyId', company.id);
+        } else {
+            localStorage.removeItem('selectedCompanyId');
+        }
     };
     
     const isLoading = userLoading || profileLoading || companiesLoading || isLoadingCompany;
