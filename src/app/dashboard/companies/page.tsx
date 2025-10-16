@@ -50,7 +50,7 @@ import {
   import { Label } from "@/components/ui/label"
   import { Switch } from "@/components/ui/switch"
   import { useCollection, useFirestore, useUser } from "@/firebase"
-  import { collection, addDoc, setDoc, doc, deleteDoc, updateDoc, arrayUnion, query, where } from "firebase/firestore"
+  import { collection, addDoc, setDoc, doc, deleteDoc, updateDoc, arrayUnion, query, where, getDocs } from "firebase/firestore"
   import type { Company } from "@/lib/types"
   import { useRouter } from 'next/navigation'
   import { SelectedCompanyContext } from '../layout'
@@ -68,23 +68,52 @@ import {
     const { setSelectedCompany } = React.useContext(SelectedCompanyContext) || {};
     const { toast } = useToast();
 
-    const companiesQuery = React.useMemo(() => {
-        if (!firestore || !userProfile) return null;
-        // Admins can see all companies
-        if (userProfile.role === 'Admin') {
-            return collection(firestore, 'companies');
-        }
-        // Accountants only see their assigned companies
-        if (userProfile.companyIds && userProfile.companyIds.length > 0) {
-            return query(collection(firestore, 'companies'), where('__name__', 'in', userProfile.companyIds.slice(0, 30)));
-        }
-        return null; // No companies assigned or user not loaded
-    }, [firestore, userProfile]);
+    const [companies, setCompanies] = React.useState<Company[]>([]);
+    const [loading, setLoading] = React.useState(true);
 
-    const { data: companies, loading } = useCollection<Company>({ 
-      query: companiesQuery,
-      disabled: !companiesQuery
-    });
+    React.useEffect(() => {
+        const fetchCompanies = async () => {
+            if (!firestore || !userProfile) {
+                setLoading(false);
+                return;
+            };
+
+            setLoading(true);
+            try {
+                let companiesQuery;
+                 if (userProfile.role === 'Admin') {
+                    companiesQuery = collection(firestore, 'companies');
+                } else if (userProfile.companyIds && userProfile.companyIds.length > 0) {
+                    // Firestore 'in' queries are limited to 30 elements, chunking might be needed for more
+                    const companyIdsToShow = userProfile.companyIds.slice(0, 30);
+                    if (companyIdsToShow.length > 0) {
+                        companiesQuery = query(collection(firestore, 'companies'), where('__name__', 'in', companyIdsToShow));
+                    }
+                }
+
+                if (companiesQuery) {
+                    const snapshot = await getDocs(companiesQuery);
+                    const companiesData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Company));
+                    setCompanies(companiesData);
+                } else {
+                    setCompanies([]);
+                }
+
+            } catch (error) {
+                 console.error("Error fetching companies:", error);
+                 if (error instanceof Error && error.message.includes('permission-denied')) {
+                     errorEmitter.emit('permission-error', new FirestorePermissionError({
+                        path: 'companies',
+                        operation: 'list',
+                    }));
+                 }
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchCompanies();
+    }, [firestore, userProfile]);
 
     const [isFormOpen, setIsFormOpen] = React.useState(false);
     const [selectedCompanyLocal, setSelectedCompanyLocal] = React.useState<Partial<Company> | null>(null);
@@ -117,12 +146,12 @@ import {
         if (!firestore || !companyToDelete) return;
         const docRef = doc(firestore, 'companies', companyToDelete.id);
         
-        setIsDeleteDialogOpen(false);
-        setCompanyToDelete(null);
-
         deleteDoc(docRef)
             .then(() => {
                 toast({ title: "Empresa eliminada", description: "La empresa ha sido eliminada exitosamente." });
+                setCompanies(prev => prev.filter(c => c.id !== companyToDelete.id));
+                setIsDeleteDialogOpen(false);
+                setCompanyToDelete(null);
             })
             .catch(err => {
                 errorEmitter.emit('permission-error', new FirestorePermissionError({
@@ -146,22 +175,24 @@ import {
             return;
         }
 
-        const companyData = {
-            name: selectedCompanyLocal.name || 'Sin Nombre',
-            rut: selectedCompanyLocal.rut || '',
-            address: selectedCompanyLocal.address || '',
-            giro: selectedCompanyLocal.giro || 'No especificado',
-            active: selectedCompanyLocal.active ?? true,
-        };
-        
         setIsFormOpen(false);
         
         if (isNew) {
+            // New strategy: create with minimal data, then redirect to settings
+            const companyData = {
+                name: selectedCompanyLocal.name,
+                rut: selectedCompanyLocal.rut,
+                active: true,
+                giro: "No especificado",
+                // Set default empty values for other fields to ensure document structure
+                address: '',
+            };
+
             try {
                 const docRef = await addDoc(collection(firestore, 'companies'), companyData);
                 const newCompanyId = docRef.id;
 
-                if (user?.uid) {
+                if (user?.uid && userProfile?.role === 'Accountant') {
                     const userProfileRef = doc(firestore, 'users', user.uid);
                     await updateDoc(userProfileRef, {
                         companyIds: arrayUnion(newCompanyId)
@@ -174,6 +205,7 @@ import {
                 });
                 
                 const newCompany: Company = { id: newCompanyId, ...companyData };
+                setCompanies(prev => [...prev, newCompany]);
                 
                 if (setSelectedCompany) {
                     setSelectedCompany(newCompany);
@@ -188,16 +220,26 @@ import {
                 }));
             }
         } else if (selectedCompanyLocal.id) {
+            // Update logic remains for editing basic details from the list
             const docRef = doc(firestore, 'companies', selectedCompanyLocal.id);
-            setDoc(docRef, companyData, { merge: true })
+            const updateData = {
+                name: selectedCompanyLocal.name || 'Sin Nombre',
+                rut: selectedCompanyLocal.rut || '',
+                address: selectedCompanyLocal.address || '',
+                giro: selectedCompanyLocal.giro || 'No especificado',
+                active: selectedCompanyLocal.active ?? true,
+            };
+
+            setDoc(docRef, updateData, { merge: true })
                 .then(() => {
                     toast({ title: "Empresa actualizada", description: "Los cambios han sido guardados."});
+                    setCompanies(prev => prev.map(c => c.id === selectedCompanyLocal.id ? {...c, ...updateData} : c));
                 })
                 .catch(err => {
                      errorEmitter.emit('permission-error', new FirestorePermissionError({
                         path: docRef.path,
                         operation: 'update',
-                        requestResourceData: companyData,
+                        requestResourceData: updateData,
                     }));
                 });
         }
@@ -305,21 +347,26 @@ import {
                         <Label htmlFor="rut">RUT</Label>
                         <Input id="rut" value={selectedCompanyLocal?.rut || ''} onChange={(e) => handleFieldChange('rut', e.target.value)} />
                     </div>
-                     <div className="space-y-2">
-                        <Label htmlFor="address">Dirección</Label>
-                        <Input id="address" value={selectedCompanyLocal?.address || ''} onChange={(e) => handleFieldChange('address', e.target.value)} />
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="giro">Giro o Actividad Comercial</Label>
-                        <Input id="giro" value={selectedCompanyLocal?.giro || ''} onChange={(e) => handleFieldChange('giro', e.target.value)} />
-                        <p className="text-xs text-muted-foreground">
-                            Consulte los códigos de actividad en el <a href="https://www.sii.cl/ayudas/ayudas_por_servicios/1956-codigos-1959.html" target="_blank" rel="noopener noreferrer" className="text-primary underline">sitio del SII</a>.
-                        </p>
-                    </div>
-                     <div className="flex items-center space-x-2 pt-2">
-                        <Switch id="active" checked={selectedCompanyLocal?.active || false} onCheckedChange={(checked) => handleFieldChange('active', checked)} />
-                        <Label htmlFor="active">Activa</Label>
-                    </div>
+                    {/* Hide detailed fields on creation dialog */}
+                    {!selectedCompanyLocal?.id?.startsWith('new-') && (
+                        <>
+                            <div className="space-y-2">
+                                <Label htmlFor="address">Dirección</Label>
+                                <Input id="address" value={selectedCompanyLocal?.address || ''} onChange={(e) => handleFieldChange('address', e.target.value)} />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="giro">Giro o Actividad Comercial</Label>
+                                <Input id="giro" value={selectedCompanyLocal?.giro || ''} onChange={(e) => handleFieldChange('giro', e.target.value)} />
+                                <p className="text-xs text-muted-foreground">
+                                    Consulte los códigos de actividad en el <a href="https://www.sii.cl/ayudas/ayudas_por_servicios/1956-codigos-1959.html" target="_blank" rel="noopener noreferrer" className="text-primary underline">sitio del SII</a>.
+                                </p>
+                            </div>
+                            <div className="flex items-center space-x-2 pt-2">
+                                <Switch id="active" checked={selectedCompanyLocal?.active || false} onCheckedChange={(checked) => handleFieldChange('active', checked)} />
+                                <Label htmlFor="active">Activa</Label>
+                            </div>
+                        </>
+                    )}
                 </div>
                 <DialogFooter>
                     <DialogClose asChild>
