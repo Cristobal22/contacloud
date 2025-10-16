@@ -56,32 +56,7 @@ To create your first `Admin` user:
 4.  **Set the Admin Custom Claim:** This is the most critical step. You must run a script **in the integrated terminal of this development environment** to grant your user admin privileges for backend security rules.
     *   **Open the Terminal**: At the bottom of your IDE, there is a "Terminal" panel. Open it.
     *   **Get Service Account Key**: In your Firebase Console, go to **Project settings > Service Accounts**. Click **Generate new private key** and save the downloaded file to your computer. Then, in this IDE, create a new file in the root directory named `serviceAccountKey.json`. Copy the content from the downloaded file and paste it into `serviceAccountKey.json`.
-    *   **Create the script**: In the root directory of this project, create a file named `set-admin-claim.js` and paste the following code into it.
-
-        ```javascript
-        // set-admin-claim.js
-        const admin = require('firebase-admin');
-        const serviceAccount = require('./serviceAccountKey.json'); // Make sure the path is correct
-
-        // Initialize the app with a service account, granting admin privileges
-        admin.initializeApp({
-          credential: admin.credential.cert(serviceAccount)
-        });
-
-        // Get the UID of the user you want to make an admin from the Firebase Console's Authentication page
-        const uid = 'PASTE_YOUR_USER_ID_HERE';
-
-        admin.auth().setCustomUserClaims(uid, { role: 'Admin' })
-          .then(() => {
-            console.log(`Success! Custom claim set for user ${uid}. They are now an Admin.`);
-            process.exit(0);
-          })
-          .catch((error) => {
-            console.error('Error setting custom claim:', error);
-            process.exit(1);
-          });
-        ```
-    *   **Run the script**: Replace `'PASTE_YOUR_USER_ID_HERE'` in the script with your actual user UID. Then, in the **integrated terminal**, run the following commands one by one:
+    *   **Run the script**: The project already includes a file named `set-admin-claim.js`. Open it and replace `'PASTE_YOUR_USER_ID_HERE'` with your actual user UID from the Firebase Authentication console. Then, in the **integrated terminal**, run the following commands one by one:
         
         First, install the necessary package:
         ```bash

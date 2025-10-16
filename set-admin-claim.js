@@ -10,6 +10,11 @@ admin.initializeApp({
 // Get the UID of the user you want to make an admin from the Firebase Console's Authentication page
 const uid = 'JWlGZr8zqqVxCDOnRrN05gTYce32';
 
+if (!uid || uid === 'PASTE_YOUR_USER_ID_HERE') {
+    console.error('Error: Please replace "PASTE_YOUR_USER_ID_HERE" with a valid User UID in this script.');
+    process.exit(1);
+}
+
 admin.auth().setCustomUserClaims(uid, { role: 'Admin' })
   .then(() => {
     console.log(`Success! Custom claim set for user ${uid}. They are now an Admin.`);
