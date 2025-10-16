@@ -1,310 +1,327 @@
 /**
- * @description This ruleset enforces a strict user-ownership model for user-specific data,
- *              and a company-based access model for company-related data.
- *              Users can only read and write their own profile data.
- *              Company data can only be accessed by users who are associated with the company.
- * @dataStructure
- *  /users/{userId} - User profiles, owned by the user.
- *  /companies/{companyId} - Companies, accessible to associated users.
- *  /companies/{companyId}/{collection} - Subcollections of companies, accessible to associated users.
- * @keySecurityDecisions
- *  - Users can only list their own data under `/users/{userId}`.
- *  - Listing of `/companies` is denied to prevent unauthorized discovery of companies.
- * @denormalizationForAuthorization
- *  - Company documents should denormalize user roles (e.g., `members: { userId: 'admin' }`) for efficient access control.
- *  - Company-owned documents have a `companyId` field to allow filtering by company.
+ * @file Firestore Security Rules
+ * @description This ruleset enforces a multi-tenant security model where users can manage companies and their associated financial data.
+ *
+ * Data Structure:
+ * - /users/{userId}: Stores user profile information. User documents are self-owned, meaning a user can only create, read, update, or delete their own profile.
+ * - /companies/{companyId}: Stores company data. Only users associated with a company (through the 'companyIds' array in their profile) can read company details.  Company creation is unrestricted to allow for onboarding flows. However, writes (update/delete) are restricted to the owner of the company.
+ * - /companies/{companyId}/{collections}: Subcollections under a company (e.g., accounts, vouchers, subjects) store financial data related to that specific company. Access to these subcollections is restricted to users who are associated with the parent company through their user profile.
+ * - /users/{userId}/{collections}: Subcollections under a user (e.g., account-groups, institutions) store configuration and parameters specific to each user. User documents are self-owned, meaning a user can only create, read, update, or delete their own data.
+ *
+ * Key Security Decisions:
+ * - Users can only manage their own profiles (self-ownership).
+ * - Access to company data and its subcollections is based on user association with the company (checked via the 'companyIds' array in the user's profile).
+ * - Listing of companies is explicitly denied to prevent unauthorized data access.
+ * - Company creation is open to allow onboarding, but updates and deletes are restricted to the company owner.
+ * - No data validation is performed in this prototyping phase.
+ *
+ * Denormalization for Authorization:
+ * - The 'companyIds' array in the user profile is crucial for quickly determining which companies a user has access to. This avoids the need to query a separate membership collection.
+ * - The `ownerId` field on the `/companies/{companyId}` document enables performant security rules based on ownership.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Checks if the request is authenticated.
-     */
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    /**
-     * @description Checks if the authenticated user's ID matches the provided user ID.
-     */
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
-    }
-
-    /**
-     * @description Checks if the authenticated user's ID matches the resource's owner ID.
-     */
-    function isResourceOwner(resourceOwnerId) {
-      return isSignedIn() && request.auth.uid == resourceOwnerId;
-    }
-
-     /**
-      * @description Checks if the authenticated user is associated with the given companyId.
-      * It does this by verifying that the company exists and that the user's ID is present in the company's `companyIds` array.
-      *
-      */
-    function isUserAssociatedWithCompany(companyId) {
-        return exists(/databases/$(database)/documents/companies/$(companyId))
-        && (get(/databases/$(database)/documents/companies/$(companyId)).data.ownerId == request.auth.uid || request.auth.uid in get(/databases/$(database)/documents/companies/$(companyId)).data.members);
-    }
-
-    /**
-     * @description Checks if the authenticated user is the owner of the resource and if the resource exists.
-     */
-    function isExistingOwner(userId) {
-        return isOwner(userId) && exists(/databases/$(database)/documents/users/$(userId));
-    }
-
-    /**
-     * @description Enforces that a field cannot be changed during an update.
-     */
-    function isImmutable(fieldName) {
-        return request.resource.data[fieldName] == resource.data[fieldName];
-    }
-
-    /**
-     * @description Defines access rules for user profiles.
+     * @description Manages user profile access. Users can only read, update, and delete their own profile data.
      * @path /users/{userId}
-     * @allow (create) - Authenticated user can create their own profile if the userId matches their auth.uid.
-     * @allow (get, update, delete) - Authenticated user can read, update, and delete their own profile.
-     * @deny (create) - User cannot create a profile with a userId that does not match their auth.uid.
-     * @deny (list) - Users cannot list all user profiles.
-     * @principle Enforces document ownership, restricts access to a user's own data tree.
+     * @allow (create) - User with UID 'user_abc' can create a profile if request.auth.uid == 'user_abc'.
+     * @allow (get, update, delete) - User with UID 'user_abc' can access their profile if request.auth.uid == 'user_abc'.
+     * @deny (get, update, delete) - User with UID 'user_def' cannot access user_abc's profile because request.auth.uid != 'user_abc'.
+     * @principle Enforces document ownership for all operations.
      */
     match /users/{userId} {
+      function isOwner(userId) {
+        return request.auth.uid == userId;
+      }
       allow get: if isOwner(userId);
       allow list: if false;
-      allow create: if isOwner(userId) && request.resource.data.uid == request.auth.uid;
+      allow create: if isOwner(userId);
       allow update: if isOwner(userId);
       allow delete: if isOwner(userId);
     }
 
     /**
-     * @description Defines access rules for companies.
-     * @path /companies/{companyId}
-     * @allow (create) - Authenticated user can create a company.
-     * @allow (get, update, delete) - Authenticated user can read, update, and delete companies if they are associated with it.
-     * @deny (list) - Users cannot list all companies.
-     * @principle Enforces company-based access control.
+     * @description Manages company access. Any authenticated user can create a company.
+     *              Updates and deletes are restricted to the company owner. Listing companies is disallowed.
+     * @path /companies
+     * @allow (create) - Any signed-in user can create a company.
+     * @deny (list) - No user can list all companies.
+     * @allow (update, delete) - Only the company owner can update or delete.
+     * @principle Allows open company creation while restricting modifications to the owner.
      */
     match /companies/{companyId} {
-        allow get: if isUserAssociatedWithCompany(companyId);
-        allow list: if false;
-        allow create: if isSignedIn();
-        allow update: if isUserAssociatedWithCompany(companyId);
-        allow delete: if isUserAssociatedWithCompany(companyId);
+      function isCompanyMember(companyId) {
+          return exists(/databases/$(database)/documents/users/$(request.auth.uid))
+          && size(get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyIds) > 0
+          && (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyIds).hasAny([companyId]);
+      }
+
+      function isCompanyOwner(companyId) {
+        return resource.data.ownerId == request.auth.uid;
+      }
+
+      allow get: if isCompanyMember(companyId);
+      allow list: if false;
+      allow create: if request.auth.uid != null; // Allow any authenticated user to create a company
+      allow update: if isCompanyOwner(companyId);
+      allow delete: if isCompanyOwner(companyId);
     }
 
-
     /**
-     * @description Defines access rules for accounts within a company.
+     * @description Manages access to accounts subcollection for a specific company. Only users associated with the company can access accounts.
      * @path /companies/{companyId}/accounts/{accountId}
-     * @allow (get, list, create, update, delete) - Users associated with the company can manage accounts.
-     * @deny (create) - User cannot create an account with a companyId that they are not associated with.
-     * @principle Enforces company-based access control for subcollections.
+     * @allow (get, list) - Users with 'companyId' in their profile can read.
+     * @allow (create, update, delete) - Users with 'companyId' in their profile can write.
+     * @deny (get, list) - Users without 'companyId' cannot read.
+     * @deny (create, update, delete) - Users without 'companyId' cannot write.
+     * @principle Restricts access to company-specific subcollections based on user association.
      */
     match /companies/{companyId}/accounts/{accountId} {
-        allow get: if isUserAssociatedWithCompany(companyId);
-        allow list: if isUserAssociatedWithCompany(companyId);
-        allow create: if isUserAssociatedWithCompany(companyId);
-        allow update: if isUserAssociatedWithCompany(companyId);
-        allow delete: if isUserAssociatedWithCompany(companyId);
+      function isCompanyMember(companyId) {
+          return exists(/databases/$(database)/documents/users/$(request.auth.uid))
+          && size(get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyIds) > 0
+          && (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyIds).hasAny([companyId]);
+      }
+
+      allow get: if isCompanyMember(companyId);
+      allow list: if isCompanyMember(companyId);
+      allow create: if isCompanyMember(companyId);
+      allow update: if isCompanyMember(companyId);
+      allow delete: if isCompanyMember(companyId);
     }
 
     /**
-     * @description Defines access rules for vouchers within a company.
+     * @description Manages access to vouchers subcollection for a specific company. Only users associated with the company can access vouchers.
      * @path /companies/{companyId}/vouchers/{voucherId}
-     * @allow (get, list, create, update, delete) - Users associated with the company can manage vouchers.
-     * @deny (create) - User cannot create a voucher with a companyId that they are not associated with.
-     * @principle Enforces company-based access control for subcollections.
+     * @allow (get, list) - Users with 'companyId' in their profile can read.
+     * @allow (create, update, delete) - Users with 'companyId' in their profile can write.
+     * @deny (get, list) - Users without 'companyId' cannot read.
+     * @deny (create, update, delete) - Users without 'companyId' cannot write.
+     * @principle Restricts access to company-specific subcollections based on user association.
      */
     match /companies/{companyId}/vouchers/{voucherId} {
-        allow get: if isUserAssociatedWithCompany(companyId);
-        allow list: if isUserAssociatedWithCompany(companyId);
-        allow create: if isUserAssociatedWithCompany(companyId);
-        allow update: if isUserAssociatedWithCompany(companyId);
-        allow delete: if isUserAssociatedWithCompany(companyId);
+      function isCompanyMember(companyId) {
+          return exists(/databases/$(database)/documents/users/$(request.auth.uid))
+          && size(get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyIds) > 0
+          && (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyIds).hasAny([companyId]);
+      }
+
+      allow get: if isCompanyMember(companyId);
+      allow list: if isCompanyMember(companyId);
+      allow create: if isCompanyMember(companyId);
+      allow update: if isCompanyMember(companyId);
+      allow delete: if isCompanyMember(companyId);
     }
 
     /**
-     * @description Defines access rules for subjects within a company.
+     * @description Manages access to subjects subcollection for a specific company. Only users associated with the company can access subjects.
      * @path /companies/{companyId}/subjects/{subjectId}
-     * @allow (get, list, create, update, delete) - Users associated with the company can manage subjects.
-     * @deny (create) - User cannot create a subject with a companyId that they are not associated with.
-     * @principle Enforces company-based access control for subcollections.
+     * @allow (get, list) - Users with 'companyId' in their profile can read.
+     * @allow (create, update, delete) - Users with 'companyId' in their profile can write.
+     * @deny (get, list) - Users without 'companyId' cannot read.
+     * @deny (create, update, delete) - Users without 'companyId' cannot write.
+     * @principle Restricts access to company-specific subcollections based on user association.
      */
     match /companies/{companyId}/subjects/{subjectId} {
-        allow get: if isUserAssociatedWithCompany(companyId);
-        allow list: if isUserAssociatedWithCompany(companyId);
-        allow create: if isUserAssociatedWithCompany(companyId);
-        allow update: if isUserAssociatedWithCompany(companyId);
-        allow delete: if isUserAssociatedWithCompany(companyId);
+      function isCompanyMember(companyId) {
+          return exists(/databases/$(database)/documents/users/$(request.auth.uid))
+          && size(get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyIds) > 0
+          && (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyIds).hasAny([companyId]);
+      }
+
+      allow get: if isCompanyMember(companyId);
+      allow list: if isCompanyMember(companyId);
+      allow create: if isCompanyMember(companyId);
+      allow update: if isCompanyMember(companyId);
+      allow delete: if isCompanyMember(companyId);
     }
 
     /**
-     * @description Defines access rules for cost centers within a company.
+     * @description Manages access to cost-centers subcollection for a specific company. Only users associated with the company can access cost-centers.
      * @path /companies/{companyId}/cost-centers/{costCenterId}
-     * @allow (get, list, create, update, delete) - Users associated with the company can manage cost centers.
-     * @deny (create) - User cannot create a cost center with a companyId that they are not associated with.
-     * @principle Enforces company-based access control for subcollections.
      */
     match /companies/{companyId}/cost-centers/{costCenterId} {
-        allow get: if isUserAssociatedWithCompany(companyId);
-        allow list: if isUserAssociatedWithCompany(companyId);
-        allow create: if isUserAssociatedWithCompany(companyId);
-        allow update: if isUserAssociatedWithCompany(companyId);
-        allow delete: if isUserAssociatedWithCompany(companyId);
+      function isCompanyMember(companyId) {
+          return exists(/databases/$(database)/documents/users/$(request.auth.uid))
+          && size(get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyIds) > 0
+          && (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyIds).hasAny([companyId]);
+      }
+
+      allow get: if isCompanyMember(companyId);
+      allow list: if isCompanyMember(companyId);
+      allow create: if isCompanyMember(companyId);
+      allow update: if isCompanyMember(companyId);
+      allow delete: if isCompanyMember(companyId);
     }
 
     /**
-     * @description Defines access rules for employees within a company.
+     * @description Manages access to employees subcollection for a specific company. Only users associated with the company can access employees.
      * @path /companies/{companyId}/employees/{employeeId}
-     * @allow (get, list, create, update, delete) - Users associated with the company can manage employees.
-     * @deny (create) - User cannot create an employee with a companyId that they are not associated with.
-     * @principle Enforces company-based access control for subcollections.
      */
     match /companies/{companyId}/employees/{employeeId} {
-        allow get: if isUserAssociatedWithCompany(companyId);
-        allow list: if isUserAssociatedWithCompany(companyId);
-        allow create: if isUserAssociatedWithCompany(companyId);
-        allow update: if isUserAssociatedWithCompany(companyId);
-        allow delete: if isUserAssociatedWithCompany(companyId);
+      function isCompanyMember(companyId) {
+          return exists(/databases/$(database)/documents/users/$(request.auth.uid))
+          && size(get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyIds) > 0
+          && (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyIds).hasAny([companyId]);
+      }
+
+      allow get: if isCompanyMember(companyId);
+      allow list: if isCompanyMember(companyId);
+      allow create: if isCompanyMember(companyId);
+      allow update: if isCompanyMember(companyId);
+      allow delete: if isCompanyMember(companyId);
     }
 
-      /**
-     * @description Defines access rules for purchases within a company.
+    /**
+     * @description Manages access to purchases subcollection for a specific company. Only users associated with the company can access purchases.
      * @path /companies/{companyId}/purchases/{purchaseId}
-     * @allow (get, list, create, update, delete) - Users associated with the company can manage purchases.
-     * @deny (create) - User cannot create a purchase with a companyId that they are not associated with.
-     * @principle Enforces company-based access control for subcollections.
      */
     match /companies/{companyId}/purchases/{purchaseId} {
-        allow get: if isUserAssociatedWithCompany(companyId);
-        allow list: if isUserAssociatedWithCompany(companyId);
-        allow create: if isUserAssociatedWithCompany(companyId);
-        allow update: if isUserAssociatedWithCompany(companyId);
-        allow delete: if isUserAssociatedWithCompany(companyId);
+       function isCompanyMember(companyId) {
+          return exists(/databases/$(database)/documents/users/$(request.auth.uid))
+          && size(get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyIds) > 0
+          && (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyIds).hasAny([companyId]);
+      }
+
+      allow get: if isCompanyMember(companyId);
+      allow list: if isCompanyMember(companyId);
+      allow create: if isCompanyMember(companyId);
+      allow update: if isCompanyMember(companyId);
+      allow delete: if isCompanyMember(companyId);
     }
 
     /**
-     * @description Defines access rules for sales within a company.
+     * @description Manages access to sales subcollection for a specific company. Only users associated with the company can access sales.
      * @path /companies/{companyId}/sales/{saleId}
-     * @allow (get, list, create, update, delete) - Users associated with the company can manage sales.
-     * @deny (create) - User cannot create a sale with a companyId that they are not associated with.
-     * @principle Enforces company-based access control for subcollections.
      */
     match /companies/{companyId}/sales/{saleId} {
-        allow get: if isUserAssociatedWithCompany(companyId);
-        allow list: if isUserAssociatedWithCompany(companyId);
-        allow create: if isUserAssociatedWithCompany(companyId);
-        allow update: if isUserAssociatedWithCompany(companyId);
-        allow delete: if isUserAssociatedWithCompany(companyId);
+      function isCompanyMember(companyId) {
+          return exists(/databases/$(database)/documents/users/$(request.auth.uid))
+          && size(get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyIds) > 0
+          && (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyIds).hasAny([companyId]);
+      }
+
+      allow get: if isCompanyMember(companyId);
+      allow list: if isCompanyMember(companyId);
+      allow create: if isCompanyMember(companyId);
+      allow update: if isCompanyMember(companyId);
+      allow delete: if isCompanyMember(companyId);
     }
 
-    /**
-     * @description Defines access rules for fees within a company.
-     * @path /companies/{companyId}/fees/{feeId}
-     * @allow (get, list, create, update, delete) - Users associated with the company can manage fees.
-     * @deny (create) - User cannot create a fee with a companyId that they are not associated with.
-     * @principle Enforces company-based access control for subcollections.
-     */
+     /**
+      * @description Manages access to fees subcollection for a specific company. Only users associated with the company can access fees.
+      * @path /companies/{companyId}/fees/{feeId}
+      */
     match /companies/{companyId}/fees/{feeId} {
-        allow get: if isUserAssociatedWithCompany(companyId);
-        allow list: if isUserAssociatedWithCompany(companyId);
-        allow create: if isUserAssociatedWithCompany(companyId);
-        allow update: if isUserAssociatedWithCompany(companyId);
-        allow delete: if isUserAssociatedWithCompany(companyId);
+       function isCompanyMember(companyId) {
+          return exists(/databases/$(database)/documents/users/$(request.auth.uid))
+          && size(get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyIds) > 0
+          && (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyIds).hasAny([companyId]);
+      }
+
+      allow get: if isCompanyMember(companyId);
+      allow list: if isCompanyMember(companyId);
+      allow create: if isCompanyMember(companyId);
+      allow update: if isCompanyMember(companyId);
+      allow delete: if isCompanyMember(companyId);
     }
 
     /**
-     * @description Defines access rules for account groups within a user's data.
+     * @description Manages access to account-groups subcollection for a specific user. Only the owner can access.
      * @path /users/{userId}/account-groups/{accountGroupId}
-     * @allow (get, list, create, update, delete) - The owner can manage their account groups.
-     * @deny (create) - User cannot create an account group under another user's ID.
-     * @principle Enforces user-ownership for private data.
      */
     match /users/{userId}/account-groups/{accountGroupId} {
-        allow get: if isOwner(userId);
-        allow list: if isOwner(userId);
-        allow create: if isOwner(userId);
-        allow update: if isOwner(userId);
-        allow delete: if isOwner(userId);
+      function isOwner(userId) {
+        return request.auth.uid == userId;
+      }
+
+      allow get: if isOwner(userId);
+      allow list: if isOwner(userId);
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId);
+      allow delete: if isOwner(userId);
     }
 
     /**
-     * @description Defines access rules for institutions within a user's data.
+     * @description Manages access to institutions subcollection for a specific user. Only the owner can access.
      * @path /users/{userId}/institutions/{institutionId}
-     * @allow (get, list, create, update, delete) - The owner can manage their institutions.
-     * @deny (create) - User cannot create an institution under another user's ID.
-     * @principle Enforces user-ownership for private data.
      */
     match /users/{userId}/institutions/{institutionId} {
-        allow get: if isOwner(userId);
-        allow list: if isOwner(userId);
-        allow create: if isOwner(userId);
-        allow update: if isOwner(userId);
-        allow delete: if isOwner(userId);
+      function isOwner(userId) {
+        return request.auth.uid == userId;
+      }
+
+      allow get: if isOwner(userId);
+      allow list: if isOwner(userId);
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId);
+      allow delete: if isOwner(userId);
     }
 
     /**
-     * @description Defines access rules for family allowance parameters within a user's data.
-     * @path /users/{userId}/family-allowance-parameters/{parameterId}
-     * @allow (get, list, create, update, delete) - The owner can manage their family allowance parameters.
-     * @deny (create) - User cannot create a parameter under another user's ID.
-     * @principle Enforces user-ownership for private data.
+     * @description Manages access to family-allowance-parameters subcollection for a specific user. Only the owner can access.
+     * @path /users/{userId}/family-allowance-parameters/{familyAllowanceParameterId}
      */
-    match /users/{userId}/family-allowance-parameters/{parameterId} {
-        allow get: if isOwner(userId);
-        allow list: if isOwner(userId);
-        allow create: if isOwner(userId);
-        allow update: if isOwner(userId);
-        allow delete: if isOwner(userId);
+    match /users/{userId}/family-allowance-parameters/{familyAllowanceParameterId} {
+      function isOwner(userId) {
+        return request.auth.uid == userId;
+      }
+
+      allow get: if isOwner(userId);
+      allow list: if isOwner(userId);
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId);
+      allow delete: if isOwner(userId);
     }
 
     /**
-     * @description Defines access rules for tax parameters within a user's data.
+     * @description Manages access to tax-parameters subcollection for a specific user. Only the owner can access.
      * @path /users/{userId}/tax-parameters/{taxParameterId}
-     * @allow (get, list, create, update, delete) - The owner can manage their tax parameters.
-     * @deny (create) - User cannot create a tax parameter under another user's ID.
-     * @principle Enforces user-ownership for private data.
      */
     match /users/{userId}/tax-parameters/{taxParameterId} {
-        allow get: if isOwner(userId);
-        allow list: if isOwner(userId);
-        allow create: if isOwner(userId);
-        allow update: if isOwner(userId);
-        allow delete: if isOwner(userId);
+      function isOwner(userId) {
+        return request.auth.uid == userId;
+      }
+
+      allow get: if isOwner(userId);
+      allow list: if isOwner(userId);
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId);
+      allow delete: if isOwner(userId);
     }
 
     /**
-     * @description Defines access rules for health entities within a user's data.
+     * @description Manages access to health-entities subcollection for a specific user. Only the owner can access.
      * @path /users/{userId}/health-entities/{healthEntityId}
-     * @allow (get, list, create, update, delete) - The owner can manage their health entities.
-     * @deny (create) - User cannot create a health entity under another user's ID.
-     * @principle Enforces user-ownership for private data.
      */
     match /users/{userId}/health-entities/{healthEntityId} {
-        allow get: if isOwner(userId);
-        allow list: if isOwner(userId);
-        allow create: if isOwner(userId);
-        allow update: if isOwner(userId);
-        allow delete: if isOwner(userId);
+      function isOwner(userId) {
+        return request.auth.uid == userId;
+      }
+
+      allow get: if isOwner(userId);
+      allow list: if isOwner(userId);
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId);
+      allow delete: if isOwner(userId);
     }
 
     /**
-     * @description Defines access rules for AFP entities within a user's data.
+     * @description Manages access to afp-entities subcollection for a specific user. Only the owner can access.
      * @path /users/{userId}/afp-entities/{afpEntityId}
-     * @allow (get, list, create, update, delete) - The owner can manage their AFP entities.
-     * @deny (create) - User cannot create an AFP entity under another user's ID.
-     * @principle Enforces user-ownership for private data.
      */
     match /users/{userId}/afp-entities/{afpEntityId} {
-        allow get: if isOwner(userId);
-        allow list: if isOwner(userId);
-        allow create: if isOwner(userId);
-        allow update: if isOwner(userId);
-        allow delete: if isOwner(userId);
+      function isOwner(userId) {
+        return request.auth.uid == userId;
+      }
+
+      allow get: if isOwner(userId);
+      allow list: if isOwner(userId);
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId);
+      allow delete: if isOwner(userId);
     }
   }
 }
