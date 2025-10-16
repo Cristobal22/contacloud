@@ -1,3 +1,4 @@
+
 'use client';
 
 import React from 'react';
@@ -162,7 +163,7 @@ import {
     };
 
     const handleSave = async () => {
-        if (!firestore || !selectedCompanyLocal) return;
+        if (!firestore || !user || !selectedCompanyLocal) return;
 
         const isNew = selectedCompanyLocal.id?.startsWith('new-');
 
@@ -178,21 +179,20 @@ import {
         setIsFormOpen(false);
         
         if (isNew) {
-            // New strategy: create with minimal data, then redirect to settings
             const companyData = {
                 name: selectedCompanyLocal.name,
                 rut: selectedCompanyLocal.rut,
                 active: true,
                 giro: "No especificado",
-                // Set default empty values for other fields to ensure document structure
                 address: '',
+                ownerId: user.uid, // <--- AÑADIR OWNERID
             };
 
             try {
                 const docRef = await addDoc(collection(firestore, 'companies'), companyData);
                 const newCompanyId = docRef.id;
 
-                if (user?.uid && userProfile?.role === 'Accountant') {
+                if (userProfile?.role === 'Accountant') {
                     const userProfileRef = doc(firestore, 'users', user.uid);
                     await updateDoc(userProfileRef, {
                         companyIds: arrayUnion(newCompanyId)
@@ -220,7 +220,6 @@ import {
                 }));
             }
         } else if (selectedCompanyLocal.id) {
-            // Update logic remains for editing basic details from the list
             const docRef = doc(firestore, 'companies', selectedCompanyLocal.id);
             const updateData = {
                 name: selectedCompanyLocal.name || 'Sin Nombre',

@@ -30,6 +30,7 @@ export type Company = {
   address: string;
   giro: string;
   active: boolean;
+  ownerId?: string; // <--- AÑADIR OWNERID
   isDistributor?: boolean;
   startYear?: number;
   periodStartDate?: string;

@@ -33,6 +33,7 @@
                 "address": { "type": "string", "description": "The physical address of the company." },
                 "giro": { "type": "string", "description": "Giro o actividad comercial de la empresa." },
                 "active": { "type": "boolean", "description": "Whether the company is currently active." },
+                "ownerId": { "type": "string", "description": "The UID of the user who owns/created this company." },
                 "isDistributor": { "type": "boolean" },
                 "startYear": { "type": "number" },
                 "periodStartDate": { "type": "string", "format": "date" },
@@ -361,5 +362,3 @@
         "providers": ["google.com", "password"]
     }
 }
-
-    
