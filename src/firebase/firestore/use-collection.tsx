@@ -50,7 +50,7 @@ export function useCollection<T>({ path, companyId, query: manualQuery, disabled
 
   }, [firestore, path, companyId, manualQuery, disabled]);
 
-  const fetchData = useCallback(() => {
+  const refetch = useCallback(() => {
     if (!finalQuery) {
       setData([]);
       setLoading(false);
@@ -88,11 +88,11 @@ export function useCollection<T>({ path, companyId, query: manualQuery, disabled
 
 
   useEffect(() => {
-    const unsubscribe = fetchData();
+    const unsubscribe = refetch();
     return () => {
       if(unsubscribe) unsubscribe();
     };
-  }, [fetchData]);
+  }, [refetch]);
 
-  return { data, loading, error, refetch: fetchData };
+  return { data, loading, error, refetch };
 }
