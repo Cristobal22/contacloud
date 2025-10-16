@@ -8,7 +8,7 @@ import {
   Home,
   Briefcase,
 } from "lucide-react"
-import { collection, query, where } from "firebase/firestore"
+import { collection, query, where, documentId } from "firebase/firestore"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -47,7 +47,7 @@ function AccountantDashboardLayout({ children }: { children: React.ReactNode }) 
         // Accountants see only their assigned companies
         if (userProfile.companyIds && userProfile.companyIds.length > 0) {
             // Firestore 'in' queries are limited to 30 elements.
-            return query(collection(firestore, 'companies'), where('id', 'in', userProfile.companyIds.slice(0, 30)));
+            return query(collection(firestore, 'companies'), where(documentId(), 'in', userProfile.companyIds.slice(0, 30)));
         }
 
         return null;

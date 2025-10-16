@@ -50,8 +50,8 @@ import {
   import { Input } from "@/components/ui/input"
   import { Label } from "@/components/ui/label"
   import { Switch } from "@/components/ui/switch"
-  import { useCollection, useFirestore, useUser } from "@/firebase"
-  import { collection, addDoc, setDoc, doc, deleteDoc, updateDoc, arrayUnion, query, where, getDocs } from "firebase/firestore"
+  import { useFirestore, useUser } from "@/firebase"
+  import { collection, addDoc, setDoc, doc, deleteDoc, updateDoc, arrayUnion, query, where, getDocs, documentId } from "firebase/firestore"
   import type { Company } from "@/lib/types"
   import { useRouter } from 'next/navigation'
   import { SelectedCompanyContext } from '../layout'
@@ -90,7 +90,7 @@ import {
                     // Firestore 'in' queries are limited to 30 elements, chunking might be needed for more.
                     const companyIdsToShow = userProfile.companyIds.slice(0, 30);
                     if (companyIdsToShow.length > 0) {
-                        companiesQuery = query(collection(firestore, 'companies'), where('id', 'in', companyIdsToShow));
+                        companiesQuery = query(collection(firestore, 'companies'), where(documentId(), 'in', companyIdsToShow));
                     }
                 }
 
@@ -104,7 +104,7 @@ import {
 
             } catch (error) {
                  console.error("Error fetching companies:", error);
-                 if (error instanceof Error && error.message.includes('permission-denied')) {
+                 if (error instanceof Error && (error.message.includes('permission-denied') || error.message.includes('insufficient permissions'))) {
                      errorEmitter.emit('permission-error', new FirestorePermissionError({
                         path: 'companies',
                         operation: 'list',
