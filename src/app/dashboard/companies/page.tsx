@@ -50,7 +50,7 @@ import {
   import { Input } from "@/components/ui/input"
   import { Label } from "@/components/ui/label"
   import { Switch } from "@/components/ui/switch"
-  import { useFirestore, useUser } from "@/firebase"
+  import { useFirestore, useUser, useCollection } from "@/firebase"
   import { collection, addDoc, setDoc, doc, deleteDoc, updateDoc, arrayUnion, query, where, getDocs, documentId } from "firebase/firestore"
   import type { Company } from "@/lib/types"
   import { useRouter } from 'next/navigation'
@@ -64,64 +64,36 @@ import {
   export default function CompaniesPage() {
     const firestore = useFirestore();
     const { user } = useUser();
-    const { userProfile } = useUserProfile(user?.uid);
+    const { userProfile, loading: profileLoading } = useUserProfile(user?.uid);
     const router = useRouter();
     const { setSelectedCompany } = React.useContext(SelectedCompanyContext) || {};
     const { toast } = useToast();
 
-    const [companies, setCompanies] = React.useState<Company[]>([]);
-    const [loading, setLoading] = React.useState(true);
+    const companiesQuery = React.useMemo(() => {
+        if (!firestore || !userProfile) return null;
 
-    React.useEffect(() => {
-        const fetchCompanies = async () => {
-            if (!firestore || !userProfile) {
-                setLoading(false);
-                return;
-            };
+        if (userProfile.role === 'Admin') {
+            return collection(firestore, 'companies');
+        }
 
-            setLoading(true);
-            try {
-                let companiesQuery;
-                 if (userProfile.role === 'Admin') {
-                    // Admin can fetch all companies
-                    companiesQuery = collection(firestore, 'companies');
-                } else if (userProfile.companyIds && userProfile.companyIds.length > 0) {
-                    // Accountant fetches only assigned companies
-                    // Firestore 'in' queries are limited to 30 elements, chunking might be needed for more.
-                    const companyIdsToShow = userProfile.companyIds.slice(0, 30);
-                    if (companyIdsToShow.length > 0) {
-                        companiesQuery = query(collection(firestore, 'companies'), where(documentId(), 'in', companyIdsToShow));
-                    }
-                }
+        if (userProfile.companyIds && userProfile.companyIds.length > 0) {
+            return query(collection(firestore, 'companies'), where(documentId(), 'in', userProfile.companyIds.slice(0, 30)));
+        }
 
-                if (companiesQuery) {
-                    const snapshot = await getDocs(companiesQuery);
-                    const companiesData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Company));
-                    setCompanies(companiesData);
-                } else {
-                    setCompanies([]);
-                }
-
-            } catch (error) {
-                 console.error("Error fetching companies:", error);
-                 if (error instanceof Error && (error.message.includes('permission-denied') || error.message.includes('insufficient permissions'))) {
-                     errorEmitter.emit('permission-error', new FirestorePermissionError({
-                        path: 'companies',
-                        operation: 'list',
-                    }));
-                 }
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        fetchCompanies();
+        return null; // For accountants with no companies assigned.
     }, [firestore, userProfile]);
 
+    const { data: companies, loading: companiesLoading, error } = useCollection<Company>({ 
+      query: companiesQuery,
+      disabled: profileLoading || !companiesQuery,
+    });
+    
     const [isFormOpen, setIsFormOpen] = React.useState(false);
     const [selectedCompanyLocal, setSelectedCompanyLocal] = React.useState<Partial<Company> | null>(null);
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false);
     const [companyToDelete, setCompanyToDelete] = React.useState<Company | null>(null);
+    
+    const loading = profileLoading || companiesLoading;
 
     const handleCreateNew = () => {
         setSelectedCompanyLocal({ id: `new-${Date.now()}`, name: '', rut: '', address: '', giro: '', active: true, ownerId: user?.uid });
@@ -152,7 +124,6 @@ import {
         deleteDoc(docRef)
             .then(() => {
                 toast({ title: "Empresa eliminada", description: "La empresa ha sido eliminada exitosamente." });
-                setCompanies(prev => prev.filter(c => c.id !== companyToDelete.id));
                 setIsDeleteDialogOpen(false);
                 setCompanyToDelete(null);
             })
@@ -180,21 +151,20 @@ import {
 
         setIsFormOpen(false);
         
-        if (isNew) {
-            const companyData: Partial<Company> = {
-                name: selectedCompanyLocal.name,
-                rut: selectedCompanyLocal.rut,
-                active: true,
-                giro: "No especificado",
-                address: '',
-                ownerId: user.uid,
-            };
+        const companyData: Partial<Company> = {
+            name: selectedCompanyLocal.name,
+            rut: selectedCompanyLocal.rut,
+            active: true,
+            giro: selectedCompanyLocal.giro || "No especificado",
+            address: selectedCompanyLocal.address || '',
+            ownerId: user.uid,
+        };
 
+        if (isNew) {
             try {
                 const docRef = await addDoc(collection(firestore, 'companies'), companyData);
                 const newCompanyId = docRef.id;
 
-                // Update the document with its own ID
                 await updateDoc(docRef, { id: newCompanyId });
                 
                 // If creator is an accountant, add company to their list
@@ -211,7 +181,6 @@ import {
                 });
                 
                 const newCompany: Company = { id: newCompanyId, ...companyData } as Company;
-                setCompanies(prev => [...prev, newCompany]);
                 
                 if (setSelectedCompany) {
                     setSelectedCompany(newCompany);
@@ -227,18 +196,11 @@ import {
             }
         } else if (selectedCompanyLocal.id) {
             const docRef = doc(firestore, 'companies', selectedCompanyLocal.id);
-            const updateData = {
-                name: selectedCompanyLocal.name || 'Sin Nombre',
-                rut: selectedCompanyLocal.rut || '',
-                address: selectedCompanyLocal.address || '',
-                giro: selectedCompanyLocal.giro || 'No especificado',
-                active: selectedCompanyLocal.active ?? true,
-            };
+            const { ownerId, ...updateData } = companyData; // Don't allow changing ownerId on edit
 
             setDoc(docRef, updateData, { merge: true })
                 .then(() => {
                     toast({ title: "Empresa actualizada", description: "Los cambios han sido guardados."});
-                    setCompanies(prev => prev.map(c => c.id === selectedCompanyLocal.id ? {...c, ...updateData} : c));
                 })
                 .catch(err => {
                      errorEmitter.emit('permission-error', new FirestorePermissionError({
@@ -411,3 +373,4 @@ import {
     
 
     
+
