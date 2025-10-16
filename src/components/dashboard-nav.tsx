@@ -47,17 +47,19 @@ const accountantNavSections = [
         icon: Landmark,
         links: [
             { href: '/dashboard', label: 'Dashboard', icon: Home },
-        ]
-    },
-    {
-        title: 'Movimientos',
-        icon: Banknote,
-        links: [
-            { href: '/dashboard/vouchers', label: 'Comprobantes', icon: FileText },
-            { href: '/dashboard/purchases', label: 'Compras', icon: FileText },
-            { href: '/dashboard/sales', label: 'Ventas', icon: FileText },
-            { href: '/dashboard/fees', label: 'Honorarios', icon: FileText },
-            { href: '/dashboard/bank-reconciliation', label: 'Conciliación Bancaria', icon: Scale },
+        ],
+        subSections: [
+            {
+                title: 'Movimientos',
+                icon: Banknote,
+                links: [
+                    { href: '/dashboard/vouchers', label: 'Comprobantes', icon: FileText },
+                    { href: '/dashboard/purchases', label: 'Compras', icon: FileText },
+                    { href: '/dashboard/sales', label: 'Ventas', icon: FileText },
+                    { href: '/dashboard/fees', label: 'Honorarios', icon: FileText },
+                    { href: '/dashboard/bank-reconciliation', label: 'Conciliación Bancaria', icon: Scale },
+                ]
+            }
         ]
     },
     {
@@ -209,7 +211,7 @@ export function DashboardNav({ role }: DashboardNavProps) {
     );
   }
 
-  const renderSection = (section: { title: string, icon: React.ElementType, links: { href: string, label: string, icon: React.ElementType }[] }) => (
+  const renderSection = (section: { title: string, icon: React.ElementType, links: { href: string, label: string, icon: React.ElementType }[], subSections?: any[] }) => (
     <Collapsible key={section.title} open={openSections[section.title]} onOpenChange={() => toggleSection(section.title)}>
         <CollapsibleTrigger className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-muted-foreground hover:text-primary">
             <div className="flex items-center gap-3">
@@ -220,6 +222,20 @@ export function DashboardNav({ role }: DashboardNavProps) {
         </CollapsibleTrigger>
         <CollapsibleContent className="ml-7 flex flex-col gap-1 border-l border-muted-foreground/20 pl-5 py-2">
             {section.links.map(renderLink)}
+            {section.subSections?.map((subSection) => (
+                <Collapsible key={subSection.title} open={openSections[subSection.title]} onOpenChange={() => toggleSection(subSection.title)}>
+                    <CollapsibleTrigger className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-muted-foreground hover:text-primary">
+                        <div className="flex items-center gap-3">
+                            <subSection.icon className="h-4 w-4" />
+                            <span>{subSection.title}</span>
+                        </div>
+                        {openSections[subSection.title] ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="ml-7 flex flex-col gap-1 border-l border-muted-foreground/20 pl-5 py-2">
+                        {subSection.links.map(renderLink)}
+                    </CollapsibleContent>
+                </Collapsible>
+            ))}
         </CollapsibleContent>
     </Collapsible>
   );

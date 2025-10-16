@@ -11,9 +11,12 @@ import {
   import { Button } from "@/components/ui/button"
   import { Upload } from "lucide-react"
   import { Input } from "@/components/ui/input";
+import { SelectedCompanyContext } from "../../layout";
 
   
   export default function ImportPreviredPage() {
+    const { selectedCompany } = React.useContext(SelectedCompanyContext) || {};
+    const companyId = selectedCompany?.id;
     const fileInputRef = React.useRef<HTMLInputElement>(null);
     const [fileName, setFileName] = React.useState<string | null>(null);
 
@@ -37,11 +40,11 @@ import {
             <p className="text-sm text-muted-foreground max-w-md">Sube el archivo PDF o XML del pago realizado en Previred para marcar las cotizaciones como pagadas.</p>
             <div className="flex items-center gap-2">
                 <Input id="file-upload" type="file" ref={fileInputRef} className="hidden" onChange={handleFileChange}/>
-                <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
+                <Button variant="outline" onClick={() => fileInputRef.current?.click()} disabled={!companyId}>
                     <Upload className="mr-2 h-4 w-4" />
                     Cargar Archivo
                 </Button>
-                 <Button disabled={!fileName}>Procesar</Button>
+                 <Button disabled={!fileName || !companyId}>Procesar</Button>
             </div>
              {fileName && <span className="text-sm text-muted-foreground">{fileName}</span>}
           </div>

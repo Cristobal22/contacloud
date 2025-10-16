@@ -18,8 +18,11 @@ import {
     SelectValue,
   } from "@/components/ui/select"
 import { Label } from '@/components/ui/label';
+import { SelectedCompanyContext } from '../../layout';
   
   export default function LibroRemuneracionesPage() {
+    const { selectedCompany } = React.useContext(SelectedCompanyContext) || {};
+    const companyId = selectedCompany?.id;
     const currentYear = new Date().getFullYear();
     const currentMonth = new Date().getMonth() + 1;
 
@@ -38,7 +41,7 @@ import { Label } from '@/components/ui/label';
                         <div className="flex-1 grid grid-cols-2 gap-4">
                             <div className="space-y-2">
                                 <Label htmlFor="month">Mes</Label>
-                                <Select value={month} onValueChange={setMonth}>
+                                <Select value={month} onValueChange={setMonth} disabled={!companyId}>
                                     <SelectTrigger id="month">
                                         <SelectValue />
                                     </SelectTrigger>
@@ -53,7 +56,7 @@ import { Label } from '@/components/ui/label';
                             </div>
                             <div className="space-y-2">
                                 <Label htmlFor="year">Año</Label>
-                                <Select value={year} onValueChange={setYear}>
+                                <Select value={year} onValueChange={setYear} disabled={!companyId}>
                                     <SelectTrigger id="year">
                                         <SelectValue />
                                     </SelectTrigger>
@@ -67,14 +70,16 @@ import { Label } from '@/components/ui/label';
                                 </Select>
                             </div>
                         </div>
-                        <Button>Generar Libro</Button>
+                        <Button disabled={!companyId}>Generar Libro</Button>
                     </div>
                 </CardContent>
             </Card>
             <Card>
                 <CardHeader>
                     <CardTitle>Historial de Libros Generados</CardTitle>
-                    <CardDescription>Aún no se ha generado ningún libro.</CardDescription>
+                    <CardDescription>
+                        {!companyId ? "Selecciona una empresa para ver el historial." : "Aún no se ha generado ningún libro."}
+                    </CardDescription>
                 </CardHeader>
                 <CardContent>
                     <p className="text-sm text-muted-foreground">Utiliza el generador para crear tu primer libro de remuneraciones.</p>

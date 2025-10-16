@@ -12,8 +12,11 @@ import {
   import { Button } from "@/components/ui/button"
   import { Label } from "@/components/ui/label";
   import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { SelectedCompanyContext } from "../../layout";
 
   export default function ArchivoPreviredPage() {
+    const { selectedCompany } = React.useContext(SelectedCompanyContext) || {};
+    const companyId = selectedCompany?.id;
     const currentYear = new Date().getFullYear();
     const currentMonth = new Date().getMonth() + 1;
 
@@ -33,7 +36,7 @@ import {
                 <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2 text-left">
                         <Label htmlFor="month">Mes</Label>
-                        <Select value={month} onValueChange={setMonth}>
+                        <Select value={month} onValueChange={setMonth} disabled={!companyId}>
                             <SelectTrigger id="month">
                                 <SelectValue />
                             </SelectTrigger>
@@ -48,7 +51,7 @@ import {
                     </div>
                     <div className="space-y-2 text-left">
                         <Label htmlFor="year">Año</Label>
-                        <Select value={year} onValueChange={setYear}>
+                        <Select value={year} onValueChange={setYear} disabled={!companyId}>
                             <SelectTrigger id="year">
                                 <SelectValue />
                             </SelectTrigger>
@@ -66,7 +69,7 @@ import {
                     Esta función generará el archivo de carga para Previred basado en las liquidaciones procesadas del período seleccionado.
                 </p>
             </div>
-            <Button className="w-full">Generar Archivo</Button>
+            <Button className="w-full" disabled={!companyId}>Generar Archivo</Button>
           </div>
         </CardContent>
       </Card>

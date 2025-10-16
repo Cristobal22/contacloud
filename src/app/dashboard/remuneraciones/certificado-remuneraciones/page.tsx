@@ -28,7 +28,7 @@ import { SelectedCompanyContext } from "../../layout";
     const companyId = selectedCompany?.id;
 
     const { data: employees, loading } = useCollection<Employee>({ 
-        path: `companies/${companyId}/employees`,
+        path: companyId ? `companies/${companyId}/employees` : undefined,
         companyId: companyId 
     });
 
@@ -59,7 +59,7 @@ import { SelectedCompanyContext } from "../../layout";
                     <Input id="year" type="number" placeholder="Ej: 2023" defaultValue={new Date().getFullYear()} />
                 </div>
                  <div className="md:col-span-2 flex justify-end">
-                    <Button disabled={!companyId}>Generar Certificado</Button>
+                    <Button disabled={!companyId || loading}>Generar Certificado</Button>
                 </div>
             </form>
         </CardContent>
