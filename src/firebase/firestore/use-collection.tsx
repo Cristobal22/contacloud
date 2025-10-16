@@ -19,42 +19,21 @@ export function useCollection<T>({ path, companyId, query: manualQuery, disabled
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
+  // This memoizes the final query object itself.
+  // It will only be re-created if firestore, path, companyId, or manualQuery change.
   const finalQuery = useMemo(() => {
     if (disabled) return null;
     if (manualQuery) return manualQuery;
-
-    if (!path) return null;
-
-    // Path requires a companyId, but it's not available
+    if (!firestore || !path) return null;
     if (path.includes('{companyId}') && !companyId) {
-        return null;
+        return null; 
     }
-    
     const resolvedPath = path.replace('{companyId}', companyId || '');
-
-    if (!firestore || resolvedPath.includes('undefined')) {
+    if (resolvedPath.includes('undefined')) {
         return null;
     }
-    
-    // For collections that are not company-specific, but depend on a companyId to be present
-    if (companyId && path.includes('{companyId}')) {
-        return collection(firestore, resolvedPath);
-    }
-    
-    // For global collections
-    if (!path.includes('{companyId}')) {
-        return collection(firestore, resolvedPath);
-    }
-
-    return null;
-
-  }, [firestore, path, companyId, manualQuery, disabled]);
-
-  const refetch = useCallback(() => {
-    // This function is now just a placeholder for manual refetches if needed in the future.
-    // The main logic is moved to useEffect.
-    // We can implement a manual trigger logic here if necessary.
-  }, []);
+    return collection(firestore, resolvedPath) as Query<T>;
+  }, [disabled, manualQuery, firestore, path, companyId]);
 
   useEffect(() => {
     if (!finalQuery) {
@@ -66,7 +45,7 @@ export function useCollection<T>({ path, companyId, query: manualQuery, disabled
     setLoading(true);
 
     const unsubscribe = onSnapshot(
-      finalQuery as Query<T>,
+      finalQuery,
       (querySnapshot) => {
         const items = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as unknown as T));
         setData(items);
@@ -76,22 +55,29 @@ export function useCollection<T>({ path, companyId, query: manualQuery, disabled
       (err) => {
         setError(err);
         setLoading(false);
-        let queryPath = path;
-        if (finalQuery && 'path' in finalQuery) {
+        
+        let queryPath = 'unknown path';
+        if ('path' in finalQuery) {
           queryPath = (finalQuery as CollectionReference).path;
-        } else if (finalQuery && (finalQuery as any)._query) {
+        } else if ((finalQuery as any)._query) {
            queryPath = (finalQuery as any)._query.path.segments.join('/');
         }
         
         errorEmitter.emit('permission-error', new FirestorePermissionError({
-          path: queryPath || 'unknown',
+          path: queryPath,
           operation: 'list',
         }));
       }
     );
 
     return () => unsubscribe();
-  }, [finalQuery]); // Depends directly on the stable query object
+  }, [finalQuery]); 
+
+  const refetch = useCallback(() => {
+    // The hook now refetches automatically when `finalQuery` changes.
+    // This function can be kept for components that might need an explicit manual refetch trigger in the future,
+    // though its primary logic is now handled by useEffect.
+  }, []);
 
   return { data, loading, error, refetch };
 }
