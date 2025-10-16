@@ -35,24 +35,19 @@ function AccountantDashboardLayout({ children }: { children: React.ReactNode }) 
     const [selectedCompany, setSelectedCompany] = React.useState<Company | null>(null);
     const [isLoadingCompany, setIsLoadingCompany] = React.useState(true);
 
+    // Esta consulta es segura para contadores. Solo pide las empresas de su lista.
     const companiesQuery = React.useMemo(() => {
-        if (!firestore || !userProfile) return null;
-
-        if (userProfile.role === 'Admin') {
-            return collection(firestore, 'companies');
+        if (!firestore || !userProfile || userProfile.role !== 'Accountant' || !userProfile.companyIds || userProfile.companyIds.length === 0) {
+            return null;
         }
-
-        if (userProfile.role === 'Accountant' && userProfile.companyIds && userProfile.companyIds.length > 0) {
-            // Firestore 'in' queries are limited to 30 elements. We slice to stay within limits.
-            return query(collection(firestore, 'companies'), where(documentId(), 'in', userProfile.companyIds.slice(0, 30)));
-        }
-        
-        return null;
+        // Firestore 'in' queries are limited to 30 elements. We slice to stay within limits.
+        return query(collection(firestore, 'companies'), where(documentId(), 'in', userProfile.companyIds.slice(0, 30)));
     }, [firestore, userProfile]);
 
     const { data: companies, loading: companiesLoading } = useCollection<Company>({ 
       query: companiesQuery,
-      disabled: profileLoading || !companiesQuery
+      // Deshabilitar la consulta si el perfil se está cargando, no hay consulta válida, o si el usuario no es contador.
+      disabled: profileLoading || !companiesQuery || userProfile?.role !== 'Accountant'
     });
     
     React.useEffect(() => {

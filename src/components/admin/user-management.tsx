@@ -68,9 +68,9 @@ export default function UserManagement() {
     const { user: authUser } = useUser();
     const { userProfile, loading: profileLoading } = useUserProfile(authUser?.uid);
 
+    // Admins solo ven a los usuarios que ellos mismos han creado.
     const usersQuery = React.useMemo(() => {
         if (!firestore || !authUser || userProfile?.role !== 'Admin') return null;
-        // Query for users created by the current admin
         return query(collection(firestore, 'users'), where('createdBy', '==', authUser.uid));
     }, [firestore, authUser, userProfile]);
 
@@ -213,7 +213,7 @@ export default function UserManagement() {
         if (usersLoading) {
             return (
                 <TableRow>
-                    <TableCell colSpan={5} className="h-24 text-center">
+                    <TableCell colSpan={4} className="h-24 text-center">
                         <p>Cargando usuarios...</p>
                     </TableCell>
                 </TableRow>
@@ -223,7 +223,7 @@ export default function UserManagement() {
         if (error) {
              return (
                 <TableRow>
-                    <TableCell colSpan={5} className="h-24 text-center text-destructive">
+                    <TableCell colSpan={4} className="h-24 text-center text-destructive">
                         <p className="font-bold">Error de permisos.</p>
                         <p className='text-xs text-muted-foreground'>Asegúrate de tener los permisos correctos en las reglas de Firestore para listar usuarios.</p>
                     </TableCell>
@@ -234,7 +234,7 @@ export default function UserManagement() {
         if (!users || users.length === 0) {
             return (
                 <TableRow>
-                    <TableCell colSpan={5} className="h-24 text-center">
+                    <TableCell colSpan={4} className="h-24 text-center">
                         No has creado usuarios. ¡Agrega tu primer contador!
                     </TableCell>
                 </TableRow>
@@ -246,7 +246,6 @@ export default function UserManagement() {
                 <TableCell className="font-medium">{user.displayName}</TableCell>
                 <TableCell>{user.email}</TableCell>
                 <TableCell>{user.role}</TableCell>
-                <TableCell>{user.companyIds?.length || 0}</TableCell>
                 <TableCell>
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -291,7 +290,6 @@ export default function UserManagement() {
                                 <TableHead>Nombre</TableHead>
                                 <TableHead>Email</TableHead>
                                 <TableHead>Rol</TableHead>
-                                <TableHead>Empresas Asignadas</TableHead>
                                 <TableHead><span className="sr-only">Acciones</span></TableHead>
                             </TableRow>
                         </TableHeader>
@@ -338,7 +336,7 @@ export default function UserManagement() {
                     <DialogHeader>
                         <DialogTitle>Editar Usuario</DialogTitle>
                         <DialogDescription>
-                            Modifica el nombre del usuario.
+                            Modifica el nombre del usuario. El rol y la asignación de empresas no se pueden editar aquí.
                         </DialogDescription>
                     </DialogHeader>
                     {selectedUser && (
