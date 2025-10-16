@@ -51,12 +51,18 @@ export function useCollection<T>({ path, companyId, query: manualQuery, disabled
   }, [firestore, path, companyId, manualQuery, disabled]);
 
   const refetch = useCallback(() => {
+    // This function is now just a placeholder for manual refetches if needed in the future.
+    // The main logic is moved to useEffect.
+    // We can implement a manual trigger logic here if necessary.
+  }, []);
+
+  useEffect(() => {
     if (!finalQuery) {
-      setData([]);
-      setLoading(false);
-      return () => {};
+        setData([]);
+        setLoading(false);
+        return;
     }
-    
+
     setLoading(true);
 
     const unsubscribe = onSnapshot(
@@ -83,16 +89,9 @@ export function useCollection<T>({ path, companyId, query: manualQuery, disabled
         }));
       }
     );
-    return unsubscribe;
-  }, [finalQuery, path]);
 
-
-  useEffect(() => {
-    const unsubscribe = refetch();
-    return () => {
-      if(unsubscribe) unsubscribe();
-    };
-  }, [refetch]);
+    return () => unsubscribe();
+  }, [finalQuery, path]); // Depends directly on the stable query object
 
   return { data, loading, error, refetch };
 }
