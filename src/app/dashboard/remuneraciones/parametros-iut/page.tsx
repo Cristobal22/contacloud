@@ -16,7 +16,7 @@ import {
     CardTitle,
 } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { useCollection, useFirestore } from "@/firebase"
+import { useCollection, useFirestore, useUser } from "@/firebase"
 import type { TaxParameter } from "@/lib/types"
 import { collection, doc, writeBatch } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
@@ -38,19 +38,22 @@ const initialTaxParameters: Omit<TaxParameter, 'id'>[] = [
 export default function ParametrosIUTPage() {
     const firestore = useFirestore();
     const { toast } = useToast();
+    const { user } = useUser();
     
     const paramsCollection = React.useMemo(() => 
-        firestore ? collection(firestore, 'tax-parameters') : null,
-    [firestore]);
+        firestore && user ? collection(firestore, `users/${user.uid}/tax-parameters`) : null,
+    [firestore, user]);
 
     const { data: tablaIUT, loading, refetch } = useCollection<TaxParameter>({ query: paramsCollection });
 
     const handleSeedData = async () => {
-        if (!firestore) return;
+        if (!firestore || !user) return;
+
+        const collectionPath = `users/${user.uid}/tax-parameters`;
         const batch = writeBatch(firestore);
         
         initialTaxParameters.forEach(paramData => {
-            const docRef = doc(collection(firestore, 'tax-parameters'));
+            const docRef = doc(collection(firestore, collectionPath));
             batch.set(docRef, paramData);
         });
 
@@ -64,7 +67,7 @@ export default function ParametrosIUTPage() {
         } catch (error) {
             console.error("Error seeding tax parameters: ", error);
             errorEmitter.emit('permission-error', new FirestorePermissionError({
-                path: 'tax-parameters',
+                path: collectionPath,
                 operation: 'create',
             }));
         }
