@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { SelectedCompanyContext } from "../../layout";
-import { useCollection, useFirestore } from "@/firebase";
+import { useCollection, useFirestore, useUser } from "@/firebase";
 import { AfpEntity, Company, Employee, HealthEntity, type Account } from "@/lib/types";
 import { addDoc, collection } from "firebase/firestore";
 import { centralizeRemunerations } from "@/ai/flows/centralize-remunerations-flow";
@@ -27,6 +27,7 @@ export default function CentralizationRemunerationsPage() {
     const { toast } = useToast();
     const firestore = useFirestore();
     const router = useRouter();
+    const { user } = useUser();
 
     const { selectedCompany } = React.useContext(SelectedCompanyContext) || {};
     
@@ -40,8 +41,12 @@ export default function CentralizationRemunerationsPage() {
     const { data: employees, loading: employeesLoading } = useCollection<Employee>({
         path: selectedCompany ? `companies/${selectedCompany.id}/employees` : undefined,
     });
-    const { data: afpEntities, loading: afpLoading } = useCollection<AfpEntity>({ path: 'afp-entities' });
-    const { data: healthEntities, loading: healthLoading } = useCollection<HealthEntity>({ path: 'health-entities' });
+    const { data: afpEntities, loading: afpLoading } = useCollection<AfpEntity>({ 
+        path: user ? `users/${user.uid}/afp-entities` : undefined
+    });
+    const { data: healthEntities, loading: healthLoading } = useCollection<HealthEntity>({ 
+        path: user ? `users/${user.uid}/health-entities` : undefined
+    });
     
     const loading = accountsLoading || employeesLoading || afpLoading || healthLoading;
 

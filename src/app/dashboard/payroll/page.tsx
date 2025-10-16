@@ -25,7 +25,7 @@ import {
     DropdownMenuLabel,
     DropdownMenuTrigger,
   } from "@/components/ui/dropdown-menu"
-  import { useCollection } from '@/firebase';
+  import { useCollection, useUser } from '@/firebase';
   import type { Employee, AfpEntity, HealthEntity } from '@/lib/types';
 import { SelectedCompanyContext } from '../layout';
 
@@ -41,14 +41,19 @@ import { SelectedCompanyContext } from '../layout';
 export default function PayrollPage() {
     const { selectedCompany } = React.useContext(SelectedCompanyContext) || {};
     const companyId = selectedCompany?.id;
+    const { user } = useUser();
 
     const { data: employees, loading: employeesLoading } = useCollection<Employee>({ 
       path: `companies/${companyId}/employees`,
       companyId: companyId 
     });
 
-    const { data: afpEntities, loading: afpLoading } = useCollection<AfpEntity>({ path: 'afp-entities' });
-    const { data: healthEntities, loading: healthLoading } = useCollection<HealthEntity>({ path: 'health-entities' });
+    const { data: afpEntities, loading: afpLoading } = useCollection<AfpEntity>({
+        path: user ? `users/${user.uid}/afp-entities` : undefined
+    });
+    const { data: healthEntities, loading: healthLoading } = useCollection<HealthEntity>({
+        path: user ? `users/${user.uid}/health-entities` : undefined
+    });
 
     const loading = employeesLoading || afpLoading || healthLoading;
 
