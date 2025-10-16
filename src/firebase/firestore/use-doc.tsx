@@ -10,12 +10,13 @@ export function useDoc<T>(docRef: DocumentReference<T> | null) {
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+  const app = useFirebaseApp(); // Llamada al hook en el nivel superior.
 
   // We serialize the ref's path to use it as a stable dependency
   const path = docRef?.path;
 
   useEffect(() => {
-    if (!path) {
+    if (!path || !app) {
       setData(null);
       setLoading(false);
       return;
@@ -24,7 +25,7 @@ export function useDoc<T>(docRef: DocumentReference<T> | null) {
     // The docRef object itself might be a new instance on every render,
     // so we can't use it as a dependency. Instead, we depend on its path.
     // We get the firestore instance from the app, which is stable.
-    const firestore = getFirestore(useFirebaseApp()!);
+    const firestore = getFirestore(app);
     const stableRef = doc(firestore, path) as DocumentReference<T>;
 
     setLoading(true);
@@ -49,7 +50,7 @@ export function useDoc<T>(docRef: DocumentReference<T> | null) {
     );
 
     return () => unsubscribe();
-  }, [path, useFirebaseApp]); // Depend on the stable path and the app hook
+  }, [path, app]); // Depend on the stable path and the app
 
   return { data, loading, error };
 }
