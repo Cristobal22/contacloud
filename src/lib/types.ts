@@ -48,6 +48,11 @@ export type Company = {
   feesWithholdingAccount?: string;
   incomeFeesReceivableAccount?: string;
   incomeFeesWithholdingAccount?: string;
+  remunerationExpenseAccount?: string;
+  salariesPayableAccount?: string;
+  afpPayableAccount?: string;
+  healthPayableAccount?: string;
+  unemploymentInsurancePayableAccount?: string;
 };
 
 export type Account = {
@@ -208,5 +213,3 @@ export type SelectedCompanyContextType = {
     selectedCompany: Company | null;
     setSelectedCompany: (company: Company | null) => void;
 };
-
-    

@@ -1,21 +1,7 @@
 
 import { z } from 'zod';
-import { UserProfileSchema } from '@/lib/types';
 
-// Centralize RCV Schemas
-const RcvSummarySchema = z.object({
-  purchases: z.object({
-    netAmount: z.number(),
-    taxAmount: z.number(),
-    totalAmount: z.number(),
-  }),
-  sales: z.object({
-    netAmount: z.number(),
-    taxAmount: z.number(),
-    totalAmount: z.number(),
-  }),
-});
-
+// Helper Schemas
 const AccountSchema = z.object({
     id: z.string(),
     code: z.string(),
@@ -24,28 +10,10 @@ const AccountSchema = z.object({
     balance: z.number(),
 });
 
-const CompanyConfigSchema = z.object({
-    id: z.string(),
-    name: z.string(),
-    purchasesInvoicesPayableAccount: z.string().optional().describe('Cuenta para facturas por pagar (proveedores)'),
-    purchasesVatAccount: z.string().optional().describe('Cuenta para IVA Crédito Fiscal'),
-    salesInvoicesReceivableAccount: z.string().optional().describe('Cuenta para facturas por cobrar (clientes)'),
-    salesVatAccount: z.string().optional().describe('Cuenta para IVA Débito Fiscal'),
-});
-
 const PeriodSchema = z.object({
   month: z.number(),
   year: z.number(),
 });
-
-export const CentralizeRcvInputSchema = z.object({
-  rcvSummary: RcvSummarySchema,
-  accounts: z.array(AccountSchema),
-  companyConfig: CompanyConfigSchema,
-  period: PeriodSchema,
-});
-export type CentralizeRcvInput = z.infer<typeof CentralizeRcvInputSchema>;
-
 
 const VoucherEntrySchema = z.object({
     account: z.string().describe("El código de la cuenta contable a utilizar."),
@@ -64,18 +32,68 @@ const VoucherSchema = z.object({
     companyId: z.string(),
 });
 
+// Centralize RCV Schemas
+const RcvSummarySchema = z.object({
+  purchases: z.object({
+    netAmount: z.number(),
+    taxAmount: z.number(),
+    totalAmount: z.number(),
+  }),
+  sales: z.object({
+    netAmount: z.number(),
+    taxAmount: z.number(),
+    totalAmount: z.number(),
+  }),
+});
+
+const CompanyConfigRcvSchema = z.object({
+    id: z.string(),
+    name: z.string(),
+    purchasesInvoicesPayableAccount: z.string().optional().describe('Cuenta para facturas por pagar (proveedores)'),
+    purchasesVatAccount: z.string().optional().describe('Cuenta para IVA Crédito Fiscal'),
+    salesInvoicesReceivableAccount: z.string().optional().describe('Cuenta para facturas por cobrar (clientes)'),
+    salesVatAccount: z.string().optional().describe('Cuenta para IVA Débito Fiscal'),
+});
+
+export const CentralizeRcvInputSchema = z.object({
+  rcvSummary: RcvSummarySchema,
+  accounts: z.array(AccountSchema),
+  companyConfig: CompanyConfigRcvSchema,
+  period: PeriodSchema,
+});
+export type CentralizeRcvInput = z.infer<typeof CentralizeRcvInputSchema>;
+
 export const CentralizeRcvOutputSchema = z.array(VoucherSchema);
 export type CentralizeRcvOutput = z.infer<typeof CentralizeRcvOutputSchema>;
 
-// Set User Role Schemas
-export const SetUserRoleInputSchema = z.object({
-  uid: z.string().describe('The UID of the user to update.'),
-  role: z.enum(['Admin', 'Accountant']).describe('The new role to assign.'),
-});
-export type SetUserRoleInput = z.infer<typeof SetUserRoleInputSchema>;
 
-export const SetUserRoleOutputSchema = z.object({
-  success: z.boolean(),
-  message: z.string(),
+// Centralize Remunerations Schemas
+const PayrollSummarySchema = z.object({
+    totalBaseSalary: z.number().describe("Suma total de sueldos base."),
+    totalAfpDiscount: z.number().describe("Suma total de descuentos de AFP."),
+    totalHealthDiscount: z.number().describe("Suma total de descuentos de salud."),
+    totalNetSalary: z.number().describe("Suma total de sueldos líquidos a pagar."),
 });
-export type SetUserRoleOutput = z.infer<typeof SetUserRoleOutputSchema>;
+
+const CompanyConfigRemunerationsSchema = z.object({
+    id: z.string(),
+    name: z.string(),
+    remunerationExpenseAccount: z.string().optional().describe('Cuenta de gasto para sueldos.'),
+    salariesPayableAccount: z.string().optional().describe('Cuenta de pasivo para sueldos por pagar.'),
+    afpPayableAccount: z.string().optional().describe('Cuenta de pasivo para AFP por pagar.'),
+    healthPayableAccount: z.string().optional().describe('Cuenta de pasivo para salud (Fonasa/Isapre) por pagar.'),
+    unemploymentInsurancePayableAccount: z.string().optional().describe('Cuenta de pasivo para seguro de cesantía por pagar.'),
+});
+
+export const CentralizeRemunerationsInputSchema = z.object({
+    payrollSummary: PayrollSummarySchema,
+    accounts: z.array(AccountSchema),
+    companyConfig: CompanyConfigRemunerationsSchema,
+    period: PeriodSchema,
+});
+export type CentralizeRemunerationsInput = z.infer<typeof CentralizeRemunerationsInputSchema>;
+
+export const CentralizeRemunerationsOutputSchema = VoucherSchema.omit({ entries: true }).extend({
+    entries: z.array(VoucherEntrySchema.omit({ id: true }))
+});
+export type CentralizeRemunerationsOutput = z.infer<typeof CentralizeRemunerationsOutputSchema>;

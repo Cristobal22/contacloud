@@ -1,3 +1,4 @@
+
 'use client';
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -257,6 +258,46 @@ export default function CompanySettingsPage() {
                         accounts={accounts || []} 
                         loading={accountsLoading}
                         onValueChange={(value) => handleInputChange('incomeFeesWithholdingAccount', value)}
+                    />
+                </div>
+
+                 {/* Remuneraciones */}
+                 <div className="space-y-4">
+                    <h3 className="text-lg font-medium">Remuneraciones</h3>
+                    <AccountSearchInput 
+                        label="Cuenta de Gasto (Sueldos)" 
+                        value={company.remunerationExpenseAccount || ''} 
+                        accounts={accounts || []} 
+                        loading={accountsLoading}
+                        onValueChange={(value) => handleInputChange('remunerationExpenseAccount', value)}
+                    />
+                    <AccountSearchInput 
+                        label="Sueldos por Pagar" 
+                        value={company.salariesPayableAccount || ''} 
+                        accounts={accounts || []} 
+                        loading={accountsLoading}
+                        onValueChange={(value) => handleInputChange('salariesPayableAccount', value)}
+                    />
+                    <AccountSearchInput 
+                        label="Leyes Sociales por Pagar (AFP)" 
+                        value={company.afpPayableAccount || ''} 
+                        accounts={accounts || []} 
+                        loading={accountsLoading}
+                        onValueChange={(value) => handleInputChange('afpPayableAccount', value)}
+                    />
+                    <AccountSearchInput 
+                        label="Leyes Sociales por Pagar (Salud)" 
+                        value={company.healthPayableAccount || ''} 
+                        accounts={accounts || []} 
+                        loading={accountsLoading}
+                        onValueChange={(value) => handleInputChange('healthPayableAccount', value)}
+                    />
+                     <AccountSearchInput 
+                        label="Seguro de Cesantía por Pagar" 
+                        value={company.unemploymentInsurancePayableAccount || ''} 
+                        accounts={accounts || []} 
+                        loading={accountsLoading}
+                        onValueChange={(value) => handleInputChange('unemploymentInsurancePayableAccount', value)}
                     />
                 </div>
 

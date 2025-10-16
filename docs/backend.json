@@ -51,7 +51,12 @@
                 "feesPayableAccount": { "type": "string" },
                 "feesWithholdingAccount": { "type": "string" },
                 "incomeFeesReceivableAccount": { "type": "string" },
-                "incomeFeesWithholdingAccount": { "type": "string" }
+                "incomeFeesWithholdingAccount": { "type": "string" },
+                "remunerationExpenseAccount": { "type": "string" },
+                "salariesPayableAccount": { "type": "string" },
+                "afpPayableAccount": { "type": "string" },
+                "healthPayableAccount": { "type": "string" },
+                "unemploymentInsurancePayableAccount": { "type": "string" }
             },
             "required": ["id", "name", "rut", "address", "giro", "active"]
         },
@@ -356,5 +361,3 @@
         "providers": ["google.com", "password"]
     }
 }
-
-    
