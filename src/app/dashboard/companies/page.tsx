@@ -185,7 +185,7 @@ import {
                 active: true,
                 giro: "No especificado",
                 address: '',
-                ownerId: user.uid, // <--- AÑADIR OWNERID
+                ownerId: user.uid,
             };
 
             try {
@@ -310,10 +310,14 @@ import {
                               <DropdownMenuItem onClick={() => handleGoToSettings(company)}>
                                 Configuración
                               </DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem className="text-destructive" onClick={() => handleOpenDeleteDialog(company)}>
-                                Eliminar
-                              </DropdownMenuItem>
+                              {userProfile?.role === 'Admin' && (
+                                <>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem className="text-destructive" onClick={() => handleOpenDeleteDialog(company)}>
+                                    Eliminar
+                                  </DropdownMenuItem>
+                                </>
+                              )}
                           </DropdownMenuContent>
                           </DropdownMenu>
                       </TableCell>
