@@ -332,32 +332,34 @@
             "schema": { "$ref": "#/entities/Fee" },
             "description": "Sub-collection of fee documents for a specific company."
         },
-        "/account-groups": {
+        "/users/{userId}/account-groups": {
             "schema": { "$ref": "#/entities/AccountGroup" },
-            "description": "Global collection of account groups."
+            "description": "User-specific collection of account groups."
         },
-        "/institutions": {
+        "/users/{userId}/institutions": {
             "schema": { "$ref": "#/entities/Institution" },
-            "description": "Global collection of pension and health institutions."
+            "description": "User-specific collection of pension and health institutions."
         },
-        "/family-allowance-parameters": {
+        "/users/{userId}/family-allowance-parameters": {
             "schema": { "$ref": "#/entities/FamilyAllowanceParameter" },
-            "description": "Global collection of family allowance parameters."
+            "description": "User-specific collection of family allowance parameters."
         },
-        "/tax-parameters": {
+        "/users/{userId}/tax-parameters": {
             "schema": { "$ref": "#/entities/TaxParameter" },
-            "description": "Global collection of tax parameters for IUT."
+            "description": "User-specific collection of tax parameters for IUT."
         },
-         "/health-entities": {
+         "/users/{userId}/health-entities": {
             "schema": { "$ref": "#/entities/HealthEntity" },
-            "description": "Global collection of health entities (Isapres and Fonasa)."
+            "description": "User-specific collection of health entities (Isapres and Fonasa)."
         },
-        "/afp-entities": {
+        "/users/{userId}/afp-entities": {
             "schema": { "$ref": "#/entities/AfpEntity" },
-            "description": "Global collection of AFP entities."
+            "description": "User-specific collection of AFP entities."
         }
     },
     "auth": {
         "providers": ["google.com", "password"]
     }
 }
+
+    
