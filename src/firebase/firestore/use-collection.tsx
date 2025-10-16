@@ -91,7 +91,7 @@ export function useCollection<T>({ path, companyId, query: manualQuery, disabled
     );
 
     return () => unsubscribe();
-  }, [finalQuery, path]); // Depends directly on the stable query object
+  }, [finalQuery]); // Depends directly on the stable query object
 
   return { data, loading, error, refetch };
 }
