@@ -10,4 +10,3 @@ export default function AdminUsersPage() {
     // So if we are here, the user is an Admin.
     return <UserManagement />;
 }
-
