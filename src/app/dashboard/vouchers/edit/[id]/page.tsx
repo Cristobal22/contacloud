@@ -43,18 +43,19 @@ export default function VoucherEditPage({ params }: { params: { id: string } }) 
     const { id } = params;
     const isNew = id === 'new';
     const { selectedCompany } = React.useContext(SelectedCompanyContext) || {};
+    const companyId = selectedCompany?.id;
     const firestore = useFirestore();
     const router = useRouter();
 
-    const voucherRef = !isNew && firestore && selectedCompany ? doc(firestore, `companies/${selectedCompany.id}/vouchers`, id) : null;
+    const voucherRef = !isNew && firestore && companyId ? doc(firestore, `companies/${companyId}/vouchers`, id) : null;
     const { data: existingVoucher, loading: voucherLoading } = useDoc<Voucher>(voucherRef);
 
     const [voucher, setVoucher] = React.useState<Partial<Voucher> | null>(null);
     const [entries, setEntries] = React.useState<Partial<VoucherEntry>[]>([]);
 
     const { data: accounts, loading: accountsLoading } = useCollection<Account>({
-        path: selectedCompany ? `companies/${selectedCompany.id}/accounts` : undefined,
-        companyId: selectedCompany?.id,
+        path: companyId ? `companies/${companyId}/accounts` : undefined,
+        companyId: companyId,
     });
     
     React.useEffect(() => {
@@ -65,14 +66,15 @@ export default function VoucherEditPage({ params }: { params: { id: string } }) 
                 description: '',
                 status: 'Borrador',
                 total: 0,
-                entries: []
+                entries: [],
+                companyId: companyId,
             });
             setEntries([{ id: `new-entry-${Date.now()}`, account: '', description: '', debit: 0, credit: 0 }]);
         } else if (existingVoucher) {
             setVoucher(existingVoucher);
             setEntries(existingVoucher.entries);
         }
-    }, [isNew, existingVoucher]);
+    }, [isNew, existingVoucher, companyId]);
 
     const handleAddEntry = () => {
         setEntries([
@@ -110,9 +112,9 @@ export default function VoucherEditPage({ params }: { params: { id: string } }) 
     const canSave = isBalanced && entries.length > 1 && voucher?.description && entries.every(e => e.account);
     
     const handleSaveClick = () => {
-       if (!firestore || !selectedCompany || !voucher || !canSave) return;
+       if (!firestore || !companyId || !voucher || !canSave) return;
 
-        const collectionPath = `companies/${selectedCompany.id}/vouchers`;
+        const collectionPath = `companies/${companyId}/vouchers`;
         const collectionRef = collection(firestore, collectionPath);
         
         const voucherData = {
@@ -128,7 +130,7 @@ export default function VoucherEditPage({ params }: { params: { id: string } }) 
             credit: e.credit || 0,
             id: e.id && !e.id.startsWith('new-') ? e.id : `entry-${Date.now()}-${Math.random()}`,
           })),
-          companyId: selectedCompany.id
+          companyId: companyId
         };
 
         router.push('/dashboard/vouchers');

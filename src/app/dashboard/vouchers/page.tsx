@@ -51,7 +51,7 @@ import { SelectedCompanyContext } from "../layout"
 
     const firestore = useFirestore();
     const { data: vouchers, loading } = useCollection<Voucher>({ 
-      path: `companies/${companyId}/vouchers`,
+      path: companyId ? `companies/${companyId}/vouchers` : undefined,
       companyId: companyId 
     });
 

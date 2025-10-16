@@ -61,7 +61,7 @@ import { SelectedCompanyContext } from "../layout";
 
     const firestore = useFirestore();
     const { data: fees, loading } = useCollection<Fee>({ 
-      path: `companies/${companyId}/fees`,
+      path: companyId ? `companies/${companyId}/fees` : undefined,
       companyId: companyId 
     });
 
@@ -78,6 +78,7 @@ import { SelectedCompanyContext } from "../layout";
             issuer: '',
             total: 0,
             status: 'Pendiente',
+            companyId: companyId,
         });
         setIsFormOpen(true);
     };

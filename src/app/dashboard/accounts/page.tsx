@@ -51,7 +51,7 @@ export default function AccountsPage() {
   const companyId = selectedCompany?.id;
   const firestore = useFirestore();
   const { data: accounts, loading } = useCollection<Account>({
-    path: `companies/${companyId}/accounts`,
+    path: companyId ? `companies/${companyId}/accounts` : undefined,
     companyId: companyId,
   });
 
@@ -65,6 +65,7 @@ export default function AccountsPage() {
         name: '',
         type: 'Activo',
         balance: 0,
+        companyId: companyId,
     });
     setIsDialogOpen(true);
   };
@@ -86,7 +87,7 @@ export default function AccountsPage() {
       name: selectedAccount.name || '',
       type: selectedAccount.type || 'Activo',
       balance: selectedAccount.balance || 0,
-      companyId: companyId
+      companyId: companyId,
     };
     
     setIsDialogOpen(false);

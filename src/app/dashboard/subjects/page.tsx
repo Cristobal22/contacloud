@@ -51,7 +51,7 @@ import { SelectedCompanyContext } from '../layout';
 
     const firestore = useFirestore();
     const { data: subjects, loading } = useCollection<Subject>({ 
-      path: `companies/${companyId}/subjects`,
+      path: companyId ? `companies/${companyId}/subjects` : undefined,
       companyId: companyId 
     });
 
@@ -65,6 +65,7 @@ import { SelectedCompanyContext } from '../layout';
             rut: '',
             type: 'Cliente',
             status: 'Active',
+            companyId: companyId,
         });
         setIsDialogOpen(true);
     };

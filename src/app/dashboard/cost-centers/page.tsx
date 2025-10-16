@@ -60,7 +60,7 @@ import { SelectedCompanyContext } from '../layout';
 
     const firestore = useFirestore();
     const { data: costCenters, loading } = useCollection<CostCenter>({
-        path: `companies/${companyId}/cost-centers`,
+        path: companyId ? `companies/${companyId}/cost-centers` : undefined,
         companyId: companyId,
     });
 
@@ -71,7 +71,7 @@ import { SelectedCompanyContext } from '../layout';
 
 
     const handleCreateNew = () => {
-        setSelectedCenter({ id: `new-${Date.now()}`, name: '', description: '' });
+        setSelectedCenter({ id: `new-${Date.now()}`, name: '', description: '', companyId: companyId });
         setIsDialogOpen(true);
     }
 

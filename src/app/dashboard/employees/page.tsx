@@ -36,11 +36,11 @@ import { SelectedCompanyContext } from "../layout";
     const companyId = selectedCompany?.id;
 
     const { data: employees, loading: employeesLoading } = useCollection<Employee>({ 
-      path: `companies/${companyId}/employees`,
+      path: companyId ? `companies/${companyId}/employees` : undefined,
       companyId: companyId 
     });
     const { data: costCenters, loading: costCentersLoading } = useCollection<CostCenter>({
-        path: `companies/${companyId}/cost-centers`,
+        path: companyId ? `companies/${companyId}/cost-centers` : undefined,
         companyId: companyId,
     });
 

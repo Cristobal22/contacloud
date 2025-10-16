@@ -63,7 +63,7 @@ export type Account = {
   name: string;
   type: 'Activo' | 'Pasivo' | 'Patrimonio' | 'Resultado';
   balance: number;
-  companyId?: string;
+  companyId: string;
 };
 
 export type AccountGroup = {
@@ -75,7 +75,7 @@ export type CostCenter = {
     id: string;
     name: string;
     description: string;
-    companyId?: string;
+    companyId: string;
 };
 
 export type Employee = {
@@ -106,7 +106,7 @@ export type Employee = {
   accountNumber?: string;
   costCenterId?: string;
   status: 'Active' | 'Inactive';
-  companyId?: string;
+  companyId: string;
 };
 
 
@@ -116,7 +116,7 @@ export type Subject = {
   rut: string;
   type: 'Cliente' | 'Proveedor' | 'Otro';
   status: 'Active' | 'Inactive';
-  companyId?: string;
+  companyId: string;
 };
 
 export type Voucher = {
@@ -127,7 +127,7 @@ export type Voucher = {
   status: 'Borrador' | 'Contabilizado';
   total: number;
   entries: VoucherEntry[];
-  companyId?: string;
+  companyId: string;
 };
 
 export type VoucherEntry = {
@@ -145,7 +145,7 @@ export type Purchase = {
   supplier: string;
   total: number;
   status: 'Pendiente' | 'Pagada' | 'Vencida';
-  companyId?: string;
+  companyId: string;
 };
 
 export type Sale = {
@@ -155,7 +155,7 @@ export type Sale = {
   customer: string;
   total: number;
   status: 'Pendiente' | 'Pagada' | 'Vencida';
-  companyId?: string;
+  companyId: string;
 };
 
 export type Fee = {
@@ -165,7 +165,7 @@ export type Fee = {
   issuer: string;
   total: number;
   status: 'Pendiente' | 'Pagada' | 'Vencida';
-  companyId?: string;
+  companyId: string;
 };
 
 export type Institution = {

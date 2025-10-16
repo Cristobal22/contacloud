@@ -61,7 +61,7 @@ import { SelectedCompanyContext } from "../layout";
 
     const firestore = useFirestore();
     const { data: purchases, loading } = useCollection<Purchase>({ 
-      path: `companies/${companyId}/purchases`,
+      path: companyId ? `companies/${companyId}/purchases` : undefined,
       companyId: companyId 
     });
 
@@ -78,6 +78,7 @@ import { SelectedCompanyContext } from "../layout";
             supplier: '',
             total: 0,
             status: 'Pendiente',
+            companyId: companyId,
         });
         setIsFormOpen(true);
     };

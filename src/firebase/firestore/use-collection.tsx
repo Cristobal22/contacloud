@@ -42,9 +42,11 @@ export function useCollection<T>({ path, companyId, query: manualQuery, disabled
     if (disabled) return null;
     if (manualQuery) return manualQuery;
     if (!firestore || !path) return null;
+    // If the path needs a companyId but it's not provided, don't create the query.
     if (path.includes('{companyId}') && !companyId) {
         return null; 
     }
+    // Make sure we don't have dangling 'undefined' in paths.
     const resolvedPath = path.replace('{companyId}', companyId || '');
     if (resolvedPath.includes('undefined')) {
         return null;
@@ -56,6 +58,7 @@ export function useCollection<T>({ path, companyId, query: manualQuery, disabled
   const queryKey = useMemo(() => getQueryKey(finalQuery), [finalQuery]);
 
   useEffect(() => {
+    // If there's no valid query, set state to empty and not loading.
     if (!finalQuery) {
         setData([]);
         setLoading(false);
@@ -91,7 +94,8 @@ export function useCollection<T>({ path, companyId, query: manualQuery, disabled
     );
 
     return () => unsubscribe();
-  }, [queryKey]); // This dependency is now a stable string
+    // Re-run effect only if the stable query key changes
+  }, [queryKey]); 
 
   return { data, loading, error };
 }

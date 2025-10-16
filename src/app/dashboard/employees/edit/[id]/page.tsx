@@ -34,21 +34,22 @@ export default function EmployeeFormPage({ params }: { params: { id: string } })
     const { id } = params;
     const isNew = id === 'new';
     const { selectedCompany } = React.useContext(SelectedCompanyContext) || {};
+    const companyId = selectedCompany?.id;
     const firestore = useFirestore();
     const router = useRouter();
     const { user } = useUser();
 
     const employeeRef = React.useMemo(() => 
-        !isNew && firestore && selectedCompany ? doc(firestore, `companies/${selectedCompany.id}/employees`, id) : null
-    , [isNew, firestore, selectedCompany, id]);
+        !isNew && firestore && companyId ? doc(firestore, `companies/${companyId}/employees`, id) : null
+    , [isNew, firestore, companyId, id]);
 
     const { data: existingEmployee, loading: employeeLoading } = useDoc<Employee>(employeeRef);
 
     const [employee, setEmployee] = React.useState<Partial<Employee> | null>(null);
 
     const { data: costCenters, loading: costCentersLoading } = useCollection<CostCenter>({
-        path: selectedCompany ? `companies/${selectedCompany.id}/cost-centers` : undefined,
-        companyId: selectedCompany?.id
+        path: companyId ? `companies/${companyId}/cost-centers` : undefined,
+        companyId: companyId
     });
 
     const { data: afpEntities, loading: afpLoading } = useCollection<AfpEntity>({
@@ -60,11 +61,11 @@ export default function EmployeeFormPage({ params }: { params: { id: string } })
 
     React.useEffect(() => {
         if (isNew) {
-            setEmployee({ status: 'Active', hasUnemploymentInsurance: true });
+            setEmployee({ status: 'Active', hasUnemploymentInsurance: true, companyId: companyId });
         } else if (existingEmployee) {
             setEmployee(existingEmployee);
         }
-    }, [isNew, existingEmployee]);
+    }, [isNew, existingEmployee, companyId]);
 
     const handleFieldChange = (field: keyof Employee, value: string | number | boolean) => {
         if (employee) {
@@ -73,12 +74,12 @@ export default function EmployeeFormPage({ params }: { params: { id: string } })
     };
     
     const handleSaveChanges = () => {
-        if (!firestore || !selectedCompany || !employee) return;
+        if (!firestore || !companyId || !employee) return;
         
-        const collectionPath = `companies/${selectedCompany.id}/employees`;
+        const collectionPath = `companies/${companyId}/employees`;
         const collectionRef = collection(firestore, collectionPath);
         
-        const employeeData = { ...employee, companyId: selectedCompany.id };
+        const employeeData = { ...employee, companyId: companyId };
 
         router.push('/dashboard/employees');
 
@@ -276,9 +277,10 @@ export default function EmployeeFormPage({ params }: { params: { id: string } })
                 </section>
             </CardContent>
              <CardFooter className="flex justify-end">
-                <Button onClick={handleSaveChanges} disabled={!selectedCompany}>Guardar Cambios</Button>
+                <Button onClick={handleSaveChanges} disabled={!companyId}>Guardar Cambios</Button>
             </CardFooter>
         </Card>
     );
 
     
+}
