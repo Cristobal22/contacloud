@@ -1,7 +1,7 @@
 
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
     Card,
     CardContent,
@@ -32,11 +32,10 @@ import { MoreHorizontal, PlusCircle } from "lucide-react"
   } from "@/components/ui/alert-dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { useFirestore, useAuth, useCollection, useUser } from "@/firebase"
+import { useFirestore, useAuth, useUser } from "@/firebase"
 import type { UserProfile } from "@/lib/types"
-import { doc, setDoc, updateDoc, collection, deleteDoc, query, where, writeBatch, arrayUnion, arrayRemove } from "firebase/firestore"
+import { doc, setDoc, updateDoc, collection, deleteDoc, query, where, writeBatch, arrayUnion, arrayRemove, getDocs, documentId } from "firebase/firestore"
 import { createUserWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth'
-import { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import {
     Table,
@@ -69,19 +68,39 @@ export default function UserManagement() {
     const { user: authUser } = useUser();
     const { userProfile, loading: profileLoading } = useUserProfile(authUser?.uid);
 
-    // This query is now safe: it fetches only the users whose UIDs are in the admin's `createdUserIds` array.
-    const usersQuery = React.useMemo(() => {
-        if (!firestore || !userProfile || userProfile.role !== 'Admin' || !userProfile.createdUserIds || userProfile.createdUserIds.length === 0) {
-            return null;
-        }
-        return query(collection(firestore, 'users'), where('uid', 'in', userProfile.createdUserIds.slice(0, 30)));
-    }, [firestore, userProfile]);
-
-    const { data: users, loading: usersLoading, error } = useCollection<UserProfile>({ 
-        query: usersQuery,
-        disabled: profileLoading || !usersQuery
-    });
+    const [users, setUsers] = useState<UserProfile[]>([]);
+    const [usersLoading, setUsersLoading] = useState(true);
+    const [usersError, setUsersError] = useState<Error | null>(null);
     
+    useEffect(() => {
+        const fetchUsers = async () => {
+            if (!firestore || !userProfile || userProfile.role !== 'Admin' || !userProfile.createdUserIds || userProfile.createdUserIds.length === 0) {
+                setUsers([]);
+                setUsersLoading(false);
+                return;
+            }
+            
+            setUsersLoading(true);
+            try {
+                const usersQuery = query(collection(firestore, 'users'), where(documentId(), 'in', userProfile.createdUserIds));
+                const querySnapshot = await getDocs(usersQuery);
+                const fetchedUsers = querySnapshot.docs.map(doc => doc.data() as UserProfile);
+                setUsers(fetchedUsers);
+                setUsersError(null);
+            } catch (error) {
+                console.error("Error fetching created users:", error);
+                setUsersError(error as Error);
+            } finally {
+                setUsersLoading(false);
+            }
+        };
+
+        if (!profileLoading) {
+            fetchUsers();
+        }
+    }, [firestore, userProfile, profileLoading]);
+
+
     const [isCreateFormOpen, setIsCreateFormOpen] = useState(false);
     const [isEditFormOpen, setIsEditFormOpen] = useState(false);
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -121,7 +140,6 @@ export default function UserManagement() {
         setIsProcessing(true);
 
         try {
-            // This password is temporary. The user will be forced to reset it.
             const tempPassword = Math.random().toString(36).slice(-8) + 'A1!';
             const userCredential = await createUserWithEmailAndPassword(auth, newUser.email, tempPassword);
             const user = userCredential.user;
@@ -134,6 +152,7 @@ export default function UserManagement() {
                 photoURL: `https://i.pravatar.cc/150?u=${user.uid}`,
                 companyIds: [],
                 createdBy: authUser.uid,
+                createdUserIds: [],
             };
 
             const batch = writeBatch(firestore);
@@ -155,6 +174,8 @@ export default function UserManagement() {
             });
             
             setIsCreateFormOpen(false);
+            // Manually add the new user to the local state to refresh UI immediately
+            setUsers(prevUsers => [...prevUsers, newUserProfile]);
 
         } catch (error: any) {
             console.error('Error creating user:', error);
@@ -175,11 +196,11 @@ export default function UserManagement() {
         const userRef = doc(firestore, 'users', selectedUser.uid);
 
         try {
-            // Admin can only update the displayName
             await updateDoc(userRef, {
                 displayName: selectedUser.displayName,
             });
             toast({ title: "Usuario actualizado", description: "El nombre del usuario ha sido actualizado." });
+            setUsers(prev => prev.map(u => u.uid === selectedUser.uid ? {...u, displayName: selectedUser.displayName} : u));
             setIsEditFormOpen(false);
         } catch (error) {
             toast({ variant: 'destructive', title: 'Error al actualizar', description: 'No se pudieron guardar los cambios.' });
@@ -197,8 +218,6 @@ export default function UserManagement() {
         const adminRef = doc(firestore, 'users', authUser.uid);
 
         try {
-            // This deletes the Firestore document and removes the ID from the admin's list.
-            // The Firebase Auth user must be deleted manually from the console for security.
             const batch = writeBatch(firestore);
             batch.delete(userRef);
             batch.update(adminRef, {
@@ -207,6 +226,7 @@ export default function UserManagement() {
             await batch.commit();
 
             toast({ title: "Perfil de usuario eliminado", description: `El perfil de ${userToDelete.displayName} ha sido eliminado.` });
+            setUsers(prev => prev.filter(u => u.uid !== userToDelete.uid));
             setIsDeleteDialogOpen(false);
             setUserToDelete(null);
         } catch (error) {
@@ -239,7 +259,7 @@ export default function UserManagement() {
             );
         }
 
-        if (error) {
+        if (usersError) {
              return (
                 <TableRow>
                     <TableCell colSpan={4} className="h-24 text-center text-destructive">
