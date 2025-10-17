@@ -1,4 +1,3 @@
-
 'use client';
 
 import React from 'react';
@@ -43,6 +42,8 @@ export default function EmployeeFormPage({ params }: { params: { id: string } })
     const companyId = selectedCompany?.id;
     const firestore = useFirestore();
     const router = useRouter();
+    const { user: authUser } = useUser();
+
 
     const employeeRef = React.useMemo(() => 
         !isNew && firestore && companyId ? doc(firestore, `companies/${companyId}/employees`, id) as DocumentReference<Employee> : null
@@ -58,10 +59,10 @@ export default function EmployeeFormPage({ params }: { params: { id: string } })
     });
 
     const { data: afpEntities, loading: afpLoading } = useCollection<AfpEntity>({
-        path: 'afp-entities',
+        path: authUser ? `users/${authUser.uid}/afp-entities` : undefined,
     });
      const { data: healthEntities, loading: healthLoading } = useCollection<HealthEntity>({
-        path: 'health-entities',
+        path: authUser ? `users/${authUser.uid}/health-entities` : undefined,
     });
 
     React.useEffect(() => {
@@ -352,3 +353,5 @@ export default function EmployeeFormPage({ params }: { params: { id: string } })
 
     
 }
+
+    

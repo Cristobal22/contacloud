@@ -20,7 +20,7 @@ import {
   } from "@/components/ui/card"
   import { Button, buttonVariants } from "@/components/ui/button"
   import { Eye, MoreHorizontal, Trash2 } from "lucide-react"
-  import { useCollection, useFirestore } from '@/firebase';
+  import { useCollection, useFirestore, useUser } from '@/firebase';
   import type { Employee, AfpEntity, HealthEntity, Payroll, EconomicIndicator } from '@/lib/types';
 import { SelectedCompanyContext } from '../layout';
 import { PayrollDetailDialog } from '@/components/payroll-detail-dialog';
@@ -55,6 +55,8 @@ export default function PayrollPage() {
     const companyId = selectedCompany?.id;
     const firestore = useFirestore();
     const { toast } = useToast();
+    const { user: authUser } = useUser();
+
 
     const [selectedPayroll, setSelectedPayroll] = React.useState<{ payroll: Payroll, employee: Employee } | null>(null);
     const [isProcessing, setIsProcessing] = React.useState(false);
@@ -75,8 +77,8 @@ export default function PayrollPage() {
       path: companyId ? `companies/${companyId}/payrolls` : undefined,
       companyId: companyId 
     });
-    const { data: afpEntities, loading: afpLoading } = useCollection<AfpEntity>({ path: 'afp-entities' });
-    const { data: healthEntities, loading: healthLoading } = useCollection<HealthEntity>({ path: 'health-entities' });
+    const { data: afpEntities, loading: afpLoading } = useCollection<AfpEntity>({ path: authUser ? `users/${authUser.uid}/afp-entities` : undefined });
+    const { data: healthEntities, loading: healthLoading } = useCollection<HealthEntity>({ path: authUser ? `users/${authUser.uid}/health-entities` : undefined });
 
     // Fetch the specific monthly indicator for the selected period
     const indicatorId = `${year}-${month.toString().padStart(2, '0')}`;
@@ -343,5 +345,7 @@ export default function PayrollPage() {
         </>
     )
 }
+
+    
 
     
