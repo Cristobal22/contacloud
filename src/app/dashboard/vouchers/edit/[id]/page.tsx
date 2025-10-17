@@ -20,7 +20,7 @@ import {
     TableRow,
     TableFooter
 } from "@/components/ui/table";
-import { PlusCircle, Trash2, ArrowLeft } from "lucide-react";
+import { PlusCircle, Trash2, ArrowLeft, ChevronsUpDown, Check } from "lucide-react";
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -31,6 +31,19 @@ import {
     SelectTrigger,
     SelectValue,
   } from "@/components/ui/select"
+import {
+    Command,
+    CommandEmpty,
+    CommandGroup,
+    CommandInput,
+    CommandItem,
+    CommandList,
+} from "@/components/ui/command"
+import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+} from "@/components/ui/popover"
 import { useCollection, useDoc, useFirestore } from '@/firebase';
 import type { Voucher, VoucherEntry, Account } from '@/lib/types';
 import { SelectedCompanyContext } from '@/app/dashboard/layout';
@@ -42,6 +55,7 @@ import { FirestorePermissionError } from '@/firebase/errors'
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { useToast } from '@/hooks/use-toast';
+import { cn } from '@/lib/utils';
 
 export default function VoucherEditPage() {
     const params = useParams();
@@ -59,6 +73,7 @@ export default function VoucherEditPage() {
     const [voucher, setVoucher] = React.useState<Partial<Voucher> | null>(null);
     const [entries, setEntries] = React.useState<Partial<VoucherEntry>[]>([]);
     const [dateError, setDateError] = React.useState<string | null>(null);
+    const [openPopovers, setOpenPopovers] = React.useState<Record<string, boolean>>({});
 
 
     const { data: accounts, loading: accountsLoading } = useCollection<Account>({
@@ -222,6 +237,10 @@ export default function VoucherEditPage() {
         ? `Último cierre: ${format(parseISO(selectedCompany.lastClosedDate), 'P', { locale: es })}.`
         : "Aún no hay períodos cerrados.";
 
+    const togglePopover = (entryId: string) => {
+        setOpenPopovers(prev => ({...prev, [entryId]: !prev[entryId]}));
+    }
+
     return (
         <div className="grid gap-6">
             <Card>
@@ -290,7 +309,7 @@ export default function VoucherEditPage() {
                     <Table>
                         <TableHeader>
                             <TableRow>
-                                <TableHead className="w-[250px]">Cuenta Contable</TableHead>
+                                <TableHead className="w-[300px]">Cuenta Contable</TableHead>
                                 <TableHead>Descripción</TableHead>
                                 <TableHead className="w-[180px] text-right">Debe</TableHead>
                                 <TableHead className="w-[180px] text-right">Haber</TableHead>
@@ -301,23 +320,45 @@ export default function VoucherEditPage() {
                             {entries.map(entry => (
                                 <TableRow key={entry.id}>
                                     <TableCell>
-                                        <Select
-                                            value={entry.account}
-                                            onValueChange={(value) => handleEntryChange(entry.id!, 'account', value)}
-                                            disabled={!periodIsDefined}
-                                        >
-                                            <SelectTrigger>
-                                                <SelectValue placeholder="Selecciona una cuenta" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                {accountsLoading && <SelectItem value="loading" disabled>Cargando cuentas...</SelectItem>}
-                                                {accounts?.map(account => (
-                                                    <SelectItem key={account.id} value={account.code}>
-                                                        {account.code} - {account.name}
-                                                    </SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
+                                        <Popover open={openPopovers[entry.id!]} onOpenChange={() => togglePopover(entry.id!)}>
+                                            <PopoverTrigger asChild>
+                                                <Button
+                                                    variant="outline"
+                                                    role="combobox"
+                                                    aria-expanded={openPopovers[entry.id!]}
+                                                    className="w-full justify-between font-normal"
+                                                    disabled={accountsLoading || !periodIsDefined}
+                                                >
+                                                    {accountsLoading ? "Cargando..." : entry.account
+                                                        ? accounts?.find((acc) => acc.code === entry.account)?.name
+                                                        : "Seleccionar cuenta..."}
+                                                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                                </Button>
+                                            </PopoverTrigger>
+                                            <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                                                <Command>
+                                                    <CommandInput placeholder="Buscar cuenta..." />
+                                                    <CommandList>
+                                                        <CommandEmpty>No se encontró la cuenta.</CommandEmpty>
+                                                        <CommandGroup>
+                                                            {accounts?.map((acc) => (
+                                                                <CommandItem
+                                                                    key={acc.id}
+                                                                    value={`${acc.code} ${acc.name}`}
+                                                                    onSelect={() => {
+                                                                        handleEntryChange(entry.id!, 'account', acc.code);
+                                                                        togglePopover(entry.id!);
+                                                                    }}
+                                                                >
+                                                                    <Check className={cn("mr-2 h-4 w-4", acc.code === entry.account ? "opacity-100" : "opacity-0")} />
+                                                                    {acc.code} - {acc.name}
+                                                                </CommandItem>
+                                                            ))}
+                                                        </CommandGroup>
+                                                    </CommandList>
+                                                </Command>
+                                            </PopoverContent>
+                                        </Popover>
                                     </TableCell>
                                     <TableCell>
                                         <Input 
