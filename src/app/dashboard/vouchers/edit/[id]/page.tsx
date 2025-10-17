@@ -83,7 +83,7 @@ export default function VoucherEditPage() {
     }, [isNew, existingVoucher, companyId]);
 
     React.useEffect(() => {
-        if (voucher?.date) {
+        if (voucher?.date && selectedCompany) {
             validateDate(voucher.date);
         }
     }, [voucher?.date, selectedCompany]);
@@ -116,25 +116,29 @@ export default function VoucherEditPage() {
      const validateDate = (dateString: string) => {
         if (!selectedCompany?.periodStartDate || !selectedCompany?.periodEndDate) {
             setDateError('La empresa no tiene un período de trabajo configurado.');
-            return;
+            return false;
         }
         
-        const selectedDate = parseISO(dateString); // No timezone correction needed for comparison
+        // Use parseISO to handle 'YYYY-MM-DD' correctly without timezone shifts
+        const selectedDate = parseISO(dateString);
         const startDate = parseISO(selectedCompany.periodStartDate);
         const endDate = parseISO(selectedCompany.periodEndDate);
 
         if (selectedDate < startDate || selectedDate > endDate) {
             setDateError('La fecha está fuera del período de trabajo activo.');
-        } else if (selectedCompany.lastClosedDate) {
+            return false;
+        } 
+        
+        if (selectedCompany.lastClosedDate) {
             const lastClosedDate = parseISO(selectedCompany.lastClosedDate);
             if (selectedDate <= lastClosedDate) {
                 setDateError('La fecha pertenece a un período que ya ha sido cerrado.');
-            } else {
-                setDateError(null);
+                return false;
             }
-        } else {
-            setDateError(null);
         }
+
+        setDateError(null);
+        return true;
     };
 
 
@@ -150,7 +154,7 @@ export default function VoucherEditPage() {
     const totalDebit = entries.reduce((sum, entry) => sum + Number(entry.debit || 0), 0);
     const totalCredit = entries.reduce((sum, entry) => sum + Number(entry.credit || 0), 0);
     const isBalanced = totalDebit === totalCredit && totalDebit > 0;
-    const canSave = isBalanced && !dateError && entries.length > 1 && voucher?.description && entries.every(e => e.account);
+    const canSave = isBalanced && !dateError && entries.length > 0 && !!voucher?.description && entries.every(e => e.account);
     
     const handleSaveClick = () => {
        if (!firestore || !companyId || !voucher || !canSave) return;

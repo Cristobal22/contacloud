@@ -28,10 +28,19 @@ import { es } from "date-fns/locale";
     const [isProcessing, setIsProcessing] = React.useState(false);
 
     const periodEndDate = selectedCompany?.periodEndDate;
-    const canClose = !!periodEndDate;
+    // The ability to close should depend on having a company selected, not just the end date.
+    // The logic inside will handle cases where the date isn't set.
+    const canAttemptClose = !!selectedCompany;
 
     const handleClosePeriod = async () => {
-        if (!firestore || !companyId || !periodEndDate) return;
+        if (!firestore || !companyId || !periodEndDate) {
+             toast({
+                variant: "destructive",
+                title: "Error",
+                description: "No se puede cerrar el período porque no hay una fecha de finalización definida para la empresa.",
+            });
+            return;
+        }
 
         setIsProcessing(true);
         const companyRef = doc(firestore, 'companies', companyId);
@@ -42,7 +51,7 @@ import { es } from "date-fns/locale";
             });
             toast({
                 title: "Período Cerrado Exitosamente",
-                description: `Se ha bloqueado el período hasta el ${periodEndDate}.`,
+                description: `Se ha bloqueado el período hasta el ${format(parseISO(periodEndDate), 'P', { locale: es })}.`,
             });
         } catch (error) {
             console.error("Error closing period:", error);
@@ -68,17 +77,20 @@ import { es } from "date-fns/locale";
         <CardContent>
            <div className="flex flex-col items-center justify-center gap-4 rounded-xl border border-dashed p-8 text-center">
                 <Lock className="h-12 w-12 text-destructive"/>
-                <h3 className="text-lg font-semibold">Proceso de Cierre para <span className="text-primary">{selectedCompany?.name}</span></h3>
+                <h3 className="text-lg font-semibold">Proceso de Cierre para <span className="text-primary">{selectedCompany?.name || '...'}</span></h3>
                 <div className="text-sm text-muted-foreground">
-                    <p>Período de trabajo actual finaliza el: <span className="font-bold">{formattedPeriod}</span>.</p>
+                    <p>Período de trabajo actual finaliza el: <span className="font-bold">{periodEndDate ? format(parseISO(periodEndDate), "P", { locale: es }) : "No definido"}</span>.</p>
                     <p>Último cierre realizado el: <span className="font-bold">{lastClosedDate}</span>.</p>
                 </div>
                 <p className="max-w-md text-sm">
-                    Al ejecutar el cierre, se actualizará la fecha del último cierre al <span className="font-bold">{formattedPeriod}</span>. No se podrán crear ni modificar comprobantes con fecha anterior o igual a esta.
+                    {periodEndDate 
+                        ? `Al ejecutar el cierre, se actualizará la fecha del último cierre al ${format(parseISO(periodEndDate), "P", { locale: es })}. No se podrán crear ni modificar comprobantes con fecha anterior o igual a esta.`
+                        : "Define un período de trabajo en la configuración de la empresa para poder ejecutar el cierre."
+                    }
                 </p>
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
-                    <Button variant="destructive" disabled={!canClose || isProcessing}>
+                    <Button variant="destructive" disabled={!canAttemptClose || isProcessing}>
                         {isProcessing ? "Procesando..." : `Ejecutar Cierre para ${formattedPeriod}`}
                     </Button>
                   </AlertDialogTrigger>
@@ -86,7 +98,10 @@ import { es } from "date-fns/locale";
                     <AlertDialogHeader>
                       <AlertDialogTitle>¿Estás absolutamente seguro?</AlertDialogTitle>
                       <AlertDialogDescription>
-                        Esta acción es irreversible. Al ejecutar el cierre mensual, se bloquearán todos los movimientos hasta el <span className="font-bold">{formattedPeriod}</span>. Asegúrate de haber revisado toda la información antes de proceder.
+                        {periodEndDate 
+                          ? `Esta acción es irreversible. Al ejecutar el cierre mensual, se bloquearán todos los movimientos hasta el ${format(parseISO(periodEndDate), "P", { locale: es })}. Asegúrate de haber revisado toda la información antes de proceder.`
+                          : "No se puede continuar porque no hay una fecha de fin de período definida."
+                        }
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
@@ -94,6 +109,7 @@ import { es } from "date-fns/locale";
                       <AlertDialogAction 
                         className={buttonVariants({ variant: "destructive" })}
                         onClick={handleClosePeriod}
+                        disabled={!periodEndDate}
                       >
                         Sí, ejecutar cierre
                       </AlertDialogAction>
