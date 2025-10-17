@@ -38,7 +38,7 @@ import {
     AlertDialogTitle,
   } from "@/components/ui/alert-dialog"
   import { useCollection, useFirestore } from "@/firebase"
-  import { doc, updateDoc } from "firebase/firestore"
+  import { doc, updateDoc, deleteDoc } from "firebase/firestore"
   import type { Voucher } from "@/lib/types"
   import Link from "next/link"
   import { errorEmitter } from '@/firebase/error-emitter'
@@ -58,10 +58,18 @@ import { SelectedCompanyContext } from "../layout"
     const [isContabilizarDialogOpen, setIsContabilizarDialogOpen] = React.useState(false);
     const [voucherToContabilizar, setVoucherToContabilizar] = React.useState<Voucher | null>(null);
 
+    const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false);
+    const [voucherToDelete, setVoucherToDelete] = React.useState<Voucher | null>(null);
+
     const handleOpenContabilizarDialog = (voucher: Voucher) => {
         setVoucherToContabilizar(voucher);
         setIsContabilizarDialogOpen(true);
     }
+    
+    const handleOpenDeleteDialog = (voucher: Voucher) => {
+        setVoucherToDelete(voucher);
+        setIsDeleteDialogOpen(true);
+    };
 
     const handleContabilizarVoucher = () => {
         if (!firestore || !companyId || !voucherToContabilizar) return;
@@ -80,6 +88,22 @@ import { SelectedCompanyContext } from "../layout"
               requestResourceData: updateData,
             }));
           });
+    };
+
+    const handleDelete = () => {
+        if (!firestore || !companyId || !voucherToDelete) return;
+        const docRef = doc(firestore, `companies/${companyId}/vouchers`, voucherToDelete.id);
+
+        setIsDeleteDialogOpen(false);
+        setVoucherToDelete(null);
+
+        deleteDoc(docRef)
+            .catch(err => {
+                 errorEmitter.emit('permission-error', new FirestorePermissionError({
+                    path: docRef.path,
+                    operation: 'delete',
+                }));
+            });
     };
 
     return (
@@ -154,6 +178,9 @@ import { SelectedCompanyContext } from "../layout"
                                 <DropdownMenuItem onClick={() => handleOpenContabilizarDialog(voucher)}>
                                     Contabilizar
                                 </DropdownMenuItem>
+                                <DropdownMenuItem className="text-destructive" onClick={() => handleOpenDeleteDialog(voucher)}>
+                                    Eliminar
+                                </DropdownMenuItem>
                             </>
                            )}
                         </DropdownMenuContent>
@@ -187,6 +214,26 @@ import { SelectedCompanyContext } from "../layout"
                         onClick={handleContabilizarVoucher}
                     >
                         Sí, contabilizar comprobante
+                    </AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
+
+        <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        Esta acción no se puede deshacer. Esto eliminará permanentemente el comprobante <span className="font-bold">{voucherToDelete?.description}</span>.
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction
+                        className={buttonVariants({ variant: "destructive" })}
+                        onClick={handleDelete}
+                    >
+                        Sí, eliminar
                     </AlertDialogAction>
                 </AlertDialogFooter>
             </AlertDialogContent>
