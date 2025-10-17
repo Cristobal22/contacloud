@@ -29,11 +29,14 @@ import {
   import type { Employee, CostCenter } from "@/lib/types"
   import Link from "next/link"
   import React from "react"
-import { SelectedCompanyContext } from "../layout";
+  import { SelectedCompanyContext } from "../layout";
+  import { HistoricalPayrollDialog } from "@/components/historical-payroll-dialog";
   
   export default function EmployeesPage() {
     const { selectedCompany } = React.useContext(SelectedCompanyContext) || {};
     const companyId = selectedCompany?.id;
+
+    const [selectedEmployeeForHistory, setSelectedEmployeeForHistory] = React.useState<Employee | null>(null);
 
     const { data: employees, loading: employeesLoading } = useCollection<Employee>({ 
       path: companyId ? `companies/${companyId}/employees` : undefined,
@@ -52,81 +55,91 @@ import { SelectedCompanyContext } from "../layout";
     const loading = employeesLoading || costCentersLoading;
 
     return (
-      <Card>
-        <CardHeader>
-            <div className="flex items-center justify-between">
-                <div>
-                    <CardTitle>Personal</CardTitle>
-                    <CardDescription>Gestiona los empleados de tu organización.</CardDescription>
-                </div>
-                <Button size="sm" className="gap-1" disabled={!companyId} asChild>
-                  <Link href="/dashboard/employees/edit/new">
-                    <PlusCircle className="h-4 w-4" />
-                    Agregar Empleado
-                  </Link>
-                </Button>
-            </div>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Nombre</TableHead>
-                <TableHead>RUT</TableHead>
-                <TableHead>Cargo</TableHead>
-                <TableHead>Centro de Costo</TableHead>
-                <TableHead>Estado</TableHead>
-                <TableHead>
-                  <span className="sr-only">Acciones</span>
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {loading && (
+      <>
+        <Card>
+          <CardHeader>
+              <div className="flex items-center justify-between">
+                  <div>
+                      <CardTitle>Personal</CardTitle>
+                      <CardDescription>Gestiona los empleados de tu organización.</CardDescription>
+                  </div>
+                  <Button size="sm" className="gap-1" disabled={!companyId} asChild>
+                    <Link href="/dashboard/employees/edit/new">
+                      <PlusCircle className="h-4 w-4" />
+                      Agregar Empleado
+                    </Link>
+                  </Button>
+              </div>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
                 <TableRow>
-                    <TableCell colSpan={6} className="text-center">Cargando...</TableCell>
+                  <TableHead>Nombre</TableHead>
+                  <TableHead>RUT</TableHead>
+                  <TableHead>Cargo</TableHead>
+                  <TableHead>Centro de Costo</TableHead>
+                  <TableHead>Estado</TableHead>
+                  <TableHead>
+                    <span className="sr-only">Acciones</span>
+                  </TableHead>
                 </TableRow>
-              )}
-              {!loading && employees?.map((employee) => (
-                <TableRow key={employee.id}>
-                  <TableCell className="font-medium">{`${employee.firstName} ${employee.lastName}`}</TableCell>
-                  <TableCell>{employee.rut}</TableCell>
-                  <TableCell>{employee.position}</TableCell>
-                  <TableCell>{employee.costCenterId ? costCenterMap.get(employee.costCenterId) : 'N/A'}</TableCell>
-                  <TableCell>
-                    <Badge variant={employee.status === 'Active' ? "default" : "outline"}>
-                      {employee.status === 'Active' ? "Activo" : "Inactivo"}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button aria-haspopup="true" size="icon" variant="ghost">
-                          <MoreHorizontal className="h-4 w-4" />
-                          <span className="sr-only">Toggle menu</span>
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-                        <DropdownMenuItem asChild>
-                            <Link href={`/dashboard/employees/edit/${employee.id}`}>Editar Ficha</Link>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem>Ver Liquidaciones</DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
-                </TableRow>
-              ))}
-               {!loading && employees?.length === 0 && (
-                <TableRow>
-                    <TableCell colSpan={6} className="text-center">
-                        {!companyId ? "Selecciona una empresa para ver sus empleados." : "No se encontraron empleados para esta empresa."}
+              </TableHeader>
+              <TableBody>
+                {loading && (
+                  <TableRow>
+                      <TableCell colSpan={6} className="text-center">Cargando...</TableCell>
+                  </TableRow>
+                )}
+                {!loading && employees?.map((employee) => (
+                  <TableRow key={employee.id}>
+                    <TableCell className="font-medium">{`${employee.firstName} ${employee.lastName}`}</TableCell>
+                    <TableCell>{employee.rut}</TableCell>
+                    <TableCell>{employee.position}</TableCell>
+                    <TableCell>{employee.costCenterId ? costCenterMap.get(employee.costCenterId) : 'N/A'}</TableCell>
+                    <TableCell>
+                      <Badge variant={employee.status === 'Active' ? "default" : "outline"}>
+                        {employee.status === 'Active' ? "Activo" : "Inactivo"}
+                      </Badge>
                     </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+                    <TableCell>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button aria-haspopup="true" size="icon" variant="ghost">
+                            <MoreHorizontal className="h-4 w-4" />
+                            <span className="sr-only">Toggle menu</span>
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuLabel>Acciones</DropdownMenuLabel>
+                          <DropdownMenuItem asChild>
+                              <Link href={`/dashboard/employees/edit/${employee.id}`}>Editar Ficha</Link>
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => setSelectedEmployeeForHistory(employee)}>
+                            Ver Liquidaciones
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                ))}
+                 {!loading && employees?.length === 0 && (
+                  <TableRow>
+                      <TableCell colSpan={6} className="text-center">
+                          {!companyId ? "Selecciona una empresa para ver sus empleados." : "No se encontraron empleados para esta empresa."}
+                      </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+        <HistoricalPayrollDialog
+            isOpen={!!selectedEmployeeForHistory}
+            onClose={() => setSelectedEmployeeForHistory(null)}
+            employee={selectedEmployeeForHistory}
+            companyId={companyId}
+        />
+      </>
     )
   }
