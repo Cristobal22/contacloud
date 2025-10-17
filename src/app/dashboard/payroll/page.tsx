@@ -1,3 +1,4 @@
+
 'use client';
 
 import React from 'react';
@@ -75,8 +76,8 @@ export default function PayrollPage() {
       path: companyId ? `companies/${companyId}/payrolls` : undefined,
       companyId: companyId 
     });
-    const { data: afpEntities, loading: afpLoading } = useCollection<AfpEntity>({ path: user ? `users/${user.uid}/afp-entities` : undefined });
-    const { data: healthEntities, loading: healthLoading } = useCollection<HealthEntity>({ path: user ? `users/${user.uid}/health-entities` : undefined });
+    const { data: afpEntities, loading: afpLoading } = useCollection<AfpEntity>({ path: 'afp-entities' });
+    const { data: healthEntities, loading: healthLoading } = useCollection<HealthEntity>({ path: 'health-entities' });
 
     const { data: globalIndicators, loading: globalIndicatorsLoading } = useCollection<EconomicIndicator>({ path: 'economic-indicators' });
     const { data: companyIndicators, loading: companyIndicatorsLoading } = useCollection<EconomicIndicator>({ path: companyId ? `companies/${companyId}/economic-indicators` : undefined });
