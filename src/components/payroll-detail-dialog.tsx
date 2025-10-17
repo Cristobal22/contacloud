@@ -158,44 +158,59 @@ export function PayrollDetailDialog({ isOpen, onClose, data }: PayrollDetailDial
                                 </div>
 
                                 {/* Main Table */}
-                                <Table>
-                                    <TableHeader>
-                                        <TableRow className="bg-gray-50">
-                                            <TableHead className="font-bold text-gray-600">Concepto</TableHead>
-                                            <TableHead className="text-right font-bold text-gray-600">Haberes</TableHead>
-                                            <TableHead className="text-right font-bold text-gray-600">Descuentos</TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        <TableRow><TableCell>Sueldo Base</TableCell><TableCell className="text-right">{formatCurrency(payroll.baseSalary)}</TableCell><TableCell></TableCell></TableRow>
-                                        <TableRow><TableCell>Gratificación Legal</TableCell><TableCell className="text-right">{formatCurrency(payroll.gratification)}</TableCell><TableCell></TableCell></TableRow>
-                                        <TableRow><TableCell>Otros Haberes (Movilización, Colación, etc.)</TableCell><TableCell className="text-right">{formatCurrency(payroll.otherEarnings)}</TableCell><TableCell></TableCell></TableRow>
-                                        <TableRow><TableCell>Cotización AFP ({employee.afp})</TableCell><TableCell></TableCell><TableCell className="text-right">{formatCurrency(payroll.afpDiscount)}</TableCell></TableRow>
-                                        <TableRow><TableCell>Cotización Salud ({employee.healthSystem})</TableCell><TableCell></TableCell><TableCell className="text-right">{formatCurrency(payroll.healthDiscount)}</TableCell></TableRow>
-                                    </TableBody>
-                                    <TableFooter>
-                                        <TableRow className="bg-gray-100 font-bold">
-                                            <TableCell>Totales</TableCell>
-                                            <TableCell className="text-right">{formatCurrency(payroll.totalEarnings)}</TableCell>
-                                            <TableCell className="text-right">{formatCurrency(payroll.totalDiscounts)}</TableCell>
-                                        </TableRow>
-                                    </TableFooter>
-                                </Table>
+                                <div className="grid grid-cols-2 gap-8">
+                                    <div>
+                                        <h3 className="text-base font-semibold mb-2 text-gray-700">Haberes</h3>
+                                        <Table>
+                                            <TableHeader>
+                                                <TableRow className="bg-gray-50">
+                                                    <TableHead className="font-bold text-gray-600">Concepto</TableHead>
+                                                    <TableHead className="text-right font-bold text-gray-600">Monto</TableHead>
+                                                </TableRow>
+                                            </TableHeader>
+                                            <TableBody>
+                                                <TableRow><TableCell>Sueldo Base</TableCell><TableCell className="text-right">{formatCurrency(payroll.baseSalary)}</TableCell></TableRow>
+                                                <TableRow><TableCell>Gratificación Legal</TableCell><TableCell className="text-right">{formatCurrency(payroll.gratification)}</TableCell></TableRow>
+                                                <TableRow className="font-medium bg-gray-50"><TableCell>Total Haberes Imponibles</TableCell><TableCell className="text-right">{formatCurrency(payroll.taxableEarnings)}</TableCell></TableRow>
+                                                <TableRow><TableCell>Colación y Movilización</TableCell><TableCell className="text-right">{formatCurrency(payroll.nonTaxableEarnings)}</TableCell></TableRow>
+                                            </TableBody>
+                                            <TableFooter>
+                                                <TableRow className="bg-gray-100 font-bold text-base">
+                                                    <TableCell>Total Haberes</TableCell>
+                                                    <TableCell className="text-right">{formatCurrency(payroll.totalEarnings)}</TableCell>
+                                                </TableRow>
+                                            </TableFooter>
+                                        </Table>
+                                    </div>
+                                    <div>
+                                        <h3 className="text-base font-semibold mb-2 text-gray-700">Descuentos</h3>
+                                        <Table>
+                                            <TableHeader>
+                                                <TableRow className="bg-gray-50">
+                                                    <TableHead className="font-bold text-gray-600">Concepto</TableHead>
+                                                    <TableHead className="text-right font-bold text-gray-600">Monto</TableHead>
+                                                </TableRow>
+                                            </TableHeader>
+                                            <TableBody>
+                                                <TableRow><TableCell>Cotización AFP ({employee.afp})</TableCell><TableCell className="text-right">{formatCurrency(payroll.afpDiscount)}</TableCell></TableRow>
+                                                <TableRow><TableCell>Cotización Salud ({employee.healthSystem})</TableCell><TableCell className="text-right">{formatCurrency(payroll.healthDiscount)}</TableCell></TableRow>
+                                            </TableBody>
+                                            <TableFooter>
+                                                <TableRow className="bg-gray-100 font-bold text-base">
+                                                    <TableCell>Total Descuentos</TableCell>
+                                                    <TableCell className="text-right">{formatCurrency(payroll.totalDiscounts)}</TableCell>
+                                                </TableRow>
+                                            </TableFooter>
+                                        </Table>
+                                    </div>
+                                </div>
+
 
                                 {/* Grand Total */}
-                                <div className="flex justify-end mt-6">
-                                    <div className="w-full max-w-sm space-y-2">
-                                        <div className="flex justify-between">
-                                            <span className="text-gray-600 font-medium">Total Haberes:</span>
-                                            <span>{formatCurrency(payroll.totalEarnings)}</span>
-                                        </div>
-                                        <div className="flex justify-between">
-                                            <span className="text-gray-600 font-medium">Total Descuentos:</span>
-                                            <span>{formatCurrency(payroll.totalDiscounts)}</span>
-                                        </div>
-                                        <Separator className="my-2"/>
+                                <div className="flex justify-end mt-8">
+                                    <div className="w-full max-w-sm space-y-2 p-4 bg-gray-100 rounded-lg">
                                         <div className="flex justify-between text-lg font-bold text-gray-800">
-                                            <span>Sueldo Líquido a Pagar:</span>
+                                            <span>ALCANCE LÍQUIDO:</span>
                                             <span>{formatCurrency(payroll.netSalary)}</span>
                                         </div>
                                     </div>
@@ -225,5 +240,3 @@ export function PayrollDetailDialog({ isOpen, onClose, data }: PayrollDetailDial
         </Dialog>
     )
 }
-
-    

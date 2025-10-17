@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import React from 'react';
@@ -125,20 +126,21 @@ export default function PayrollPage() {
                 gratification = Math.min(calculatedGratification, GRATIFICATION_CAP_MONTHLY);
             }
 
-            const otherEarnings = (emp.mobilization || 0) + (emp.collation || 0);
-            const totalEarnings = baseSalary + gratification + otherEarnings;
+            const taxableEarnings = baseSalary + gratification;
+            const nonTaxableEarnings = (emp.mobilization || 0) + (emp.collation || 0);
+            const totalEarnings = taxableEarnings + nonTaxableEarnings;
 
             const afpPercentage = emp.afp ? (afpMap.get(emp.afp) || 10) / 100 : 0;
             let healthDiscount = 0;
             if (emp.healthSystem === 'Fonasa') {
-                healthDiscount = totalEarnings * 0.07;
+                healthDiscount = taxableEarnings * 0.07;
             } else if (emp.healthContributionType === 'Porcentaje') {
-                healthDiscount = totalEarnings * ((emp.healthContributionValue || 7) / 100);
+                healthDiscount = taxableEarnings * ((emp.healthContributionValue || 7) / 100);
             } else { 
                 healthDiscount = (emp.healthContributionValue || 0) * (periodIndicator.uf || 37000); 
             }
             
-            const afpDiscount = totalEarnings * afpPercentage;
+            const afpDiscount = taxableEarnings * afpPercentage;
             const totalDiscounts = afpDiscount + healthDiscount;
             const netSalary = totalEarnings - totalDiscounts;
             
@@ -150,11 +152,13 @@ export default function PayrollPage() {
                 month: month,
                 baseSalary: baseSalary,
                 gratification: gratification,
-                otherEarnings: otherEarnings,
+                taxableEarnings: taxableEarnings,
+                nonTaxableEarnings: nonTaxableEarnings,
+                otherTaxableEarnings: 0, // Placeholder for other taxable items
                 totalEarnings: totalEarnings,
                 afpDiscount: afpDiscount,
                 healthDiscount: healthDiscount,
-                otherDiscounts: 0,
+                otherDiscounts: 0, // Placeholder
                 totalDiscounts: totalDiscounts,
                 netSalary: netSalary,
                 companyId: companyId,

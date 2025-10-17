@@ -10,7 +10,6 @@ export const UserProfileSchema = z.object({
   role: z.enum(['Admin', 'Accountant']),
   companyIds: z.array(z.string()).optional(),
   createdBy: z.string().optional(), // Added to track who created the user
-  createdUserIds: z.array(z.string()).optional(), // For admins to track created users
 });
 
 export type UserProfile = z.infer<typeof UserProfileSchema>;
@@ -185,7 +184,9 @@ export type Payroll = {
   month: number;
   baseSalary: number;
   gratification: number;
-  otherEarnings: number;
+  taxableEarnings: number;
+  nonTaxableEarnings: number;
+  otherTaxableEarnings: number;
   totalEarnings: number;
   afpDiscount: number;
   healthDiscount: number;
@@ -254,5 +255,3 @@ export type SelectedCompanyContextType = {
     selectedCompany: Company | null;
     setSelectedCompany: (company: Company | null) => void;
 };
-
-    
