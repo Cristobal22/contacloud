@@ -38,6 +38,8 @@ import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import { errorEmitter } from '@/firebase/error-emitter'
 import { FirestorePermissionError } from '@/firebase/errors'
+import { format } from 'date-fns';
+import { es } from 'date-fns/locale';
 
 export default function VoucherEditPage() {
     const params = useParams();
@@ -53,6 +55,8 @@ export default function VoucherEditPage() {
 
     const [voucher, setVoucher] = React.useState<Partial<Voucher> | null>(null);
     const [entries, setEntries] = React.useState<Partial<VoucherEntry>[]>([]);
+    const [dateError, setDateError] = React.useState<string | null>(null);
+
 
     const { data: accounts, loading: accountsLoading } = useCollection<Account>({
         path: companyId ? `companies/${companyId}/accounts` : undefined,
@@ -76,6 +80,13 @@ export default function VoucherEditPage() {
             setEntries(existingVoucher.entries);
         }
     }, [isNew, existingVoucher, companyId]);
+
+    React.useEffect(() => {
+        if (voucher?.date) {
+            validateDate(voucher.date);
+        }
+    }, [voucher?.date, selectedCompany]);
+
 
     const handleAddEntry = () => {
         setEntries([
@@ -101,8 +112,28 @@ export default function VoucherEditPage() {
         setEntries(newEntries);
     };
 
+     const validateDate = (dateString: string) => {
+        if (!selectedCompany?.periodStartDate || !selectedCompany?.periodEndDate) {
+            setDateError('La empresa no tiene un período de trabajo configurado.');
+            return;
+        }
+        const selectedDate = new Date(dateString + 'T00:00:00'); // Ensure local time interpretation
+        const startDate = new Date(selectedCompany.periodStartDate + 'T00:00:00');
+        const endDate = new Date(selectedCompany.periodEndDate + 'T00:00:00');
+
+        if (selectedDate < startDate || selectedDate > endDate) {
+            setDateError('La fecha está fuera del período de trabajo activo.');
+        } else {
+            setDateError(null);
+        }
+    };
+
+
      const handleHeaderChange = (field: keyof Omit<Voucher, 'id' | 'total' | 'entries' | 'companyId'>, value: string) => {
         if (voucher) {
+            if (field === 'date') {
+                validateDate(value);
+            }
             setVoucher({ ...voucher, [field]: value });
         }
     };
@@ -110,7 +141,7 @@ export default function VoucherEditPage() {
     const totalDebit = entries.reduce((sum, entry) => sum + Number(entry.debit || 0), 0);
     const totalCredit = entries.reduce((sum, entry) => sum + Number(entry.credit || 0), 0);
     const isBalanced = totalDebit === totalCredit && totalDebit > 0;
-    const canSave = isBalanced && entries.length > 1 && voucher?.description && entries.every(e => e.account);
+    const canSave = isBalanced && !dateError && entries.length > 1 && voucher?.description && entries.every(e => e.account);
     
     const handleSaveClick = () => {
        if (!firestore || !companyId || !voucher || !canSave) return;
@@ -162,6 +193,8 @@ export default function VoucherEditPage() {
     if (!isNew && !voucher && !voucherLoading) return <p>No se encontró el comprobante.</p>;
     if (!voucher) return null;
 
+    const periodIsDefined = selectedCompany?.periodStartDate && selectedCompany?.periodEndDate;
+
 
     return (
         <div className="grid gap-6">
@@ -178,7 +211,10 @@ export default function VoucherEditPage() {
                                         {isNew ? 'Nuevo Comprobante' : `Editar Comprobante #${id.substring(0, 6)}`}
                                     </CardTitle>
                                     <CardDescription>
-                                        Gestiona los detalles y asientos del comprobante contable.
+                                        {periodIsDefined 
+                                            ? `Período de trabajo activo: ${format(new Date(selectedCompany.periodStartDate + 'T00:00:00'), 'P', { locale: es })} - ${format(new Date(selectedCompany.periodEndDate + 'T00:00:00'), 'P', { locale: es })}`
+                                            : "Define el período de trabajo en la configuración de la empresa."
+                                        }
                                     </CardDescription>
                                 </div>
                                 <Badge variant={voucher.status === 'Contabilizado' ? 'outline' : 'secondary'}>
@@ -197,11 +233,13 @@ export default function VoucherEditPage() {
                                 type="date" 
                                 value={voucher.date || ''}
                                 onChange={(e) => handleHeaderChange('date', e.target.value)}
+                                disabled={!periodIsDefined}
                             />
+                            {dateError && <p className="text-sm text-destructive">{dateError}</p>}
                         </div>
                         <div className="space-y-2">
                              <Label htmlFor="voucher-type">Tipo</Label>
-                            <Select value={voucher.type} onValueChange={(value) => handleHeaderChange('type', value as 'Ingreso' | 'Egreso' | 'Traspaso')}>
+                            <Select value={voucher.type} onValueChange={(value) => handleHeaderChange('type', value as 'Ingreso' | 'Egreso' | 'Traspaso')} disabled={!periodIsDefined}>
                                 <SelectTrigger id="voucher-type">
                                     <SelectValue placeholder="Selecciona un tipo"/>
                                 </SelectTrigger>
@@ -219,6 +257,7 @@ export default function VoucherEditPage() {
                                 value={voucher.description || ''}
                                 onChange={(e) => handleHeaderChange('description', e.target.value)}
                                 placeholder="Ej: Pago de factura #101"
+                                disabled={!periodIsDefined}
                             />
                         </div>
                     </div>
@@ -239,6 +278,7 @@ export default function VoucherEditPage() {
                                         <Select
                                             value={entry.account}
                                             onValueChange={(value) => handleEntryChange(entry.id!, 'account', value)}
+                                            disabled={!periodIsDefined}
                                         >
                                             <SelectTrigger>
                                                 <SelectValue placeholder="Selecciona una cuenta" />
@@ -258,6 +298,7 @@ export default function VoucherEditPage() {
                                             value={entry.description}
                                             onChange={(e) => handleEntryChange(entry.id!, 'description', e.target.value)}
                                             placeholder="Descripción del asiento"
+                                            disabled={!periodIsDefined}
                                         />
                                     </TableCell>
                                     <TableCell>
@@ -266,6 +307,7 @@ export default function VoucherEditPage() {
                                             className="text-right"
                                             value={entry.debit}
                                             onChange={(e) => handleEntryChange(entry.id!, 'debit', parseFloat(e.target.value) || 0)}
+                                            disabled={!periodIsDefined}
                                         />
                                     </TableCell>
                                     <TableCell>
@@ -274,10 +316,11 @@ export default function VoucherEditPage() {
                                             className="text-right"
                                             value={entry.credit}
                                             onChange={(e) => handleEntryChange(entry.id!, 'credit', parseFloat(e.target.value) || 0)}
+                                            disabled={!periodIsDefined}
                                         />
                                     </TableCell>
                                     <TableCell>
-                                        <Button variant="ghost" size="icon" className="text-destructive" onClick={() => handleRemoveEntry(entry.id!)}>
+                                        <Button variant="ghost" size="icon" className="text-destructive" onClick={() => handleRemoveEntry(entry.id!)} disabled={!periodIsDefined}>
                                             <Trash2 className="h-4 w-4" />
                                         </Button>
                                     </TableCell>
@@ -294,7 +337,7 @@ export default function VoucherEditPage() {
                         <TableFooter>
                             <TableRow>
                                 <TableCell colSpan={2}>
-                                     <Button size="sm" variant="outline" className="gap-1" onClick={handleAddEntry}>
+                                     <Button size="sm" variant="outline" className="gap-1" onClick={handleAddEntry} disabled={!periodIsDefined}>
                                         <PlusCircle className="h-4 w-4" />
                                         Agregar Línea
                                     </Button>
