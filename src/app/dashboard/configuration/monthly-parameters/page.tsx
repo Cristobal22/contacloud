@@ -1,3 +1,4 @@
+
 'use client';
 import {
     Card,
@@ -5,23 +6,25 @@ import {
     CardDescription,
     CardHeader,
     CardTitle,
-    CardFooter
   } from "@/components/ui/card"
   import { Input } from "@/components/ui/input"
   import { Label } from "@/components/ui/label"
   import { Button } from "@/components/ui/button"
   import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
   import React from "react";
-  import { useCollection, useFirestore } from "@/firebase";
+  import { useCollection, useFirestore, useDoc } from "@/firebase";
   import type { EconomicIndicator } from "@/lib/types";
-  import { doc, setDoc, collection, query, where, getDocs, writeBatch } from "firebase/firestore";
+  import { doc, setDoc } from "firebase/firestore";
   import { useToast } from "@/hooks/use-toast";
   import { errorEmitter } from "@/firebase/error-emitter";
   import { FirestorePermissionError } from "@/firebase/errors";
-  import { initialEconomicIndicators } from "@/lib/seed-data";
   import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+  import { SelectedCompanyContext } from "../../layout";
+  import { cn } from "@/lib/utils";
 
   export default function MonthlyParametersPage() {
+    const { selectedCompany } = React.useContext(SelectedCompanyContext) || {};
+    const companyId = selectedCompany?.id;
     const firestore = useFirestore();
     const { toast } = useToast();
     const currentYear = new Date().getFullYear();
@@ -31,34 +34,56 @@ import {
     const [month, setMonth] = React.useState(currentMonth);
     const [indicator, setIndicator] = React.useState<Partial<EconomicIndicator>>({});
     const [isLoading, setIsLoading] = React.useState(false);
+    const [isCompanySpecific, setIsCompanySpecific] = React.useState(false);
     
-    const collectionRef = React.useMemo(() => firestore ? collection(firestore, 'system-parameters/economic-indicators') : null, [firestore]);
-    const {data: allIndicators, loading: allIndicatorsLoading} = useCollection<EconomicIndicator>({ query: collectionRef as any });
+    const indicatorId = `${year}-${month.toString().padStart(2, '0')}`;
+
+    // Reference to the global (system) parameter
+    const globalIndicatorRef = React.useMemo(() => 
+        firestore ? doc(firestore, `system-parameters/economic-indicators/${indicatorId}`) : null,
+    [firestore, indicatorId]);
+    const { data: globalIndicator } = useDoc<EconomicIndicator>(globalIndicatorRef);
+
+    // Reference to the company-specific override
+    const companyIndicatorRef = React.useMemo(() =>
+        firestore && companyId ? doc(firestore, `companies/${companyId}/economic-indicators/${indicatorId}`) : null,
+    [firestore, companyId, indicatorId]);
+    const { data: companyIndicator } = useDoc<EconomicIndicator>(companyIndicatorRef);
+
+    // List all company-specific indicators for the history table
+    const { data: companyOverrides } = useCollection<EconomicIndicator>({
+        path: `companies/${companyId}/economic-indicators`,
+        companyId: companyId
+    });
 
     React.useEffect(() => {
-      const fetchIndicator = async () => {
-          if (!collectionRef) return;
-          setIsLoading(true);
-          const id = `${year}-${month.toString().padStart(2, '0')}`;
-          
-          const q = query(collectionRef, where('id', '==', id));
-          const snapshot = await getDocs(q);
-
-          if (!snapshot.empty) {
-              const docData = snapshot.docs[0].data() as EconomicIndicator;
-              setIndicator(docData);
-          } else {
-              setIndicator({ id, year, month });
-          }
-          setIsLoading(false);
+      setIsLoading(true);
+      // Prioritize company-specific indicator
+      if (companyIndicator) {
+          setIndicator(companyIndicator);
+          setIsCompanySpecific(true);
+      } 
+      // Fallback to global indicator
+      else if (globalIndicator) {
+          setIndicator(globalIndicator);
+          setIsCompanySpecific(false);
+      } 
+      // If neither exists, reset to a blank state for the selected period
+      else {
+          setIndicator({ id: indicatorId, year, month });
+          setIsCompanySpecific(false);
       }
-      fetchIndicator();
-    }, [year, month, collectionRef]);
+      setIsLoading(false);
+    }, [year, month, globalIndicator, companyIndicator, indicatorId]);
+
 
     const handleSave = async () => {
-        if (!firestore || !indicator.id) return;
+        if (!firestore || !companyId || !indicator.id) return;
+        
         setIsLoading(true);
-        const docRef = doc(firestore, 'system-parameters/economic-indicators', indicator.id);
+        // Always save to the company-specific path
+        const docRef = doc(firestore, `companies/${companyId}/economic-indicators`, indicator.id);
+        
         const dataToSave: Partial<EconomicIndicator> = {
             ...indicator,
             year: Number(year),
@@ -72,9 +97,9 @@ import {
 
         try {
             await setDoc(docRef, dataToSave, { merge: true });
-            toast({ title: 'Parámetros Guardados', description: 'Los valores se han guardado exitosamente.' });
+            toast({ title: 'Parámetros Guardados', description: 'Los valores personalizados para esta empresa han sido guardados.' });
         } catch (error) {
-            console.error("Error saving indicators", error);
+            console.error("Error saving company-specific indicators", error);
             errorEmitter.emit('permission-error', new FirestorePermissionError({
                 path: docRef.path,
                 operation: 'update',
@@ -85,32 +110,6 @@ import {
         }
     };
 
-    const handleSeedData = async () => {
-        if (!firestore) return;
-        const collectionPath = `system-parameters/economic-indicators`;
-        const batch = writeBatch(firestore);
-        
-        initialEconomicIndicators.forEach(indicatorData => {
-            const docId = `${indicatorData.year}-${indicatorData.month.toString().padStart(2, '0')}`;
-            const docRef = doc(firestore, collectionPath, docId);
-            batch.set(docRef, { ...indicatorData, id: docId });
-        });
-
-        try {
-            await batch.commit();
-            toast({
-                title: "Datos Históricos Cargados",
-                description: "Los indicadores económicos desde 2020 han sido poblados.",
-            });
-        } catch (error) {
-            console.error("Error seeding economic indicators: ", error);
-             errorEmitter.emit('permission-error', new FirestorePermissionError({
-                path: collectionPath,
-                operation: 'create',
-            }));
-        }
-    }
-
     const handleFieldChange = (field: keyof EconomicIndicator, value: string) => {
         setIndicator(prev => ({ ...prev, [field]: value }));
     };
@@ -120,14 +119,16 @@ import {
         <Card>
           <CardHeader>
             <CardTitle>Parámetros Económicos Mensuales</CardTitle>
-            <CardDescription>Gestiona los parámetros mensuales para los cálculos contables y de remuneraciones (ej. UTM, UF).</CardDescription>
+            <CardDescription>
+                Gestiona los parámetros para los cálculos. Los valores guardados aquí son específicos para la empresa <span className="font-bold">{selectedCompany?.name || ''}</span>.
+            </CardDescription>
           </CardHeader>
           <CardContent>
               <form className="grid gap-6">
                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                        <div className="space-y-2">
                           <Label htmlFor="month">Mes</Label>
-                          <Select value={month.toString()} onValueChange={val => setMonth(Number(val))}>
+                          <Select value={month.toString()} onValueChange={val => setMonth(Number(val))} disabled={!companyId}>
                               <SelectTrigger id="month">
                                   <SelectValue />
                               </SelectTrigger>
@@ -142,7 +143,7 @@ import {
                       </div>
                       <div className="space-y-2">
                           <Label htmlFor="year">Año</Label>
-                          <Select value={year.toString()} onValueChange={val => setYear(Number(val))}>
+                          <Select value={year.toString()} onValueChange={val => setYear(Number(val))} disabled={!companyId}>
                               <SelectTrigger id="year">
                                   <SelectValue />
                               </SelectTrigger>
@@ -159,20 +160,23 @@ import {
                    <div className="grid gap-6 md:grid-cols-3">
                       <div className="space-y-2">
                           <Label htmlFor="uf">Valor UF (último día del mes)</Label>
-                          <Input id="uf" type="number" placeholder="Ingresa el valor de la UF" value={indicator.uf || ''} onChange={e => handleFieldChange('uf', e.target.value)} />
+                          <Input id="uf" type="number" placeholder="Ingresa el valor de la UF" value={indicator.uf || ''} onChange={e => handleFieldChange('uf', e.target.value)} disabled={!companyId} />
                       </div>
                       <div className="space-y-2">
                           <Label htmlFor="utm">Valor UTM</Label>
-                          <Input id="utm" type="number" placeholder="Ingresa el valor de la UTM" value={indicator.utm || ''} onChange={e => handleFieldChange('utm', e.target.value)} />
+                          <Input id="utm" type="number" placeholder="Ingresa el valor de la UTM" value={indicator.utm || ''} onChange={e => handleFieldChange('utm', e.target.value)} disabled={!companyId} />
                       </div>
                       <div className="space-y-2">
                           <Label htmlFor="sueldo-minimo">Sueldo Mínimo</Label>
-                          <Input id="sueldo-minimo" type="number" placeholder="Ingresa el sueldo mínimo" value={indicator.minWage || ''} onChange={e => handleFieldChange('minWage', e.target.value)} />
+                          <Input id="sueldo-minimo" type="number" placeholder="Ingresa el sueldo mínimo" value={indicator.minWage || ''} onChange={e => handleFieldChange('minWage', e.target.value)} disabled={!companyId} />
                       </div>
                   </div>
+                  {isCompanySpecific && (
+                      <p className="text-sm text-blue-600">Estás viendo valores personalizados para esta empresa.</p>
+                  )}
                    <div className="flex justify-end">
-                      <Button onClick={handleSave} disabled={isLoading}>
-                          {isLoading ? 'Guardando...' : 'Guardar Parámetros'}
+                      <Button onClick={handleSave} disabled={isLoading || !companyId}>
+                          {isLoading ? 'Guardando...' : 'Guardar para esta Empresa'}
                       </Button>
                   </div>
               </form>
@@ -180,14 +184,9 @@ import {
         </Card>
         <Card>
             <CardHeader>
-                <div className="flex items-center justify-between">
-                    <div>
-                        <CardTitle>Historial de Indicadores</CardTitle>
-                        <CardDescription>Valores guardados para referencia futura.</CardDescription>
-                    </div>
-                     {(!allIndicators || allIndicators.length === 0) && !allIndicatorsLoading && (
-                        <Button size="sm" onClick={handleSeedData}>Poblar Datos Históricos (2020-hoy)</Button>
-                    )}
+                <div>
+                    <CardTitle>Historial de Parámetros Personalizados</CardTitle>
+                    <CardDescription>Valores específicos guardados para la empresa <span className="font-bold">{selectedCompany?.name || ''}</span>.</CardDescription>
                 </div>
             </CardHeader>
             <CardContent>
@@ -201,19 +200,19 @@ import {
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {allIndicatorsLoading ? (
+                        {isLoading ? (
                             <TableRow><TableCell colSpan={4} className="text-center">Cargando historial...</TableCell></TableRow>
-                        ) : allIndicators && allIndicators.length > 0 ? (
-                           allIndicators.sort((a,b) => b.id.localeCompare(a.id)).map(ind => (
-                               <TableRow key={ind.id}>
-                                   <TableCell>{ind.year}-{ind.month}</TableCell>
+                        ) : companyOverrides && companyOverrides.length > 0 ? (
+                           companyOverrides.sort((a,b) => b.id.localeCompare(a.id)).map(ind => (
+                               <TableRow key={ind.id} className={cn(ind.id === indicatorId && "bg-blue-100")}>
+                                   <TableCell>{ind.year}-{ind.month.toString().padStart(2, '0')}</TableCell>
                                    <TableCell className="text-right">${ind.uf?.toLocaleString('es-CL', {minimumFractionDigits: 2})}</TableCell>
                                    <TableCell className="text-right">${ind.utm?.toLocaleString('es-CL')}</TableCell>
                                    <TableCell className="text-right">${ind.minWage?.toLocaleString('es-CL')}</TableCell>
                                </TableRow>
                            ))
                         ) : (
-                             <TableRow><TableCell colSpan={4} className="text-center">No hay datos históricos. Puedes poblarlos con el botón de arriba.</TableCell></TableRow>
+                             <TableRow><TableCell colSpan={4} className="text-center">No hay valores personalizados para esta empresa.</TableCell></TableRow>
                         )}
                     </TableBody>
                 </Table>
@@ -222,4 +221,3 @@ import {
       </div>
     )
   }
-  

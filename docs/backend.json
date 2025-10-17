@@ -360,6 +360,10 @@
             "schema": { "$ref": "#/entities/Fee" },
             "description": "Sub-collection of fee documents for a specific company."
         },
+        "/companies/{companyId}/economic-indicators/{indicatorId}": {
+            "schema": { "$ref": "#/entities/EconomicIndicator" },
+            "description": "Company-specific overrides for monthly economic indicators."
+        },
         "/users/{userId}/account-groups": {
             "schema": { "$ref": "#/entities/AccountGroup" },
             "description": "User-specific collection of account groups."
