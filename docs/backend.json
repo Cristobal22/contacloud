@@ -11,6 +11,7 @@
                 "displayName": { "type": "string", "description": "The user's display name." },
                 "photoURL": { "type": "string", "description": "URL of the user's profile picture." },
                 "role": { "type": "string", "enum": ["Admin", "Accountant"], "description": "The role of the user within the application." },
+                "plan": { "type": "string", "description": "The subscription plan of the user." },
                 "password": { "type": "string", "description": "The user's password, only used for creation." },
                 "companyIds": {
                     "type": "array",
@@ -49,6 +50,7 @@
                 "startYear": { "type": "number" },
                 "periodStartDate": { "type": "string", "format": "date" },
                 "periodEndDate": { "type": "string", "format": "date" },
+                "lastClosedDate": { "type": "string", "format": "date" },
                 "profitAccount": { "type": "string" },
                 "lossAccount": { "type": "string" },
                 "salesInvoicesReceivableAccount": { "type": "string" },
@@ -59,6 +61,7 @@
                 "purchasesInvoicesPayableAccount": { "type": "string" },
                 "purchasesNotesPayableAccount": { "type": "string" },
                 "purchasesVatAccount": { "type": "string" },
+                "vatRemanentAccount": { "type": "string", "description": "Cuenta para el remanente de crédito fiscal." },
                 "purchasesOtherTaxesAccount": { "type": "string" },
                 "feesPayableAccount": { "type": "string" },
                 "feesWithholdingAccount": { "type": "string" },
@@ -200,7 +203,9 @@
                 "month": { "type": "number" },
                 "baseSalary": { "type": "number" },
                 "gratification": { "type": "number" },
-                "otherEarnings": { "type": "number" },
+                "taxableEarnings": { "type": "number" },
+                "nonTaxableEarnings": { "type": "number" },
+                "otherTaxableEarnings": { "type": "number" },
                 "totalEarnings": { "type": "number" },
                 "afpDiscount": { "type": "number" },
                 "healthDiscount": { "type": "number" },
@@ -438,5 +443,3 @@
         "providers": ["google.com", "password"]
     }
 }
-
-    

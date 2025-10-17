@@ -47,6 +47,7 @@ export type Company = {
   purchasesInvoicesPayableAccount?: string;
   purchasesNotesPayableAccount?: string;
   purchasesVatAccount?: string;
+  vatRemanentAccount?: string;
   purchasesOtherTaxesAccount?: string;
   feesPayableAccount?: string;
   feesWithholdingAccount?: string;

@@ -139,7 +139,7 @@ export default function CompanySettingsPage() {
 
                 {/* Cuentas */}
                 <div className="space-y-4">
-                    <h3 className="text-lg font-medium">Cuentas</h3>
+                    <h3 className="text-lg font-medium">Cuentas Contables Principales</h3>
                     <AccountSearchInput 
                         label="Cuenta de Ganancia" 
                         value={company.profitAccount || ''} 
@@ -154,6 +154,36 @@ export default function CompanySettingsPage() {
                         loading={accountsLoading}
                         onValueChange={(value) => handleInputChange('lossAccount', value)}
                     />
+                </div>
+
+                 {/* Impuestos (IVA) */}
+                <div className="space-y-4">
+                    <h3 className="text-lg font-medium">Impuestos (IVA)</h3>
+                    <AccountSearchInput 
+                        label="IVA Débito Fiscal (Ventas)" 
+                        value={company.salesVatAccount || ''} 
+                        accounts={accounts || []} 
+                        loading={accountsLoading}
+                        onValueChange={(value) => handleInputChange('salesVatAccount', value)}
+                    />
+                     <AccountSearchInput 
+                        label="IVA Crédito Fiscal (Compras)" 
+                        value={company.purchasesVatAccount || ''} 
+                        accounts={accounts || []} 
+                        loading={accountsLoading}
+                        onValueChange={(value) => handleInputChange('purchasesVatAccount', value)}
+                    />
+                     <AccountSearchInput 
+                        label="IVA Remanente Crédito (Arrastre)" 
+                        value={company.vatRemanentAccount || ''} 
+                        accounts={accounts || []} 
+                        loading={accountsLoading}
+                        onValueChange={(value) => handleInputChange('vatRemanentAccount', value)}
+                    />
+                     <div className="flex items-center space-x-2 pt-2">
+                        <Checkbox id="proportionalVat" checked={!!company.proportionalVat} onCheckedChange={(checked) => handleCheckboxChange('proportionalVat', !!checked)} />
+                        <Label htmlFor="proportionalVat">Utiliza IVA Proporcional</Label>
+                    </div>
                 </div>
 
                 {/* Ventas */}
@@ -173,15 +203,8 @@ export default function CompanySettingsPage() {
                         loading={accountsLoading}
                         onValueChange={(value) => handleInputChange('salesNotesReceivableAccount', value)}
                     />
-                     <AccountSearchInput 
-                        label="Cuenta de IVA" 
-                        value={company.salesVatAccount || ''} 
-                        accounts={accounts || []} 
-                        loading={accountsLoading}
-                        onValueChange={(value) => handleInputChange('salesVatAccount', value)}
-                    />
                     <AccountSearchInput 
-                        label="Otros Impuestos" 
+                        label="Otros Impuestos de Venta" 
                         value={company.salesOtherTaxesAccount || ''} 
                         accounts={accounts || []} 
                         loading={accountsLoading}
@@ -192,10 +215,6 @@ export default function CompanySettingsPage() {
                  {/* Compras */}
                  <div className="space-y-4">
                     <h3 className="text-lg font-medium">Compras</h3>
-                     <div className="flex items-center space-x-2">
-                        <Checkbox id="proportionalVat" checked={!!company.proportionalVat} onCheckedChange={(checked) => handleCheckboxChange('proportionalVat', !!checked)} />
-                        <Label htmlFor="proportionalVat">IVA Proporcional</Label>
-                    </div>
                     <AccountSearchInput 
                         label="Facturas por Pagar" 
                         value={company.purchasesInvoicesPayableAccount || ''} 
@@ -210,15 +229,8 @@ export default function CompanySettingsPage() {
                         loading={accountsLoading}
                         onValueChange={(value) => handleInputChange('purchasesNotesPayableAccount', value)}
                     />
-                     <AccountSearchInput 
-                        label="Cuenta de IVA" 
-                        value={company.purchasesVatAccount || ''} 
-                        accounts={accounts || []} 
-                        loading={accountsLoading}
-                        onValueChange={(value) => handleInputChange('purchasesVatAccount', value)}
-                    />
                     <AccountSearchInput 
-                        label="Otros Impuestos" 
+                        label="Otros Impuestos de Compra" 
                         value={company.purchasesOtherTaxesAccount || ''} 
                         accounts={accounts || []} 
                         loading={accountsLoading}
