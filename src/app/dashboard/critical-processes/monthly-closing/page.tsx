@@ -28,8 +28,7 @@ import { es } from "date-fns/locale";
     const [isProcessing, setIsProcessing] = React.useState(false);
 
     const periodEndDate = selectedCompany?.periodEndDate;
-    // The ability to close should depend on having a company selected, not just the end date.
-    // The logic inside will handle cases where the date isn't set.
+    // The ability to close should depend on having a company selected.
     const canAttemptClose = !!selectedCompany;
 
     const handleClosePeriod = async () => {
@@ -37,7 +36,7 @@ import { es } from "date-fns/locale";
              toast({
                 variant: "destructive",
                 title: "Error",
-                description: "No se puede cerrar el período porque no hay una fecha de finalización definida para la empresa.",
+                description: "No se puede cerrar el período porque no hay una fecha de finalización definida para el período de trabajo actual de la empresa.",
             });
             return;
         }
@@ -90,7 +89,7 @@ import { es } from "date-fns/locale";
                 </p>
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
-                    <Button variant="destructive" disabled={!canAttemptClose || isProcessing}>
+                    <Button variant="destructive" disabled={!canAttemptClose || isProcessing || !periodEndDate}>
                         {isProcessing ? "Procesando..." : `Ejecutar Cierre para ${formattedPeriod}`}
                     </Button>
                   </AlertDialogTrigger>
@@ -122,3 +121,4 @@ import { es } from "date-fns/locale";
     )
   }
   
+
