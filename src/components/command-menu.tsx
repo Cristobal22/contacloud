@@ -1,13 +1,19 @@
 "use client"
 
 import * as React from "react"
+import { useRouter } from "next/navigation"
 import {
+  BookCopy,
+  Building,
   Calculator,
   Calendar,
   CreditCard,
+  FileText,
+  Home,
+  Scale,
   Settings,
-  Smile,
   User,
+  Users,
 } from "lucide-react"
 
 import {
@@ -18,11 +24,32 @@ import {
   CommandItem,
   CommandList,
   CommandSeparator,
-  CommandShortcut,
 } from "@/components/ui/command"
+import { useCollection, useFirestore, useUser } from "@/firebase"
+import { useUserProfile } from "@/firebase/auth/use-user-profile"
+import type { Account, Company, Employee } from "@/lib/types"
+import { SelectedCompanyContext } from "@/app/dashboard/layout"
+import { collection, query, where, documentId, Query } from "firebase/firestore"
 
 export function CommandMenu() {
+  const router = useRouter()
   const [open, setOpen] = React.useState(false)
+  const { user } = useUser()
+  const { userProfile } = useUserProfile(user?.uid)
+  const firestore = useFirestore();
+  const { selectedCompany, setSelectedCompany } = React.useContext(SelectedCompanyContext) || {};
+  const companyId = selectedCompany?.id;
+
+  const companiesQuery = React.useMemo(() => {
+    if (!firestore || !userProfile || userProfile.role !== 'Accountant' || !userProfile.companyIds || userProfile.companyIds.length === 0) {
+        return null;
+    }
+    return query(collection(firestore, 'companies'), where(documentId(), 'in', userProfile.companyIds.slice(0, 30))) as Query<Company>;
+  }, [firestore, userProfile]);
+
+  const { data: companies } = useCollection<Company>({ query: companiesQuery, disabled: !companiesQuery });
+  const { data: accounts } = useCollection<Account>({ path: companyId ? `companies/${companyId}/accounts` : undefined });
+  const { data: employees } = useCollection<Employee>({ path: companyId ? `companies/${companyId}/employees` : undefined });
 
   React.useEffect(() => {
     const down = (e: KeyboardEvent) => {
@@ -36,41 +63,79 @@ export function CommandMenu() {
     return () => document.removeEventListener("keydown", down)
   }, [])
 
+  const runCommand = React.useCallback((command: () => unknown) => {
+    setOpen(false)
+    command()
+  }, [])
+
   return (
     <CommandDialog open={open} onOpenChange={setOpen}>
-      <CommandInput placeholder="Type a command or search..." />
+      <CommandInput placeholder="Escribe un comando o busca..." />
       <CommandList>
-        <CommandEmpty>No results found.</CommandEmpty>
-        <CommandGroup heading="Suggestions">
-          <CommandItem>
-            <Calendar className="mr-2 h-4 w-4" />
-            <span>Calendar</span>
-          </CommandItem>
-          <CommandItem>
-            <Smile className="mr-2 h-4 w-4" />
-            <span>Search Emoji</span>
-          </CommandItem>
-          <CommandItem>
-            <Calculator className="mr-2 h-4 w-4" />
-            <span>Calculator</span>
-          </CommandItem>
+        <CommandEmpty>No se encontraron resultados.</CommandEmpty>
+        <CommandGroup heading="Navegación">
+          <CommandItem onSelect={() => runCommand(() => router.push('/dashboard'))}><Home className="mr-2 h-4 w-4" />Dashboard</CommandItem>
+          <CommandItem onSelect={() => runCommand(() => router.push('/dashboard/vouchers'))}><FileText className="mr-2 h-4 w-4" />Comprobantes</CommandItem>
+          <CommandItem onSelect={() => runCommand(() => router.push('/dashboard/accounts'))}><BookCopy className="mr-2 h-4 w-4" />Plan de Cuentas</CommandItem>
+          <CommandItem onSelect={() => runCommand(() => router.push('/dashboard/employees'))}><Users className="mr-2 h-4 w-4" />Personal</CommandItem>
+          <CommandItem onSelect={() => runCommand(() => router.push('/dashboard/balances'))}><Scale className="mr-2 h-4 w-4" />Balances</CommandItem>
         </CommandGroup>
+        
+        {companies && companies.length > 0 && (
+          <>
+            <CommandSeparator />
+            <CommandGroup heading="Empresas">
+              {companies.map(company => (
+                <CommandItem key={company.id} onSelect={() => {
+                    if(setSelectedCompany) {
+                        runCommand(() => setSelectedCompany(company))
+                    }
+                }}>
+                  <Building className="mr-2 h-4 w-4" />
+                  {company.name}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </>
+        )}
+
+        {accounts && accounts.length > 0 && (
+          <>
+            <CommandSeparator />
+            <CommandGroup heading="Cuentas Contables">
+               {accounts.map(account => (
+                <CommandItem key={account.id} onSelect={() => runCommand(() => router.push('/dashboard/accounts'))}>
+                  <BookCopy className="mr-2 h-4 w-4" />
+                  {account.code} - {account.name}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </>
+        )}
+
+         {employees && employees.length > 0 && (
+          <>
+            <CommandSeparator />
+            <CommandGroup heading="Personal">
+               {employees.map(employee => (
+                <CommandItem key={employee.id} onSelect={() => runCommand(() => router.push(`/dashboard/employees/edit/${employee.id}`))}>
+                  <User className="mr-2 h-4 w-4" />
+                  {employee.firstName} {employee.lastName}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </>
+        )}
+
         <CommandSeparator />
-        <CommandGroup heading="Settings">
-          <CommandItem>
-            <User className="mr-2 h-4 w-4" />
-            <span>Profile</span>
-            <CommandShortcut>⌘P</CommandShortcut>
-          </CommandItem>
-          <CommandItem>
-            <CreditCard className="mr-2 h-4 w-4" />
-            <span>Billing</span>
-            <CommandShortcut>⌘B</CommandShortcut>
-          </CommandItem>
-          <CommandItem>
+        <CommandGroup heading="Ajustes">
+          <CommandItem onSelect={() => runCommand(() => router.push('/dashboard/settings'))}>
             <Settings className="mr-2 h-4 w-4" />
             <span>Settings</span>
-            <CommandShortcut>⌘S</CommandShortcut>
+          </CommandItem>
+          <CommandItem onSelect={() => runCommand(() => router.push('/dashboard/billing'))}>
+            <CreditCard className="mr-2 h-4 w-4" />
+            <span>Billing</span>
           </CommandItem>
         </CommandGroup>
       </CommandList>
