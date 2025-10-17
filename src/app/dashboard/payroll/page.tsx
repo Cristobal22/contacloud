@@ -17,17 +17,11 @@ import {
     CardTitle,
   } from "@/components/ui/card"
   import { Button } from "@/components/ui/button"
-  import { MoreHorizontal, PlusCircle } from "lucide-react"
-  import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuLabel,
-    DropdownMenuTrigger,
-  } from "@/components/ui/dropdown-menu"
+  import { Eye } from "lucide-react"
   import { useCollection, useUser } from '@/firebase';
   import type { Employee, AfpEntity, HealthEntity } from '@/lib/types';
 import { SelectedCompanyContext } from '../layout';
+import { useToast } from '@/hooks/use-toast';
 
   type SimulatedPayroll = {
       id: string;
@@ -42,6 +36,7 @@ export default function PayrollPage() {
     const { selectedCompany } = React.useContext(SelectedCompanyContext) || {};
     const companyId = selectedCompany?.id;
     const { user } = useUser();
+    const { toast } = useToast();
 
     const { data: employees, loading: employeesLoading } = useCollection<Employee>({ 
       path: `companies/${companyId}/employees`,
@@ -49,10 +44,10 @@ export default function PayrollPage() {
     });
 
     const { data: afpEntities, loading: afpLoading } = useCollection<AfpEntity>({
-        path: user ? `users/${user.uid}/afp-entities` : undefined
+        path: user ? `system-parameters/afp-entities` : undefined
     });
     const { data: healthEntities, loading: healthLoading } = useCollection<HealthEntity>({
-        path: user ? `users/${user.uid}/health-entities` : undefined
+        path: user ? `system-parameters/health-entities` : undefined
     });
 
     const loading = employeesLoading || afpLoading || healthLoading;
@@ -88,6 +83,13 @@ export default function PayrollPage() {
             };
         });
     }, [employees, afpEntities, healthEntities]);
+    
+    const handleViewDetails = () => {
+        toast({
+            title: "Función en desarrollo",
+            description: "La vista detallada de la liquidación aún no está implementada.",
+        });
+    }
 
 
     return (
@@ -95,13 +97,9 @@ export default function PayrollPage() {
             <CardHeader>
                 <div className="flex items-center justify-between">
                     <div>
-                        <CardTitle>Liquidaciones de Sueldo</CardTitle>
-                        <CardDescription>Consulta y gestiona las liquidaciones de sueldo de la empresa.</CardDescription>
+                        <CardTitle>Simulación de Liquidaciones</CardTitle>
+                        <CardDescription>Visualiza una simulación de las liquidaciones de sueldo para el período actual.</CardDescription>
                     </div>
-                    <Button size="sm" className="gap-1" disabled={!companyId}>
-                        <PlusCircle className="h-4 w-4" />
-                        Procesar Nuevas Liquidaciones
-                    </Button>
                 </div>
             </CardHeader>
             <CardContent>
@@ -111,17 +109,15 @@ export default function PayrollPage() {
                     <TableHead>Empleado</TableHead>
                     <TableHead>Período</TableHead>
                     <TableHead className="text-right">Sueldo Base</TableHead>
-                    <TableHead className="text-right">Descuentos</TableHead>
-                    <TableHead className="text-right font-bold">Sueldo Líquido</TableHead>
-                    <TableHead>
-                    <span className="sr-only">Acciones</span>
-                    </TableHead>
+                    <TableHead className="text-right">Descuentos Legales</TableHead>
+                    <TableHead className="text-right font-bold">Sueldo Líquido (Estimado)</TableHead>
+                    <TableHead className="text-center">Acciones</TableHead>
                 </TableRow>
                 </TableHeader>
                 <TableBody>
                 {loading && (
                     <TableRow>
-                        <TableCell colSpan={6} className="text-center">Cargando liquidaciones...</TableCell>
+                        <TableCell colSpan={6} className="text-center">Cargando simulaciones...</TableCell>
                     </TableRow>
                 )}
                 {!loading && simulatedPayrolls.map((payroll) => (
@@ -131,21 +127,11 @@ export default function PayrollPage() {
                     <TableCell className="text-right">${Math.round(payroll.baseSalary).toLocaleString('es-CL')}</TableCell>
                     <TableCell className="text-right text-destructive">-${Math.round(payroll.discounts).toLocaleString('es-CL')}</TableCell>
                     <TableCell className="text-right font-bold">${Math.round(payroll.netSalary).toLocaleString('es-CL')}</TableCell>
-                    <TableCell>
-                        <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                            <Button aria-haspopup="true" size="icon" variant="ghost">
-                            <MoreHorizontal className="h-4 w-4" />
-                            <span className="sr-only">Toggle menu</span>
-                            </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                            <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-                            <DropdownMenuItem>Ver Detalle</DropdownMenuItem>
-                            <DropdownMenuItem>Descargar Liquidación</DropdownMenuItem>
-                            <DropdownMenuItem className="text-destructive">Anular</DropdownMenuItem>
-                        </DropdownMenuContent>
-                        </DropdownMenu>
+                    <TableCell className="text-center">
+                        <Button variant="outline" size="sm" onClick={handleViewDetails}>
+                            <Eye className="h-4 w-4 mr-2"/>
+                            Ver Detalle
+                        </Button>
                     </TableCell>
                     </TableRow>
                 ))}
