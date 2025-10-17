@@ -61,15 +61,16 @@ import {
   import { cn } from '@/lib/utils';
 
   const getIndentation = (code: string) => {
-    const parts = code.split('.');
-    if (parts.length <= 1) return 0;
-    return (parts.length - 1) * 20; // 20px per level
+    if (code.length <= 1) return 0; // Clase
+    if (code.length === 3) return 1 * 20; // Grupo
+    if (code.length === 5) return 2 * 20; // Subgrupo
+    if (code.length > 5) return 3 * 20; // Cuenta
+    return 0;
   };
 
   const isGroupAccount = (code: string) => {
-      const parts = code.split('.');
-      // A group account might be one with fewer than 3 parts, or one ending in .000 or similar
-      return parts.length < 3 || (parts.length === 3 && parts[2] === '00');
+      // Clase, Grupo, o Subgrupo
+      return code.length <= 5;
   }
 
   export default function AccountsPage() {

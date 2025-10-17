@@ -1,3 +1,4 @@
+
 'use client'
 import * as React from "react"
 import { Check, ChevronsUpDown } from "lucide-react"
@@ -28,14 +29,14 @@ interface AccountSearchInputProps {
     loading: boolean;
 }
 
+const isGroupAccount = (code: string) => {
+    // Clase, Grupo, o Subgrupo
+    return code.length <= 5;
+}
+
 export function AccountSearchInput({ label, value, onValueChange, accounts, loading }: AccountSearchInputProps) {
   const [open, setOpen] = React.useState(false)
   const selectedAccount = accounts.find((account) => account.code === value)
-
-  const isGroupAccount = (code: string) => {
-      const parts = code.split('.');
-      return parts.length < 3;
-  }
 
   const popoverContent = (
       <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
@@ -44,10 +45,10 @@ export function AccountSearchInput({ label, value, onValueChange, accounts, load
               <CommandList>
                   <CommandEmpty>No se encontró ninguna cuenta.</CommandEmpty>
                   <CommandGroup>
-                      {accounts.filter(acc => !acc.code.includes('.')).map((group) => (
+                      {accounts.filter(acc => acc.code.length === 1).map((group) => (
                            <React.Fragment key={group.code}>
                             <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">{group.name}</div>
-                            {accounts.filter(acc => acc.code.startsWith(group.code + '.') && !isGroupAccount(acc.code)).map(account => (
+                            {accounts.filter(acc => acc.code.startsWith(group.code) && acc.code !== group.code && !isGroupAccount(acc.code)).map(account => (
                                 <CommandItem
                                     key={account.id}
                                     value={`${account.code} ${account.name}`}
