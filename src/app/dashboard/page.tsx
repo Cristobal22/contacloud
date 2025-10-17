@@ -18,14 +18,28 @@ import {
   } from "@/components/ui/table"
   import { Badge } from "@/components/ui/badge"
   import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis } from "recharts"
-  import { useCollection } from "@/firebase"
+  import { useCollection, useFirestore } from "@/firebase"
   import type { Account, Company, Voucher } from "@/lib/types"
   import { useUser } from "@/firebase"
   import { useUserProfile } from "@/firebase/auth/use-user-profile"
   import UserManagement from "@/components/admin/user-management"
 import { SelectedCompanyContext } from "./layout"
+import { collection, query, where, documentId, Query } from "firebase/firestore"
   
 function AccountantDashboardContent({ companyId }: { companyId: string }) {
+    const firestore = useFirestore();
+    const { user } = useUser();
+    const { userProfile, loading: profileLoading } = useUserProfile(user?.uid);
+
+    const companiesQuery = React.useMemo(() => {
+        if (!firestore || !userProfile || userProfile.role !== 'Accountant' || !userProfile.companyIds || userProfile.companyIds.length === 0) {
+            return null;
+        }
+        return query(collection(firestore, 'companies'), where(documentId(), 'in', userProfile.companyIds.slice(0, 30))) as Query<Company>;
+    }, [firestore, userProfile]);
+
+    const { data: companies, loading: companiesLoading } = useCollection<Company>({ query: companiesQuery });
+    
     const { data: accounts, loading: accountsLoading } = useCollection<Account>({
         path: `companies/${companyId}/accounts`,
         companyId,
@@ -34,9 +48,8 @@ function AccountantDashboardContent({ companyId }: { companyId: string }) {
         path: `companies/${companyId}/vouchers`,
         companyId,
     });
-     const { data: companies, loading: companiesLoading } = useCollection<Company>({ path: 'companies'});
 
-    const loading = accountsLoading || vouchersLoading || companiesLoading;
+    const loading = accountsLoading || vouchersLoading || companiesLoading || profileLoading;
 
 
     const calculatedBalances = React.useMemo(() => {
