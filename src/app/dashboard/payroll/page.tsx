@@ -49,7 +49,7 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { es } from 'date-fns/locale';
-import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 
 export default function PayrollPage() {
     const { selectedCompany } = React.useContext(SelectedCompanyContext) || {};
@@ -69,6 +69,18 @@ export default function PayrollPage() {
     const [year, setYear] = React.useState(currentYear);
     const [month, setMonth] = React.useState(currentMonth);
 
+    React.useEffect(() => {
+        if (selectedCompany?.periodStartDate) {
+            const startDate = parseISO(selectedCompany.periodStartDate);
+            setYear(startDate.getFullYear());
+            setMonth(startDate.getMonth() + 1);
+        } else {
+            setYear(currentYear);
+            setMonth(currentMonth);
+        }
+    }, [selectedCompany, currentYear, currentMonth]);
+
+
     const { data: employees, loading: employeesLoading } = useCollection<Employee>({ 
       path: companyId ? `companies/${companyId}/employees` : undefined,
       companyId: companyId 
@@ -86,8 +98,19 @@ export default function PayrollPage() {
     const loading = employeesLoading || afpLoading || healthLoading || payrollsLoading || globalIndicatorsLoading || companyIndicatorsLoading;
     
     const handleProcessPayrolls = async () => {
-        if (!employees || !afpEntities || !healthEntities || !companyId || !firestore) {
+        if (!employees || !afpEntities || !healthEntities || !companyId || !firestore || !selectedCompany) {
             toast({ variant: 'destructive', title: 'Faltan datos', description: 'No se pueden procesar las liquidaciones sin empleados o parámetros económicos.'});
+            return;
+        }
+
+        if (!selectedCompany.periodStartDate) {
+            toast({ variant: 'destructive', title: 'Período no definido', description: 'Por favor, define un período de trabajo en la configuración de la empresa antes de procesar.'});
+            return;
+        }
+        
+        const periodStartDate = parseISO(selectedCompany.periodStartDate);
+        if(periodStartDate.getFullYear() !== year || periodStartDate.getMonth() + 1 !== month) {
+             toast({ variant: 'destructive', title: 'Período no coincide', description: 'El período seleccionado no coincide con el período de trabajo activo de la empresa.'});
             return;
         }
 
@@ -215,6 +238,8 @@ export default function PayrollPage() {
         return payrolls?.filter(p => p.year === year && p.month === month) || [];
     }, [payrolls, year, month]);
 
+    const canProcess = companyId && selectedCompany?.periodStartDate;
+
     return (
         <>
              <div className="grid gap-6">
@@ -255,10 +280,15 @@ export default function PayrollPage() {
                                     </Select>
                                 </div>
                             </div>
-                            <Button onClick={handleProcessPayrolls} disabled={loading || isProcessing || !companyId}>
+                            <Button onClick={handleProcessPayrolls} disabled={loading || isProcessing || !canProcess}>
                                 {loading ? 'Cargando...' : isProcessing ? 'Procesando...' : 'Procesar Liquidaciones'}
                             </Button>
                         </div>
+                         {!canProcess && companyId && (
+                            <p className="text-sm text-destructive mt-2">
+                                Por favor, define un período de trabajo en la configuración de la empresa para poder procesar las liquidaciones.
+                            </p>
+                        )}
                     </CardContent>
                 </Card>
 
