@@ -8,6 +8,7 @@ export const UserProfileSchema = z.object({
   displayName: z.string().optional().nullable(),
   photoURL: z.string().optional().nullable(),
   role: z.enum(['Admin', 'Accountant']),
+  plan: z.string().optional(), // "Individual", "Team", "Enterprise"
   companyIds: z.array(z.string()).optional(),
   createdBy: z.string().optional(), // Added to track who created the user
 });

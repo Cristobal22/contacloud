@@ -60,6 +60,11 @@ import {
   import { useToast } from '@/hooks/use-toast';
   import { useUserProfile } from '@/firebase/auth/use-user-profile';
 
+  const planLimits: { [key: string]: number } = {
+    'Individual': 5,
+    'Team': 25,
+    'Enterprise': Infinity,
+  };
   
   export default function CompaniesPage() {
     const firestore = useFirestore();
@@ -100,6 +105,19 @@ import {
     const loading = profileLoading || (userProfile?.role !== 'Admin' && companiesLoading);
 
     const handleCreateNew = () => {
+        const currentPlan = userProfile?.plan || 'Individual';
+        const limit = planLimits[currentPlan] ?? 5;
+        const currentCompanyCount = userProfile?.companyIds?.length || 0;
+
+        if (currentCompanyCount >= limit) {
+            toast({
+                variant: "destructive",
+                title: "Límite de Empresas Alcanzado",
+                description: `Has alcanzado el límite de ${limit} empresas para tu plan actual. Considera mejorar tu plan.`,
+            });
+            return;
+        }
+
         setSelectedCompanyLocal({ id: `new-${Date.now()}`, name: '', rut: '', address: '', giro: '', active: true, ownerId: user?.uid });
         setIsFormOpen(true);
     };
@@ -140,9 +158,24 @@ import {
     };
 
     const handleSave = async () => {
-        if (!firestore || !user || !selectedCompanyLocal) return;
+        if (!firestore || !user || !selectedCompanyLocal || !userProfile) return;
 
         const isNew = selectedCompanyLocal.id?.startsWith('new-');
+
+        if(isNew) {
+            const currentPlan = userProfile.plan || 'Individual';
+            const limit = planLimits[currentPlan] ?? 5;
+            const currentCompanyCount = userProfile.companyIds?.length || 0;
+            if (currentCompanyCount >= limit) {
+                 toast({
+                    variant: "destructive",
+                    title: "Límite Alcanzado",
+                    description: `No puedes agregar más empresas con tu plan actual.`,
+                });
+                setIsFormOpen(false);
+                return;
+            }
+        }
 
         if (!selectedCompanyLocal.name || !selectedCompanyLocal.rut) {
             toast({
