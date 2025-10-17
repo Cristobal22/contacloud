@@ -1,4 +1,3 @@
-
 'use client';
 
 import React from 'react';
@@ -55,6 +54,7 @@ export default function PayrollPage() {
     const companyId = selectedCompany?.id;
     const firestore = useFirestore();
     const { toast } = useToast();
+    const { user } = useUser();
 
     const [selectedPayroll, setSelectedPayroll] = React.useState<{ payroll: Payroll, employee: Employee } | null>(null);
     const [isProcessing, setIsProcessing] = React.useState(false);
@@ -75,26 +75,28 @@ export default function PayrollPage() {
       path: companyId ? `companies/${companyId}/payrolls` : undefined,
       companyId: companyId 
     });
-    const { data: afpEntities, loading: afpLoading } = useCollection<AfpEntity>({ path: 'afp-entities' });
-    const { data: healthEntities, loading: healthLoading } = useCollection<HealthEntity>({ path: 'health-entities' });
+    const { data: afpEntities, loading: afpLoading } = useCollection<AfpEntity>({ path: user ? `users/${user.uid}/afp-entities` : undefined });
+    const { data: healthEntities, loading: healthLoading } = useCollection<HealthEntity>({ path: user ? `users/${user.uid}/health-entities` : undefined });
 
-    // Fetch the specific monthly indicator for the selected period
-    const indicatorId = `${year}-${month.toString().padStart(2, '0')}`;
-    const { data: monthlyIndicator, loading: indicatorLoading } = useCollection<EconomicIndicator>({
-        path: `economic-indicators`,
-    });
+    const { data: globalIndicators, loading: globalIndicatorsLoading } = useCollection<EconomicIndicator>({ path: 'economic-indicators' });
+    const { data: companyIndicators, loading: companyIndicatorsLoading } = useCollection<EconomicIndicator>({ path: companyId ? `companies/${companyId}/economic-indicators` : undefined });
 
-    const loading = employeesLoading || afpLoading || healthLoading || indicatorLoading || payrollsLoading;
+    const loading = employeesLoading || afpLoading || healthLoading || payrollsLoading || globalIndicatorsLoading || companyIndicatorsLoading;
     
     const handleProcessPayrolls = async () => {
-        if (!employees || !afpEntities || !healthEntities || !companyId || !firestore || !monthlyIndicator) {
+        if (!employees || !afpEntities || !healthEntities || !companyId || !firestore) {
             toast({ variant: 'destructive', title: 'Faltan datos', description: 'No se pueden procesar las liquidaciones sin empleados o parámetros económicos.'});
             return;
         }
 
         setIsProcessing(true);
         
-        const periodIndicator = monthlyIndicator.find(i => i.year === year && i.month === month);
+        // Find the correct economic indicator (company-specific or global)
+        const periodIndicatorId = `${year}-${month.toString().padStart(2, '0')}`;
+        const companyIndicator = companyIndicators?.find(i => i.id === periodIndicatorId);
+        const globalIndicator = globalIndicators?.find(i => i.id === periodIndicatorId);
+        const periodIndicator = companyIndicator || globalIndicator;
+        
         if (!periodIndicator?.minWage) {
             toast({ variant: 'destructive', title: 'Faltan Parámetros', description: `No se encontraron los parámetros económicos (sueldo mínimo) para ${month}/${year}.`});
             setIsProcessing(false);
