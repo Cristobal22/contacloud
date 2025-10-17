@@ -1,4 +1,3 @@
-
 'use client';
 
 import React from "react";
@@ -22,9 +21,10 @@ import { SelectedCompanyContext } from "../layout";
 type BalanceRow = {
     code: string;
     name: string;
+    initialBalance: number;
     debit: number;
     credit: number;
-    balance: number;
+    finalBalance: number;
 };
 
 export default function BalancesPage() {
@@ -44,6 +44,7 @@ export default function BalancesPage() {
     const { data: vouchers, loading: vouchersLoading } = useCollection<Voucher>({
         path: companyId ? `companies/${companyId}/vouchers` : undefined,
         companyId: companyId,
+        query: companyId ? (collection, query, where) => query(collection(`companies/${companyId}/vouchers`), where('status', '==', 'Contabilizado')) : undefined,
     });
 
     const loading = accountsLoading || vouchersLoading;
@@ -59,7 +60,7 @@ export default function BalancesPage() {
 
         const filteredVouchers = vouchers.filter(v => {
             const voucherDate = new Date(v.date);
-            return voucherDate >= startDate && voucherDate <= endDate && v.status === 'Contabilizado';
+            return voucherDate >= startDate && voucherDate <= endDate;
         });
 
         const accountMovements = new Map<string, { debit: number; credit: number }>();
@@ -72,43 +73,76 @@ export default function BalancesPage() {
                 accountMovements.set(entry.account, current);
             });
         });
+        
+        const balanceMap = new Map<string, BalanceRow>();
+        
+        // Initialize all accounts from the chart of accounts
+        accounts.forEach(acc => {
+            balanceMap.set(acc.code, {
+                code: acc.code,
+                name: acc.name,
+                initialBalance: acc.balance || 0,
+                debit: 0,
+                credit: 0,
+                finalBalance: acc.balance || 0
+            });
+        });
 
-        const balanceData = accounts.map(account => {
-            const movements = accountMovements.get(account.code) || { debit: 0, credit: 0 };
-            let finalBalance = account.balance || 0;
+        // Apply movements to detail accounts
+        accountMovements.forEach((mov, code) => {
+            if (balanceMap.has(code)) {
+                const acc = balanceMap.get(code)!;
+                acc.debit += mov.debit;
+                acc.credit += mov.credit;
 
-            if (account.type === 'Activo' || (account.type === 'Resultado' && movements.debit > movements.credit)) {
-                finalBalance += movements.debit - movements.credit;
-            } else {
-                finalBalance += movements.credit - movements.debit;
+                const accountInfo = accounts.find(a => a.code === code);
+                if (accountInfo?.type === 'Activo' || (accountInfo?.type === 'Resultado' && mov.debit > mov.credit)) {
+                    acc.finalBalance = acc.initialBalance + mov.debit - mov.credit;
+                } else {
+                    acc.finalBalance = acc.initialBalance + mov.credit - mov.debit;
+                }
             }
-            
-            return {
-                code: account.code,
-                name: account.name,
-                debit: movements.debit,
-                credit: movements.credit,
-                balance: finalBalance,
-            };
-        }).filter(item => item.debit > 0 || item.credit > 0);
+        });
 
+        const sortedCodes = Array.from(balanceMap.keys()).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+
+        // Aggregate balances up the hierarchy
+        for (let i = sortedCodes.length - 1; i >= 0; i--) {
+            const code = sortedCodes[i];
+            const parts = code.split('.');
+            if (parts.length > 1) {
+                const parentCode = parts.slice(0, -1).join('.');
+                if (balanceMap.has(parentCode)) {
+                    const child = balanceMap.get(code)!;
+                    const parent = balanceMap.get(parentCode)!;
+                    parent.debit += child.debit;
+                    parent.credit += child.credit;
+                    parent.finalBalance += child.finalBalance; 
+                }
+            }
+        }
+        
+        const balanceData = sortedCodes.map(code => balanceMap.get(code)!);
         setGeneratedBalance(balanceData);
     }
 
     const totals = React.useMemo(() => {
         if (!generatedBalance) return { debit: 0, credit: 0 };
-        return generatedBalance.reduce((acc, row) => ({
-            debit: acc.debit + row.debit,
-            credit: acc.credit + row.credit,
-        }), { debit: 0, credit: 0 });
+        // The total is the sum of the top-level accounts (e.g., '1', '2', '3', etc.)
+        return generatedBalance
+            .filter(row => !row.code.includes('.'))
+            .reduce((acc, row) => ({
+                debit: acc.debit + row.debit,
+                credit: acc.credit + row.credit,
+            }), { debit: 0, credit: 0 });
     }, [generatedBalance]);
 
     return (
         <div className="grid gap-6">
             <Card>
                 <CardHeader>
-                <CardTitle>Generador de Balances</CardTitle>
-                <CardDescription>Selecciona un período para generar un balance contable.</CardDescription>
+                <CardTitle>Balance de Comprobación y Saldos</CardTitle>
+                <CardDescription>Selecciona un período para generar un balance contable. Solo se considerarán comprobantes contabilizados.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                     <div className="flex flex-col sm:flex-row gap-4 items-end">
@@ -154,8 +188,8 @@ export default function BalancesPage() {
                                         <TableCell>{row.name}</TableCell>
                                         <TableCell className="text-right">${row.debit.toLocaleString('es-CL')}</TableCell>
                                         <TableCell className="text-right">${row.credit.toLocaleString('es-CL')}</TableCell>
-                                        <TableCell className={`text-right font-bold ${row.balance < 0 ? 'text-destructive' : ''}`}>
-                                            ${row.balance.toLocaleString('es-CL')}
+                                        <TableCell className={`text-right font-bold ${row.finalBalance < 0 ? 'text-destructive' : ''}`}>
+                                            ${row.finalBalance.toLocaleString('es-CL')}
                                         </TableCell>
                                     </TableRow>
                                 ))}

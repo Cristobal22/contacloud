@@ -1,4 +1,3 @@
-
 'use client';
 import React from "react";
 import {
@@ -25,8 +24,7 @@ type BalanceSheetData = {
     equity: AccountWithBalance[];
     periodResult: number;
     totalAssets: number;
-    totalLiabilities: number;
-    totalEquity: number;
+    totalLiabilitiesAndEquity: number;
 };
 
 type AccountWithBalance = Account & { finalBalance: number };
@@ -49,6 +47,7 @@ export default function GeneralBalancePage() {
     const { data: vouchers, loading: vouchersLoading } = useCollection<Voucher>({
         path: companyId ? `companies/${companyId}/vouchers` : undefined,
         companyId: companyId,
+        query: companyId ? (collection, query, where) => query(collection(`companies/${companyId}/vouchers`), where('status', '==', 'Contabilizado')) : undefined,
     });
     
     const loading = accountsLoading || vouchersLoading;
@@ -64,41 +63,70 @@ export default function GeneralBalancePage() {
 
         const filteredVouchers = vouchers.filter(v => {
             const voucherDate = new Date(v.date);
-            return voucherDate >= startDate && voucherDate <= endDate && v.status === 'Contabilizado';
+            return voucherDate >= startDate && voucherDate <= endDate;
         });
 
-        const accountMovements = new Map<string, { debit: number; credit: number }>();
-        filteredVouchers.forEach(voucher => {
-            voucher.entries.forEach(entry => {
-                const current = accountMovements.get(entry.account) || { debit: 0, credit: 0 };
-                current.debit += Number(entry.debit) || 0;
-                current.credit += Number(entry.credit) || 0;
-                accountMovements.set(entry.account, current);
+        const balanceMap = new Map<string, { initialBalance: number; debit: number; credit: number; finalBalance: number }>();
+        
+        accounts.forEach(acc => {
+            balanceMap.set(acc.code, {
+                initialBalance: acc.balance || 0,
+                debit: 0,
+                credit: 0,
+                finalBalance: acc.balance || 0
             });
         });
 
-        const accountsWithBalance: AccountWithBalance[] = accounts.map(account => {
-            const movements = accountMovements.get(account.code) || { debit: 0, credit: 0 };
-            let finalBalance = account.balance || 0; // Initial balance
-             if (account.type === 'Activo' || (account.type === 'Resultado' && movements.debit > movements.credit)) {
-                finalBalance += movements.debit - movements.credit;
-            } else { 
-                finalBalance += movements.credit - movements.debit;
-            }
-            return { ...account, finalBalance };
+        filteredVouchers.forEach(voucher => {
+            voucher.entries.forEach(entry => {
+                if (balanceMap.has(entry.account)) {
+                    const mov = balanceMap.get(entry.account)!;
+                    mov.debit += Number(entry.debit) || 0;
+                    mov.credit += Number(entry.credit) || 0;
+                }
+            });
         });
 
-        const assets = accountsWithBalance.filter(a => a.type === 'Activo' && a.finalBalance !== 0);
-        const liabilities = accountsWithBalance.filter(a => a.type === 'Pasivo' && a.finalBalance !== 0);
-        const equity = accountsWithBalance.filter(a => a.type === 'Patrimonio' && a.finalBalance !== 0);
-        const resultAccounts = accountsWithBalance.filter(a => a.type === 'Resultado');
-
-        const periodResult = resultAccounts.reduce((sum, acc) => sum + acc.finalBalance, 0);
+        balanceMap.forEach((mov, code) => {
+            const accountInfo = accounts.find(a => a.code === code);
+            if (accountInfo?.type === 'Activo' || accountInfo?.type === 'Resultado') {
+                mov.finalBalance = mov.initialBalance + mov.debit - mov.credit;
+            } else { 
+                mov.finalBalance = mov.initialBalance + mov.credit - mov.debit;
+            }
+        });
         
-        const totalAssets = assets.reduce((sum, a) => sum + a.finalBalance, 0);
-        const totalLiabilities = liabilities.reduce((sum, l) => sum + l.finalBalance, 0);
-        const totalEquityFromAccounts = equity.reduce((sum, e) => sum + e.finalBalance, 0);
-        const totalEquity = totalEquityFromAccounts + periodResult;
+        const sortedCodes = Array.from(balanceMap.keys()).sort((a,b) => a.localeCompare(b, undefined, { numeric: true }));
+
+        for (let i = sortedCodes.length - 1; i >= 0; i--) {
+            const code = sortedCodes[i];
+            const parts = code.split('.');
+            if (parts.length > 1) {
+                const parentCode = parts.slice(0, -1).join('.');
+                if (balanceMap.has(parentCode)) {
+                    balanceMap.get(parentCode)!.finalBalance += balanceMap.get(code)!.finalBalance;
+                }
+            }
+        }
+        
+        const accountsWithBalance: AccountWithBalance[] = sortedCodes.map(code => ({
+            ...accounts.find(a => a.code === code)!,
+            finalBalance: balanceMap.get(code)!.finalBalance
+        }));
+
+        const assets = accountsWithBalance.filter(a => a.code.startsWith('1') && a.finalBalance !== 0);
+        const liabilities = accountsWithBalance.filter(a => a.code.startsWith('2') && a.finalBalance !== 0);
+        const equity = accountsWithBalance.filter(a => a.code.startsWith('3') && a.finalBalance !== 0);
+
+        const income = accountsWithBalance.find(a => a.code === '4')?.finalBalance || 0;
+        const costs = accountsWithBalance.find(a => a.code === '5')?.finalBalance || 0;
+        const expenses = accountsWithBalance.find(a => a.code === '6')?.finalBalance || 0;
+        const periodResult = income - costs - expenses;
+        
+        const totalAssets = accountsWithBalance.find(a => a.code === '1')?.finalBalance || 0;
+        const totalLiabilities = accountsWithBalance.find(a => a.code === '2')?.finalBalance || 0;
+        const totalEquityFromAccounts = accountsWithBalance.find(a => a.code === '3')?.finalBalance || 0;
+        const totalLiabilitiesAndEquity = totalLiabilities + totalEquityFromAccounts + periodResult;
 
 
         setGeneratedBalance({
@@ -107,8 +135,7 @@ export default function GeneralBalancePage() {
             equity,
             periodResult,
             totalAssets,
-            totalLiabilities,
-            totalEquity,
+            totalLiabilitiesAndEquity,
         });
     };
 
@@ -117,7 +144,7 @@ export default function GeneralBalancePage() {
         <Card>
             <CardHeader>
             <CardTitle>Balance General</CardTitle>
-            <CardDescription>Consulta el balance general de la empresa para un período específico.</CardDescription>
+            <CardDescription>Consulta el balance general de la empresa para un período específico. Solo se considerarán comprobantes contabilizados.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
                 <div className="flex flex-col sm:flex-row gap-4 items-end max-w-lg">
@@ -167,9 +194,6 @@ export default function GeneralBalancePage() {
                                         <TableRow key={acc.id}><TableCell>{acc.code} - {acc.name}</TableCell><TableCell className="text-right">${acc.finalBalance.toLocaleString('es-CL')}</TableCell></TableRow>
                                     ))}
                                 </TableBody>
-                                <TableFooterOriginal>
-                                    <TableRow className="font-bold"><TableCell>Total Pasivos</TableCell><TableCell className="text-right">${generatedBalance.totalLiabilities.toLocaleString('es-CL')}</TableCell></TableRow>
-                                </TableFooterOriginal>
                             </Table>
                         </div>
                         <div>
@@ -182,21 +206,18 @@ export default function GeneralBalancePage() {
                                     ))}
                                     <TableRow><TableCell>Resultado del Período</TableCell><TableCell className="text-right">${generatedBalance.periodResult.toLocaleString('es-CL')}</TableCell></TableRow>
                                 </TableBody>
-                                <TableFooterOriginal>
-                                    <TableRow className="font-bold"><TableCell>Total Patrimonio</TableCell><TableCell className="text-right">${generatedBalance.totalEquity.toLocaleString('es-CL')}</TableCell></TableRow>
-                                </TableFooterOriginal>
                             </Table>
                         </div>
                          <Table>
                              <TableFooterOriginal>
-                                <TableRow className="font-bold text-base bg-muted"><TableCell>Total Pasivo y Patrimonio</TableCell><TableCell className="text-right">${(generatedBalance.totalLiabilities + generatedBalance.totalEquity).toLocaleString('es-CL')}</TableCell></TableRow>
+                                <TableRow className="font-bold text-base bg-muted"><TableCell>Total Pasivo y Patrimonio</TableCell><TableCell className="text-right">${(generatedBalance.totalLiabilitiesAndEquity).toLocaleString('es-CL')}</TableCell></TableRow>
                             </TableFooterOriginal>
                          </Table>
                     </div>
                 </CardContent>
                  <CardFooter>
-                    <p className={`text-sm font-bold ${generatedBalance.totalAssets === (generatedBalance.totalLiabilities + generatedBalance.totalEquity) ? 'text-green-600' : 'text-destructive'}`}>
-                        {generatedBalance.totalAssets === (generatedBalance.totalLiabilities + generatedBalance.totalEquity) ? 'La Ecuación Contable está balanceada.' : 'La Ecuación Contable no está balanceada.'}
+                    <p className={`text-sm font-bold ${Math.round(generatedBalance.totalAssets) === Math.round(generatedBalance.totalLiabilitiesAndEquity) ? 'text-green-600' : 'text-destructive'}`}>
+                        {Math.round(generatedBalance.totalAssets) === Math.round(generatedBalance.totalLiabilitiesAndEquity) ? 'La Ecuación Contable está balanceada.' : 'La Ecuación Contable no está balanceada.'}
                     </p>
                 </CardFooter>
             </Card>
@@ -214,4 +235,3 @@ export default function GeneralBalancePage() {
       </div>
     )
   }
-    
