@@ -7,8 +7,9 @@ import {
   ChevronDown,
   Home,
   Briefcase,
+  Search,
 } from "lucide-react"
-import { collection, query, where, documentId, Query, CollectionReference } from "firebase/firestore"
+import { collection, query, where, documentId, Query } from "firebase/firestore"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -25,6 +26,7 @@ import { Logo } from "@/components/logo"
 import type { Company, SelectedCompanyContextType } from "@/lib/types"
 import { useUser, useFirestore, useCollection } from "@/firebase"
 import { useUserProfile } from "@/firebase/auth/use-user-profile"
+import { CommandMenu } from "@/components/command-menu"
 
 export const SelectedCompanyContext = React.createContext<SelectedCompanyContextType | null>(null);
 
@@ -113,7 +115,7 @@ function AccountantDashboardLayout({ children }: { children: React.ReactNode }) 
                                 </DropdownMenuContent>
                             </DropdownMenu>
 
-                            <div className="hidden sm:flex">
+                            <div className="hidden sm:flex items-center gap-4">
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
                                         <Button variant="outline" className="flex items-center gap-2" disabled={isLoading}>
@@ -132,11 +134,16 @@ function AccountantDashboardLayout({ children }: { children: React.ReactNode }) 
                                         )}
                                     </DropdownMenuContent>
                                 </DropdownMenu>
+                                 <Button variant="outline" size="icon" className="h-9 w-9">
+                                    <Search className="h-4 w-4" />
+                                    <span className="sr-only">Search</span>
+                                </Button>
                             </div>
                         </div>
                         <UserNav />
                     </header>
                     <main className="flex-1 p-4 sm:p-6">
+                         <CommandMenu />
                         {isLoading ? <div className="flex h-full w-full items-center justify-center"><p>Cargando datos del contador...</p></div> : children}
                     </main>
                 </div>
@@ -161,9 +168,14 @@ function AdminDashboardLayout({ children }: { children: React.ReactNode }) {
 
             <div className="flex flex-col sm:pl-64">
                 <header className="sticky top-0 z-30 flex h-16 items-center justify-end gap-4 border-b bg-background px-4 sm:px-6">
+                     <Button variant="outline" size="icon" className="h-9 w-9">
+                        <Search className="h-4 w-4" />
+                        <span className="sr-only">Search</span>
+                    </Button>
                     <UserNav />
                 </header>
                 <main className="flex-1 p-4 sm:p-6">
+                    <CommandMenu />
                     {children}
                 </main>
             </div>
