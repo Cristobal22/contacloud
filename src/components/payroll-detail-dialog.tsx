@@ -15,6 +15,7 @@ import type { Employee } from "@/lib/types"
 import React from "react";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
+import { cn } from "@/lib/utils";
 
 export type SimulatedPayroll = {
     id: string;
@@ -46,19 +47,17 @@ const formatCurrency = (value: number) => {
 
 export function PayrollDetailDialog({ isOpen, onClose, data }: PayrollDetailDialogProps) {
     const payrollContentRef = React.useRef<HTMLDivElement>(null);
-    const [pdfInstance, setPdfInstance] = React.useState<jsPDF | null>(null);
     const [pdfUrl, setPdfUrl] = React.useState<string | null>(null);
     const [isPreview, setIsPreview] = React.useState(false);
 
 
     const handleClose = () => {
         setPdfUrl(null);
-        setPdfInstance(null);
         setIsPreview(false);
         onClose();
     }
 
-    const generatePdf = async () => {
+    const generatePdf = async (): Promise<jsPDF | null> => {
         const input = payrollContentRef.current;
         if (!input) return null;
     
@@ -77,16 +76,16 @@ export function PayrollDetailDialog({ isOpen, onClose, data }: PayrollDetailDial
             const imgHeight = canvas.height;
             const ratio = imgWidth / imgHeight;
             
-            let finalImgWidth = pdfWidth;
-            let finalImgHeight = pdfWidth / ratio;
+            let finalImgWidth = pdfWidth - 20; // with margin
+            let finalImgHeight = finalImgWidth / ratio;
     
-            if (finalImgHeight > pdfHeight) {
-                finalImgHeight = pdfHeight;
-                finalImgWidth = pdfHeight * ratio;
+            if (finalImgHeight > pdfHeight - 20) {
+                finalImgHeight = pdfHeight - 20;
+                finalImgWidth = finalImgHeight * ratio;
             }
             
             const xOffset = (pdfWidth - finalImgWidth) / 2;
-            const yOffset = 0;
+            const yOffset = 10;
             
             pdf.addImage(imgData, 'PNG', xOffset, yOffset, finalImgWidth, finalImgHeight);
             return pdf;
@@ -96,21 +95,22 @@ export function PayrollDetailDialog({ isOpen, onClose, data }: PayrollDetailDial
         }
     };
     
-    const showPreview = async () => {
+    const togglePreview = async () => {
+        if (isPreview) {
+            setIsPreview(false);
+            setPdfUrl(null);
+            return;
+        }
+
         const pdf = await generatePdf();
         if (pdf) {
-            setPdfInstance(pdf);
             setPdfUrl(pdf.output('datauristring'));
             setIsPreview(true);
         }
     };
 
     const downloadPdf = async () => {
-        let pdfToDownload = pdfInstance;
-        if (!pdfToDownload) {
-            pdfToDownload = await generatePdf();
-        }
-
+        const pdfToDownload = await generatePdf();
         if (pdfToDownload) {
             pdfToDownload.save(`liquidacion_${data?.employee.rut}_${data?.payroll.period.replace(/\s+/g, '_')}.pdf`);
         }
@@ -126,16 +126,13 @@ export function PayrollDetailDialog({ isOpen, onClose, data }: PayrollDetailDial
                 <DialogHeader>
                     <DialogTitle>Liquidación de Sueldo (Simulación)</DialogTitle>
                     <DialogDescription>
-                        {isPreview ? `Vista previa del PDF para ${employee.firstName}` : `Detalle para ${employee.firstName} para el período de ${payroll.period}.`}
+                        {`Detalle para ${employee.firstName} para el período de ${payroll.period}.`}
                     </DialogDescription>
                 </DialogHeader>
 
-                {isPreview ? (
-                    <div className="h-[600px] border rounded-md">
-                        {pdfUrl && <iframe src={pdfUrl} width="100%" height="100%" />}
-                    </div>
-                ) : (
-                    <div ref={payrollContentRef} className="p-4 bg-white text-black">
+                <div className="relative">
+                     {/* The content to be captured, always rendered but conditionally visible */}
+                    <div ref={payrollContentRef} className={cn("p-4 bg-white text-black transition-opacity", isPreview && "opacity-0 absolute -z-10")}>
                         <div className="text-center mb-4">
                             <h2 className="text-xl font-bold">Liquidación de Sueldo</h2>
                             <h3 className="text-lg">{payroll.period}</h3>
@@ -183,20 +180,21 @@ export function PayrollDetailDialog({ isOpen, onClose, data }: PayrollDetailDial
                             <span className="text-lg font-bold">{formatCurrency(payroll.netSalary)}</span>
                         </div>
                     </div>
-                )}
+
+                    {/* PDF Preview Iframe */}
+                    {isPreview && (
+                        <div className="h-[600px] border rounded-md">
+                            {pdfUrl && <iframe src={pdfUrl} width="100%" height="100%" title="Vista previa de liquidación"/>}
+                        </div>
+                    )}
+                </div>
 
                 <DialogFooter>
-                    {isPreview ? (
-                         <>
-                            <Button type="button" variant="secondary" onClick={() => setIsPreview(false)}>Volver</Button>
-                            <Button type="button" onClick={downloadPdf}>Descargar PDF</Button>
-                         </>
-                    ) : (
-                         <>
-                            <Button type="button" variant="outline" onClick={showPreview}>Vista Previa PDF</Button>
-                            <Button type="button" variant="secondary" onClick={handleClose}>Cerrar</Button>
-                         </>
-                    )}
+                    <Button type="button" variant="secondary" onClick={handleClose}>Cerrar</Button>
+                    <Button type="button" variant="outline" onClick={togglePreview}>
+                        {isPreview ? "Ocultar Vista Previa" : "Vista Previa PDF"}
+                    </Button>
+                    <Button type="button" onClick={downloadPdf}>Descargar PDF</Button>
                 </DialogFooter>
             </DialogContent>
         </Dialog>
