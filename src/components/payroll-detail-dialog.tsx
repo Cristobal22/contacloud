@@ -1,4 +1,3 @@
-
 'use client';
 
 import {
@@ -55,23 +54,45 @@ export function PayrollDetailDialog({ isOpen, onClose, data }: PayrollDetailDial
     }
 
     const generatePdf = async (action: 'preview' | 'download' = 'preview') => {
-        if (!payrollContentRef.current) return;
-
-        const canvas = await html2canvas(payrollContentRef.current, { scale: 2 });
-        const imgData = canvas.toDataURL('image/png');
-
-        const pdf = new jsPDF({
-            orientation: 'p',
-            unit: 'px',
-            format: [canvas.width, canvas.height]
-        });
-
-        pdf.addImage(imgData, 'PNG', 0, 0, canvas.width, canvas.height);
-
-        if (action === 'download') {
-            pdf.save(`liquidacion_${data?.employee.rut}_${data?.payroll.period.replace(' ', '_')}.pdf`);
-        } else {
-            setPdfUrl(pdf.output('datauristring'));
+        const input = payrollContentRef.current;
+        if (!input) return;
+    
+        try {
+            const canvas = await html2canvas(input, {
+                scale: 2,
+                useCORS: true, 
+                backgroundColor: '#ffffff'
+            });
+    
+            const imgData = canvas.toDataURL('image/png');
+            const pdf = new jsPDF('p', 'mm', 'a4');
+            const pdfWidth = pdf.internal.pageSize.getWidth();
+            const pdfHeight = pdf.internal.pageSize.getHeight();
+            const imgWidth = canvas.width;
+            const imgHeight = canvas.height;
+            const ratio = imgWidth / imgHeight;
+            
+            let finalImgWidth = pdfWidth;
+            let finalImgHeight = pdfWidth / ratio;
+    
+            // If the image height is greater than the page height, scale by height instead
+            if (finalImgHeight > pdfHeight) {
+                finalImgHeight = pdfHeight;
+                finalImgWidth = pdfHeight * ratio;
+            }
+            
+            const xOffset = (pdfWidth - finalImgWidth) / 2;
+            const yOffset = 0;
+            
+            pdf.addImage(imgData, 'PNG', xOffset, yOffset, finalImgWidth, finalImgHeight);
+    
+            if (action === 'download') {
+                pdf.save(`liquidacion_${data?.employee.rut}_${data?.payroll.period.replace(/\s+/g, '_')}.pdf`);
+            } else {
+                setPdfUrl(pdf.output('datauristring'));
+            }
+        } catch (error) {
+            console.error("Error generating PDF:", error);
         }
     };
     
