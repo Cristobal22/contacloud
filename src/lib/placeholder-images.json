@@ -2,27 +2,27 @@
   "placeholderImages": [
     {
       "id": "hero-image",
-      "description": "A modern office setting with people collaborating.",
-      "imageUrl": "https://picsum.photos/seed/contador-hero/1200/800",
+      "description": "A modern office setting with people collaborating around a table with laptops and financial documents.",
+      "imageUrl": "https://images.unsplash.com/photo-1556761175-5973dc0f32e7?q=80&w=1932&auto=format&fit=crop",
       "imageHint": "modern office"
     },
     {
       "id": "feature-multitenant",
-      "description": "Abstract representation of multiple entities connected to a central hub.",
-      "imageUrl": "https://picsum.photos/seed/contador-multi/600/400",
-      "imageHint": "network structure"
+      "description": "A focused accountant working on a laptop in a clean, modern workspace, representing multi-company management.",
+      "imageUrl": "https://images.unsplash.com/photo-1612287230202-95a041616f5c?q=80&w=1770&auto=format&fit=crop",
+      "imageHint": "focused accountant"
     },
     {
       "id": "feature-security",
-      "description": "A shield or lock icon symbolizing security and data protection.",
-      "imageUrl": "https://picsum.photos/seed/contador-secure/600/400",
-      "imageHint": "security shield"
+      "description": "A close-up of a person's hands on a keyboard, with a digital lock overlay symbolizing data security.",
+      "imageUrl": "https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?q=80&w=1770&auto=format&fit=crop",
+      "imageHint": "data security"
     },
     {
       "id": "feature-data",
-      "description": "Charts and graphs on a screen, representing data management.",
-      "imageUrl": "https://picsum.photos/seed/contador-data/600/400",
-      "imageHint": "data charts"
+      "description": "A tablet screen showing financial charts and graphs, representing centralized data and reporting.",
+      "imageUrl": "https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=1770&auto=format&fit=crop",
+      "imageHint": "financial charts"
     }
   ]
 }
