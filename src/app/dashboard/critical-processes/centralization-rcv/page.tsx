@@ -93,7 +93,7 @@ export default function CentralizationRcvPage() {
                 if (rows.length === 0) throw new Error("El archivo CSV está vacío o tiene un formato incorrecto.");
 
                 const summary: RcvSummary = rows.reduce((acc, row) => {
-                    const columns = row.split(',');
+                    const columns = row.split(';');
                     if (columns.length < 3) return acc;
                     acc.netAmount += parseFloat(columns[0]) || 0;
                     acc.taxAmount += parseFloat(columns[1]) || 0;
