@@ -1,5 +1,56 @@
 
-import type { AfpEntity, EconomicIndicator, FamilyAllowanceParameter, HealthEntity, Institution, TaxParameter } from "./types";
+import type { Account, AfpEntity, EconomicIndicator, FamilyAllowanceParameter, HealthEntity, Institution, TaxParameter } from "./types";
+
+export const initialChartOfAccounts: Omit<Account, 'id' | 'companyId' | 'balance'>[] = [
+    // Activos (1)
+    { code: "1", name: "ACTIVO", type: "Activo" },
+    { code: "11", name: "ACTIVO CORRIENTE", type: "Activo" },
+    { code: "1101", name: "Caja", type: "Activo" },
+    { code: "1102", name: "Banco", type: "Activo" },
+    { code: "1103", name: "Clientes por Venta", type: "Activo" },
+    { code: "1104", name: "Deudores Varios", type: "Activo" },
+    { code: "1105", name: "IVA Crédito Fiscal", type: "Activo" },
+    { code: "1106", name: "Existencias", type: "Activo" },
+    { code: "12", name: "ACTIVO NO CORRIENTE", type: "Activo" },
+    { code: "1201", name: "Terrenos", type: "Activo" },
+    { code: "1202", name: "Construcciones", type: "Activo" },
+    { code: "1203", name: "Maquinarias y Equipos", type: "Activo" },
+    { code: "1204", name: "Depreciación Acumulada", type: "Activo" },
+
+    // Pasivos (2)
+    { code: "2", name: "PASIVO", type: "Pasivo" },
+    { code: "21", name: "PASIVO CORRIENTE", type: "Pasivo" },
+    { code: "2101", name: "Proveedores", type: "Pasivo" },
+    { code: "2102", name: "Cuentas por Pagar", type: "Pasivo" },
+    { code: "2103", name: "IVA Débito Fiscal", type: "Pasivo" },
+    { code: "2104", name: "Sueldos por Pagar", type: "Pasivo" },
+    { code: "2105", name: "Leyes Sociales por Pagar", type: "Pasivo" },
+    { code: "2106", name: "Retenciones por Pagar", type: "Pasivo" },
+    { code: "22", name: "PASIVO NO CORRIENTE", type: "Pasivo" },
+    { code: "2201", name: "Préstamos Bancarios a Largo Plazo", type: "Pasivo" },
+
+    // Patrimonio (3)
+    { code: "3", name: "PATRIMONIO", type: "Patrimonio" },
+    { code: "31", name: "CAPITAL", type: "Patrimonio" },
+    { code: "3101", name: "Capital Pagado", type: "Patrimonio" },
+    { code: "32", name: "RESULTADOS ACUMULADOS", type: "Patrimonio" },
+    { code: "3201", name: "Resultados Acumulados", type: "Patrimonio" },
+    { code: "3202", name: "Resultado del Ejercicio", type: "Patrimonio" },
+
+    // Resultado (4)
+    { code: "4", name: "RESULTADO", type: "Resultado" },
+    { code: "41", name: "INGRESOS", type: "Resultado" },
+    { code: "4101", name: "Ingresos por Ventas", type: "Resultado" },
+    { code: "4102", name: "Otros Ingresos", type: "Resultado" },
+    { code: "42", name: "GASTOS", type: "Resultado" },
+    { code: "4201", name: "Costo de Ventas", type: "Resultado" },
+    { code: "4202", name: "Gastos de Administración y Ventas", type: "Resultado" },
+    { code: "4203", name: "Remuneraciones", type: "Resultado" },
+    { code: "4204", "name": "Gastos Generales", "type": "Resultado" },
+    { code: "4205", name: "Gastos Financieros", type: "Resultado" },
+    { code: "4206", name: "Depreciación del Ejercicio", type: "Resultado" },
+];
+
 
 export const initialAfpEntities: Omit<AfpEntity, 'id'>[] = [
     { code: "03", name: "CAPITAL", mandatoryContribution: 11.44, previredCode: "33", provisionalRegime: "DL 3.500", dtCode: "02" },
