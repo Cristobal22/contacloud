@@ -79,25 +79,27 @@ export default function PurchasesPage() {
                 let count = 0;
 
                 lines.forEach(line => {
-                    const columns = line.split(',');
-                    // Assuming CSV format: tipo doc, folio, rut, razon social, fecha, neto, iva, total
-                    if (columns.length < 8) return;
+                    const columns = line.split(';');
+                    if (columns.length < 15) return;
                     
                     const newPurchase: Omit<Purchase, 'id'> = {
-                        documentType: columns[0].trim(),
-                        documentNumber: columns[1].trim(),
-                        supplierRut: columns[2].trim(),
-                        supplier: columns[3].trim(),
-                        date: new Date(columns[4].trim()).toISOString().substring(0,10),
-                        netAmount: parseFloat(columns[5]) || 0,
-                        taxAmount: parseFloat(columns[6]) || 0,
-                        total: parseFloat(columns[7]) || 0,
+                        documentType: columns[1].trim(),
+                        documentNumber: columns[5].trim(),
+                        supplierRut: columns[3].trim(),
+                        supplier: columns[4].trim(),
+                        date: new Date(columns[6].trim()).toISOString().substring(0,10),
+                        netAmount: parseFloat(columns[10]) || 0,
+                        taxAmount: parseFloat(columns[11]) || 0,
+                        total: parseFloat(columns[14]) || 0,
                         status: 'Pendiente',
                         companyId: companyId,
                     };
-                    const docRef = doc(collectionRef);
-                    batch.set(docRef, newPurchase);
-                    count++;
+
+                    if (newPurchase.documentNumber && newPurchase.supplier) {
+                        const docRef = doc(collectionRef);
+                        batch.set(docRef, newPurchase);
+                        count++;
+                    }
                 });
 
                 if (count === 0) {
