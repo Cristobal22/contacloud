@@ -91,7 +91,7 @@ export function CommandMenu() {
           <CommandItem onSelect={() => runCommand(() => router.push('/dashboard/balances'))}><Scale className="mr-2 h-4 w-4" />Balances</CommandItem>
         </CommandGroup>
         
-        {companies && companies.length > 0 && (
+        {userProfile?.role === 'Accountant' && companies && companies.length > 0 && (
           <>
             <CommandSeparator />
             <CommandGroup heading="Empresas">
@@ -109,7 +109,7 @@ export function CommandMenu() {
           </>
         )}
 
-        {accounts && accounts.length > 0 && (
+        {userProfile?.role === 'Accountant' && accounts && accounts.length > 0 && (
           <>
             <CommandSeparator />
             <CommandGroup heading="Cuentas Contables">
@@ -123,7 +123,7 @@ export function CommandMenu() {
           </>
         )}
 
-         {employees && employees.length > 0 && (
+         {userProfile?.role === 'Accountant' && employees && employees.length > 0 && (
           <>
             <CommandSeparator />
             <CommandGroup heading="Personal">
