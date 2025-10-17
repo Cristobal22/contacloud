@@ -31,11 +31,7 @@ export default function HealthEntitiesPage() {
     const firestore = useFirestore();
     const { toast } = useToast();
     
-    const healthEntitiesCollection = React.useMemo(() => 
-        firestore ? collection(firestore, `health-entities`) : null, 
-    [firestore]);
-    
-    const { data: healthEntities, loading } = useCollection<HealthEntity>({ query: healthEntitiesCollection as any });
+    const { data: healthEntities, loading } = useCollection<HealthEntity>({ path: 'health-entities' });
 
     const handleSeedData = async () => {
         if (!firestore) return;

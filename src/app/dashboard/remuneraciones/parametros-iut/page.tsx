@@ -31,11 +31,7 @@ export default function ParametrosIUTPage() {
     const firestore = useFirestore();
     const { toast } = useToast();
     
-    const paramsCollection = React.useMemo(() => 
-        firestore ? collection(firestore, `tax-parameters`) : null,
-    [firestore]);
-
-    const { data: tablaIUT, loading } = useCollection<TaxParameter>({ query: paramsCollection as any });
+    const { data: tablaIUT, loading } = useCollection<TaxParameter>({ path: 'tax-parameters' });
 
     const handleSeedData = async () => {
         if (!firestore) return;

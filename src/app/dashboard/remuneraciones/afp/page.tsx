@@ -32,11 +32,7 @@ export default function AfpEntitiesPage() {
     const firestore = useFirestore();
     const { toast } = useToast();
     
-    const afpEntitiesCollection = React.useMemo(() => 
-        firestore ? collection(firestore, `afp-entities`) : null, 
-    [firestore]);
-
-    const { data: afpEntities, loading } = useCollection<AfpEntity>({ query: afpEntitiesCollection as any });
+    const { data: afpEntities, loading } = useCollection<AfpEntity>({ path: 'afp-entities' });
 
     const handleSeedData = async () => {
         if (!firestore) return;

@@ -31,11 +31,7 @@ export default function ParametrosAsigFamiliarPage() {
     const firestore = useFirestore();
     const { toast } = useToast();
     
-    const paramsCollection = React.useMemo(() => 
-        firestore ? collection(firestore, `family-allowance-parameters`) : null, 
-    [firestore]);
-
-    const { data: tramosAsignacion, loading } = useCollection<FamilyAllowanceParameter>({ query: paramsCollection as any });
+    const { data: tramosAsignacion, loading } = useCollection<FamilyAllowanceParameter>({ path: 'family-allowance-parameters' });
 
     const handleSeedData = async () => {
         if (!firestore) return;

@@ -33,11 +33,7 @@ export default function InstitucionesPage() {
     const firestore = useFirestore();
     const { toast } = useToast();
     
-    const institutionsCollection = React.useMemo(() => 
-        firestore ? collection(firestore, `institutions`) : null, 
-    [firestore]);
-
-    const { data: institutions, loading } = useCollection<Institution>({ query: institutionsCollection as any });
+    const { data: institutions, loading } = useCollection<Institution>({ path: 'institutions' });
 
     const handleSeedData = async () => {
         if (!firestore) return;

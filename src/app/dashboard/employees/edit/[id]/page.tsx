@@ -43,7 +43,6 @@ export default function EmployeeFormPage() {
     const companyId = selectedCompany?.id;
     const firestore = useFirestore();
     const router = useRouter();
-    const { user: authUser } = useUser();
 
 
     const employeeRef = React.useMemo(() => 
@@ -60,10 +59,10 @@ export default function EmployeeFormPage() {
     });
 
     const { data: afpEntities, loading: afpLoading } = useCollection<AfpEntity>({
-        path: authUser ? `users/${authUser.uid}/afp-entities` : undefined,
+        path: 'afp-entities',
     });
      const { data: healthEntities, loading: healthLoading } = useCollection<HealthEntity>({
-        path: authUser ? `users/${authUser.uid}/health-entities` : undefined,
+        path: 'health-entities',
     });
 
     React.useEffect(() => {

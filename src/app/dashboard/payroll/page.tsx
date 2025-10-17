@@ -55,8 +55,6 @@ export default function PayrollPage() {
     const companyId = selectedCompany?.id;
     const firestore = useFirestore();
     const { toast } = useToast();
-    const { user: authUser } = useUser();
-
 
     const [selectedPayroll, setSelectedPayroll] = React.useState<{ payroll: Payroll, employee: Employee } | null>(null);
     const [isProcessing, setIsProcessing] = React.useState(false);
@@ -77,8 +75,8 @@ export default function PayrollPage() {
       path: companyId ? `companies/${companyId}/payrolls` : undefined,
       companyId: companyId 
     });
-    const { data: afpEntities, loading: afpLoading } = useCollection<AfpEntity>({ path: authUser ? `users/${authUser.uid}/afp-entities` : undefined });
-    const { data: healthEntities, loading: healthLoading } = useCollection<HealthEntity>({ path: authUser ? `users/${authUser.uid}/health-entities` : undefined });
+    const { data: afpEntities, loading: afpLoading } = useCollection<AfpEntity>({ path: 'afp-entities' });
+    const { data: healthEntities, loading: healthLoading } = useCollection<HealthEntity>({ path: 'health-entities' });
 
     // Fetch the specific monthly indicator for the selected period
     const indicatorId = `${year}-${month.toString().padStart(2, '0')}`;
@@ -345,7 +343,3 @@ export default function PayrollPage() {
         </>
     )
 }
-
-    
-
-    
