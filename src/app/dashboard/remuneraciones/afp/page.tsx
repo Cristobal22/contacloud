@@ -17,39 +17,29 @@ import {
 } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { PlusCircle } from "lucide-react"
-import { useCollection, useFirestore, useUser } from "@/firebase"
+import { useCollection, useFirestore } from "@/firebase"
 import type { AfpEntity } from "@/lib/types"
 import { collection, writeBatch, doc } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 import { errorEmitter } from "@/firebase/error-emitter"
 import { FirestorePermissionError } from "@/firebase/errors"
 import React from "react";
-
-const initialAfpEntities: Omit<AfpEntity, 'id'>[] = [
-    { code: "03", name: "CAPITAL", mandatoryContribution: 11.44, previredCode: "33", provisionalRegime: "DL 3.500", dtCode: "02" },
-    { code: "05", name: "CUPRUM", mandatoryContribution: 11.44, previredCode: "03", provisionalRegime: "DL 3.500", dtCode: "03" },
-    { code: "08", name: "HABITAT", mandatoryContribution: 11.27, previredCode: "05", provisionalRegime: "DL 3.500", dtCode: "04" },
-    { code: "29", name: "MODELO", mandatoryContribution: 10.58, previredCode: "34", provisionalRegime: "DL 3.500", dtCode: "08" },
-    { code: "12", name: "PLANVITAL", mandatoryContribution: 11.16, previredCode: "08", provisionalRegime: "DL 3.500", dtCode: "05" },
-    { code: "13", name: "PROVIDA", mandatoryContribution: 11.45, previredCode: "09", provisionalRegime: "DL 3.500", dtCode: "06" },
-    { code: "35", name: "UNO", mandatoryContribution: 10.49, previredCode: "35", provisionalRegime: "DL 3.500", dtCode: "09" }
-];
+import { initialAfpEntities } from "@/lib/seed-data";
 
 
 export default function AfpEntitiesPage() {
     const firestore = useFirestore();
-    const { user } = useUser();
     const { toast } = useToast();
     
     const afpEntitiesCollection = React.useMemo(() => 
-        firestore && user ? collection(firestore, `users/${user.uid}/afp-entities`) : null, 
-    [firestore, user]);
+        firestore ? collection(firestore, `system-parameters/afp-entities`) : null, 
+    [firestore]);
 
-    const { data: afpEntities, loading } = useCollection<AfpEntity>({ query: afpEntitiesCollection });
+    const { data: afpEntities, loading } = useCollection<AfpEntity>({ query: afpEntitiesCollection as any });
 
     const handleSeedData = async () => {
-        if (!firestore || !user) return;
-        const collectionPath = `users/${user.uid}/afp-entities`;
+        if (!firestore) return;
+        const collectionPath = `system-parameters/afp-entities`;
         const batch = writeBatch(firestore);
         
         initialAfpEntities.forEach(entityData => {

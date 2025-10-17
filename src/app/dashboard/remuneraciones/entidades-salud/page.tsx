@@ -17,38 +17,28 @@ import {
 } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { PlusCircle } from "lucide-react"
-import { useCollection, useFirestore, useUser } from "@/firebase"
+import { useCollection, useFirestore } from "@/firebase"
 import type { HealthEntity } from "@/lib/types"
 import { collection, writeBatch, doc } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 import { errorEmitter } from "@/firebase/error-emitter"
 import { FirestorePermissionError } from "@/firebase/errors"
 import React from "react";
-
-const initialHealthEntities: Omit<HealthEntity, 'id'>[] = [
-    { code: "001", name: "FONASA", mandatoryContribution: 7.00, previredCode: "01", dtCode: "01" },
-    { code: "067", name: "CONSALUD", mandatoryContribution: 7.00, previredCode: "18", dtCode: "02" },
-    { code: "099", name: "CRUZBLANCA", mandatoryContribution: 7.00, previredCode: "07", dtCode: "03" },
-    { code: "081", name: "NUEVA MASVIDA", mandatoryContribution: 7.00, previredCode: "31", dtCode: "04" },
-    { code: "078", name: "BANMEDICA", mandatoryContribution: 7.00, previredCode: "04", dtCode: "05" },
-    { code: "080", name: "VIDA TRES", mandatoryContribution: 7.00, previredCode: "17", dtCode: "06" },
-    { code: "076", name: "COLMENA", mandatoryContribution: 7.00, previredCode: "02", dtCode: "07" },
-];
+import { initialHealthEntities } from "@/lib/seed-data";
 
 export default function HealthEntitiesPage() {
     const firestore = useFirestore();
-    const { user } = useUser();
     const { toast } = useToast();
     
     const healthEntitiesCollection = React.useMemo(() => 
-        firestore && user ? collection(firestore, `users/${user.uid}/health-entities`) : null, 
-    [firestore, user]);
+        firestore ? collection(firestore, `system-parameters/health-entities`) : null, 
+    [firestore]);
     
-    const { data: healthEntities, loading } = useCollection<HealthEntity>({ query: healthEntitiesCollection });
+    const { data: healthEntities, loading } = useCollection<HealthEntity>({ query: healthEntitiesCollection as any });
 
     const handleSeedData = async () => {
-        if (!firestore || !user) return;
-        const collectionPath = `users/${user.uid}/health-entities`;
+        if (!firestore) return;
+        const collectionPath = `system-parameters/health-entities`;
         const batch = writeBatch(firestore);
         
         initialHealthEntities.forEach(entityData => {

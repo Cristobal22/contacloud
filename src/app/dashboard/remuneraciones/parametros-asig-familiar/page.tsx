@@ -16,36 +16,30 @@ import {
     CardTitle,
 } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { useCollection, useFirestore, useUser } from "@/firebase"
+import { useCollection, useFirestore } from "@/firebase"
 import type { FamilyAllowanceParameter } from "@/lib/types"
 import { collection, writeBatch, doc } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 import { errorEmitter } from "@/firebase/error-emitter"
 import { FirestorePermissionError } from "@/firebase/errors"
 import React from "react";
+import { initialFamilyAllowanceParameters } from "@/lib/seed-data";
 
-const initialFamilyAllowanceParameters: Omit<FamilyAllowanceParameter, 'id'>[] = [
-    { tramo: "A", desde: 0, hasta: 515879, monto: 20328 },
-    { tramo: "B", desde: 515880, hasta: 753496, monto: 12475 },
-    { tramo: "C", desde: 753497, hasta: 1175196, monto: 3942 },
-    { tramo: "D", desde: 1175197, hasta: Infinity, monto: 0 }
-];
 
 export default function ParametrosAsigFamiliarPage() {
     const firestore = useFirestore();
     const { toast } = useToast();
-    const { user } = useUser();
     
     const paramsCollection = React.useMemo(() => 
-        firestore && user ? collection(firestore, `users/${user.uid}/family-allowance-parameters`) : null, 
-    [firestore, user]);
+        firestore ? collection(firestore, `system-parameters/family-allowance-parameters`) : null, 
+    [firestore]);
 
-    const { data: tramosAsignacion, loading } = useCollection<FamilyAllowanceParameter>({ query: paramsCollection });
+    const { data: tramosAsignacion, loading } = useCollection<FamilyAllowanceParameter>({ query: paramsCollection as any });
 
     const handleSeedData = async () => {
-        if (!firestore || !user) return;
+        if (!firestore) return;
         
-        const collectionPath = `users/${user.uid}/family-allowance-parameters`;
+        const collectionPath = `system-parameters/family-allowance-parameters`;
         const batch = writeBatch(firestore);
         
         initialFamilyAllowanceParameters.forEach(paramData => {

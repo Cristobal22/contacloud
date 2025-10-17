@@ -18,6 +18,10 @@
                     "items": {
                         "type": "string"
                     }
+                },
+                "createdBy": {
+                    "type": "string",
+                    "description": "The UID of the admin who created this user."
                 }
             },
             "required": ["uid", "email", "role"]
@@ -297,6 +301,22 @@
                 "companyId": { "type": "string" }
             },
             "required": ["id", "date", "documentNumber", "issuer", "total", "status", "companyId"]
+        },
+        "EconomicIndicator": {
+            "title": "EconomicIndicator",
+            "description": "Stores monthly economic indicators like UF, UTM, UTA, etc.",
+            "type": "object",
+            "properties": {
+                "id": { "type": "string", "description": "Unique ID, typically in 'YYYY-MM' format." },
+                "year": { "type": "number" },
+                "month": { "type": "number" },
+                "uf": { "type": "number", "description": "Unidad de Fomento value for the month." },
+                "utm": { "type": "number", "description": "Unidad Tributaria Mensual value for the month." },
+                "uta": { "type": "number", "description": "Unidad Tributaria Anual value for the month." },
+                "minWage": { "type": "number", "description": "Minimum wage for the month." },
+                "gratificationCap": { "type": "number", "description": "Legal gratification cap for the month." }
+            },
+            "required": ["id", "year", "month"]
         }
     },
     "firestore": {
@@ -344,25 +364,29 @@
             "schema": { "$ref": "#/entities/AccountGroup" },
             "description": "User-specific collection of account groups."
         },
-        "/users/{userId}/institutions": {
-            "schema": { "$ref": "#/entities/Institution" },
-            "description": "User-specific collection of pension and health institutions."
+        "/system-parameters/economic-indicators/{indicatorId}": {
+            "schema": { "$ref": "#/entities/EconomicIndicator" },
+            "description": "Global collection of monthly economic indicators."
         },
-        "/users/{userId}/family-allowance-parameters": {
-            "schema": { "$ref": "#/entities/FamilyAllowanceParameter" },
-            "description": "User-specific collection of family allowance parameters."
-        },
-        "/users/{userId}/tax-parameters": {
-            "schema": { "$ref": "#/entities/TaxParameter" },
-            "description": "User-specific collection of tax parameters for IUT."
-        },
-         "/users/{userId}/health-entities": {
+        "/system-parameters/health-entities/{entityId}": {
             "schema": { "$ref": "#/entities/HealthEntity" },
-            "description": "User-specific collection of health entities (Isapres and Fonasa)."
+            "description": "Global collection of health entities (Isapres and Fonasa)."
         },
-        "/users/{userId}/afp-entities": {
+        "/system-parameters/afp-entities/{entityId}": {
             "schema": { "$ref": "#/entities/AfpEntity" },
-            "description": "User-specific collection of AFP entities."
+            "description": "Global collection of AFP entities."
+        },
+        "/system-parameters/family-allowance-parameters/{paramId}": {
+            "schema": { "$ref": "#/entities/FamilyAllowanceParameter" },
+            "description": "Global collection of family allowance parameters."
+        },
+        "/system-parameters/tax-parameters/{paramId}": {
+            "schema": { "$ref": "#/entities/TaxParameter" },
+            "description": "Global collection of tax parameters for IUT."
+        },
+        "/system-parameters/institutions/{institutionId}": {
+            "schema": { "$ref": "#/entities/Institution" },
+            "description": "Global collection of pension and health institutions."
         }
     },
     "auth": {

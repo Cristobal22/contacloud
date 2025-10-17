@@ -1,6 +1,7 @@
 
 
 
+
 import { z } from 'zod';
 
 export const UserProfileSchema = z.object({
@@ -216,6 +217,17 @@ export type AfpEntity = {
     previredCode: string;
     provisionalRegime: string;
     dtCode: string;
+};
+
+export type EconomicIndicator = {
+    id: string; // YYYY-MM
+    year: number;
+    month: number;
+    uf?: number;
+    utm?: number;
+    uta?: number;
+    minWage?: number;
+    gratificationCap?: number;
 };
 
 

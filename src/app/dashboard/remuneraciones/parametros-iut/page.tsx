@@ -16,40 +16,30 @@ import {
     CardTitle,
 } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { useCollection, useFirestore, useUser } from "@/firebase"
+import { useCollection, useFirestore } from "@/firebase"
 import type { TaxParameter } from "@/lib/types"
 import { collection, doc, writeBatch } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 import { errorEmitter } from "@/firebase/error-emitter"
 import { FirestorePermissionError } from "@/firebase/errors"
 import React from "react";
+import { initialTaxParameters } from "@/lib/seed-data";
 
-const initialTaxParameters: Omit<TaxParameter, 'id'>[] = [
-    { tramo: "1", desde: 0, hasta: 13.5, factor: 0, rebaja: 0 },
-    { tramo: "2", desde: 13.5, hasta: 30, factor: 0.04, rebaja: 0.54 },
-    { tramo: "3", desde: 30, hasta: 50, factor: 0.08, rebaja: 1.74 },
-    { tramo: "4", desde: 50, hasta: 70, factor: 0.135, rebaja: 4.49 },
-    { tramo: "5", desde: 70, hasta: 90, factor: 0.23, rebaja: 11.14 },
-    { tramo: "6", desde: 90, hasta: 120, factor: 0.304, rebaja: 17.8 },
-    { tramo: "7", desde: 120, hasta: 310, factor: 0.35, rebaja: 23.32 },
-    { tramo: "8", desde: 310, hasta: Infinity, factor: 0.4, rebaja: 38.82 }
-];
 
 export default function ParametrosIUTPage() {
     const firestore = useFirestore();
     const { toast } = useToast();
-    const { user } = useUser();
     
     const paramsCollection = React.useMemo(() => 
-        firestore && user ? collection(firestore, `users/${user.uid}/tax-parameters`) : null,
-    [firestore, user]);
+        firestore ? collection(firestore, `system-parameters/tax-parameters`) : null,
+    [firestore]);
 
-    const { data: tablaIUT, loading } = useCollection<TaxParameter>({ query: paramsCollection });
+    const { data: tablaIUT, loading } = useCollection<TaxParameter>({ query: paramsCollection as any });
 
     const handleSeedData = async () => {
-        if (!firestore || !user) return;
+        if (!firestore) return;
 
-        const collectionPath = `users/${user.uid}/tax-parameters`;
+        const collectionPath = `system-parameters/tax-parameters`;
         const batch = writeBatch(firestore);
         
         initialTaxParameters.forEach(paramData => {

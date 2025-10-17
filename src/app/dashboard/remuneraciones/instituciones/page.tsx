@@ -18,36 +18,29 @@ import {
 import { Button } from "@/components/ui/button"
 import { PlusCircle } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
-import { useCollection, useFirestore, useUser } from "@/firebase"
+import { useCollection, useFirestore } from "@/firebase"
 import type { Institution } from "@/lib/types"
 import { collection, doc, writeBatch } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 import { errorEmitter } from "@/firebase/error-emitter"
 import { FirestorePermissionError } from "@/firebase/errors"
 import React from "react";
+import { initialInstitutions } from "@/lib/seed-data";
 
-const initialInstitutions: Omit<Institution, 'id'>[] = [
-    { name: "AFP", type: "AFP" },
-    { name: "Fonasa", type: "Salud" },
-    { name: "Isapre", type: "Salud" },
-    { name: "Mutual de Seguridad", type: "Mutual" },
-    { name: "Caja de Compensación", type: "Caja de Compensación" }
-];
 
 export default function InstitucionesPage() {
     const firestore = useFirestore();
-    const { user } = useUser();
     const { toast } = useToast();
     
     const institutionsCollection = React.useMemo(() => 
-        firestore && user ? collection(firestore, `users/${user.uid}/institutions`) : null, 
-    [firestore, user]);
+        firestore ? collection(firestore, `system-parameters/institutions`) : null, 
+    [firestore]);
 
-    const { data: institutions, loading } = useCollection<Institution>({ query: institutionsCollection });
+    const { data: institutions, loading } = useCollection<Institution>({ query: institutionsCollection as any });
 
     const handleSeedData = async () => {
-        if (!firestore || !user) return;
-        const collectionPath = `users/${user.uid}/institutions`;
+        if (!firestore) return;
+        const collectionPath = `system-parameters/institutions`;
         const batch = writeBatch(firestore);
         
         initialInstitutions.forEach(instData => {
