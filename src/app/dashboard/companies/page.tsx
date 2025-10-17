@@ -76,12 +76,12 @@ import {
             return collection(firestore, 'companies');
         }
 
-        if (userProfile.companyIds && userProfile.companyIds.length > 0) {
+        if (userProfile.role === 'Accountant' && userProfile.companyIds && userProfile.companyIds.length > 0) {
             // Firestore 'in' queries are limited to 30 elements. We slice to stay within limits.
             return query(collection(firestore, 'companies'), where(documentId(), 'in', userProfile.companyIds.slice(0, 30)));
         }
 
-        return null; // For accountants with no companies assigned, this will result in an empty query.
+        return null; // For accountants with no companies or if no role is matched
     }, [firestore, userProfile]);
 
     const { data: companies, loading: companiesLoading, error } = useCollection<Company>({ 
