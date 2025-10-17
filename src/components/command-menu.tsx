@@ -5,8 +5,6 @@ import { useRouter } from "next/navigation"
 import {
   BookCopy,
   Building,
-  Calculator,
-  Calendar,
   CreditCard,
   FileText,
   Home,
@@ -58,9 +56,21 @@ export function CommandMenu() {
         setOpen((open) => !open)
       }
     }
+    
+    const handleClick = (e: MouseEvent) => {
+        if ((e.target as HTMLElement).closest('.command-menu-trigger')) {
+            e.preventDefault();
+            setOpen((open) => !open)
+        }
+    }
 
     document.addEventListener("keydown", down)
-    return () => document.removeEventListener("keydown", down)
+    document.addEventListener("click", handleClick)
+    
+    return () => {
+        document.removeEventListener("keydown", down)
+        document.removeEventListener("click", handleClick)
+    }
   }, [])
 
   const runCommand = React.useCallback((command: () => unknown) => {

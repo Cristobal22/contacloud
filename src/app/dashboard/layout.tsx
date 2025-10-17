@@ -37,7 +37,6 @@ function AccountantDashboardLayout({ children }: { children: React.ReactNode }) 
     
     const [selectedCompany, setSelectedCompany] = React.useState<Company | null>(null);
     const [isLoadingCompany, setIsLoadingCompany] = React.useState(true);
-    const [isCommandMenuOpen, setIsCommandMenuOpen] = React.useState(false);
 
     // Esta consulta es segura para contadores. Solo pide las empresas de su lista.
     const companiesQuery = React.useMemo(() => {
@@ -136,7 +135,7 @@ function AccountantDashboardLayout({ children }: { children: React.ReactNode }) 
                                     </DropdownMenuContent>
                                 </DropdownMenu>
                                 {userProfile?.role === 'Accountant' && (
-                                     <Button variant="outline" size="icon" className="h-9 w-9" onClick={() => setIsCommandMenuOpen(true)}>
+                                     <Button variant="outline" size="icon" className="h-9 w-9 command-menu-trigger">
                                         <Search className="h-4 w-4" />
                                         <span className="sr-only">Search</span>
                                     </Button>
@@ -156,7 +155,6 @@ function AccountantDashboardLayout({ children }: { children: React.ReactNode }) 
 }
 
 function AdminDashboardLayout({ children }: { children: React.ReactNode }) {
-     const [isCommandMenuOpen, setIsCommandMenuOpen] = React.useState(false);
     return (
         <div className="flex min-h-screen w-full flex-col bg-muted/40">
             <aside className="fixed inset-y-0 left-0 z-10 hidden w-64 flex-col border-r bg-background sm:flex">
@@ -172,7 +170,7 @@ function AdminDashboardLayout({ children }: { children: React.ReactNode }) {
 
             <div className="flex flex-col sm:pl-64">
                 <header className="sticky top-0 z-30 flex h-16 items-center justify-end gap-4 border-b bg-background px-4 sm:px-6">
-                     <Button variant="outline" size="icon" className="h-9 w-9" onClick={() => setIsCommandMenuOpen(true)}>
+                     <Button variant="outline" size="icon" className="h-9 w-9 command-menu-trigger">
                         <Search className="h-4 w-4" />
                         <span className="sr-only">Search</span>
                     </Button>
