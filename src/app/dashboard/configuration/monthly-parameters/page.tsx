@@ -23,6 +23,7 @@ import {
   import { initialEconomicIndicators } from "@/lib/seed-data";
   import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
   import { ChevronDown } from "lucide-react";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
   export default function MonthlyParametersPage() {
     const { selectedCompany } = React.useContext(SelectedCompanyContext) || {};
@@ -41,31 +42,22 @@ import {
     
     const indicatorId = `${year}-${month.toString().padStart(2, '0')}`;
 
-    // Reference to the global (system) parameter
-    const globalIndicatorRef = React.useMemo(() => 
-        firestore ? doc(firestore, `economic-indicators/${indicatorId}`) : null,
-    [firestore, indicatorId]);
-    const { data: globalIndicator, loading: globalLoading } = useDoc<EconomicIndicator>(globalIndicatorRef);
-
+    // Fetch all global indicators for the history table
     const { data: allGlobalIndicators, loading: allGlobalsLoading } = useCollection<EconomicIndicator>({ path: 'economic-indicators' });
 
-
-    // Reference to the company-specific override
+    // Reference to the company-specific override for the selected period
     const companyIndicatorRef = React.useMemo(() =>
         firestore && companyId ? doc(firestore, `companies/${companyId}/economic-indicators/${indicatorId}`) : null,
     [firestore, companyId, indicatorId]);
     const { data: companyIndicator, loading: companyLoading } = useDoc<EconomicIndicator>(companyIndicatorRef);
 
-    // List all company-specific indicators for the history table
-    const { data: companyOverrides } = useCollection<EconomicIndicator>({
-        path: `companies/${companyId}/economic-indicators`,
-        companyId: companyId
-    });
 
     React.useEffect(() => {
-      const loading = globalLoading || companyLoading;
+      const loading = allGlobalsLoading || companyLoading;
       setIsLoading(loading);
       if (loading) return;
+      
+      const globalIndicatorForPeriod = allGlobalIndicators?.find(i => i.id === indicatorId);
 
       // Prioritize company-specific indicator
       if (companyIndicator) {
@@ -73,8 +65,8 @@ import {
           setIsCompanySpecific(true);
       } 
       // Fallback to global indicator
-      else if (globalIndicator) {
-          setIndicator(globalIndicator);
+      else if (globalIndicatorForPeriod) {
+          setIndicator(globalIndicatorForPeriod);
           setIsCompanySpecific(false);
       } 
       // If neither exists, reset to a blank state for the selected period
@@ -82,7 +74,7 @@ import {
           setIndicator({ id: indicatorId, year, month });
           setIsCompanySpecific(false);
       }
-    }, [year, month, globalIndicator, companyIndicator, indicatorId, globalLoading, companyLoading]);
+    }, [year, month, allGlobalIndicators, companyIndicator, indicatorId, allGlobalsLoading, companyLoading]);
 
 
     const handleSave = async (scope: 'company' | 'global') => {
@@ -160,127 +152,135 @@ import {
     };
 
     return (
-      <div className="grid gap-6">
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle>Parámetros Económicos Mensuales</CardTitle>
-                <CardDescription>
-                    Gestiona los parámetros para los cálculos. Los valores guardados aquí pueden ser globales o específicos por empresa.
-                </CardDescription>
-              </div>
-               {!allGlobalsLoading && allGlobalIndicators?.length === 0 && (
-                  <Button size="sm" onClick={handleSeedData}>Poblar Datos Globales</Button>
-              )}
-            </div>
-          </CardHeader>
-          <CardContent>
-              <form className="grid gap-6">
-                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                       <div className="space-y-2">
-                          <Label htmlFor="month">Mes</Label>
-                          <Select value={month.toString()} onValueChange={val => setMonth(Number(val))} disabled={!companyId}>
-                              <SelectTrigger id="month">
-                                  <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                  {Array.from({ length: 12 }, (_, i) => (
-                                      <SelectItem key={i+1} value={(i+1).toString()}>
-                                          {new Date(0, i).toLocaleString('es-CL', { month: 'long' })}
-                                      </SelectItem>
-                                  ))}
-                              </SelectContent>
-                          </Select>
-                      </div>
-                      <div className="space-y-2">
-                          <Label htmlFor="year">Año</Label>
-                          <Select value={year.toString()} onValueChange={val => setYear(Number(val))} disabled={!companyId}>
-                              <SelectTrigger id="year">
-                                  <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                  {Array.from({ length: 10 }, (_, i) => (
-                                      <SelectItem key={currentYear-i} value={(currentYear-i).toString()}>
-                                          {currentYear-i}
-                                      </SelectItem>
-                                  ))}
-                              </SelectContent>
-                          </Select>
-                      </div>
-                  </div>
-                   <div className="grid gap-6 md:grid-cols-3">
-                      <div className="space-y-2">
-                          <Label htmlFor="uf">Valor UF (último día del mes)</Label>
-                          <Input id="uf" type="number" placeholder="Ingresa el valor de la UF" value={indicator.uf || ''} onChange={e => handleFieldChange('uf', e.target.value)} disabled={!user || isLoading} />
-                      </div>
-                      <div className="space-y-2">
-                          <Label htmlFor="utm">Valor UTM</Label>
-                          <Input id="utm" type="number" placeholder="Ingresa el valor de la UTM" value={indicator.utm || ''} onChange={e => handleFieldChange('utm', e.target.value)} disabled={!user || isLoading} />
-                      </div>
-                      <div className="space-y-2">
-                          <Label htmlFor="sueldo-minimo">Sueldo Mínimo</Label>
-                          <Input id="sueldo-minimo" type="number" placeholder="Ingresa el sueldo mínimo" value={indicator.minWage || ''} onChange={e => handleFieldChange('minWage', e.target.value)} disabled={!user || isLoading} />
-                      </div>
-                  </div>
-                  {isCompanySpecific && (
-                      <p className="text-sm text-blue-600">Estás viendo valores personalizados para esta empresa. Los valores globales pueden ser diferentes.</p>
-                  )}
-                   <div className="flex justify-end">
-                       <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button disabled={isLoading || !user} className="gap-1">
-                              <span>Guardar Cambios</span>
-                              <ChevronDown className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onSelect={() => handleSave('company')} disabled={!companyId}>
-                              Solo para {selectedCompany?.name || 'esta empresa'}
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onSelect={() => handleSave('global')}>
-                              Para Todas Mis Empresas (Global)
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                  </div>
-              </form>
-          </CardContent>
-        </Card>
-        <Card>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2">
+            <Card>
             <CardHeader>
+                <div className="flex items-center justify-between">
                 <div>
-                    <CardTitle>Historial de Parámetros Personalizados</CardTitle>
-                    <CardDescription>Valores específicos guardados para la empresa <span className="font-bold">{selectedCompany?.name || ''}</span>.</CardDescription>
+                    <CardTitle>Parámetros Económicos Mensuales</CardTitle>
+                    <CardDescription>
+                        Gestiona los parámetros para los cálculos.
+                    </CardDescription>
+                </div>
                 </div>
             </CardHeader>
             <CardContent>
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>Período</TableHead>
-                            <TableHead className="text-right">UF</TableHead>
-                            <TableHead className="text-right">UTM</TableHead>
-                            <TableHead className="text-right">Sueldo Mínimo</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {isLoading ? (
-                            <TableRow><TableCell colSpan={4} className="text-center">Cargando historial...</TableCell></TableRow>
-                        ) : companyOverrides && companyOverrides.length > 0 ? (
-                           companyOverrides.sort((a,b) => b.id.localeCompare(a.id)).map(ind => (
-                               <TableRow key={ind.id} className={cn(ind.id === indicatorId && "bg-blue-100 dark:bg-blue-900/50")}>
-                                   <TableCell>{ind.year}-{ind.month.toString().padStart(2, '0')}</TableCell>
-                                   <TableCell className="text-right">${ind.uf?.toLocaleString('es-CL', {minimumFractionDigits: 2})}</TableCell>
-                                   <TableCell className="text-right">${ind.utm?.toLocaleString('es-CL')}</TableCell>
-                                   <TableCell className="text-right">${ind.minWage?.toLocaleString('es-CL')}</TableCell>
-                               </TableRow>
-                           ))
-                        ) : (
-                             <TableRow><TableCell colSpan={4} className="text-center">No hay valores personalizados para esta empresa.</TableCell></TableRow>
+                <form className="grid gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="month">Mes</Label>
+                            <Select value={month.toString()} onValueChange={val => setMonth(Number(val))}>
+                                <SelectTrigger id="month">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {Array.from({ length: 12 }, (_, i) => (
+                                        <SelectItem key={i+1} value={(i+1).toString()}>
+                                            {new Date(0, i).toLocaleString('es-CL', { month: 'long' })}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="year">Año</Label>
+                            <Select value={year.toString()} onValueChange={val => setYear(Number(val))}>
+                                <SelectTrigger id="year">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {Array.from({ length: 10 }, (_, i) => (
+                                        <SelectItem key={currentYear-i} value={(currentYear-i).toString()}>
+                                            {currentYear-i}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    </div>
+                    <div className={cn("rounded-md border p-4", isCompanySpecific ? "border-blue-500 bg-blue-50 dark:bg-blue-900/10" : "border-transparent")}>
+                        <div className="grid gap-6 md:grid-cols-3">
+                            <div className="space-y-2">
+                                <Label htmlFor="uf">Valor UF (último día del mes)</Label>
+                                <Input id="uf" type="number" placeholder="Ingresa el valor de la UF" value={indicator.uf || ''} onChange={e => handleFieldChange('uf', e.target.value)} disabled={!user || isLoading} />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="utm">Valor UTM</Label>
+                                <Input id="utm" type="number" placeholder="Ingresa el valor de la UTM" value={indicator.utm || ''} onChange={e => handleFieldChange('utm', e.target.value)} disabled={!user || isLoading} />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="sueldo-minimo">Sueldo Mínimo</Label>
+                                <Input id="sueldo-minimo" type="number" placeholder="Ingresa el sueldo mínimo" value={indicator.minWage || ''} onChange={e => handleFieldChange('minWage', e.target.value)} disabled={!user || isLoading} />
+                            </div>
+                        </div>
+                         {isCompanySpecific && (
+                            <p className="text-sm text-blue-600 mt-3">Estás viendo valores personalizados para <span className="font-bold">{selectedCompany?.name}</span>.</p>
                         )}
-                    </TableBody>
-                </Table>
+                    </div>
+                    <div className="flex justify-end pt-4">
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                            <Button disabled={isLoading || !user} className="gap-1">
+                                <span>Guardar Cambios</span>
+                                <ChevronDown className="h-4 w-4" />
+                            </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                            <DropdownMenuItem onSelect={() => handleSave('company')} disabled={!companyId}>
+                                Solo para {selectedCompany?.name || 'esta empresa'}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onSelect={() => handleSave('global')}>
+                                Para Todas Mis Empresas (Global)
+                            </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                    </div>
+                </form>
+            </CardContent>
+            </Card>
+        </div>
+
+        <Card className="lg:col-span-1">
+            <CardHeader>
+                <div className="flex items-center justify-between">
+                    <CardTitle>Historial Global</CardTitle>
+                    {!allGlobalsLoading && allGlobalIndicators?.length === 0 && (
+                        <Button size="sm" onClick={handleSeedData}>Poblar Datos</Button>
+                    )}
+                </div>
+                 <CardDescription>Valores de referencia para todos los usuarios.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                <ScrollArea className="h-[450px]">
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Período</TableHead>
+                                <TableHead className="text-right">UTM</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {allGlobalsLoading ? (
+                                <TableRow><TableCell colSpan={2} className="text-center">Cargando historial...</TableCell></TableRow>
+                            ) : allGlobalIndicators && allGlobalIndicators.length > 0 ? (
+                            allGlobalIndicators.sort((a,b) => b.id.localeCompare(a.id)).map(ind => (
+                                <TableRow key={ind.id} className={cn(ind.id === indicatorId && "bg-muted font-bold")}>
+                                    <TableCell>
+                                        {ind.year}-{ind.month.toString().padStart(2, '0')}
+                                        {isCompanySpecific && ind.id === indicatorId && 
+                                            <span className="ml-2 text-xs text-blue-600">(Personalizado)</span>
+                                        }
+                                    </TableCell>
+                                    <TableCell className="text-right">${ind.utm?.toLocaleString('es-CL')}</TableCell>
+                                </TableRow>
+                            ))
+                            ) : (
+                                <TableRow><TableCell colSpan={2} className="text-center">No hay valores globales.</TableCell></TableRow>
+                            )}
+                        </TableBody>
+                    </Table>
+                </ScrollArea>
             </CardContent>
         </Card>
       </div>

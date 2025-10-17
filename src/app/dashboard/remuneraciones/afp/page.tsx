@@ -26,6 +26,7 @@ import { errorEmitter } from "@/firebase/error-emitter"
 import { FirestorePermissionError } from "@/firebase/errors"
 import React from "react";
 import { initialAfpEntities } from "@/lib/seed-data";
+import { ScrollArea } from "@/components/ui/scroll-area"
 
 
 export default function AfpEntitiesPage() {
@@ -82,42 +83,40 @@ export default function AfpEntitiesPage() {
                 </div>
             </CardHeader>
             <CardContent>
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>Afp</TableHead>
-                            <TableHead>Nombre</TableHead>
-                            <TableHead className="text-right">Cotización Obligatoria</TableHead>
-                            <TableHead>Código Previred</TableHead>
-                            <TableHead>Régimen Previsional</TableHead>
-                            <TableHead>Código Dirección del Trabajo</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {loading && (
+                <ScrollArea className="h-[60vh]">
+                    <Table>
+                        <TableHeader>
                             <TableRow>
-                                <TableCell colSpan={6} className="text-center">Cargando...</TableCell>
+                                <TableHead>Nombre</TableHead>
+                                <TableHead className="text-right">Cotización Obligatoria</TableHead>
+                                <TableHead>Código Previred</TableHead>
+                                <TableHead>Régimen Previsional</TableHead>
                             </TableRow>
-                        )}
-                        {!loading && afpEntities?.map((entity) => (
-                            <TableRow key={entity.id}>
-                                <TableCell className="font-medium">{entity.code}</TableCell>
-                                <TableCell>{entity.name}</TableCell>
-                                <TableCell className="text-right">{entity.mandatoryContribution.toFixed(2).replace('.',',')}%</TableCell>
-                                <TableCell>{entity.previredCode}</TableCell>
-                                <TableCell>{entity.provisionalRegime}</TableCell>
-                                <TableCell>{entity.dtCode}</TableCell>
-                            </TableRow>
-                        ))}
-                         {!loading && afpEntities?.length === 0 && (
-                            <TableRow>
-                                <TableCell colSpan={6} className="text-center">
-                                    No se encontraron entidades de AFP. Puedes poblarlas con datos iniciales.
-                                </TableCell>
-                            </TableRow>
-                        )}
-                    </TableBody>
-                </Table>
+                        </TableHeader>
+                        <TableBody>
+                            {loading && (
+                                <TableRow>
+                                    <TableCell colSpan={4} className="text-center">Cargando...</TableCell>
+                                </TableRow>
+                            )}
+                            {!loading && afpEntities?.map((entity) => (
+                                <TableRow key={entity.id}>
+                                    <TableCell className="font-medium">{entity.name}</TableCell>
+                                    <TableCell className="text-right">{entity.mandatoryContribution.toFixed(2).replace('.',',')}%</TableCell>
+                                    <TableCell>{entity.previredCode}</TableCell>
+                                    <TableCell>{entity.provisionalRegime}</TableCell>
+                                </TableRow>
+                            ))}
+                            {!loading && afpEntities?.length === 0 && (
+                                <TableRow>
+                                    <TableCell colSpan={4} className="text-center">
+                                        No se encontraron entidades de AFP. Puedes poblarlas con datos iniciales.
+                                    </TableCell>
+                                </TableRow>
+                            )}
+                        </TableBody>
+                    </Table>
+                </ScrollArea>
             </CardContent>
         </Card>
     )

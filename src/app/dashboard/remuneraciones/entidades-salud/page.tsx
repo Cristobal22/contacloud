@@ -26,6 +26,7 @@ import { errorEmitter } from "@/firebase/error-emitter"
 import { FirestorePermissionError } from "@/firebase/errors"
 import React from "react";
 import { initialHealthEntities } from "@/lib/seed-data";
+import { ScrollArea } from "@/components/ui/scroll-area"
 
 export default function HealthEntitiesPage() {
     const firestore = useFirestore();
@@ -80,40 +81,38 @@ export default function HealthEntitiesPage() {
                 </div>
             </CardHeader>
             <CardContent>
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>Código</TableHead>
-                            <TableHead>Nombre Isapre</TableHead>
-                            <TableHead className="text-right">Cotización Obligatoria</TableHead>
-                            <TableHead>Código Previred</TableHead>
-                            <TableHead>Código Dirección del Trabajo</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {loading && (
+                <ScrollArea className="h-[60vh]">
+                    <Table>
+                        <TableHeader>
                             <TableRow>
-                                <TableCell colSpan={5} className="text-center">Cargando...</TableCell>
+                                <TableHead>Nombre Isapre</TableHead>
+                                <TableHead className="text-right">Cotización Obligatoria</TableHead>
+                                <TableHead>Código Previred</TableHead>
                             </TableRow>
-                        )}
-                        {!loading && healthEntities?.map((entity) => (
-                            <TableRow key={entity.id}>
-                                <TableCell className="font-medium">{entity.code}</TableCell>
-                                <TableCell>{entity.name}</TableCell>
-                                <TableCell className="text-right">{entity.mandatoryContribution.toFixed(2)}%</TableCell>
-                                <TableCell>{entity.previredCode}</TableCell>
-                                <TableCell>{entity.dtCode}</TableCell>
-                            </TableRow>
-                        ))}
-                         {!loading && healthEntities?.length === 0 && (
-                            <TableRow>
-                                <TableCell colSpan={5} className="text-center">
-                                    No se encontraron entidades de salud. Puedes poblarlas con datos iniciales.
-                                </TableCell>
-                            </TableRow>
-                        )}
-                    </TableBody>
-                </Table>
+                        </TableHeader>
+                        <TableBody>
+                            {loading && (
+                                <TableRow>
+                                    <TableCell colSpan={3} className="text-center">Cargando...</TableCell>
+                                </TableRow>
+                            )}
+                            {!loading && healthEntities?.map((entity) => (
+                                <TableRow key={entity.id}>
+                                    <TableCell className="font-medium">{entity.name}</TableCell>
+                                    <TableCell className="text-right">{entity.mandatoryContribution.toFixed(2)}%</TableCell>
+                                    <TableCell>{entity.previredCode}</TableCell>
+                                </TableRow>
+                            ))}
+                            {!loading && healthEntities?.length === 0 && (
+                                <TableRow>
+                                    <TableCell colSpan={3} className="text-center">
+                                        No se encontraron entidades de salud. Puedes poblarlas con datos iniciales.
+                                    </TableCell>
+                                </TableRow>
+                            )}
+                        </TableBody>
+                    </Table>
+                </ScrollArea>
             </CardContent>
         </Card>
     )
