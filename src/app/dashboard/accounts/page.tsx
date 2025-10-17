@@ -1,3 +1,4 @@
+
 'use client';
 
 import React from 'react';
@@ -18,13 +19,14 @@ import {
   } from "@/components/ui/card"
   import { Button, buttonVariants } from "@/components/ui/button"
   import { Badge } from "@/components/ui/badge"
-  import { MoreHorizontal, PlusCircle, Download, BookUp } from "lucide-react"
+  import { MoreHorizontal, PlusCircle, Download, BookUp, Trash2 } from "lucide-react"
   import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuLabel,
     DropdownMenuTrigger,
+    DropdownMenuSeparator,
   } from "@/components/ui/dropdown-menu"
    import {
     Dialog,
@@ -49,7 +51,7 @@ import {
   import { Label } from "@/components/ui/label"
   import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
   import { useCollection, useFirestore } from "@/firebase"
-  import { collection, addDoc, setDoc, doc, writeBatch } from "firebase/firestore"
+  import { collection, addDoc, setDoc, doc, writeBatch, getDocs, deleteDoc } from "firebase/firestore"
   import type { Account } from "@/lib/types"
   import { errorEmitter } from '@/firebase/error-emitter'
   import { FirestorePermissionError } from '@/firebase/errors'
@@ -70,6 +72,7 @@ export default function AccountsPage() {
 
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
   const [isSeedConfirmOpen, setIsSeedConfirmOpen] = React.useState(false);
+  const [isDeleteAllConfirmOpen, setIsDeleteAllConfirmOpen] = React.useState(false);
   const [selectedAccount, setSelectedAccount] = React.useState<Partial<Account> | null>(null);
 
   const handleCreateNew = () => {
@@ -180,6 +183,42 @@ export default function AccountsPage() {
     }
   };
 
+  const handleDeleteAllAccounts = async () => {
+    if (!firestore || !companyId) return;
+
+    const collectionPath = `companies/${companyId}/accounts`;
+    const accountsCollection = collection(firestore, collectionPath);
+    
+    try {
+        const querySnapshot = await getDocs(accountsCollection);
+        if (querySnapshot.empty) {
+            toast({ description: "No hay cuentas que eliminar." });
+            setIsDeleteAllConfirmOpen(false);
+            return;
+        }
+
+        const batch = writeBatch(firestore);
+        querySnapshot.forEach(doc => {
+            batch.delete(doc.ref);
+        });
+        await batch.commit();
+        toast({
+            title: "Plan de Cuentas Eliminado",
+            description: "Todas las cuentas contables de esta empresa han sido eliminadas.",
+            variant: "destructive"
+        });
+    } catch (error) {
+        console.error("Error deleting all accounts: ", error);
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+            path: collectionPath,
+            operation: 'delete',
+        }));
+    } finally {
+        setIsDeleteAllConfirmOpen(false);
+    }
+  };
+
+
   const showInitialActions = !loading && accounts?.length === 0 && companyId;
 
 
@@ -194,11 +233,25 @@ export default function AccountsPage() {
                         {showInitialActions ? "Empieza por configurar el plan de cuentas de la empresa." : "Gestiona las cuentas contables de la empresa seleccionada."}
                     </CardDescription>
                 </div>
-                 {!showInitialActions && (
-                    <Button size="sm" className="gap-1" onClick={handleCreateNew} disabled={!companyId}>
-                        <PlusCircle className="h-4 w-4" />
-                        Agregar Cuenta
-                    </Button>
+                 {!showInitialActions && companyId && (
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button variant="outline" size="sm">
+                                <MoreHorizontal className="h-4 w-4" />
+                                <span className="sr-only">Acciones</span>
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                            <DropdownMenuLabel>Acciones del Plan</DropdownMenuLabel>
+                            <DropdownMenuItem onSelect={handleCreateNew}>
+                                <PlusCircle className="mr-2 h-4 w-4"/> Agregar Cuenta
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator/>
+                            <DropdownMenuItem className="text-destructive" onSelect={() => setIsDeleteAllConfirmOpen(true)}>
+                                <Trash2 className="mr-2 h-4 w-4"/> Eliminar Plan Actual
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
                  )}
             </div>
         </CardHeader>
@@ -339,6 +392,26 @@ export default function AccountsPage() {
                     onClick={handleSeedData}
                 >
                     Sí, cargar plan
+                </AlertDialogAction>
+            </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={isDeleteAllConfirmOpen} onOpenChange={setIsDeleteAllConfirmOpen}>
+        <AlertDialogContent>
+            <AlertDialogHeader>
+                <AlertDialogTitle>¿Estás absolutamente seguro?</AlertDialogTitle>
+                <AlertDialogDescription>
+                    Esta acción no se puede deshacer. Esto eliminará permanentemente **TODAS** las cuentas contables de la empresa <span className='font-bold'>{selectedCompany?.name}</span>.
+                </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                <AlertDialogAction
+                    className={buttonVariants({ variant: "destructive" })}
+                    onClick={handleDeleteAllAccounts}
+                >
+                    Sí, eliminar todas las cuentas
                 </AlertDialogAction>
             </AlertDialogFooter>
         </AlertDialogContent>
