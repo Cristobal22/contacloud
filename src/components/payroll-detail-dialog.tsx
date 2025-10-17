@@ -12,7 +12,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { Table, TableBody, TableCell, TableRow, TableHeader, TableHead, TableFooter } from "@/components/ui/table"
-import type { Employee } from "@/lib/types"
+import type { Employee, Payroll } from "@/lib/types"
 import React from "react";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
@@ -21,26 +21,11 @@ import { Logo } from "./logo";
 import { SelectedCompanyContext } from "@/app/dashboard/layout";
 import { ScrollArea } from "./ui/scroll-area";
 
-export type SimulatedPayroll = {
-    id: string;
-    employeeName: string;
-    period: string;
-    baseSalary: number;
-    gratification: number;
-    otherEarnings: number;
-    totalEarnings: number;
-    afpDiscount: number;
-    healthDiscount: number;
-    otherDiscounts: number;
-    totalDiscounts: number;
-    netSalary: number;
-}
-
 interface PayrollDetailDialogProps {
     isOpen: boolean;
     onClose: () => void;
     data: {
-        payroll: SimulatedPayroll;
+        payroll: Payroll;
         employee: Employee;
     } | null;
 }
@@ -53,11 +38,11 @@ export function PayrollDetailDialog({ isOpen, onClose, data }: PayrollDetailDial
     const payrollContentRef = React.useRef<HTMLDivElement>(null);
     const { selectedCompany } = React.useContext(SelectedCompanyContext) || {};
 
-    const [pdf, setPdf] = React.useState<jsPDF | null>(null);
+    const [pdfInstance, setPdfInstance] = React.useState<jsPDF | null>(null);
     const [isPreview, setIsPreview] = React.useState(false);
 
     const handleClose = () => {
-        setPdf(null);
+        setPdfInstance(null);
         setIsPreview(false);
         onClose();
     }
@@ -67,11 +52,16 @@ export function PayrollDetailDialog({ isOpen, onClose, data }: PayrollDetailDial
         if (!input) return null;
     
         try {
+            // Ensure the content is visible for capture
+            input.style.opacity = '1';
             const canvas = await html2canvas(input, {
                 scale: 2,
                 useCORS: true, 
                 backgroundColor: '#ffffff'
             });
+            if (isPreview) {
+               input.style.opacity = '0';
+            }
     
             const imgData = canvas.toDataURL('image/png');
             const pdfDoc = new jsPDF('p', 'mm', 'a4');
@@ -103,10 +93,11 @@ export function PayrollDetailDialog({ isOpen, onClose, data }: PayrollDetailDial
     const togglePreview = async () => {
        if (isPreview) {
             setIsPreview(false);
+            setPdfInstance(null);
         } else {
             const generatedPdf = await generatePdf();
             if (generatedPdf) {
-                setPdf(generatedPdf);
+                setPdfInstance(generatedPdf);
                 setIsPreview(true);
             }
         }
@@ -127,7 +118,7 @@ export function PayrollDetailDialog({ isOpen, onClose, data }: PayrollDetailDial
         <Dialog open={isOpen} onOpenChange={handleClose}>
             <DialogContent className="max-w-4xl">
                 <DialogHeader>
-                    <DialogTitle>Liquidación de Sueldo (Simulación)</DialogTitle>
+                    <DialogTitle>Liquidación de Sueldo</DialogTitle>
                     <DialogDescription>
                         {`Detalle para ${employee.firstName} para el período de ${payroll.period}.`}
                     </DialogDescription>
@@ -136,7 +127,10 @@ export function PayrollDetailDialog({ isOpen, onClose, data }: PayrollDetailDial
                 <div className="relative">
                     <ScrollArea className="h-[600px] w-full">
                         <div 
-                            className={cn("bg-white text-black", isPreview && "opacity-0 absolute -z-10 pointer-events-none")}
+                            className={cn(
+                                "bg-white text-black transition-opacity duration-300", 
+                                isPreview && "opacity-0 absolute -z-10 pointer-events-none"
+                            )}
                             ref={payrollContentRef}
                         >
                         <div className="p-8">
@@ -212,9 +206,9 @@ export function PayrollDetailDialog({ isOpen, onClose, data }: PayrollDetailDial
                     
                     {/* PDF Preview Iframe */}
                     {isPreview && (
-                        <div className="absolute top-0 left-0 right-0 bottom-0 bg-white">
+                        <div className="absolute top-0 left-0 right-0 bottom-0 bg-white p-6 pt-0">
                              <div className="h-[600px] border rounded-md">
-                                {pdf && <iframe src={pdf.output('datauristring')} width="100%" height="100%" title="Vista previa de liquidación"/>}
+                                {pdfInstance && <iframe src={pdfInstance.output('datauristring')} width="100%" height="100%" title="Vista previa de liquidación"/>}
                             </div>
                         </div>
                     )}
@@ -231,3 +225,5 @@ export function PayrollDetailDialog({ isOpen, onClose, data }: PayrollDetailDial
         </Dialog>
     )
 }
+
+    

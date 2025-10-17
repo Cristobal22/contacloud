@@ -180,6 +180,30 @@
             },
             "required": ["id", "rut", "firstName", "lastName", "position", "status"]
         },
+        "Payroll": {
+            "title": "Payroll",
+            "description": "Represents a generated payroll document for an employee for a specific period.",
+            "type": "object",
+            "properties": {
+                "id": { "type": "string" },
+                "employeeId": { "type": "string" },
+                "employeeName": { "type": "string" },
+                "period": { "type": "string", "description": "The period of the payroll, e.g., 'Julio 2024'." },
+                "year": { "type": "number" },
+                "month": { "type": "number" },
+                "baseSalary": { "type": "number" },
+                "gratification": { "type": "number" },
+                "otherEarnings": { "type": "number" },
+                "totalEarnings": { "type": "number" },
+                "afpDiscount": { "type": "number" },
+                "healthDiscount": { "type": "number" },
+                "otherDiscounts": { "type": "number" },
+                "totalDiscounts": { "type": "number" },
+                "netSalary": { "type": "number" },
+                "companyId": { "type": "string" }
+            },
+            "required": ["id", "employeeId", "period", "totalEarnings", "totalDiscounts", "netSalary"]
+        },
         "AccountGroup": {
             "title": "AccountGroup",
             "description": "Main groups for classifying the chart of accounts.",
@@ -324,7 +348,7 @@
             "schema": { "$ref": "#/entities/UserProfile" },
             "description": "Collection to store user profile information."
         },
-        "/companies": {
+        "/companies/{companyId}": {
             "schema": { "$ref": "#/entities/Company" },
             "description": "Collection of all companies managed by the platform."
         },
@@ -347,6 +371,10 @@
         "/companies/{companyId}/employees": {
             "schema": { "$ref": "#/entities/Employee" },
             "description": "Sub-collection of employees for a specific company."
+        },
+        "/companies/{companyId}/payrolls": {
+            "schema": { "$ref": "#/entities/Payroll" },
+            "description": "Sub-collection of generated payrolls for a specific company."
         },
          "/companies/{companyId}/purchases": {
             "schema": { "$ref": "#/entities/Purchase" },
@@ -397,3 +425,5 @@
         "providers": ["google.com", "password"]
     }
 }
+
+    

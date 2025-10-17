@@ -1,7 +1,4 @@
 
-
-
-
 import { z } from 'zod';
 
 export const UserProfileSchema = z.object({
@@ -177,6 +174,26 @@ export type Fee = {
   companyId: string;
 };
 
+export type Payroll = {
+  id: string;
+  employeeId: string;
+  employeeName: string;
+  period: string;
+  year: number;
+  month: number;
+  baseSalary: number;
+  gratification: number;
+  otherEarnings: number;
+  totalEarnings: number;
+  afpDiscount: number;
+  healthDiscount: number;
+  otherDiscounts: number;
+  totalDiscounts: number;
+  netSalary: number;
+  companyId: string;
+};
+
+
 export type Institution = {
     id: string;
     name: string;
@@ -235,3 +252,5 @@ export type SelectedCompanyContextType = {
     selectedCompany: Company | null;
     setSelectedCompany: (company: Company | null) => void;
 };
+
+    
