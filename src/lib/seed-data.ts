@@ -9,7 +9,7 @@ export const initialChartOfAccounts: Omit<Account, 'id' | 'companyId' | 'balance
     { code: "1.1.01.001", name: "Caja", type: "Activo" },
     { code: "1.1.01.002", name: "Banco", type: "Activo" },
     { code: "1.1.02", name: "Activos Financieros Corrientes", type: "Activo" },
-    { code: "11.02.001", name: "Depósitos a Plazo", type: "Activo" },
+    { code: "1.1.02.001", name: "Depósitos a Plazo", type: "Activo" },
     { code: "1.1.03", name: "Deudores Comerciales y Otras Cuentas por Cobrar", type: "Activo" },
     { code: "1.1.03.001", name: "Clientes Nacionales", type: "Activo" },
     { code: "1.1.03.002", name: "Estimación Deudores Incobrables", type: "Activo" },

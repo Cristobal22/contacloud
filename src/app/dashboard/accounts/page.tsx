@@ -58,9 +58,21 @@ import {
   import { SelectedCompanyContext } from '../layout';
   import { initialChartOfAccounts } from '@/lib/seed-data';
   import { useToast } from '@/hooks/use-toast';
+  import { cn } from '@/lib/utils';
 
-  
-export default function AccountsPage() {
+  const getIndentation = (code: string) => {
+    const parts = code.split('.');
+    if (parts.length <= 1) return 0;
+    return (parts.length - 1) * 20; // 20px per level
+  };
+
+  const isGroupAccount = (code: string) => {
+      const parts = code.split('.');
+      // A group account might be one with fewer than 3 parts, or one ending in .000 or similar
+      return parts.length < 3 || (parts.length === 3 && parts[2] === '00');
+  }
+
+  export default function AccountsPage() {
   const { selectedCompany } = React.useContext(SelectedCompanyContext) || {};
   const companyId = selectedCompany?.id;
   const firestore = useFirestore();
@@ -69,6 +81,10 @@ export default function AccountsPage() {
     path: companyId ? `companies/${companyId}/accounts` : undefined,
     companyId: companyId,
   });
+
+  const sortedAccounts = React.useMemo(() => {
+    return accounts?.sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true })) || [];
+  }, [accounts]);
 
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
   const [isSeedConfirmOpen, setIsSeedConfirmOpen] = React.useState(false);
@@ -146,7 +162,10 @@ export default function AccountsPage() {
                 case '1': updatedAccount.type = 'Activo'; break;
                 case '2': updatedAccount.type = 'Pasivo'; break;
                 case '3': updatedAccount.type = 'Patrimonio'; break;
-                case '4': updatedAccount.type = 'Resultado'; break;
+                case '4': 
+                case '5':
+                case '6':
+                    updatedAccount.type = 'Resultado'; break;
                 default: // Do nothing or reset
             }
         }
@@ -295,31 +314,35 @@ export default function AccountsPage() {
                             <TableCell colSpan={5} className="text-center">Cargando...</TableCell>
                         </TableRow>
                     )}
-                    {!loading && accounts?.map((account) => (
-                        <TableRow key={account.id}>
-                        <TableCell className="font-medium">{account.code}</TableCell>
-                        <TableCell>{account.name}</TableCell>
-                        <TableCell>
-                            <Badge variant="secondary">{account.type}</Badge>
-                        </TableCell>
-                        <TableCell className="text-right">${account.balance.toLocaleString('es-CL', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</TableCell>
-                        <TableCell>
-                            <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                                <Button aria-haspopup="true" size="icon" variant="ghost">
-                                <MoreHorizontal className="h-4 w-4" />
-                                <span className="sr-only">Toggle menu</span>
-                                </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                                <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-                                <DropdownMenuItem onClick={() => handleEdit(account)}>Editar</DropdownMenuItem>
-                                <DropdownMenuItem>Ver Movimientos</DropdownMenuItem>
-                            </DropdownMenuContent>
-                            </DropdownMenu>
-                        </TableCell>
-                        </TableRow>
-                    ))}
+                    {!loading && sortedAccounts.map((account) => {
+                        const indentation = getIndentation(account.code);
+                        const isGroup = isGroupAccount(account.code);
+                        return (
+                            <TableRow key={account.id} className={cn(isGroup && "bg-muted/50")}>
+                                <TableCell className={cn("font-medium", isGroup && "font-bold")} style={{ paddingLeft: `${indentation + 16}px` }}>{account.code}</TableCell>
+                                <TableCell className={cn(isGroup && "font-bold")}>{account.name}</TableCell>
+                                <TableCell>
+                                    <Badge variant="secondary">{account.type}</Badge>
+                                </TableCell>
+                                <TableCell className="text-right">${account.balance.toLocaleString('es-CL', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</TableCell>
+                                <TableCell>
+                                    <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button aria-haspopup="true" size="icon" variant="ghost">
+                                        <MoreHorizontal className="h-4 w-4" />
+                                        <span className="sr-only">Toggle menu</span>
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end">
+                                        <DropdownMenuLabel>Acciones</DropdownMenuLabel>
+                                        <DropdownMenuItem onClick={() => handleEdit(account)}>Editar</DropdownMenuItem>
+                                        <DropdownMenuItem>Ver Movimientos</DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                    </DropdownMenu>
+                                </TableCell>
+                            </TableRow>
+                        )
+                    })}
                     {!loading && !companyId && (
                         <TableRow>
                             <TableCell colSpan={5} className="text-center">
