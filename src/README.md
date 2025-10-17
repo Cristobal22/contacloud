@@ -1,98 +1,135 @@
+
 # Contador Cloud
 
-Contador Cloud is a modern, multi-tenant accounting application designed for accountants to manage the finances of multiple companies securely and efficiently. This application is built as a robust prototype using Next.js, Firebase, and shadcn/ui, showcasing a complete and interactive user experience.
+Contador Cloud es una moderna aplicación de contabilidad multi-tenant diseñada para que los contadores gestionen las finanzas de múltiples empresas de forma segura y eficiente. Esta aplicación está construida como un prototipo robusto utilizando Next.js, Firebase y shadcn/ui, mostrando una experiencia de usuario completa e interactiva.
 
 ## Key Features
 
-- **Multi-Tenant Architecture**: Securely manage multiple client companies with complete data isolation. The selected company context dynamically filters all data shown in the dashboard.
-- **Firebase Integration**: Powered by Firebase for core backend services:
-    - **Firestore**: Real-time database for all accounting data (companies, accounts, vouchers, employees, etc.).
-    - **Firebase Authentication**: Secure user registration and login with Email/Password and Google providers.
-- **Comprehensive Accounting Modules**:
-    - **Dashboard**: An overview of key financial metrics.
-    - **Core Accounting**: Manage Chart of Accounts, Vouchers, Purchases, Sales, and Fees.
-    - **Reporting**: Generate dynamic reports like General Journal, General Ledger, Balances, and VAT Summaries based on real data.
-    - **Employee Management**: Full CRUD functionality for employee records.
-    - **Payroll Simulation**: A module to display simulated payroll slips based on employee data.
-- **Modern & Responsive UI**: A professional and clean user interface built with **shadcn/ui** and **Tailwind CSS**, fully responsive for desktop and mobile devices.
-- **Robust Error Handling**: Centralized error handling for Firestore permission errors, making debugging security rules easier.
+- **Arquitectura Multi-Tenant Segura**:
+    - **Roles de Usuario**: El sistema distingue entre `Admin` (para la gestión de la plataforma y los contadores) y `Accountant` (para la gestión contable de las empresas asignadas).
+    - **Aislamiento de Datos**: Un contador solo puede ver y gestionar las empresas que un administrador le ha asignado. El contexto de la empresa seleccionada filtra dinámicamente todos los datos mostrados.
+    - **Gestión de Usuarios**: Los administradores pueden crear nuevos usuarios contadores directamente desde el panel de control.
+
+- **Integración con Firebase**:
+    - **Firestore**: Base de datos en tiempo real para todos los datos contables (empresas, cuentas, comprobantes, empleados, etc.).
+    - **Firebase Authentication**: Registro y login de usuarios seguro con proveedores de Email/Contraseña y Google.
+    - **Reglas de Seguridad**: Reglas robustas en Firestore que garantizan que un usuario solo pueda acceder a los datos que le corresponden.
+
+- **Módulos Contables Completos**:
+    - **Dashboard**: Una visión general de las métricas financieras clave.
+    - **Contabilidad Principal**: Gestiona el Plan de Cuentas, Comprobantes, Compras, Ventas y Honorarios.
+    - **Informes**: Genera informes dinámicos como Libro Diario, Libro Mayor, Balances y Resúmenes de IVA basados en datos reales.
+    - **Gestión de Empleados**: Funcionalidad completa de creación, lectura, actualización y eliminación (CRUD) para los registros de los empleados, con cálculos automáticos de gratificación.
+    - **Simulación de Nóminas**: Un módulo para visualizar liquidaciones de sueldo simuladas basadas en los datos de los empleados.
+
+- **Procesos Críticos Asistidos por IA**:
+    - **Centralización de Remuneraciones**: Genera automáticamente el asiento contable de centralización de sueldos.
+    - **Centralización RCV (Próximamente)**: Funcionalidad planificada para generar asientos a partir del Registro de Compras y Ventas del SII.
+
+- **UI Moderna y Responsiva**:
+    - Un interfaz de usuario profesional y limpio construido con **shadcn/ui** y **Tailwind CSS**.
+    - **Menú de Comandos (Cmd+K)**: Un buscador global para navegar rápidamente por páginas, empresas, cuentas y empleados.
+    - Totalmente responsivo para dispositivos de escritorio y móviles.
+
+- **Manejo Robusto de Errores**:
+    - Manejo centralizado de errores de permisos de Firestore, facilitando la depuración de reglas de seguridad durante el desarrollo.
 
 ## Tech Stack
 
 - **Framework**: [Next.js](https://nextjs.org/) (App Router)
-- **Styling**: [Tailwind CSS](https://tailwindcss.com/)
-- **UI Components**: [shadcn/ui](https://ui.shadcn.com/)
-- **Database**: [Firebase Firestore](https://firebase.google.com/docs/firestore)
-- **Authentication**: [Firebase Authentication](https://firebase.google.com/docs/auth)
-- **Language**: TypeScript
+- **Lenguaje**: TypeScript
+- **Base de Datos**: [Firebase Firestore](https://firebase.google.com/docs/firestore)
+- **Autenticación**: [Firebase Authentication](https://firebase.google.com/docs/auth)
+- **Estilos**: [Tailwind CSS](https://tailwindcss.com/)
+- **Componentes UI**: [shadcn/ui](https://ui.shadcn.com/)
+- **IA Generativa**: [Genkit](https://firebase.google.com/docs/genkit)
 
 ## Getting Started
 
 ### Prerequisites
 
-- Node.js (v18 or later recommended)
-- npm or yarn
-- A Firebase project
+- Node.js (v18 o later recomendado)
+- npm o yarn
+- Un proyecto de Firebase
 
 ### Firebase Setup
 
-1.  Create a Firebase project in the [Firebase Console](https://console.firebase.google.com/).
-2.  In your project, go to **Project settings** > **General**.
-3.  Under "Your apps", create a new **Web app**.
-4.  Copy the `firebaseConfig` object values.
-5.  In this project, rename the `.env.example` file to `.env` if it exists, otherwise create it.
-6.  Paste your Firebase config values into the `.env` file. Make sure to match each value with the correct `NEXT_PUBLIC_` variable name.
+1.  Crea un proyecto en la [Firebase Console](https://console.firebase.google.com/).
+2.  En tu proyecto, ve a **Configuración del proyecto** > **General**.
+3.  En "Tus apps", crea una nueva **Aplicación web**.
+4.  Copia los valores del objeto `firebaseConfig`.
+5.  En este proyecto, crea un archivo llamado `.env` en la raíz (puedes renombrar `.env.example` si existe).
+6.  Pega tus valores de configuración de Firebase en el archivo `.env`. Asegúrate de que cada valor coincida con el nombre de la variable `NEXT_PUBLIC_` correspondiente.
 
-### IMPORTANT: Creating the First Admin User
+### IMPORTANTE: Creación del Primer Usuario Administrador
 
-For security and functionality, the first user with the `Admin` role must be created and configured manually. This is a **one-time setup** for your first administrator and is required to view the user management page and create new companies. **All steps are performed within this cloud development environment.**
+Para que la aplicación funcione y sea segura, el primer usuario con el rol `Admin` **debe crearse y configurarse manualmente**. Este es un **proceso único** para tu primer administrador y es **indispensable** para poder ver el panel de gestión de usuarios y empezar a crear empresas.
 
-**All users created via the Admin dashboard within the app will be automatically assigned the `Accountant` role.**
+**Punto Clave**: Todos los usuarios que crees después desde el panel de administración de la aplicación se crearán automáticamente con el rol `Accountant`.
 
-To create your first `Admin` user:
-1.  **Sign up for a new account** in the application using the standard login page (e.g., with Google or Email/Password).
-2.  **Go to your Firebase Console** and select your project.
-3.  Navigate to **Build > Firestore Database**. Find the **`users`** collection and locate the document corresponding to the user you just created (the document ID is the user's UID). Click on the document, find the **`role`** field, change its value from `"Accountant"` to `"Admin"`, and click **Update**.
-4.  **Set the Admin Custom Claim:** This is the most critical step. You must run a script **in the integrated terminal of this development environment** to grant your user admin privileges for backend security rules.
-    *   **Open the Terminal**: At the bottom of your IDE, there is a "Terminal" panel. Open it.
-    *   **Get Service Account Key**: In your Firebase Console, go to **Project settings > Service Accounts**. Click **Generate new private key** and save the downloaded file to your computer. Then, in this IDE, create a new file in the root directory named `serviceAccountKey.json`. Copy the content from the downloaded file and paste it into `serviceAccountKey.json`.
-    *   **Run the script**: The project already includes a file named `set-admin-claim.js`. Open it and replace `'PASTE_YOUR_USER_ID_HERE'` with your actual user UID from the Firebase Authentication console. Then, in the **integrated terminal**, run the following commands one by one:
+Sigue estos pasos **dentro de este entorno de desarrollo en la nube**:
+
+1.  **Regístrate en la aplicación**: Usa la página de login para crear una nueva cuenta (con Google o Email/Contraseña). Por defecto, se creará como `Accountant`.
+
+2.  **Modifica el Rol en Firestore**:
+    - Ve a tu **Firebase Console** y selecciona tu proyecto.
+    - Navega a **Build > Firestore Database**.
+    - Busca la colección `users` y localiza el documento del usuario que acabas de crear (el ID del documento es el UID del usuario).
+    - Haz clic en el documento, busca el campo `role`, cambia su valor de `"Accountant"` a `"Admin"` y haz clic en **Actualizar**.
+
+3.  **Establece el Custom Claim de Administrador**: Este es el paso más crítico para la seguridad del backend. Debes ejecutar un script en la terminal integrada de este IDE para otorgar privilegios de administrador.
+    - **Abre la Terminal**: En la parte inferior de tu IDE, abre el panel "Terminal".
+    - **Obtén la Clave de Cuenta de Servicio**: En tu Firebase Console, ve a **Configuración del proyecto > Cuentas de servicio**. Haz clic en **Generar nueva clave privada** y guarda el archivo JSON descargado en tu ordenador.
+    - **Crea el archivo `serviceAccountKey.json`**: En este IDE, crea un nuevo archivo en el directorio raíz llamado `serviceAccountKey.json`. Copia el contenido del archivo que descargaste y pégalo aquí.
+    - **Ejecuta el script**: El proyecto ya incluye un archivo llamado `set-admin-claim.js`. Ábrelo y reemplaza `'PASTE_YOUR_USER_ID_HERE'` con tu UID de usuario real (puedes encontrarlo en la sección de Authentication de la Firebase Console). Luego, en la **terminal integrada**, ejecuta los siguientes comandos uno por uno:
         
-        First, install the necessary package:
+        Primero, instala el paquete necesario:
         ```bash
         npm install firebase-admin
         ```
         
-        Then, execute the script:
+        Luego, ejecuta el script:
         ```bash
         node set-admin-claim.js
         ```
-5.  **Log out and log back in** to the application. This is essential for your new admin permissions to take effect.
 
-That's it! You will now have full administrative privileges.
+4.  **Cierra y vuelve a iniciar sesión**: ¡Este paso es esencial! Cierra sesión en la aplicación y vuelve a iniciarla para que tus nuevos permisos de administrador surtan efecto.
+
+¡Listo! Ahora tendrás privilegios de administrador completos, podrás ver la sección "Gestión de Usuarios" y empezar a crear empresas y asignar contadores.
+
+### Asignación de Empresas a Contadores
+
+Una vez que eres `Admin` y has creado usuarios `Accountant`, el proceso para asignarles empresas es el siguiente:
+
+1.  Como `Admin`, ve a la sección **Empresas** y crea las empresas cliente que necesites.
+2.  Luego, ve a **Gestión de Usuarios** y haz clic en "Editar Usuario" en el contador que deseas gestionar.
+3.  En el formulario de edición, verás una sección para asignar las empresas disponibles. Selecciona las que correspondan y guarda los cambios.
+4.  La próxima vez que el contador inicie sesión, solo verá y podrá trabajar con las empresas que le has asignado.
 
 ### Running the Development Server
 
-1.  **Install dependencies** (run this in the integrated terminal):
+1.  **Instala las dependencias** (ejecuta esto en la terminal integrada):
     ```bash
     npm install
     ```
 
-2.  **Run the application**:
+2.  **Ejecuta la aplicación**:
     ```bash
     npm run dev
     ```
 
-The application will be available at `http://localhost:9002` (or your configured port).
+La aplicación estará disponible en `http://localhost:9002` (o el puerto que hayas configurado).
 
 ## Project Structure
 
-- `src/app/`: Contains all the pages and layouts of the application, following the Next.js App Router structure.
-    - `src/app/dashboard/`: Protected routes for the main accounting dashboard.
-    - `src/app/login/`: The login page.
-- `src/components/`: Reusable React components used throughout the application.
-    - `src/components/ui/`: Components from shadcn/ui.
-- `src/firebase/`: Configuration and hooks for interacting with Firebase services (Auth and Firestore).
-- `src/lib/`: Utility functions and type definitions (`types.ts`).
-- `docs/`: Contains the backend data schema definition (`backend.json`).
-- `firestore.rules`: Contains the security rules for the Firestore database.
+- `src/app/`: Contiene todas las páginas y layouts de la aplicación, siguiendo la estructura del App Router de Next.js.
+    - `src/app/dashboard/`: Rutas protegidas para el panel de control principal.
+    - `src/app/login/`: La página de inicio de sesión.
+- `src/components/`: Componentes de React reutilizables.
+    - `src/components/ui/`: Componentes de shadcn/ui.
+    - `src/components/admin/`: Componentes específicos para el rol de Administrador.
+- `src/firebase/`: Configuración y hooks para interactuar con Firebase (Auth y Firestore). Contiene la lógica para `useUser`, `useCollection`, etc.
+- `src/lib/`: Funciones de utilidad (`utils.ts`) y definiciones de tipos de datos (`types.ts`).
+- `src/ai/`: Contiene los flujos de Genkit para las funcionalidades de IA.
+- `docs/`: Contiene la definición del esquema de datos del backend (`backend.json`).
+- `firestore.rules`: Contiene las reglas de seguridad para la base de datos Firestore.
