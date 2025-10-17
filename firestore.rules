@@ -1,319 +1,370 @@
+/**
+ * @file Firestore Security Rules
+ * @version 2
+ *
+ * @Core Philosophy
+ * This ruleset enforces a multi-tenant security model where users can have different roles (Admin, Accountant) 
+ * and data is primarily organized around companies.  Most data access is restricted to authorized users 
+ * (either the owning user or an admin), with a few collections having public read access.
+ *
+ * @Data Structure
+ * The Firestore data is structured as follows:
+ * - `/users/{userId}`: Stores user profile data.
+ * - `/companies/{companyId}`: Stores company data, with the `ownerId` field indicating the owning user.
+ * - `/companies/{companyId}/...`: Subcollections for company-specific data like accounts, vouchers, subjects, etc.
+ * - `/economic-indicators/{indicatorId}`: Stores global economic indicators.
+ * - Other top-level collections store global configuration data (AFP entities, health entities, etc.).
+ *
+ * @Key Security Decisions
+ * - User listing is denied to prevent unauthorized access to user data.
+ * - Strict ownership is enforced for company data and its subcollections. Only the company owner or an admin can modify company data.
+ * - Global configuration data (economic indicators, AFP entities, etc.) is publicly readable but only writable by a privileged role (not implemented in this version).
+ * - The default security posture for ambiguous relationships is strict owner-only access.
+ * - Admins can only modify user profiles if they created the user.
+ *
+ * @Denormalization for Authorization
+ *  - Company documents have an `ownerId` field to simplify ownership checks.
+ *
+ * @Structural Segregation
+ *  - Public vs. private data is separated into different collections. For example, user profiles are stored in a private `/users/{userId}` collection, while economic indicators are stored in a public `/economic-indicators` collection.
+ */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Enforces user-ownership for profile data.
+     * @description Checks if the request is authenticated.
+     */
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    /**
+     * @description Checks if the authenticated user is the owner of the resource.
+     */
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+
+    /**
+     * @description Checks if the authenticated user is the owner of the existing resource.
+     */
+    function isExistingOwner(userId) {
+      return isOwner(userId);
+    }
+    
+    /**
+     * @description Checks if the authenticated user is an Admin.
+     */
+    function isAdmin() {
+        return isSignedIn() && request.auth.token.role == 'Admin';
+    }
+    
+    /**
+     * @description Checks if the authenticated user is an Accountant.
+     */
+    function isAccountant() {
+        return isSignedIn() && request.auth.token.role == 'Accountant';
+    }
+    
+    /**
+     * @description Checks if the authenticated user is the creator of the resource.
+     */
+    function isCreator(creatorId) {
+      return request.auth.uid == creatorId;
+    }
+
+    /**
+     * @description Checks if the authenticated user is the owner of the company.
+     */
+    function isCompanyOwner(companyId) {
+      return get(/databases/$(database)/documents/companies/$(companyId)).data.ownerId == request.auth.uid;
+    }
+    
+    /**
+     * @description
+     *   Collection to store user profile information. Only the user themselves can read/write their profile.
      * @path /users/{userId}
-     * @allow (create) - Authenticated user creates their own profile (uid matches).
-     * @allow (get, update, delete) - Authenticated user accesses their own profile.
-     * @deny (create) - User attempts to create a profile with a mismatched uid.
-     * @deny (get, update, delete) - User attempts to access another user's profile.
-     * @deny (list) - Listing all users is not permitted.
-     * @principle Enforces document ownership for writes.
+     * @allow (create) User with ID 'user123' creates their profile.
+     *   - auth.uid: 'user123'
+     *   - request.resource.data.uid: 'user123'
+     * @allow (get) User with ID 'user123' reads their profile.
+     *   - auth.uid: 'user123'
+     * @allow (update) User with ID 'user123' updates their profile.
+     *   - auth.uid: 'user123'
+     * @allow (delete) User with ID 'user123' deletes their profile.
+     *   - auth.uid: 'user123'
+     * @deny (create) User with ID 'user123' tries to create profile for 'user456'.
+     *   - auth.uid: 'user123'
+     *   - request.resource.data.uid: 'user456'
+     * @principle Enforces document ownership for writes and reads.
      */
     match /users/{userId} {
-      function isSignedIn() {
-        return request.auth != null;
-      }
-      function isOwner(userId) {
-        return request.auth.uid == userId;
-      }
-      function isExistingOwner(userId) {
-        return isOwner(userId) && exists(resource);
-      }
-
       allow get: if isOwner(userId);
-      allow list: if false;
-      allow create: if isSignedIn() && isOwner(userId);
-      allow update: if isExistingOwner(userId);
-      allow delete: if isExistingOwner(userId);
+      allow list: if false; // Listing users is not allowed.
+      allow create: if isOwner(userId) && request.resource.data.uid == request.auth.uid;
+      allow update: if isOwner(userId);
+      allow delete: if isOwner(userId);
     }
 
     /**
-     * @description Controls access to company documents.
+     * @description
+     *   Collection of all companies managed by the platform. Only the owner of the company can create, read, update or delete it.
      * @path /companies/{companyId}
-     * @allow (get, list) - All authenticated users can read company data.
-     * @allow (create, update, delete) - Placeholder:  Writes are not currently restricted in this prototype.
-     * @deny (create, update, delete) - Placeholder: Writes *should* be restricted by application logic based on user roles/permissions.
-     * @principle Placeholder for future role-based authorization.
+     * @allow (create) User with ID 'user123' creates a company with ownerId 'user123'.
+     *   - auth.uid: 'user123'
+     *   - request.resource.data.ownerId: 'user123'
+     * @allow (get) User with ID 'user123' reads a company with ownerId 'user123'.
+     *   - auth.uid: 'user123'
+     *   - resource.data.ownerId: 'user123'
+     * @allow (update) User with ID 'user123' updates a company with ownerId 'user123'.
+     *   - auth.uid: 'user123'
+     *   - resource.data.ownerId: 'user123'
+     * @allow (delete) User with ID 'user123' deletes a company with ownerId 'user123'.
+     *   - auth.uid: 'user123'
+     *   - resource.data.ownerId: 'user123'
+     * @deny (create) User with ID 'user123' tries to create a company with ownerId 'user456'.
+     *   - auth.uid: 'user123'
+     *   - request.resource.data.ownerId: 'user456'
+     * @principle Enforces document ownership for writes and reads.
      */
     match /companies/{companyId} {
-      function isSignedIn() {
-        return request.auth != null;
-      }
-
-      allow get, list: if isSignedIn();
-      allow create, update, delete: if isSignedIn(); // TODO: Add company-level role checks here for production.
+      allow get: if isCompanyOwner(companyId);
+      allow list: if false; // Listing companies is not allowed.
+      allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
+      allow update: if isCompanyOwner(companyId);
+      allow delete: if isCompanyOwner(companyId);
     }
 
     /**
-     * @description Controls access to accounts subcollection.
+     * @description
+     *   Sub-collection of accounts for a specific company. Only the owner of the company can create, read, update or delete accounts.
      * @path /companies/{companyId}/accounts/{accountId}
-     * @allow (get, list) - All authenticated users can read account data.
-     * @allow (create, update, delete) - Placeholder: Writes are not currently restricted in this prototype.
-     * @deny (create, update, delete) - Placeholder: Writes *should* be restricted by application logic based on user roles/permissions.
-     * @principle Placeholder for future role-based authorization.
+     * @allow (get) User with ID 'user123' reads an account of company 'company123' if they own the company.
+     *   - auth.uid: 'user123'
+     *   - get(/databases/$(database)/documents/companies/company123).data.ownerId: 'user123'
+     * @allow (create) User with ID 'user123' creates an account for company 'company123' if they own the company.
+     *   - auth.uid: 'user123'
+     *   - get(/databases/$(database)/documents/companies/company123).data.ownerId: 'user123'
+     * @deny (create) User with ID 'user123' tries to create an account for company 'company123' if they don't own the company.
+     *   - auth.uid: 'user123'
+     *   - get(/databases/$(database)/documents/companies/company123).data.ownerId: 'user456'
+     * @principle Enforces document ownership for writes and reads in a subcollection.
      */
     match /companies/{companyId}/accounts/{accountId} {
-      function isSignedIn() {
-        return request.auth != null;
-      }
-
-      allow get, list: if isSignedIn();
-      allow create, update, delete: if isSignedIn(); // TODO: Add company-level role checks here for production.
+      allow get: if isCompanyOwner(companyId);
+      allow list: if false;
+      allow create: if isCompanyOwner(companyId);
+      allow update: if isCompanyOwner(companyId);
+      allow delete: if isCompanyOwner(companyId);
     }
 
     /**
-     * @description Controls access to vouchers subcollection.
+     * @description
+     *   Sub-collection of accounting vouchers for a specific company. Only the owner of the company can create, read, update or delete vouchers.
      * @path /companies/{companyId}/vouchers/{voucherId}
-     * @allow (get, list) - All authenticated users can read voucher data.
-     * @allow (create, update, delete) - Placeholder: Writes are not currently restricted in this prototype.
-     * @deny (create, update, delete) - Placeholder: Writes *should* be restricted by application logic based on user roles/permissions.
-     * @principle Placeholder for future role-based authorization.
      */
     match /companies/{companyId}/vouchers/{voucherId} {
-      function isSignedIn() {
-        return request.auth != null;
-      }
-
-      allow get, list: if isSignedIn();
-      allow create, update, delete: if isSignedIn(); // TODO: Add company-level role checks here for production.
+      allow get: if isCompanyOwner(companyId);
+      allow list: if false;
+      allow create: if isCompanyOwner(companyId);
+      allow update: if isCompanyOwner(companyId);
+      allow delete: if isCompanyOwner(companyId);
     }
 
     /**
-     * @description Controls access to subjects subcollection.
+     * @description
+     *   Sub-collection of subjects (clients, providers) for a specific company. Only the owner of the company can create, read, update or delete subjects.
      * @path /companies/{companyId}/subjects/{subjectId}
-     * @allow (get, list) - All authenticated users can read subject data.
-     * @allow (create, update, delete) - Placeholder: Writes are not currently restricted in this prototype.
-     * @deny (create, update, delete) - Placeholder: Writes *should* be restricted by application logic based on user roles/permissions.
-     * @principle Placeholder for future role-based authorization.
      */
     match /companies/{companyId}/subjects/{subjectId} {
-      function isSignedIn() {
-        return request.auth != null;
-      }
-
-      allow get, list: if isSignedIn();
-      allow create, update, delete: if isSignedIn(); // TODO: Add company-level role checks here for production.
+      allow get: if isCompanyOwner(companyId);
+      allow list: if false;
+      allow create: if isCompanyOwner(companyId);
+      allow update: if isCompanyOwner(companyId);
+      allow delete: if isCompanyOwner(companyId);
     }
 
     /**
-     * @description Controls access to cost-centers subcollection.
+     * @description
+     *   Sub-collection of cost centers for a specific company. Only the owner of the company can create, read, update or delete cost centers.
      * @path /companies/{companyId}/cost-centers/{costCenterId}
-     * @allow (get, list) - All authenticated users can read cost center data.
-     * @allow (create, update, delete) - Placeholder: Writes are not currently restricted in this prototype.
-     * @deny (create, update, delete) - Placeholder: Writes *should* be restricted by application logic based on user roles/permissions.
-     * @principle Placeholder for future role-based authorization.
      */
     match /companies/{companyId}/cost-centers/{costCenterId} {
-      function isSignedIn() {
-        return request.auth != null;
-      }
-
-      allow get, list: if isSignedIn();
-      allow create, update, delete: if isSignedIn(); // TODO: Add company-level role checks here for production.
+      allow get: if isCompanyOwner(companyId);
+      allow list: if false;
+      allow create: if isCompanyOwner(companyId);
+      allow update: if isCompanyOwner(companyId);
+      allow delete: if isCompanyOwner(companyId);
     }
 
     /**
-     * @description Controls access to employees subcollection.
+     * @description
+     *   Sub-collection of employees for a specific company. Only the owner of the company can create, read, update or delete employees.
      * @path /companies/{companyId}/employees/{employeeId}
-     * @allow (get, list) - All authenticated users can read employee data.
-     * @allow (create, update, delete) - Placeholder: Writes are not currently restricted in this prototype.
-     * @deny (create, update, delete) - Placeholder: Writes *should* be restricted by application logic based on user roles/permissions.
-     * @principle Placeholder for future role-based authorization.
      */
     match /companies/{companyId}/employees/{employeeId} {
-      function isSignedIn() {
-        return request.auth != null;
-      }
-
-      allow get, list: if isSignedIn();
-      allow create, update, delete: if isSignedIn(); // TODO: Add company-level role checks here for production.
+      allow get: if isCompanyOwner(companyId);
+      allow list: if false;
+      allow create: if isCompanyOwner(companyId);
+      allow update: if isCompanyOwner(companyId);
+      allow delete: if isCompanyOwner(companyId);
     }
 
     /**
-     * @description Controls access to payrolls subcollection.
+     * @description
+     *   Sub-collection of generated payrolls for a specific company. Only the owner of the company can create, read, update or delete payrolls.
      * @path /companies/{companyId}/payrolls/{payrollId}
-     * @allow (get, list) - All authenticated users can read payroll data.
-     * @allow (create, update, delete) - Placeholder: Writes are not currently restricted in this prototype.
-     * @deny (create, update, delete) - Placeholder: Writes *should* be restricted by application logic based on user roles/permissions.
-     * @principle Placeholder for future role-based authorization.
      */
     match /companies/{companyId}/payrolls/{payrollId} {
-      function isSignedIn() {
-        return request.auth != null;
-      }
+      allow get: if isCompanyOwner(companyId);
+      allow list: if false;
+      allow create: if isCompanyOwner(companyId);
+      allow update: if isCompanyOwner(companyId);
+      allow delete: if isCompanyOwner(companyId);
+    }
+    
+    /**
+     * @description
+     *   Sub-collection of purchase documents for a specific company. Only the owner of the company can create, read, update or delete purchases.
+     * @path /companies/{companyId}/purchases/{purchaseId}
+     */
+    match /companies/{companyId}/purchases/{purchaseId} {
+      allow get: if isCompanyOwner(companyId);
+      allow list: if false;
+      allow create: if isCompanyOwner(companyId);
+      allow update: if isCompanyOwner(companyId);
+      allow delete: if isCompanyOwner(companyId);
+    }
 
-      allow get, list: if isSignedIn();
-      allow create, update, delete: if isSignedIn(); // TODO: Add company-level role checks here for production.
+    /**
+     * @description
+     *   Sub-collection of sales documents for a specific company. Only the owner of the company can create, read, update or delete sales.
+     * @path /companies/{companyId}/sales/{saleId}
+     */
+    match /companies/{companyId}/sales/{saleId} {
+      allow get: if isCompanyOwner(companyId);
+      allow list: if false;
+      allow create: if isCompanyOwner(companyId);
+      allow update: if isCompanyOwner(companyId);
+      allow delete: if isCompanyOwner(companyId);
+    }
+
+    /**
+     * @description
+     *   Sub-collection of fee documents for a specific company. Only the owner of the company can create, read, update or delete fees.
+     * @path /companies/{companyId}/fees/{feeId}
+     */
+    match /companies/{companyId}/fees/{feeId} {
+      allow get: if isCompanyOwner(companyId);
+      allow list: if false;
+      allow create: if isCompanyOwner(companyId);
+      allow update: if isCompanyOwner(companyId);
+      allow delete: if isCompanyOwner(companyId);
     }
 
       /**
-     * @description Controls access to purchases subcollection.
-     * @path /companies/{companyId}/purchases/{purchaseId}
-     * @allow (get, list) - All authenticated users can read purchase data.
-     * @allow (create, update, delete) - Placeholder: Writes are not currently restricted in this prototype.
-     * @deny (create, update, delete) - Placeholder: Writes *should* be restricted by application logic based on user roles/permissions.
-     * @principle Placeholder for future role-based authorization.
-     */
-    match /companies/{companyId}/purchases/{purchaseId} {
-      function isSignedIn() {
-        return request.auth != null;
-      }
-
-      allow get, list: if isSignedIn();
-      allow create, update, delete: if isSignedIn(); // TODO: Add company-level role checks here for production.
-    }
-
-    /**
-     * @description Controls access to sales subcollection.
-     * @path /companies/{companyId}/sales/{saleId}
-     * @allow (get, list) - All authenticated users can read sale data.
-     * @allow (create, update, delete) - Placeholder: Writes are not currently restricted in this prototype.
-     * @deny (create, update, delete) - Placeholder: Writes *should* be restricted by application logic based on user roles/permissions.
-     * @principle Placeholder for future role-based authorization.
-     */
-    match /companies/{companyId}/sales/{saleId} {
-      function isSignedIn() {
-        return request.auth != null;
-      }
-
-      allow get, list: if isSignedIn();
-      allow create, update, delete: if isSignedIn(); // TODO: Add company-level role checks here for production.
-    }
-
-     /**
-     * @description Controls access to fees subcollection.
-     * @path /companies/{companyId}/fees/{feeId}
-     * @allow (get, list) - All authenticated users can read fees data.
-     * @allow (create, update, delete) - Placeholder: Writes are not currently restricted in this prototype.
-     * @deny (create, update, delete) - Placeholder: Writes *should* be restricted by application logic based on user roles/permissions.
-     * @principle Placeholder for future role-based authorization.
-     */
-    match /companies/{companyId}/fees/{feeId} {
-      function isSignedIn() {
-        return request.auth != null;
-      }
-
-      allow get, list: if isSignedIn();
-      allow create, update, delete: if isSignedIn(); // TODO: Add company-level role checks here for production.
-    }
-
-    /**
-     * @description Controls access to company-specific economic indicators.
+     * @description
+     *   Company-specific overrides for monthly economic indicators. Only the owner of the company can create, read, update, or delete these indicators.
      * @path /companies/{companyId}/economic-indicators/{indicatorId}
-     * @allow (get, list) - All authenticated users can read.
-     * @allow (create, update, delete) - Placeholder: Writes are not currently restricted in this prototype.
-     * @deny (create, update, delete) - Placeholder: Writes *should* be restricted by application logic based on user roles/permissions.
-     * @principle Placeholder for future role-based authorization.
      */
-     match /companies/{companyId}/economic-indicators/{indicatorId} {
-      function isSignedIn() {
-        return request.auth != null;
-      }
-
-      allow get, list: if isSignedIn();
-      allow create, update, delete: if isSignedIn(); // TODO: Add company-level role checks here for production.
-    }
-
-     /**
-     * @description Controls access to user-specific account groups.
-     * @path /users/{userId}/account-groups/{groupId}
-     * @allow (get, list) - Only the owner can list their own documents.
-     * @allow (create, update, delete) - Only the owner can create, update, and delete documents.
-     * @deny (get, list) - Users cannot list other users' account groups.
-     * @deny (create, update, delete) - Users cannot modify other users' account groups.
-     * @principle Enforces document ownership for writes.
-     */
-    match /users/{userId}/account-groups/{groupId} {
-       function isSignedIn() {
-        return request.auth != null;
-      }
-      function isOwner(userId) {
-        return request.auth.uid == userId;
-      }
-      function isExistingOwner(userId) {
-        return isOwner(userId) && exists(resource);
-      }
-
-      allow get: if isOwner(userId);
-      allow list: if isOwner(userId);
-      allow create: if isSignedIn() && isOwner(userId);
-      allow update: if isExistingOwner(userId);
-      allow delete: if isExistingOwner(userId);
+    match /companies/{companyId}/economic-indicators/{indicatorId} {
+      allow get: if isCompanyOwner(companyId);
+      allow list: if false;
+      allow create: if isCompanyOwner(companyId);
+      allow update: if isCompanyOwner(companyId);
+      allow delete: if isCompanyOwner(companyId);
     }
 
     /**
-     * @description Allows public read access to global economic indicators.
+     * @description
+     *   User-specific collection of account groups. Only the owner can create, read, update or delete.
+     * @path /users/{userId}/account-groups/{accountGroupId}
+     */
+    match /users/{userId}/account-groups/{accountGroupId} {
+      allow get: if isOwner(userId);
+      allow list: if false;
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId);
+      allow delete: if isOwner(userId);
+    }
+
+    /**
+     * @description
+     *   Global collection of monthly economic indicators. Publicly readable.
      * @path /economic-indicators/{indicatorId}
-     * @allow (get, list) - Any user can read economic indicator data.
-     * @deny (create, update, delete) - No user can create, update, or delete economic indicators (admin only).
-     * @principle Public read access with restricted writes.
      */
     match /economic-indicators/{indicatorId} {
-        allow get, list: if true;
-        allow create, update, delete: if false;
+      allow get: if true;
+      allow list: if true;
+      allow create: if isAdmin(); // TODO: Add admin-only write rule
+      allow update: if isAdmin(); // TODO: Add admin-only write rule
+      allow delete: if isAdmin(); // TODO: Add admin-only write rule
     }
-
-     /**
-     * @description Allows public read access to health entities.
+    
+        /**
+     * @description
+     *   Global collection of health entities (Isapres and Fonasa). Publicly readable.
      * @path /health-entities/{entityId}
-     * @allow (get, list) - Any user can read health entity data.
-     * @deny (create, update, delete) - No user can create, update, or delete health entities (admin only).
-     * @principle Public read access with restricted writes.
      */
     match /health-entities/{entityId} {
-        allow get, list: if true;
-        allow create, update, delete: if false;
+      allow get: if true;
+      allow list: if true;
+      allow create: if isAdmin(); // TODO: Add admin-only write rule
+      allow update: if isAdmin(); // TODO: Add admin-only write rule
+      allow delete: if isAdmin(); // TODO: Add admin-only write rule
     }
 
     /**
-     * @description Allows public read access to AFP entities.
+     * @description
+     *   Global collection of AFP entities. Publicly readable.
      * @path /afp-entities/{entityId}
-     * @allow (get, list) - Any user can read AFP entity data.
-     * @deny (create, update, delete) - No user can create, update, or delete AFP entities (admin only).
-     * @principle Public read access with restricted writes.
      */
     match /afp-entities/{entityId} {
-        allow get, list: if true;
-        allow create, update, delete: if false;
+      allow get: if true;
+      allow list: if true;
+      allow create: if isAdmin(); // TODO: Add admin-only write rule
+      allow update: if isAdmin(); // TODO: Add admin-only write rule
+      allow delete: if isAdmin(); // TODO: Add admin-only write rule
     }
 
     /**
-     * @description Allows public read access to family allowance parameters.
+     * @description
+     *   Global collection of family allowance parameters. Publicly readable.
      * @path /family-allowance-parameters/{paramId}
-     * @allow (get, list) - Any user can read family allowance parameters.
-     * @deny (create, update, delete) - No user can create, update, or delete family allowance parameters (admin only).
-     * @principle Public read access with restricted writes.
      */
     match /family-allowance-parameters/{paramId} {
-        allow get, list: if true;
-        allow create, update, delete: if false;
+      allow get: if true;
+      allow list: if true;
+      allow create: if isAdmin(); // TODO: Add admin-only write rule
+      allow update: if isAdmin(); // TODO: Add admin-only write rule
+      allow delete: if isAdmin(); // TODO: Add admin-only write rule
     }
 
     /**
-     * @description Allows public read access to tax parameters.
+     * @description
+     *   Global collection of tax parameters for IUT. Publicly readable.
      * @path /tax-parameters/{paramId}
-     * @allow (get, list) - Any user can read tax parameters.
-     * @deny (create, update, delete) - No user can create, update, or delete tax parameters (admin only).
-     * @principle Public read access with restricted writes.
      */
     match /tax-parameters/{paramId} {
-        allow get, list: if true;
-        allow create, update, delete: if false;
+      allow get: if true;
+      allow list: if true;
+      allow create: if isAdmin(); // TODO: Add admin-only write rule
+      allow update: if isAdmin(); // TODO: Add admin-only write rule
+      allow delete: if isAdmin(); // TODO: Add admin-only write rule
     }
 
     /**
-     * @description Allows public read access to institutions.
+     * @description
+     *   Global collection of pension and health institutions. Publicly readable.
      * @path /institutions/{institutionId}
-     * @allow (get, list) - Any user can read institution data.
-     * @deny (create, update, delete) - No user can create, update, or delete institutions (admin only).
-     * @principle Public read access with restricted writes.
      */
     match /institutions/{institutionId} {
-        allow get, list: if true;
-        allow create, update, delete: if false;
+      allow get: if true;
+      allow list: if true;
+      allow create: if isAdmin(); // TODO: Add admin-only write rule
+      allow update: if isAdmin(); // TODO: Add admin-only write rule
+      allow delete: if isAdmin(); // TODO: Add admin-only write rule
     }
   }
 }

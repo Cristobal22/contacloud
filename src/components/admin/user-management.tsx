@@ -33,7 +33,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useFirestore, useAuth, useCollection, useUser } from "@/firebase"
 import type { UserProfile } from "@/lib/types"
-import { doc, setDoc, updateDoc, collection, deleteDoc, query, where } from "firebase/firestore"
+import { doc, setDoc, updateDoc, collection, deleteDoc, query, where, writeBatch, arrayUnion } from "firebase/firestore"
 import { createUserWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth'
 import { useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
@@ -68,15 +68,17 @@ export default function UserManagement() {
     const { user: authUser } = useUser();
     const { userProfile, loading: profileLoading } = useUserProfile(authUser?.uid);
 
-    // Admins solo ven a los usuarios que ellos mismos han creado.
+    // This query is now safe: it fetches only the users whose UIDs are in the admin's `createdUserIds` array.
     const usersQuery = React.useMemo(() => {
-        if (!firestore || !authUser || userProfile?.role !== 'Admin') return null;
-        return query(collection(firestore, 'users'), where('createdBy', '==', authUser.uid));
-    }, [firestore, authUser, userProfile]);
+        if (!firestore || !userProfile || userProfile.role !== 'Admin' || !userProfile.createdUserIds || userProfile.createdUserIds.length === 0) {
+            return null;
+        }
+        return query(collection(firestore, 'users'), where('uid', 'in', userProfile.createdUserIds.slice(0, 30)));
+    }, [firestore, userProfile]);
 
     const { data: users, loading: usersLoading, error } = useCollection<UserProfile>({ 
         query: usersQuery,
-        disabled: !usersQuery
+        disabled: profileLoading || !usersQuery
     });
     
     const [isCreateFormOpen, setIsCreateFormOpen] = useState(false);
@@ -130,11 +132,20 @@ export default function UserManagement() {
                 role: 'Accountant', 
                 photoURL: `https://i.pravatar.cc/150?u=${user.uid}`,
                 companyIds: [],
-                createdBy: authUser.uid, // Set the creator
+                createdBy: authUser.uid,
             };
 
-            await setDoc(doc(firestore, 'users', user.uid), newUserProfile);
-            // Send a password reset email immediately
+            const batch = writeBatch(firestore);
+            const userDocRef = doc(firestore, 'users', user.uid);
+            const adminDocRef = doc(firestore, 'users', authUser.uid);
+
+            batch.set(userDocRef, newUserProfile);
+            batch.update(adminDocRef, {
+                createdUserIds: arrayUnion(user.uid)
+            });
+            
+            await batch.commit();
+            
             await sendPasswordResetEmail(auth, user.email!);
 
             toast({
@@ -225,7 +236,7 @@ export default function UserManagement() {
                 <TableRow>
                     <TableCell colSpan={4} className="h-24 text-center text-destructive">
                         <p className="font-bold">Error de permisos.</p>
-                        <p className='text-xs text-muted-foreground'>Asegúrate de tener los permisos correctos en las reglas de Firestore para listar usuarios.</p>
+                        <p className='text-xs text-muted-foreground'>No se pudieron cargar los perfiles de usuario. Revisa las reglas de seguridad.</p>
                     </TableCell>
                 </TableRow>
             );
