@@ -1,4 +1,3 @@
-
 'use client';
 
 import {
@@ -229,7 +228,7 @@ export function PayrollDetailDialog({ isOpen, onClose, data }: PayrollDetailDial
                     )}
                 </div>
 
-                <DialogFooter className="gap-2">
+                <DialogFooter>
                     <Button type="button" variant="secondary" onClick={handleClose}>Cerrar</Button>
                     <Button type="button" variant="outline" onClick={togglePreview}>
                         {isPreview ? "Ocultar Vista Previa" : "Vista Previa PDF"}
