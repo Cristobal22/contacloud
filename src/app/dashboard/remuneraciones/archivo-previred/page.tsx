@@ -75,32 +75,34 @@ import { es } from "date-fns/locale";
         const afpCode = employee.afp ? afpMap.get(employee.afp) || '' : '';
         const healthCode = employee.healthSystem ? healthMap.get(employee.healthSystem) || '' : '';
 
+        // This is a simplified version of the Previred file format.
+        // A full implementation would require many more fields and complex logic.
         const line = [
           rutDigits, // RUT
           rutDV, // DV
-          employee.lastName, // Apellido Paterno (usamos todo el apellido)
+          employee.lastName, // Apellido Paterno
           '', // Apellido Materno
           employee.firstName, // Nombres
-          'M', // Sexo (M/F) - Placeholder
+          'M', // Sexo (Placeholder)
           employee.nationality || 'CHI', // Nacionalidad
-          '01', // Tipo de Pago (01: Transferencia)
-          format(new Date(year, month - 1, 1), 'yyyy-MM-dd'), // Período
-          '0', // Régimen Previsional (0: AFP, 1: INP)
+          '01', // Tipo de Pago
+          format(new Date(selectedYear, selectedMonth - 1, 1), 'yyyy-MM-dd'), // Período
+          '0', // Régimen Previsional
           payroll.taxableEarnings.toFixed(0), // Renta Imponible
-          'S', // Cotiza AFP (S/N)
+          'S', // Cotiza AFP
           afpCode, // Código AFP
-          '0', // Renta Imponible AFP
-          '0', // Cotización Obligatoria AFP
+          payroll.taxableEarnings.toFixed(0), // Renta Imponible AFP
+          payroll.afpDiscount.toFixed(0), // Cotización Obligatoria AFP
           'N', // Ahorro Voluntario
           '0', // Monto Ahorro Voluntario
           '0', // Renta Imponible Sustitutiva
           'S', // Cotiza Salud
           healthCode, // Código Salud
-          '01', // Moneda Plan Salud (01: $, 02: UF)
+          '01', // Moneda Plan Salud
           '0', // Cotización Pactada
-          '0', // Cotización Obligatoria Salud
+          payroll.healthDiscount.toFixed(0), // Cotización Obligatoria Salud
           '0', // Cotización Adicional Voluntaria
-          '0', // Renta Imponible S. Cesantía
+          payroll.taxableEarnings.toFixed(0), // Renta Imponible S. Cesantía
           'S', // Afiliado S. Cesantía
         ].join(';');
         fileContent += line + '\r\n';
