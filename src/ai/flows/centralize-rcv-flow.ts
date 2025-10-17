@@ -1,7 +1,8 @@
-
 'use server';
 /**
  * @fileOverview A flow to centralize the RCV (Registro de Compras y Ventas) from SII.
+ * @deprecated This flow is deprecated and will be removed in a future version.
+ * The logic has been moved to a deterministic implementation in the frontend.
  */
 
 import { ai } from '@/ai/genkit';

@@ -15,21 +15,18 @@ import { useToast } from "@/hooks/use-toast";
 import { SelectedCompanyContext } from "../../layout";
 import { useCollection, useFirestore } from "@/firebase";
 import type { Account, Company } from "@/lib/types";
-import { centralizeRcv } from "@/ai/flows/centralize-rcv-flow";
 import { addDoc, collection } from "firebase/firestore";
-import { errorEmitter } from "@/firebase/error-emitter";
-import { FirestorePermissionError } from "@/firebase/errors";
 import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
-import { Upload } from "lucide-react";
+import { Upload, FileText } from "lucide-react";
+import { format, lastDayOfMonth } from "date-fns";
+import { es } from "date-fns/locale";
 
-type RcvRow = {
-    tipo: 'compra' | 'venta';
-    neto: number;
-    iva: number;
-    total: number;
+type RcvSummary = {
+    netAmount: number;
+    taxAmount: number;
+    totalAmount: number;
 };
-
 
 export default function CentralizationRcvPage() {
     const currentYear = new Date().getFullYear();
@@ -45,182 +42,209 @@ export default function CentralizationRcvPage() {
     
     const [year, setYear] = React.useState(currentYear.toString());
     const [month, setMonth] = React.useState(currentMonth.toString());
-    const [isCentralizing, setIsCentralizing] = React.useState(false);
-    const [file, setFile] = React.useState<File | null>(null);
-    const fileInputRef = React.useRef<HTMLInputElement>(null);
-    const [fileName, setFileName] = React.useState<string | null>(null);
+    const [isProcessing, setIsProcessing] = React.useState(false);
 
+    const [purchaseFile, setPurchaseFile] = React.useState<File | null>(null);
+    const [salesFile, setSalesFile] = React.useState<File | null>(null);
+    const purchaseFileInputRef = React.useRef<HTMLInputElement>(null);
+    const salesFileInputRef = React.useRef<HTMLInputElement>(null);
 
-    const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-        if (event.target.files && event.target.files.length > 0) {
-            const selectedFile = event.target.files[0];
-            setFile(selectedFile);
-            setFileName(selectedFile.name);
-        } else {
-            setFile(null);
-            setFileName(null);
+    const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>, type: 'purchase' | 'sale') => {
+        const file = event.target.files?.[0];
+        if (file) {
+            if (type === 'purchase') setPurchaseFile(file);
+            else setSalesFile(file);
         }
     };
-
-
-    const handleCentralize = async () => {
-        if (!file || !selectedCompany || !accounts) {
+    
+    const processAndCentralize = async (type: 'purchase' | 'sale') => {
+        const file = type === 'purchase' ? purchaseFile : salesFile;
+        if (!file || !selectedCompany || !firestore) {
              toast({
                 variant: "destructive",
                 title: "Faltan datos",
-                description: "Por favor, carga un archivo y asegúrate de tener una empresa y plan de cuentas seleccionados.",
+                description: "Por favor, carga un archivo y asegúrate de tener una empresa seleccionada.",
             });
             return;
         }
 
-        setIsCentralizing(true);
+        const requiredAccounts = type === 'purchase' 
+            ? [selectedCompany.purchasesVatAccount, selectedCompany.purchasesInvoicesPayableAccount]
+            : [selectedCompany.salesVatAccount, selectedCompany.salesInvoicesReceivableAccount];
+        
+        if (requiredAccounts.some(acc => !acc)) {
+            toast({
+                variant: "destructive",
+                title: "Configuración incompleta",
+                description: `Por favor, define las cuentas de ${type === 'purchase' ? 'compras' : 'ventas'} (IVA y Cuentas por Pagar/Cobrar) en la configuración de la empresa.`,
+                action: <Button variant="secondary" size="sm" onClick={() => router.push('/dashboard/companies/settings')}>Ir a Configuración</Button>
+            });
+            return;
+        }
+
+        setIsProcessing(true);
 
         const reader = new FileReader();
         reader.onload = async (e) => {
             const text = e.target?.result as string;
             
             try {
-                const rows = text.split('\n').slice(1); // Omitir encabezado
+                const rows = text.split('\n').slice(1);
                 if (rows.length === 0) throw new Error("El archivo CSV está vacío o tiene un formato incorrecto.");
 
-                let purchaseNet = 0, purchaseTax = 0, purchaseTotal = 0;
-                let saleNet = 0, saleTax = 0, saleTotal = 0;
-
-                rows.forEach(row => {
+                const summary: RcvSummary = rows.reduce((acc, row) => {
                     const columns = row.split(',');
-                    if (columns.length < 4) return;
-                    
-                    const type = columns[0].toLowerCase().trim();
-                    const net = parseFloat(columns[1]) || 0;
-                    const tax = parseFloat(columns[2]) || 0;
-                    const total = parseFloat(columns[3]) || 0;
+                    if (columns.length < 3) return acc;
+                    acc.netAmount += parseFloat(columns[0]) || 0;
+                    acc.taxAmount += parseFloat(columns[1]) || 0;
+                    acc.totalAmount += parseFloat(columns[2]) || 0;
+                    return acc;
+                }, { netAmount: 0, taxAmount: 0, totalAmount: 0 });
 
-                    if (type === 'compra') {
-                        purchaseNet += net;
-                        purchaseTax += tax;
-                        purchaseTotal += total;
-                    } else if (type === 'venta') {
-                        saleNet += net;
-                        saleTax += tax;
-                        saleTotal += total;
-                    }
-                });
-
-                const companyConfig: Partial<Company> = {
-                    id: selectedCompany.id,
-                    name: selectedCompany.name,
-                    purchasesInvoicesPayableAccount: selectedCompany.purchasesInvoicesPayableAccount,
-                    purchasesVatAccount: selectedCompany.purchasesVatAccount,
-                    salesInvoicesReceivableAccount: selectedCompany.salesInvoicesReceivableAccount,
-                    salesVatAccount: selectedCompany.salesVatAccount,
-                };
-                
-                const generatedVouchers = await centralizeRcv({
-                    rcvSummary: {
-                        purchases: { netAmount: purchaseNet, taxAmount: purchaseTax, totalAmount: purchaseTotal },
-                        sales: { netAmount: saleNet, taxAmount: saleTax, totalAmount: saleTotal },
-                    },
-                    accounts,
-                    companyConfig,
-                    period: { month: parseInt(month), year: parseInt(year) },
-                });
-
-                if (firestore) {
-                    const collectionPath = `companies/${selectedCompany.id}/vouchers`;
-                    const collectionRef = collection(firestore, collectionPath);
-                    for (const voucher of generatedVouchers) {
-                        await addDoc(collectionRef, voucher);
-                    }
-                    toast({
-                        title: "Centralización Exitosa",
-                        description: "Se crearon los comprobantes de compras y ventas en estado borrador.",
-                        action: <Button variant="outline" size="sm" onClick={() => router.push('/dashboard/vouchers')}>Ver Comprobantes</Button>
-                    });
+                if(summary.totalAmount === 0) {
+                    throw new Error("No se encontraron montos válidos en el archivo. Revisa el formato (neto,iva,total).");
                 }
+                
+                const periodDate = new Date(parseInt(year), parseInt(month) - 1);
+                const lastDay = lastDayOfMonth(periodDate);
+                const monthName = format(periodDate, 'MMMM', { locale: es });
+                
+                const defaultResultAccount = type === 'purchase' 
+                    ? accounts?.find(a => a.code.startsWith('6')) // First expense account
+                    : accounts?.find(a => a.code.startsWith('4')); // First income account
+                
+                if (!defaultResultAccount) {
+                    throw new Error(`No se encontró una cuenta de resultado por defecto para ${type === 'purchase' ? 'gastos' : 'ingresos'}.`);
+                }
+
+                let entries = [];
+                if (type === 'purchase') {
+                    entries = [
+                        { account: defaultResultAccount.code, description: 'Neto Compras del período', debit: summary.netAmount, credit: 0 },
+                        { account: selectedCompany.purchasesVatAccount!, description: 'IVA Crédito Fiscal', debit: summary.taxAmount, credit: 0 },
+                        { account: selectedCompany.purchasesInvoicesPayableAccount!, description: 'Total Facturas por Pagar', debit: 0, credit: summary.totalAmount },
+                    ];
+                } else { // sale
+                    entries = [
+                        { account: selectedCompany.salesInvoicesReceivableAccount!, description: 'Total Facturas por Cobrar', debit: summary.totalAmount, credit: 0 },
+                        { account: defaultResultAccount.code, description: 'Neto Ventas del período', debit: 0, credit: summary.netAmount },
+                        { account: selectedCompany.salesVatAccount!, description: 'IVA Débito Fiscal', debit: 0, credit: summary.taxAmount },
+                    ];
+                }
+
+                const voucherData = {
+                    date: format(lastDay, 'yyyy-MM-dd'),
+                    type: 'Traspaso',
+                    description: `Centralización ${type === 'purchase' ? 'Compras' : 'Ventas'} ${monthName} ${year}`,
+                    status: 'Borrador',
+                    total: summary.totalAmount,
+                    entries,
+                    companyId: selectedCompany.id,
+                };
+
+                const collectionPath = `companies/${selectedCompany.id}/vouchers`;
+                await addDoc(collection(firestore, collectionPath), voucherData);
+
+                toast({
+                    title: `Centralización de ${type === 'purchase' ? 'Compras' : 'Ventas'} Exitosa`,
+                    description: `Se creó el comprobante en estado borrador.`,
+                    action: <Button variant="outline" size="sm" onClick={() => router.push('/dashboard/vouchers')}>Ver Comprobantes</Button>
+                });
+
+
             } catch (error: any) {
                 console.error("Error during centralization:", error);
                 toast({
                     variant: "destructive",
                     title: "Error en la Centralización",
-                    description: "No se pudo procesar el archivo o generar los comprobantes: " + error.message,
+                    description: "No se pudo procesar el archivo o generar el comprobante: " + error.message,
                 });
             } finally {
-                setIsCentralizing(false);
+                setIsProcessing(false);
             }
         };
-
-        reader.onerror = () => {
-            toast({
-                variant: "destructive",
-                title: "Error de Lectura",
-                description: "No se pudo leer el archivo seleccionado.",
-            });
-            setIsCentralizing(false);
-        };
-
-        reader.readAsText(file);
+        reader.readAsText(file, 'ISO-8859-1');
     }
 
     return (
         <Card>
             <CardHeader>
                 <CardTitle>Centralización RCV (vía Archivo)</CardTitle>
-                <CardDescription>Centraliza el Registro de Compras y Ventas cargando un archivo CSV desde tu computador.</CardDescription>
+                <CardDescription>Centraliza el Registro de Compras y Ventas cargando archivos CSV desde tu computador.</CardDescription>
             </CardHeader>
-            <CardContent>
-                <div className="flex flex-col items-center justify-center gap-6 rounded-xl border border-dashed p-8 text-center max-w-2xl mx-auto">
-                    <h3 className="text-lg font-semibold">1. Selecciona el Período</h3>
-                    <div className="w-full space-y-4">
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2 text-left">
-                                <Label htmlFor="month">Mes</Label>
-                                <Select value={month} onValueChange={setMonth} disabled={isCentralizing}>
-                                    <SelectTrigger id="month">
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {Array.from({ length: 12 }, (_, i) => (
-                                            <SelectItem key={i+1} value={(i+1).toString()}>
-                                                {new Date(0, i).toLocaleString('es-CL', { month: 'long' })}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                            <div className="space-y-2 text-left">
-                                <Label htmlFor="year">Año</Label>
-                                <Select value={year} onValueChange={setYear} disabled={isCentralizing}>
-                                    <SelectTrigger id="year">
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {Array.from({ length: 5 }, (_, i) => (
-                                            <SelectItem key={currentYear-i} value={(currentYear-i).toString()}>
-                                                {currentYear-i}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
+            <CardContent className="space-y-6">
+                <div className="max-w-lg mx-auto space-y-4">
+                    <h3 className="text-lg font-semibold text-center">1. Selecciona el Período</h3>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2 text-left">
+                            <Label htmlFor="month">Mes</Label>
+                            <Select value={month} onValueChange={setMonth} disabled={isProcessing}>
+                                <SelectTrigger id="month"><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                    {Array.from({ length: 12 }, (_, i) => (
+                                        <SelectItem key={i+1} value={(i+1).toString()}>
+                                            {new Date(0, i).toLocaleString('es-CL', { month: 'long' })}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="space-y-2 text-left">
+                            <Label htmlFor="year">Año</Label>
+                            <Select value={year} onValueChange={setYear} disabled={isProcessing}>
+                                <SelectTrigger id="year"><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                    {Array.from({ length: 5 }, (_, i) => (
+                                        <SelectItem key={currentYear-i} value={(currentYear-i).toString()}>{currentYear-i}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
                         </div>
                     </div>
-                     <h3 className="text-lg font-semibold mt-4">2. Carga tu Archivo</h3>
-                     <p className="text-sm text-muted-foreground text-center -mt-4">
-                        El archivo debe ser CSV con las columnas: `tipo` (compra/venta), `neto`, `iva`, `total`.
-                    </p>
-                    <div className="flex items-center gap-2">
-                        <Input id="file-upload" type="file" ref={fileInputRef} className="hidden" onChange={handleFileChange} accept=".csv"/>
-                        <Button variant="outline" onClick={() => fileInputRef.current?.click()} disabled={!selectedCompany || isCentralizing}>
-                            <Upload className="mr-2 h-4 w-4" />
-                            Elegir Archivo
+                </div>
+
+                <div className="grid md:grid-cols-2 gap-6 items-start">
+                    {/* Compras */}
+                    <div className="flex flex-col items-center justify-center gap-4 rounded-xl border border-dashed p-6 text-center">
+                         <FileText className="h-10 w-10 text-primary" />
+                        <h3 className="text-lg font-semibold">2. Cargar Registro de Compras</h3>
+                        <p className="text-xs text-muted-foreground">
+                            El CSV debe tener las columnas: `neto`, `iva`, `total`.
+                        </p>
+                        <div className="flex items-center gap-2">
+                            <Input id="purchase-file-upload" type="file" ref={purchaseFileInputRef} className="hidden" onChange={(e) => handleFileChange(e, 'purchase')} accept=".csv"/>
+                            <Button variant="outline" onClick={() => purchaseFileInputRef.current?.click()} disabled={!selectedCompany || isProcessing}>
+                                <Upload className="mr-2 h-4 w-4" />
+                                {purchaseFile ? 'Cambiar Archivo' : 'Elegir Archivo'}
+                            </Button>
+                        </div>
+                        {purchaseFile && <p className="text-sm text-muted-foreground truncate max-w-[200px]">{purchaseFile.name}</p>}
+                        <Button className="w-full mt-2" onClick={() => processAndCentralize('purchase')} disabled={!selectedCompany || !purchaseFile || isProcessing || accountsLoading}>
+                            {isProcessing ? "Procesando..." : (accountsLoading ? "Cargando..." : "Centralizar Compras")}
                         </Button>
-                        {fileName && <span className="text-sm text-muted-foreground">{fileName}</span>}
                     </div>
 
-                    <Button className="w-full mt-4" onClick={handleCentralize} disabled={!selectedCompany || !file || isCentralizing || accountsLoading}>
-                        {isCentralizing ? "Centralizando..." : (accountsLoading ? "Cargando datos..." : "Procesar Archivo y Centralizar")}
-                    </Button>
+                    {/* Ventas */}
+                     <div className="flex flex-col items-center justify-center gap-4 rounded-xl border border-dashed p-6 text-center">
+                        <FileText className="h-10 w-10 text-primary" />
+                        <h3 className="text-lg font-semibold">3. Cargar Registro de Ventas</h3>
+                        <p className="text-xs text-muted-foreground">
+                           El CSV debe tener las columnas: `neto`, `iva`, `total`.
+                        </p>
+                        <div className="flex items-center gap-2">
+                            <Input id="sales-file-upload" type="file" ref={salesFileInputRef} className="hidden" onChange={(e) => handleFileChange(e, 'sale')} accept=".csv"/>
+                            <Button variant="outline" onClick={() => salesFileInputRef.current?.click()} disabled={!selectedCompany || isProcessing}>
+                                 <Upload className="mr-2 h-4 w-4" />
+                                {salesFile ? 'Cambiar Archivo' : 'Elegir Archivo'}
+                            </Button>
+                        </div>
+                         {salesFile && <p className="text-sm text-muted-foreground truncate max-w-[200px]">{salesFile.name}</p>}
+                         <Button className="w-full mt-2" onClick={() => processAndCentralize('sale')} disabled={!selectedCompany || !salesFile || isProcessing || accountsLoading}>
+                            {isProcessing ? "Procesando..." : (accountsLoading ? "Cargando..." : "Centralizar Ventas")}
+                        </Button>
+                    </div>
                 </div>
+
             </CardContent>
         </Card>
     )
