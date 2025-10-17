@@ -150,12 +150,19 @@ export type VoucherEntry = {
 export type Purchase = {
   id: string;
   date: string;
+  documentType: string;
   documentNumber: string;
+  supplierRut: string;
   supplier: string;
+  netAmount: number;
+  taxAmount: number;
   total: number;
-  status: 'Pendiente' | 'Pagada' | 'Vencida';
+  status: 'Pendiente' | 'Contabilizado' | 'Anulado';
+  assignedAccount?: string; // Cuenta de gasto/activo asignada
+  voucherId?: string; // ID del comprobante de centralización
   companyId: string;
 };
+
 
 export type Sale = {
   id: string;

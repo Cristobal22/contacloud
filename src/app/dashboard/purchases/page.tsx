@@ -8,292 +8,194 @@ import {
     TableHead,
     TableHeader,
     TableRow,
-  } from "@/components/ui/table"
-  import {
+} from "@/components/ui/table"
+import {
     Card,
     CardContent,
     CardDescription,
     CardHeader,
     CardTitle,
-  } from "@/components/ui/card"
-  import { Button, buttonVariants } from "@/components/ui/button"
-  import { Badge } from "@/components/ui/badge"
-  import { MoreHorizontal, PlusCircle } from "lucide-react"
-  import {
+} from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import { MoreHorizontal, PlusCircle, Upload, ArrowRight } from "lucide-react"
+import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuLabel,
     DropdownMenuTrigger,
-  } from "@/components/ui/dropdown-menu"
-   import {
-    Dialog,
-    DialogContent,
-    DialogHeader,
-    DialogTitle,
-    DialogDescription,
-    DialogFooter,
-    DialogClose,
-  } from "@/components/ui/dialog"
-    import {
-    AlertDialog,
-    AlertDialogAction,
-    AlertDialogCancel,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
-  } from "@/components/ui/alert-dialog"
-  import { Input } from "@/components/ui/input"
-  import { Label } from "@/components/ui/label"
-  import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-  import { useCollection, useFirestore } from "@/firebase"
-  import { collection, addDoc, setDoc, doc, deleteDoc } from "firebase/firestore"
-  import type { Purchase } from "@/lib/types";
-  import { errorEmitter } from '@/firebase/error-emitter'
-  import { FirestorePermissionError } from '@/firebase/errors'
+} from "@/components/ui/dropdown-menu"
+import { Input } from "@/components/ui/input"
+import { useCollection, useFirestore } from "@/firebase"
+import { collection, addDoc, setDoc, doc, deleteDoc, writeBatch } from "firebase/firestore"
+import type { Purchase, Account } from "@/lib/types";
+import { errorEmitter } from '@/firebase/error-emitter'
+import { FirestorePermissionError } from '@/firebase/errors'
 import { SelectedCompanyContext } from "../layout";
+import { useToast } from "@/hooks/use-toast";
+import { AccountSearchInput } from "@/components/account-search-input";
 
-  export default function PurchasesPage() {
+export default function PurchasesPage() {
     const { selectedCompany } = React.useContext(SelectedCompanyContext) || {};
     const companyId = selectedCompany?.id;
-
     const firestore = useFirestore();
-    const { data: purchases, loading } = useCollection<Purchase>({ 
-      path: companyId ? `companies/${companyId}/purchases` : undefined,
-      companyId: companyId 
+    const { toast } = useToast();
+    const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+    const { data: purchases, loading: purchasesLoading } = useCollection<Purchase>({
+        path: companyId ? `companies/${companyId}/purchases` : undefined,
+        companyId: companyId
+    });
+    const { data: accounts, loading: accountsLoading } = useCollection<Account>({
+        path: companyId ? `companies/${companyId}/accounts` : undefined,
     });
 
-    const [isFormOpen, setIsFormOpen] = React.useState(false);
-    const [selectedPurchase, setSelectedPurchase] = React.useState<Partial<Purchase> | null>(null);
-    const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false);
-    const [purchaseToDelete, setPurchaseToDelete] = React.useState<Purchase | null>(null);
+    const loading = purchasesLoading || accountsLoading;
 
-    const handleCreateNew = () => {
-        setSelectedPurchase({
-            id: `new-${Date.now()}`,
-            date: new Date().toISOString().substring(0,10),
-            documentNumber: '',
-            supplier: '',
-            total: 0,
-            status: 'Pendiente',
-            companyId: companyId,
-        });
-        setIsFormOpen(true);
-    };
+    const handleAccountChange = (purchaseId: string, accountCode: string) => {
+        if (!firestore || !companyId) return;
 
-    const handleEdit = (purchase: Purchase) => {
-        setSelectedPurchase(purchase);
-        setIsFormOpen(true);
-    };
-
-    const handleOpenDeleteDialog = (purchase: Purchase) => {
-        setPurchaseToDelete(purchase);
-        setIsDeleteDialogOpen(true);
-    };
-
-     const handleSave = () => {
-        if (!firestore || !companyId || !selectedPurchase) return;
-
-        const isNew = selectedPurchase.id?.startsWith('new-');
-        const collectionPath = `companies/${companyId}/purchases`;
-        const collectionRef = collection(firestore, collectionPath);
-        
-        const purchaseData = {
-          date: selectedPurchase.date || new Date().toISOString().substring(0,10),
-          documentNumber: selectedPurchase.documentNumber || '',
-          supplier: selectedPurchase.supplier || '',
-          total: selectedPurchase.total || 0,
-          status: selectedPurchase.status || 'Pendiente',
-          companyId: companyId
-        };
-        
-        setIsFormOpen(false);
-        setSelectedPurchase(null);
-
-        if (isNew) {
-            addDoc(collectionRef, purchaseData)
-                .catch(err => {
-                    errorEmitter.emit('permission-error', new FirestorePermissionError({
-                        path: collectionPath,
-                        operation: 'create',
-                        requestResourceData: purchaseData,
-                    }));
-                });
-        } else if (selectedPurchase.id) {
-            const docRef = doc(firestore, collectionPath, selectedPurchase.id);
-            setDoc(docRef, purchaseData, { merge: true })
-                .catch(err => {
-                    errorEmitter.emit('permission-error', new FirestorePermissionError({
-                        path: docRef.path,
-                        operation: 'update',
-                        requestResourceData: purchaseData,
-                    }));
-                });
-        }
-    };
-
-    const handleDelete = () => {
-        if (!firestore || !companyId || !purchaseToDelete) return;
-        const docRef = doc(firestore, `companies/${companyId}/purchases`, purchaseToDelete.id);
-        
-        setIsDeleteDialogOpen(false);
-        setPurchaseToDelete(null);
-
-        deleteDoc(docRef)
+        const purchaseRef = doc(firestore, `companies/${companyId}/purchases`, purchaseId);
+        setDoc(purchaseRef, { assignedAccount: accountCode }, { merge: true })
             .catch(err => {
-                 errorEmitter.emit('permission-error', new FirestorePermissionError({
-                    path: docRef.path,
-                    operation: 'delete',
+                errorEmitter.emit('permission-error', new FirestorePermissionError({
+                    path: purchaseRef.path,
+                    operation: 'update',
+                    requestResourceData: { assignedAccount: accountCode },
                 }));
             });
     };
-    
-    const handleFieldChange = (field: keyof Purchase, value: string | number) => {
-        if (selectedPurchase) {
-            setSelectedPurchase({ ...selectedPurchase, [field]: value });
+
+    const handleFileImport = (event: React.ChangeEvent<HTMLInputElement>) => {
+        if (!event.target.files || !firestore || !companyId) return;
+        const file = event.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                const text = e.target?.result as string;
+                const lines = text.split('\n').slice(1); // Skip header
+                if (lines.length === 0) {
+                    toast({ variant: 'destructive', title: 'Error de archivo', description: 'El archivo CSV está vacío o tiene un formato incorrecto.' });
+                    return;
+                }
+
+                const batch = writeBatch(firestore);
+                const collectionRef = collection(firestore, `companies/${companyId}/purchases`);
+                let count = 0;
+
+                lines.forEach(line => {
+                    const columns = line.split(',');
+                    // Assuming CSV format: tipo doc, folio, rut, razon social, fecha, neto, iva, total
+                    if (columns.length < 8) return;
+                    
+                    const newPurchase: Omit<Purchase, 'id'> = {
+                        documentType: columns[0].trim(),
+                        documentNumber: columns[1].trim(),
+                        supplierRut: columns[2].trim(),
+                        supplier: columns[3].trim(),
+                        date: new Date(columns[4].trim()).toISOString().substring(0,10),
+                        netAmount: parseFloat(columns[5]) || 0,
+                        taxAmount: parseFloat(columns[6]) || 0,
+                        total: parseFloat(columns[7]) || 0,
+                        status: 'Pendiente',
+                        companyId: companyId,
+                    };
+                    const docRef = doc(collectionRef);
+                    batch.set(docRef, newPurchase);
+                    count++;
+                });
+
+                if (count === 0) {
+                     toast({ variant: 'destructive', title: 'Error de formato', description: 'No se encontraron documentos válidos en el archivo.' });
+                    return;
+                }
+                
+                try {
+                    await batch.commit();
+                    toast({ title: 'Importación Exitosa', description: `Se importaron ${count} documentos de compra.` });
+                } catch (error) {
+                    errorEmitter.emit('permission-error', new FirestorePermissionError({
+                        path: `companies/${companyId}/purchases`,
+                        operation: 'create',
+                    }));
+                }
+            };
+            reader.readAsText(file, 'ISO-8859-1');
         }
+        if (fileInputRef.current) fileInputRef.current.value = '';
     };
 
+    const pendingPurchases = purchases?.filter(p => p.status === 'Pendiente') || [];
+
     return (
-      <>
         <Card>
             <CardHeader>
                 <div className="flex items-center justify-between">
                     <div>
-                        <CardTitle>Compras</CardTitle>
-                        <CardDescription>Gestiona tus documentos de compra.</CardDescription>
+                        <CardTitle>Centralización de Compras</CardTitle>
+                        <CardDescription>Importa y asigna cuentas a tus documentos de compra para centralizar.</CardDescription>
                     </div>
-                    <Button size="sm" className="gap-1" onClick={handleCreateNew} disabled={!companyId}>
-                        <PlusCircle className="h-4 w-4" />
-                        Agregar Compra
-                    </Button>
+                    <div className="flex gap-2">
+                        <input type="file" ref={fileInputRef} className="hidden" accept=".csv" onChange={handleFileImport} />
+                        <Button size="sm" className="gap-1" onClick={() => fileInputRef.current?.click()} disabled={!companyId}>
+                            <Upload className="h-4 w-4" />
+                            Importar Compras (CSV)
+                        </Button>
+                        <Button size="sm" className="gap-1" disabled={true}>
+                           Ir a Centralizar <ArrowRight className="h-4 w-4" />
+                        </Button>
+                    </div>
                 </div>
             </CardHeader>
             <CardContent>
-            <Table>
-                <TableHeader>
-                <TableRow>
-                    <TableHead>Fecha</TableHead>
-                    <TableHead>Nº Documento</TableHead>
-                    <TableHead>Proveedor</TableHead>
-                    <TableHead>Estado</TableHead>
-                    <TableHead className="text-right">Total</TableHead>
-                    <TableHead>
-                    <span className="sr-only">Acciones</span>
-                    </TableHead>
-                </TableRow>
-                </TableHeader>
-                <TableBody>
-                 {loading && (
-                    <TableRow>
-                        <TableCell colSpan={6} className="text-center">Cargando...</TableCell>
-                    </TableRow>
-                )}
-                {!loading && purchases?.map((purchase) => (
-                    <TableRow key={purchase.id}>
-                    <TableCell>{new Date(purchase.date).toLocaleDateString('es-CL', { timeZone: 'UTC' })}</TableCell>
-                    <TableCell className="font-medium">{purchase.documentNumber}</TableCell>
-                    <TableCell>{purchase.supplier}</TableCell>
-                    <TableCell>
-                        <Badge variant={
-                            purchase.status === 'Pagada' ? 'default' :
-                            purchase.status === 'Vencida' ? 'destructive' : 'secondary'
-                        }>
-                            {purchase.status}
-                        </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">${purchase.total.toLocaleString('es-CL')}</TableCell>
-                    <TableCell>
-                        <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                            <Button aria-haspopup="true" size="icon" variant="ghost">
-                            <MoreHorizontal className="h-4 w-4" />
-                            <span className="sr-only">Toggle menu</span>
-                            </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                            <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-                            <DropdownMenuItem onClick={() => handleEdit(purchase)}>Editar</DropdownMenuItem>
-                            <DropdownMenuItem className="text-destructive" onClick={() => handleOpenDeleteDialog(purchase)}>Anular</DropdownMenuItem>
-                        </DropdownMenuContent>
-                        </DropdownMenu>
-                    </TableCell>
-                    </TableRow>
-                ))}
-                {!loading && purchases?.length === 0 && (
-                    <TableRow>
-                        <TableCell colSpan={6} className="text-center">
-                            {!companyId ? "Selecciona una empresa para ver sus compras." : "No se encontraron documentos de compra."}
-                        </TableCell>
-                    </TableRow>
-                    )}
-                </TableBody>
-            </Table>
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>Fecha</TableHead>
+                            <TableHead>Documento</TableHead>
+                            <TableHead>Proveedor</TableHead>
+                            <TableHead className="w-[300px]">Cuenta de Gasto/Activo</TableHead>
+                            <TableHead className="text-right">Neto</TableHead>
+                            <TableHead className="text-right">IVA</TableHead>
+                            <TableHead className="text-right">Total</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {loading && (
+                            <TableRow>
+                                <TableCell colSpan={7} className="text-center">Cargando...</TableCell>
+                            </TableRow>
+                        )}
+                        {!loading && pendingPurchases.map((purchase) => (
+                            <TableRow key={purchase.id}>
+                                <TableCell>{new Date(purchase.date).toLocaleDateString('es-CL', { timeZone: 'UTC' })}</TableCell>
+                                <TableCell className="font-medium">{purchase.documentType} {purchase.documentNumber}</TableCell>
+                                <TableCell>{purchase.supplier}</TableCell>
+                                <TableCell>
+                                    <AccountSearchInput 
+                                        value={purchase.assignedAccount || ''}
+                                        onValueChange={(value) => handleAccountChange(purchase.id, value)}
+                                        accounts={accounts || []}
+                                        loading={accountsLoading}
+                                        label=""
+                                    />
+                                </TableCell>
+                                <TableCell className="text-right">${purchase.netAmount.toLocaleString('es-CL')}</TableCell>
+                                <TableCell className="text-right">${purchase.taxAmount.toLocaleString('es-CL')}</TableCell>
+                                <TableCell className="text-right font-bold">${purchase.total.toLocaleString('es-CL')}</TableCell>
+                            </TableRow>
+                        ))}
+                        {!loading && pendingPurchases.length === 0 && (
+                            <TableRow>
+                                <TableCell colSpan={7} className="text-center h-24">
+                                    {!companyId ? "Selecciona una empresa para empezar." : "No hay documentos de compra pendientes. ¡Importa un archivo!"}
+                                </TableCell>
+                            </TableRow>
+                        )}
+                    </TableBody>
+                </Table>
             </CardContent>
         </Card>
-
-        <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
-            <DialogContent className="sm:max-w-[425px]">
-                <DialogHeader>
-                    <DialogTitle>{selectedPurchase?.id?.startsWith('new-') ? 'Agregar Compra' : 'Editar Compra'}</DialogTitle>
-                    <DialogDescription>
-                        Rellena los detalles del documento.
-                    </DialogDescription>
-                </DialogHeader>
-                <div className="grid gap-4 py-4">
-                    <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="date" className="text-right">Fecha</Label>
-                        <Input id="date" type="date" value={selectedPurchase?.date || ''} onChange={(e) => handleFieldChange('date', e.target.value)} className="col-span-3" />
-                    </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="documentNumber" className="text-right">Nº Documento</Label>
-                        <Input id="documentNumber" value={selectedPurchase?.documentNumber || ''} onChange={(e) => handleFieldChange('documentNumber', e.target.value)} className="col-span-3" />
-                    </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="supplier" className="text-right">Proveedor</Label>
-                        <Input id="supplier" value={selectedPurchase?.supplier || ''} onChange={(e) => handleFieldChange('supplier', e.target.value)} className="col-span-3" />
-                    </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="total" className="text-right">Total</Label>
-                        <Input id="total" type="number" value={selectedPurchase?.total ?? ''} onChange={(e) => handleFieldChange('total', parseFloat(e.target.value))} className="col-span-3" />
-                    </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="status" className="text-right">Estado</Label>
-                        <Select value={selectedPurchase?.status || 'Pendiente'} onValueChange={(value) => handleFieldChange('status', value)}>
-                            <SelectTrigger className="col-span-3"><SelectValue /></SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="Pendiente">Pendiente</SelectItem>
-                                <SelectItem value="Pagada">Pagada</SelectItem>
-                                <SelectItem value="Vencida">Vencida</SelectItem>
-                            </SelectContent>
-                        </Select>
-                    </div>
-                </div>
-                <DialogFooter>
-                    <DialogClose asChild><Button type="button" variant="secondary">Cancelar</Button></DialogClose>
-                    <Button type="submit" onClick={handleSave}>Guardar</Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
-
-        <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-            <AlertDialogContent>
-                <AlertDialogHeader>
-                    <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                        Esta acción no se puede deshacer. Esto eliminará permanentemente el documento de compra.
-                    </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                    <AlertDialogAction className={buttonVariants({ variant: "destructive" })} onClick={handleDelete}>
-                        Sí, eliminar
-                    </AlertDialogAction>
-                </AlertDialogFooter>
-            </AlertDialogContent>
-        </AlertDialog>
-      </>
     )
-  }
+}

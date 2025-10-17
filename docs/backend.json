@@ -295,10 +295,16 @@
             "properties": {
                 "id": { "type": "string" },
                 "date": { "type": "string", "format": "date" },
+                "documentType": { "type": "string" },
                 "documentNumber": { "type": "string" },
+                "supplierRut": { "type": "string" },
                 "supplier": { "type": "string" },
+                "netAmount": { "type": "number" },
+                "taxAmount": { "type": "number" },
                 "total": { "type": "number" },
-                "status": { "type": "string", "enum": ["Pendiente", "Pagada", "Vencida"] },
+                "status": { "type": "string", "enum": ["Pendiente", "Contabilizado", "Anulado"] },
+                "assignedAccount": { "type": "string", "description": "Cuenta de gasto/activo asignada para el neto." },
+                "voucherId": { "type": "string", "description": "ID del comprobante de centralización." },
                 "companyId": { "type": "string" }
             },
             "required": ["id", "date", "documentNumber", "supplier", "total", "status", "companyId"]
