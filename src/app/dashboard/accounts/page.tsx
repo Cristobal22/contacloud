@@ -81,6 +81,7 @@ import {
     path: companyId ? `companies/${companyId}/accounts` : undefined,
     companyId: companyId,
   });
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   const sortedAccounts = React.useMemo(() => {
     return accounts?.sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true })) || [];
@@ -152,22 +153,26 @@ import {
     }
   };
     
+  const getAccountTypeFromCode = (code: string): Account['type'] => {
+        const firstDigit = code.charAt(0);
+        switch(firstDigit) {
+            case '1': return 'Activo';
+            case '2': return 'Pasivo';
+            case '3': return 'Patrimonio';
+            case '4': 
+            case '5':
+            case '6':
+                return 'Resultado';
+            default: return 'Activo'; // Default case
+        }
+  }
+
   const handleFieldChange = (field: keyof Account, value: string | number) => {
     if (selectedAccount) {
         let updatedAccount = { ...selectedAccount, [field]: value };
 
         if (field === 'code' && typeof value === 'string' && value.length > 0) {
-            const firstDigit = value.charAt(0);
-            switch(firstDigit) {
-                case '1': updatedAccount.type = 'Activo'; break;
-                case '2': updatedAccount.type = 'Pasivo'; break;
-                case '3': updatedAccount.type = 'Patrimonio'; break;
-                case '4': 
-                case '5':
-                case '6':
-                    updatedAccount.type = 'Resultado'; break;
-                default: // Do nothing or reset
-            }
+            updatedAccount.type = getAccountTypeFromCode(value);
         }
 
         setSelectedAccount(updatedAccount);
@@ -201,6 +206,70 @@ import {
       setIsSeedConfirmOpen(false);
     }
   };
+
+    const handleImportFile = (event: React.ChangeEvent<HTMLInputElement>) => {
+        if (!event.target.files || !firestore || !companyId) return;
+
+        const file = event.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                const content = e.target?.result as string;
+                const lines = content.split('\n').filter(line => line.trim() !== '');
+
+                if (lines.length === 0) {
+                    toast({ variant: 'destructive', title: 'Error de archivo', description: 'El archivo CSV está vacío o tiene un formato incorrecto.' });
+                    return;
+                }
+
+                const batch = writeBatch(firestore);
+                const collectionPath = `companies/${companyId}/accounts`;
+                const collectionRef = collection(firestore, collectionPath);
+                let count = 0;
+
+                lines.forEach(line => {
+                    const [code, name] = line.split(',').map(s => s.trim());
+                    if (code && name) {
+                        const newAccount: Omit<Account, 'id'> = {
+                            code,
+                            name,
+                            type: getAccountTypeFromCode(code),
+                            balance: 0,
+                            companyId: companyId,
+                        };
+                        const docRef = doc(collectionRef);
+                        batch.set(docRef, newAccount);
+                        count++;
+                    }
+                });
+
+                if (count === 0) {
+                    toast({ variant: 'destructive', title: 'Error de formato', description: 'No se encontraron cuentas válidas en el archivo. Asegúrate de usar el formato "código,nombre".' });
+                    return;
+                }
+
+                try {
+                    await batch.commit();
+                    toast({
+                        title: 'Importación Exitosa',
+                        description: `Se importaron ${count} cuentas correctamente.`,
+                    });
+                } catch (error) {
+                    console.error("Error importing chart of accounts: ", error);
+                    errorEmitter.emit('permission-error', new FirestorePermissionError({
+                        path: collectionPath,
+                        operation: 'create',
+                    }));
+                }
+            };
+            reader.readAsText(file);
+        }
+         // Reset file input to allow re-uploading the same file
+        if (fileInputRef.current) {
+            fileInputRef.current.value = '';
+        }
+    };
+
 
   const handleDeleteAllAccounts = async () => {
     if (!firestore || !companyId) return;
@@ -284,10 +353,11 @@ import {
                             <BookUp className="mr-2 h-4 w-4"/>
                             Cargar Plan Predeterminado
                         </Button>
-                         <Button variant="outline" disabled>
+                         <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
                             <Download className="mr-2 h-4 w-4"/>
-                            Importar Plan (Próximamente)
+                            Importar Plan (CSV)
                         </Button>
+                         <input type="file" ref={fileInputRef} className="hidden" accept=".csv" onChange={handleImportFile} />
                          <Button variant="secondary" onClick={handleCreateNew}>
                             <PlusCircle className="mr-2 h-4 w-4"/>
                             Crear desde Cero
