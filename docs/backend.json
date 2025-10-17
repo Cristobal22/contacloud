@@ -156,6 +156,7 @@
                 "contractStartDate": { "type": "string", "format": "date" },
                 "contractEndDate": { "type": "string", "format": "date" },
                 "baseSalary": { "type": "number" },
+                "gratificationType": { "type": "string", "enum": ["Automatico", "Manual"], "description": "Tipo de cálculo para la gratificación legal."},
                 "gratification": { "type": "number", "description": "Gratificación Legal" },
                 "mobilization": { "type": "number", "description": "Bono de Movilización" },
                 "collation": { "type": "number", "description": "Bono de Colación" },

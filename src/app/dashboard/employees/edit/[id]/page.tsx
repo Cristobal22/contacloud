@@ -23,12 +23,17 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { useCollection, useDoc, useFirestore, useUser } from '@/firebase';
 import type { Employee, CostCenter, AfpEntity, HealthEntity } from '@/lib/types';
 import { SelectedCompanyContext } from '@/app/dashboard/layout';
-import { doc, setDoc, addDoc, collection } from 'firebase/firestore';
+import { doc, setDoc, addDoc, collection, DocumentReference } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 import { errorEmitter } from '@/firebase/error-emitter'
 import { FirestorePermissionError } from '@/firebase/errors'
+
+// Tope legal: 4.75 IMM. Asumimos IMM de 460.000 (este valor debe ser actualizado periódicamente)
+const MINIMUM_WAGE = 460000;
+const GRATIFICATION_CAP_ANNUAL = 4.75 * MINIMUM_WAGE;
+const GRATIFICATION_CAP_MONTHLY = GRATIFICATION_CAP_ANNUAL / 12;
 
 export default function EmployeeFormPage({ params }: { params: { id: string } }) {
     const { id } = params;
@@ -40,7 +45,7 @@ export default function EmployeeFormPage({ params }: { params: { id: string } })
     const { user } = useUser();
 
     const employeeRef = React.useMemo(() => 
-        !isNew && firestore && companyId ? doc(firestore, `companies/${companyId}/employees`, id) as doc<Employee> : null
+        !isNew && firestore && companyId ? doc(firestore, `companies/${companyId}/employees`, id) as DocumentReference<Employee> : null
     , [isNew, firestore, companyId, id]);
 
     const { data: existingEmployee, loading: employeeLoading } = useDoc<Employee>(employeeRef);
@@ -67,6 +72,7 @@ export default function EmployeeFormPage({ params }: { params: { id: string } })
                 companyId: companyId,
                 healthContributionType: 'Porcentaje',
                 healthContributionValue: 7,
+                gratificationType: 'Manual',
             });
         } else if (existingEmployee) {
             setEmployee(existingEmployee);
@@ -75,10 +81,20 @@ export default function EmployeeFormPage({ params }: { params: { id: string } })
 
     const handleFieldChange = (field: keyof Employee, value: string | number | boolean | undefined) => {
         if (employee) {
-            setEmployee({ ...employee, [field]: value });
+            setEmployee((prev) => ({ ...prev, [field]: value }));
         }
     };
     
+    // Auto-calculate gratification when base salary or type changes
+    React.useEffect(() => {
+        if (employee?.gratificationType === 'Automatico' && employee.baseSalary) {
+            const calculatedGratification = employee.baseSalary * 0.25;
+            const finalGratification = Math.min(calculatedGratification, GRATIFICATION_CAP_MONTHLY);
+            setEmployee(prev => prev ? {...prev, gratification: Math.round(finalGratification)} : null);
+        }
+    }, [employee?.baseSalary, employee?.gratificationType]);
+
+
     const handleSaveChanges = () => {
         if (!firestore || !companyId || !employee) return;
         
@@ -176,7 +192,7 @@ export default function EmployeeFormPage({ params }: { params: { id: string } })
                 {/* Contract Data */}
                 <section className="space-y-4">
                     <h3 className="text-lg font-medium border-b pb-2">Datos Contractuales y de Remuneración</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
                         <div className="space-y-2">
                             <Label>Tipo de Contrato</Label>
                              <Select value={employee.contractType} onValueChange={(v) => handleFieldChange('contractType', v)}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent>
@@ -191,7 +207,28 @@ export default function EmployeeFormPage({ params }: { params: { id: string } })
                         <div className="space-y-2"><Label>Fecha Inicio Contrato</Label><Input type="date" value={employee.contractStartDate || ''} onChange={(e) => handleFieldChange('contractStartDate', e.target.value)} /></div>
                         <div className="space-y-2"><Label>Fecha Término Contrato</Label><Input type="date" value={employee.contractEndDate || ''} onChange={(e) => handleFieldChange('contractEndDate', e.target.value)} /></div>
                         <div className="space-y-2"><Label>Sueldo Base</Label><Input type="number" value={employee.baseSalary ?? ''} onChange={(e) => handleFieldChange('baseSalary', parseFloat(e.target.value) || 0)} /></div>
-                        <div className="space-y-2"><Label>Gratificación Legal</Label><Input type="number" value={employee.gratification ?? ''} onChange={(e) => handleFieldChange('gratification', parseFloat(e.target.value) || 0)} /></div>
+                        
+                        <div className="space-y-2">
+                            <Label>Gratificación Legal</Label>
+                            <Select value={employee.gratificationType} onValueChange={(v) => handleFieldChange('gratificationType', v)}>
+                                <SelectTrigger><SelectValue/></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="Manual">Manual</SelectItem>
+                                    <SelectItem value="Automatico">Automático (25% con tope)</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        <div className="space-y-2">
+                             <Label>Monto Gratificación</Label>
+                            <Input 
+                                type="number" 
+                                value={employee.gratification ?? ''} 
+                                onChange={(e) => handleFieldChange('gratification', parseFloat(e.target.value) || 0)} 
+                                disabled={employee.gratificationType === 'Automatico'}
+                            />
+                        </div>
+                        
                         <div className="space-y-2"><Label>Movilización</Label><Input type="number" value={employee.mobilization ?? ''} onChange={(e) => handleFieldChange('mobilization', parseFloat(e.target.value) || 0)} /></div>
                         <div className="space-y-2"><Label>Colación</Label><Input type="number" value={employee.collation ?? ''} onChange={(e) => handleFieldChange('collation', parseFloat(e.target.value) || 0)} /></div>
                          <div className="space-y-2">

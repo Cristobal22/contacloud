@@ -1,5 +1,6 @@
 
 
+
 import { z } from 'zod';
 
 export const UserProfileSchema = z.object({
@@ -97,6 +98,7 @@ export type Employee = {
   contractStartDate?: string;
   contractEndDate?: string;
   baseSalary?: number;
+  gratificationType?: 'Automatico' | 'Manual';
   gratification?: number;
   mobilization?: number;
   collation?: number;
