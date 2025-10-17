@@ -1,3 +1,4 @@
+
 'use client';
 
 import React from 'react';
@@ -35,7 +36,7 @@ import { useFirestore, useAuth, useCollection, useUser } from "@/firebase"
 import type { UserProfile } from "@/lib/types"
 import { doc, setDoc, updateDoc, collection, deleteDoc, query, where, writeBatch, arrayUnion } from "firebase/firestore"
 import { createUserWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth'
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import {
     Table,
@@ -394,3 +395,5 @@ export default function UserManagement() {
         </>
     );
 }
+
+    

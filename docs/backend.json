@@ -22,6 +22,13 @@
                 "createdBy": {
                     "type": "string",
                     "description": "The UID of the admin who created this user."
+                },
+                "createdUserIds": {
+                    "type": "array",
+                    "description": "For Admin roles, an array of user UIDs they have created.",
+                    "items": {
+                        "type": "string"
+                    }
                 }
             },
             "required": ["uid", "email", "role"]
@@ -425,3 +432,5 @@
         "providers": ["google.com", "password"]
     }
 }
+
+    
