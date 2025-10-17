@@ -68,7 +68,7 @@ export default function PurchasesPage() {
             const reader = new FileReader();
             reader.onload = async (e) => {
                 const text = e.target?.result as string;
-                const lines = text.split('\n').slice(1); // Skip header
+                const lines = text.split('\n').slice(1).filter(line => line.trim() !== ''); // Skip header and empty lines
                 if (lines.length === 0) {
                     toast({ variant: 'destructive', title: 'Error de archivo', description: 'El archivo CSV está vacío o tiene un formato incorrecto.' });
                     return;
@@ -81,13 +81,20 @@ export default function PurchasesPage() {
                 lines.forEach(line => {
                     const columns = line.split(';');
                     if (columns.length < 15) return;
+
+                    // Helper to parse DD-MM-YYYY format
+                    const parseDate = (dateStr: string) => {
+                        const [day, month, year] = dateStr.split('-');
+                        if (!day || !month || !year) return new Date().toISOString().substring(0, 10);
+                        return new Date(`${year}-${month}-${day}`).toISOString().substring(0,10);
+                    };
                     
                     const newPurchase: Omit<Purchase, 'id'> = {
-                        documentType: columns[1].trim(),
-                        documentNumber: columns[5].trim(),
-                        supplierRut: columns[3].trim(),
-                        supplier: columns[4].trim(),
-                        date: new Date(columns[6].trim()).toISOString().substring(0,10),
+                        documentType: columns[1]?.trim() || '',
+                        documentNumber: columns[5]?.trim() || '',
+                        supplierRut: columns[3]?.trim() || '',
+                        supplier: columns[4]?.trim() || '',
+                        date: parseDate(columns[6]?.trim() || ''),
                         netAmount: parseFloat(columns[10]) || 0,
                         taxAmount: parseFloat(columns[11]) || 0,
                         total: parseFloat(columns[14]) || 0,
@@ -117,7 +124,7 @@ export default function PurchasesPage() {
                     }));
                 }
             };
-            reader.readAsText(file, 'ISO-8859-1');
+            reader.readAsText(file, 'ISO-8859-1'); // Use ISO-8859-1 for latin characters
         }
         if (fileInputRef.current) fileInputRef.current.value = '';
     };
