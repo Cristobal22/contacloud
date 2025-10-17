@@ -40,7 +40,7 @@ import {
 
     // Reference to the global (system) parameter
     const globalIndicatorRef = React.useMemo(() => 
-        firestore ? doc(firestore, `system-parameters/economic-indicators/${indicatorId}`) : null,
+        firestore ? doc(firestore, `economic-indicators/${indicatorId}`) : null,
     [firestore, indicatorId]);
     const { data: globalIndicator } = useDoc<EconomicIndicator>(globalIndicatorRef);
 

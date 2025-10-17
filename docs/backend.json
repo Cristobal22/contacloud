@@ -368,27 +368,27 @@
             "schema": { "$ref": "#/entities/AccountGroup" },
             "description": "User-specific collection of account groups."
         },
-        "/system-parameters/economic-indicators/{indicatorId}": {
+        "/economic-indicators/{indicatorId}": {
             "schema": { "$ref": "#/entities/EconomicIndicator" },
             "description": "Global collection of monthly economic indicators."
         },
-        "/system-parameters/health-entities/{entityId}": {
+        "/health-entities/{entityId}": {
             "schema": { "$ref": "#/entities/HealthEntity" },
             "description": "Global collection of health entities (Isapres and Fonasa)."
         },
-        "/system-parameters/afp-entities/{entityId}": {
+        "/afp-entities/{entityId}": {
             "schema": { "$ref": "#/entities/AfpEntity" },
             "description": "Global collection of AFP entities."
         },
-        "/system-parameters/family-allowance-parameters/{paramId}": {
+        "/family-allowance-parameters/{paramId}": {
             "schema": { "$ref": "#/entities/FamilyAllowanceParameter" },
             "description": "Global collection of family allowance parameters."
         },
-        "/system-parameters/tax-parameters/{paramId}": {
+        "/tax-parameters/{paramId}": {
             "schema": { "$ref": "#/entities/TaxParameter" },
             "description": "Global collection of tax parameters for IUT."
         },
-        "/system-parameters/institutions/{institutionId}": {
+        "/institutions/{institutionId}": {
             "schema": { "$ref": "#/entities/Institution" },
             "description": "Global collection of pension and health institutions."
         }

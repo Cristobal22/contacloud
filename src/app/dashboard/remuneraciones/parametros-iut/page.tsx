@@ -1,3 +1,4 @@
+
 'use client';
 
 import {
@@ -31,7 +32,7 @@ export default function ParametrosIUTPage() {
     const { toast } = useToast();
     
     const paramsCollection = React.useMemo(() => 
-        firestore ? collection(firestore, `system-parameters/tax-parameters`) : null,
+        firestore ? collection(firestore, `tax-parameters`) : null,
     [firestore]);
 
     const { data: tablaIUT, loading } = useCollection<TaxParameter>({ query: paramsCollection as any });
@@ -39,7 +40,7 @@ export default function ParametrosIUTPage() {
     const handleSeedData = async () => {
         if (!firestore) return;
 
-        const collectionPath = `system-parameters/tax-parameters`;
+        const collectionPath = `tax-parameters`;
         const batch = writeBatch(firestore);
         
         initialTaxParameters.forEach(paramData => {

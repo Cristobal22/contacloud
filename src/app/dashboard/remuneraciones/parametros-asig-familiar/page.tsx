@@ -1,3 +1,4 @@
+
 'use client';
 
 import {
@@ -31,7 +32,7 @@ export default function ParametrosAsigFamiliarPage() {
     const { toast } = useToast();
     
     const paramsCollection = React.useMemo(() => 
-        firestore ? collection(firestore, `system-parameters/family-allowance-parameters`) : null, 
+        firestore ? collection(firestore, `family-allowance-parameters`) : null, 
     [firestore]);
 
     const { data: tramosAsignacion, loading } = useCollection<FamilyAllowanceParameter>({ query: paramsCollection as any });
@@ -39,7 +40,7 @@ export default function ParametrosAsigFamiliarPage() {
     const handleSeedData = async () => {
         if (!firestore) return;
         
-        const collectionPath = `system-parameters/family-allowance-parameters`;
+        const collectionPath = `family-allowance-parameters`;
         const batch = writeBatch(firestore);
         
         initialFamilyAllowanceParameters.forEach(paramData => {

@@ -1,3 +1,4 @@
+
 'use client';
 
 import {
@@ -33,14 +34,14 @@ export default function InstitucionesPage() {
     const { toast } = useToast();
     
     const institutionsCollection = React.useMemo(() => 
-        firestore ? collection(firestore, `system-parameters/institutions`) : null, 
+        firestore ? collection(firestore, `institutions`) : null, 
     [firestore]);
 
     const { data: institutions, loading } = useCollection<Institution>({ query: institutionsCollection as any });
 
     const handleSeedData = async () => {
         if (!firestore) return;
-        const collectionPath = `system-parameters/institutions`;
+        const collectionPath = `institutions`;
         const batch = writeBatch(firestore);
         
         initialInstitutions.forEach(instData => {

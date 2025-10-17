@@ -1,3 +1,4 @@
+
 'use client';
 
 import {
@@ -32,14 +33,14 @@ export default function AfpEntitiesPage() {
     const { toast } = useToast();
     
     const afpEntitiesCollection = React.useMemo(() => 
-        firestore ? collection(firestore, `system-parameters/afp-entities`) : null, 
+        firestore ? collection(firestore, `afp-entities`) : null, 
     [firestore]);
 
     const { data: afpEntities, loading } = useCollection<AfpEntity>({ query: afpEntitiesCollection as any });
 
     const handleSeedData = async () => {
         if (!firestore) return;
-        const collectionPath = `system-parameters/afp-entities`;
+        const collectionPath = `afp-entities`;
         const batch = writeBatch(firestore);
         
         initialAfpEntities.forEach(entityData => {

@@ -1,3 +1,4 @@
+
 'use client';
 
 import {
@@ -31,14 +32,14 @@ export default function HealthEntitiesPage() {
     const { toast } = useToast();
     
     const healthEntitiesCollection = React.useMemo(() => 
-        firestore ? collection(firestore, `system-parameters/health-entities`) : null, 
+        firestore ? collection(firestore, `health-entities`) : null, 
     [firestore]);
     
     const { data: healthEntities, loading } = useCollection<HealthEntity>({ query: healthEntitiesCollection as any });
 
     const handleSeedData = async () => {
         if (!firestore) return;
-        const collectionPath = `system-parameters/health-entities`;
+        const collectionPath = `health-entities`;
         const batch = writeBatch(firestore);
         
         initialHealthEntities.forEach(entityData => {

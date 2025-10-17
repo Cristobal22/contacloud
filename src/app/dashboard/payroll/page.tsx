@@ -1,3 +1,4 @@
+
 'use client';
 
 import React from 'react';
@@ -18,7 +19,7 @@ import {
   } from "@/components/ui/card"
   import { Button } from "@/components/ui/button"
   import { Eye } from "lucide-react"
-  import { useCollection, useUser } from '@/firebase';
+  import { useCollection } from '@/firebase';
   import type { Employee, AfpEntity, HealthEntity } from '@/lib/types';
 import { SelectedCompanyContext } from '../layout';
 import { useToast } from '@/hooks/use-toast';
@@ -35,19 +36,18 @@ import { useToast } from '@/hooks/use-toast';
 export default function PayrollPage() {
     const { selectedCompany } = React.useContext(SelectedCompanyContext) || {};
     const companyId = selectedCompany?.id;
-    const { user } = useUser();
     const { toast } = useToast();
 
     const { data: employees, loading: employeesLoading } = useCollection<Employee>({ 
-      path: `companies/${companyId}/employees`,
+      path: companyId ? `companies/${companyId}/employees` : undefined,
       companyId: companyId 
     });
 
     const { data: afpEntities, loading: afpLoading } = useCollection<AfpEntity>({
-        path: user ? `system-parameters/afp-entities` : undefined
+        path: 'afp-entities'
     });
     const { data: healthEntities, loading: healthLoading } = useCollection<HealthEntity>({
-        path: user ? `system-parameters/health-entities` : undefined
+        path: 'health-entities'
     });
 
     const loading = employeesLoading || afpLoading || healthLoading;
