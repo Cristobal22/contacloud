@@ -1,3 +1,4 @@
+
 'use client';
 
 import React from 'react';
@@ -144,7 +145,7 @@ export default function UserManagement() {
                 createdUserIds: arrayUnion(user.uid)
             });
             
-            await batch.commit(); // This line saves the changes to Firestore.
+            await batch.commit();
             
             await sendPasswordResetEmail(auth, user.email!);
 
