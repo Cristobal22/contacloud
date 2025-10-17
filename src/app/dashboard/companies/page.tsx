@@ -106,7 +106,7 @@ import {
 
     const handleCreateNew = () => {
         const currentPlan = userProfile?.plan || 'Individual';
-        const limit = planLimits[currentPlan] ?? 5;
+        const limit = planLimits[currentPlan];
         const currentCompanyCount = userProfile?.companyIds?.length || 0;
 
         if (currentCompanyCount >= limit) {
@@ -164,7 +164,7 @@ import {
 
         if(isNew) {
             const currentPlan = userProfile.plan || 'Individual';
-            const limit = planLimits[currentPlan] ?? 5;
+            const limit = planLimits[currentPlan];
             const currentCompanyCount = userProfile.companyIds?.length || 0;
             if (currentCompanyCount >= limit) {
                  toast({
@@ -410,6 +410,3 @@ import {
       </>
     )
   }
-
-    
-
