@@ -89,8 +89,8 @@ import { es } from "date-fns/locale";
                 </p>
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
-                    <Button variant="destructive" disabled={!canAttemptClose || isProcessing || !periodEndDate}>
-                        {isProcessing ? "Procesando..." : `Ejecutar Cierre para ${formattedPeriod}`}
+                    <Button variant="destructive" disabled={!canAttemptClose || isProcessing}>
+                        {isProcessing ? "Procesando..." : `Ejecutar Cierre`}
                     </Button>
                   </AlertDialogTrigger>
                   <AlertDialogContent>
@@ -108,7 +108,7 @@ import { es } from "date-fns/locale";
                       <AlertDialogAction 
                         className={buttonVariants({ variant: "destructive" })}
                         onClick={handleClosePeriod}
-                        disabled={!periodEndDate}
+                        disabled={!periodEndDate || isProcessing}
                       >
                         Sí, ejecutar cierre
                       </AlertDialogAction>
@@ -121,4 +121,3 @@ import { es } from "date-fns/locale";
     )
   }
   
-
