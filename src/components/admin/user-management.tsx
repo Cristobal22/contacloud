@@ -54,10 +54,12 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { useUserProfile } from '@/firebase/auth/use-user-profile';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 
 type NewUserInput = {
   email: string;
   displayName: string;
+  plan: string;
 };
 
 export default function UserManagement() {
@@ -82,14 +84,14 @@ export default function UserManagement() {
     const [isEditFormOpen, setIsEditFormOpen] = useState(false);
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
-    const [newUser, setNewUser] = useState<NewUserInput>({email: '', displayName: ''});
+    const [newUser, setNewUser] = useState<NewUserInput>({email: '', displayName: '', plan: 'Individual'});
     const [selectedUser, setSelectedUser] = useState<Partial<UserProfile> | null>(null);
     const [userToDelete, setUserToDelete] = useState<UserProfile | null>(null);
 
     const [isProcessing, setIsProcessing] = useState(false);
 
     const handleCreateNew = () => {
-        setNewUser({email: '', displayName: ''});
+        setNewUser({email: '', displayName: '', plan: 'Individual'});
         setIsCreateFormOpen(true);
     };
 
@@ -125,7 +127,8 @@ export default function UserManagement() {
                 uid: user.uid,
                 email: user.email!,
                 displayName: newUser.displayName || user.email!.split('@')[0],
-                role: 'Accountant', 
+                role: 'Accountant',
+                plan: newUser.plan, 
                 photoURL: `https://i.pravatar.cc/150?u=${user.uid}`,
                 companyIds: [],
                 createdBy: authUser.uid, // Set the creator
@@ -161,11 +164,12 @@ export default function UserManagement() {
         const userRef = doc(firestore, 'users', selectedUser.uid);
 
         try {
-            // Admin can only update the displayName
+            // Admin can update displayName and plan
             await updateDoc(userRef, {
                 displayName: selectedUser.displayName,
+                plan: selectedUser.plan,
             });
-            toast({ title: "Usuario actualizado", description: "El nombre del usuario ha sido actualizado." });
+            toast({ title: "Usuario actualizado", description: "Los cambios han sido guardados." });
             setIsEditFormOpen(false);
         } catch (error) {
             toast({ variant: 'destructive', title: 'Error al actualizar', description: 'No se pudieron guardar los cambios.' });
@@ -315,6 +319,19 @@ export default function UserManagement() {
                             <Label htmlFor="new-email" className="text-right">Email</Label>
                             <Input id="new-email" type="email" value={newUser.email} onChange={(e) => handleNewUserFieldChange('email', e.target.value)} className="col-span-3" placeholder="usuario@contador.com" />
                         </div>
+                         <div className="grid grid-cols-4 items-center gap-4">
+                            <Label htmlFor="new-plan" className="text-right">Plan</Label>
+                            <Select value={newUser.plan} onValueChange={(value) => handleNewUserFieldChange('plan', value)}>
+                                <SelectTrigger id="new-plan" className="col-span-3">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="Individual">Individual</SelectItem>
+                                    <SelectItem value="Team">Equipo</SelectItem>
+                                    <SelectItem value="Enterprise">Empresarial</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
                     </div>
                     <DialogFooter>
                         <DialogClose asChild>
@@ -333,7 +350,7 @@ export default function UserManagement() {
                     <DialogHeader>
                         <DialogTitle>Editar Usuario</DialogTitle>
                         <DialogDescription>
-                            Modifica el nombre del usuario. El rol y la asignación de empresas no se pueden editar aquí.
+                            Modifica el nombre y el plan del usuario.
                         </DialogDescription>
                     </DialogHeader>
                     {selectedUser && (
@@ -341,6 +358,19 @@ export default function UserManagement() {
                              <div className="grid grid-cols-4 items-center gap-4">
                                 <Label htmlFor="edit-name" className="text-right">Nombre</Label>
                                 <Input id="edit-name" value={selectedUser.displayName || ''} onChange={(e) => handleSelectedUserFieldChange('displayName', e.target.value)} className="col-span-3" />
+                            </div>
+                            <div className="grid grid-cols-4 items-center gap-4">
+                                <Label htmlFor="edit-plan" className="text-right">Plan</Label>
+                                <Select value={selectedUser.plan || 'Individual'} onValueChange={(value) => handleSelectedUserFieldChange('plan', value)}>
+                                    <SelectTrigger id="edit-plan" className="col-span-3">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="Individual">Individual</SelectItem>
+                                        <SelectItem value="Team">Equipo</SelectItem>
+                                        <SelectItem value="Enterprise">Empresarial</SelectItem>
+                                    </SelectContent>
+                                </Select>
                             </div>
                         </div>
                     )}
