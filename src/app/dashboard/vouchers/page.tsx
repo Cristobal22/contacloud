@@ -1,3 +1,4 @@
+
 'use client'
 
 import React from "react"
@@ -169,7 +170,7 @@ import { SelectedCompanyContext } from "../layout"
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-                           <DropdownMenuItem asChild disabled={voucher.status === 'Contabilizado'}>
+                           <DropdownMenuItem asChild>
                                 <Link href={`/dashboard/vouchers/edit/${voucher.id}`}>Editar</Link>
                            </DropdownMenuItem>
                            {voucher.status === 'Borrador' && (

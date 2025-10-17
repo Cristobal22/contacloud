@@ -1,3 +1,4 @@
+
 'use client'
 
 import React from "react"
@@ -51,21 +52,20 @@ function AccountantDashboardContent({ companyId }: { companyId: string }) {
 
     const loading = accountsLoading || vouchersLoading || companiesLoading || profileLoading;
 
+    const contabilizadosVouchers = React.useMemo(() => vouchers?.filter(v => v.status === 'Contabilizado') || [], [vouchers]);
 
     const calculatedBalances = React.useMemo(() => {
-        if (!accounts || !vouchers) return [];
+        if (!accounts) return [];
         
         const accountMovements = new Map<string, { debit: number; credit: number }>();
 
-        vouchers.forEach(voucher => {
-            if (voucher.status === 'Contabilizado') {
-                voucher.entries.forEach(entry => {
-                    const current = accountMovements.get(entry.account) || { debit: 0, credit: 0 };
-                    current.debit += Number(entry.debit) || 0;
-                    current.credit += Number(entry.credit) || 0;
-                    accountMovements.set(entry.account, current);
-                });
-            }
+        contabilizadosVouchers.forEach(voucher => {
+            voucher.entries.forEach(entry => {
+                const current = accountMovements.get(entry.account) || { debit: 0, credit: 0 };
+                current.debit += Number(entry.debit) || 0;
+                current.credit += Number(entry.credit) || 0;
+                accountMovements.set(entry.account, current);
+            });
         });
 
         return accounts.map(account => {
@@ -84,7 +84,7 @@ function AccountantDashboardContent({ companyId }: { companyId: string }) {
             };
         });
 
-    }, [accounts, vouchers]);
+    }, [accounts, contabilizadosVouchers]);
 
     const totalBalance = calculatedBalances
         ?.filter(acc => acc.type === 'Activo')

@@ -41,6 +41,7 @@ import { errorEmitter } from '@/firebase/error-emitter'
 import { FirestorePermissionError } from '@/firebase/errors'
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { useToast } from '@/hooks/use-toast';
 
 export default function VoucherEditPage() {
     const params = useParams();
@@ -50,6 +51,7 @@ export default function VoucherEditPage() {
     const companyId = selectedCompany?.id;
     const firestore = useFirestore();
     const router = useRouter();
+    const { toast } = useToast();
 
     const voucherRef = !isNew && firestore && companyId ? doc(firestore, `companies/${companyId}/vouchers`, id) : null;
     const { data: existingVoucher, loading: voucherLoading } = useDoc<Voucher>(voucherRef);
@@ -119,7 +121,6 @@ export default function VoucherEditPage() {
             return false;
         }
         
-        // Use parseISO to handle 'YYYY-MM-DD' correctly without timezone shifts
         const selectedDate = parseISO(dateString);
         const startDate = parseISO(selectedCompany.periodStartDate);
         const endDate = parseISO(selectedCompany.periodEndDate);
@@ -158,6 +159,16 @@ export default function VoucherEditPage() {
     
     const handleSaveClick = () => {
        if (!firestore || !companyId || !voucher || !canSave) return;
+        
+        let statusToSave = voucher.status;
+        if (voucher.status === 'Contabilizado') {
+            statusToSave = 'Borrador';
+            toast({
+                title: "Comprobante revertido a Borrador",
+                description: "Se han guardado cambios en un comprobante contabilizado. Su estado ha sido revertido a 'Borrador' y debe ser contabilizado nuevamente."
+            });
+        }
+
 
         const collectionPath = `companies/${companyId}/vouchers`;
         const collectionRef = collection(firestore, collectionPath);
@@ -166,7 +177,7 @@ export default function VoucherEditPage() {
           date: voucher.date || new Date().toISOString().substring(0, 10),
           type: voucher.type || 'Traspaso',
           description: voucher.description || '',
-          status: 'Borrador',
+          status: statusToSave,
           total: totalDebit,
           entries: entries.map(e => ({
             account: e.account || '',
@@ -248,13 +259,13 @@ export default function VoucherEditPage() {
                                 type="date" 
                                 value={voucher.date || ''}
                                 onChange={(e) => handleHeaderChange('date', e.target.value)}
-                                disabled={!periodIsDefined || voucher.status === 'Contabilizado'}
+                                disabled={!periodIsDefined}
                             />
                             {dateError && <p className="text-sm text-destructive">{dateError}</p>}
                         </div>
                         <div className="space-y-2">
                              <Label htmlFor="voucher-type">Tipo</Label>
-                            <Select value={voucher.type} onValueChange={(value) => handleHeaderChange('type', value as 'Ingreso' | 'Egreso' | 'Traspaso')} disabled={!periodIsDefined || voucher.status === 'Contabilizado'}>
+                            <Select value={voucher.type} onValueChange={(value) => handleHeaderChange('type', value as 'Ingreso' | 'Egreso' | 'Traspaso')} disabled={!periodIsDefined}>
                                 <SelectTrigger id="voucher-type">
                                     <SelectValue placeholder="Selecciona un tipo"/>
                                 </SelectTrigger>
@@ -272,7 +283,7 @@ export default function VoucherEditPage() {
                                 value={voucher.description || ''}
                                 onChange={(e) => handleHeaderChange('description', e.target.value)}
                                 placeholder="Ej: Pago de factura #101"
-                                disabled={!periodIsDefined || voucher.status === 'Contabilizado'}
+                                disabled={!periodIsDefined}
                             />
                         </div>
                     </div>
@@ -293,7 +304,7 @@ export default function VoucherEditPage() {
                                         <Select
                                             value={entry.account}
                                             onValueChange={(value) => handleEntryChange(entry.id!, 'account', value)}
-                                            disabled={!periodIsDefined || voucher.status === 'Contabilizado'}
+                                            disabled={!periodIsDefined}
                                         >
                                             <SelectTrigger>
                                                 <SelectValue placeholder="Selecciona una cuenta" />
@@ -313,7 +324,7 @@ export default function VoucherEditPage() {
                                             value={entry.description}
                                             onChange={(e) => handleEntryChange(entry.id!, 'description', e.target.value)}
                                             placeholder="Descripción del asiento"
-                                            disabled={!periodIsDefined || voucher.status === 'Contabilizado'}
+                                            disabled={!periodIsDefined}
                                         />
                                     </TableCell>
                                     <TableCell>
@@ -322,7 +333,7 @@ export default function VoucherEditPage() {
                                             className="text-right"
                                             value={entry.debit}
                                             onChange={(e) => handleEntryChange(entry.id!, 'debit', parseFloat(e.target.value) || 0)}
-                                            disabled={!periodIsDefined || voucher.status === 'Contabilizado'}
+                                            disabled={!periodIsDefined}
                                         />
                                     </TableCell>
                                     <TableCell>
@@ -331,11 +342,11 @@ export default function VoucherEditPage() {
                                             className="text-right"
                                             value={entry.credit}
                                             onChange={(e) => handleEntryChange(entry.id!, 'credit', parseFloat(e.target.value) || 0)}
-                                            disabled={!periodIsDefined || voucher.status === 'Contabilizado'}
+                                            disabled={!periodIsDefined}
                                         />
                                     </TableCell>
                                     <TableCell>
-                                        <Button variant="ghost" size="icon" className="text-destructive" onClick={() => handleRemoveEntry(entry.id!)} disabled={!periodIsDefined || voucher.status === 'Contabilizado'}>
+                                        <Button variant="ghost" size="icon" className="text-destructive" onClick={() => handleRemoveEntry(entry.id!)} disabled={!periodIsDefined}>
                                             <Trash2 className="h-4 w-4" />
                                         </Button>
                                     </TableCell>
@@ -352,7 +363,7 @@ export default function VoucherEditPage() {
                         <TableFooter>
                             <TableRow>
                                 <TableCell colSpan={2}>
-                                     <Button size="sm" variant="outline" className="gap-1" onClick={handleAddEntry} disabled={!periodIsDefined || voucher.status === 'Contabilizado'}>
+                                     <Button size="sm" variant="outline" className="gap-1" onClick={handleAddEntry} disabled={!periodIsDefined}>
                                         <PlusCircle className="h-4 w-4" />
                                         Agregar Línea
                                     </Button>
@@ -379,7 +390,7 @@ export default function VoucherEditPage() {
                      <Button variant="outline" asChild>
                         <Link href="/dashboard/vouchers">Cancelar</Link>
                     </Button>
-                    <Button disabled={!canSave || voucher.status === 'Contabilizado'} onClick={handleSaveClick}>Guardar Comprobante</Button>
+                    <Button disabled={!canSave} onClick={handleSaveClick}>Guardar Comprobante</Button>
                 </CardFooter>
             </Card>
         </div>
