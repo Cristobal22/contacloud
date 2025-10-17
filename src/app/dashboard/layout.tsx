@@ -1,4 +1,3 @@
-
 'use client'
 
 import React from "react"
@@ -7,9 +6,8 @@ import {
   ChevronDown,
   Home,
   Briefcase,
-  Search,
 } from "lucide-react"
-import { collection, query, where, documentId, Query } from "firebase/firestore"
+import { collection, query, where, documentId } from "firebase/firestore"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -26,7 +24,6 @@ import { Logo } from "@/components/logo"
 import type { Company, SelectedCompanyContextType } from "@/lib/types"
 import { useUser, useFirestore, useCollection } from "@/firebase"
 import { useUserProfile } from "@/firebase/auth/use-user-profile"
-import { CommandMenu } from "@/components/command-menu"
 
 export const SelectedCompanyContext = React.createContext<SelectedCompanyContextType | null>(null);
 
@@ -44,7 +41,7 @@ function AccountantDashboardLayout({ children }: { children: React.ReactNode }) 
             return null;
         }
         // Firestore 'in' queries are limited to 30 elements. We slice to stay within limits.
-        return query(collection(firestore, 'companies'), where(documentId(), 'in', userProfile.companyIds.slice(0, 30))) as Query<Company>;
+        return query(collection(firestore, 'companies'), where(documentId(), 'in', userProfile.companyIds.slice(0, 30)));
     }, [firestore, userProfile]);
 
     const { data: companies, loading: companiesLoading } = useCollection<Company>({ 
@@ -70,14 +67,9 @@ function AccountantDashboardLayout({ children }: { children: React.ReactNode }) 
 
     }, [companies, companiesLoading, profileLoading, userLoading]);
 
-
-    const handleCompanyChange = (company: Company | null) => {
+    const handleCompanyChange = (company: Company) => {
         setSelectedCompany(company);
-        if (company) {
-            localStorage.setItem('selectedCompanyId', company.id);
-        } else {
-            localStorage.removeItem('selectedCompanyId');
-        }
+        localStorage.setItem('selectedCompanyId', company.id);
     };
     
     const isLoading = userLoading || profileLoading || companiesLoading || isLoadingCompany;
@@ -115,7 +107,7 @@ function AccountantDashboardLayout({ children }: { children: React.ReactNode }) 
                                 </DropdownMenuContent>
                             </DropdownMenu>
 
-                            <div className="hidden sm:flex items-center gap-4">
+                            <div className="hidden sm:flex">
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
                                         <Button variant="outline" className="flex items-center gap-2" disabled={isLoading}>
@@ -134,18 +126,11 @@ function AccountantDashboardLayout({ children }: { children: React.ReactNode }) 
                                         )}
                                     </DropdownMenuContent>
                                 </DropdownMenu>
-                                {userProfile?.role === 'Accountant' && (
-                                     <Button variant="outline" size="icon" className="h-9 w-9 command-menu-trigger">
-                                        <Search className="h-4 w-4" />
-                                        <span className="sr-only">Search</span>
-                                    </Button>
-                                )}
                             </div>
                         </div>
                         <UserNav />
                     </header>
                     <main className="flex-1 p-4 sm:p-6">
-                         <CommandMenu />
                         {isLoading ? <div className="flex h-full w-full items-center justify-center"><p>Cargando datos del contador...</p></div> : children}
                     </main>
                 </div>
@@ -170,21 +155,15 @@ function AdminDashboardLayout({ children }: { children: React.ReactNode }) {
 
             <div className="flex flex-col sm:pl-64">
                 <header className="sticky top-0 z-30 flex h-16 items-center justify-end gap-4 border-b bg-background px-4 sm:px-6">
-                     <Button variant="outline" size="icon" className="h-9 w-9 command-menu-trigger">
-                        <Search className="h-4 w-4" />
-                        <span className="sr-only">Search</span>
-                    </Button>
                     <UserNav />
                 </header>
                 <main className="flex-1 p-4 sm:p-6">
-                    <CommandMenu />
                     {children}
                 </main>
             </div>
         </div>
     );
 }
-
 
 function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
     const { user, loading: userLoading } = useUser();
@@ -212,7 +191,6 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
         </div>
     );
 }
-
 
 export default function DashboardLayout({
   children,

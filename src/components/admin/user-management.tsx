@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import {
     Card,
     CardContent,
@@ -31,10 +31,11 @@ import { MoreHorizontal, PlusCircle } from "lucide-react"
   } from "@/components/ui/alert-dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { useFirestore, useAuth, useUser, useCollection } from "@/firebase"
+import { useFirestore, useAuth, useCollection, useUser } from "@/firebase"
 import type { UserProfile } from "@/lib/types"
-import { doc, setDoc, updateDoc, collection, deleteDoc, writeBatch, arrayUnion, arrayRemove } from "firebase/firestore"
+import { doc, setDoc, updateDoc, collection, deleteDoc, query, where } from "firebase/firestore"
 import { createUserWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth'
+import { useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import {
     Table,
@@ -54,7 +55,6 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { useUserProfile } from '@/firebase/auth/use-user-profile';
 
-
 type NewUserInput = {
   email: string;
   displayName: string;
@@ -67,13 +67,17 @@ export default function UserManagement() {
     const { user: authUser } = useUser();
     const { userProfile, loading: profileLoading } = useUserProfile(authUser?.uid);
 
-    // This query will fail due to security rules, but we are reverting to the old logic as requested.
-    // The user creation will work, but the list will be empty or show an error.
-    const { data: users, loading: usersLoading, error: usersError } = useCollection<UserProfile>({ 
-      path: 'users',
-      disabled: userProfile?.role !== 'Admin'
-    });
+    // Admins solo ven a los usuarios que ellos mismos han creado.
+    const usersQuery = React.useMemo(() => {
+        if (!firestore || !authUser || userProfile?.role !== 'Admin') return null;
+        return query(collection(firestore, 'users'), where('createdBy', '==', authUser.uid));
+    }, [firestore, authUser, userProfile]);
 
+    const { data: users, loading: usersLoading, error } = useCollection<UserProfile>({ 
+        query: usersQuery,
+        disabled: !usersQuery
+    });
+    
     const [isCreateFormOpen, setIsCreateFormOpen] = useState(false);
     const [isEditFormOpen, setIsEditFormOpen] = useState(false);
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -99,7 +103,6 @@ export default function UserManagement() {
         setIsDeleteDialogOpen(true);
     };
 
-
     const handleCreateUser = async () => {
         if (!auth || !firestore || !authUser) {
             toast({ variant: 'destructive', title: 'Error', description: 'Servicios de Firebase no disponibles.' });
@@ -113,8 +116,7 @@ export default function UserManagement() {
         setIsProcessing(true);
 
         try {
-            // This part is temporary for user creation in the client.
-            // Ideally, this should be a backend function for security.
+            // This password is temporary. The user will be forced to reset it.
             const tempPassword = Math.random().toString(36).slice(-8) + 'A1!';
             const userCredential = await createUserWithEmailAndPassword(auth, newUser.email, tempPassword);
             const user = userCredential.user;
@@ -126,22 +128,11 @@ export default function UserManagement() {
                 role: 'Accountant', 
                 photoURL: `https://i.pravatar.cc/150?u=${user.uid}`,
                 companyIds: [],
-                createdBy: authUser.uid,
-                createdUserIds: [],
+                createdBy: authUser.uid, // Set the creator
             };
 
-            const batch = writeBatch(firestore);
-            const userDocRef = doc(firestore, 'users', user.uid);
-            const adminDocRef = doc(firestore, 'users', authUser.uid);
-
-            batch.set(userDocRef, newUserProfile);
-            batch.update(adminDocRef, {
-                createdUserIds: arrayUnion(user.uid)
-            });
-            
-            // This is the crucial line that saves to the database
-            await batch.commit(); 
-            
+            await setDoc(doc(firestore, 'users', user.uid), newUserProfile);
+            // Send a password reset email immediately
             await sendPasswordResetEmail(auth, user.email!);
 
             toast({
@@ -150,7 +141,7 @@ export default function UserManagement() {
             });
             
             setIsCreateFormOpen(false);
-            
+
         } catch (error: any) {
             console.error('Error creating user:', error);
             if (error.code === 'auth/email-already-in-use') {
@@ -170,6 +161,7 @@ export default function UserManagement() {
         const userRef = doc(firestore, 'users', selectedUser.uid);
 
         try {
+            // Admin can only update the displayName
             await updateDoc(userRef, {
                 displayName: selectedUser.displayName,
             });
@@ -184,21 +176,16 @@ export default function UserManagement() {
     };
     
     const handleDeleteUser = async () => {
-        if (!firestore || !userToDelete || !authUser) return;
+        if (!firestore || !userToDelete) return;
 
         setIsProcessing(true);
         const userRef = doc(firestore, 'users', userToDelete.uid);
-        const adminRef = doc(firestore, 'users', authUser.uid);
 
         try {
-            const batch = writeBatch(firestore);
-            batch.delete(userRef);
-            batch.update(adminRef, {
-                createdUserIds: arrayRemove(userToDelete.uid)
-            });
-            await batch.commit();
-
-            toast({ title: "Perfil de usuario eliminado", description: `El perfil de ${userToDelete.displayName} ha sido eliminado.` });
+            // Note: This deletes the Firestore document, not the Firebase Auth user.
+            // That needs to be done manually in the Firebase console for security reasons.
+            await deleteDoc(userRef);
+            toast({ title: "Perfil de usuario eliminado", description: `El perfil de ${userToDelete.displayName} ha sido eliminado de la aplicación.` });
             setIsDeleteDialogOpen(false);
             setUserToDelete(null);
         } catch (error) {
@@ -219,7 +206,6 @@ export default function UserManagement() {
     
     const isReadyForAdminView = !profileLoading && userProfile?.role === 'Admin';
 
-
     const renderTableContent = () => {
         if (usersLoading) {
             return (
@@ -231,12 +217,12 @@ export default function UserManagement() {
             );
         }
 
-        if (usersError) {
+        if (error) {
              return (
                 <TableRow>
                     <TableCell colSpan={4} className="h-24 text-center text-destructive">
-                        <p className="font-bold">Error de permisos al listar usuarios.</p>
-                        <p className='text-xs text-muted-foreground'>La creación de usuarios funcionará, pero la lista no se puede mostrar.</p>
+                        <p className="font-bold">Error de permisos.</p>
+                        <p className='text-xs text-muted-foreground'>Asegúrate de tener los permisos correctos en las reglas de Firestore para listar usuarios.</p>
                     </TableCell>
                 </TableRow>
             );
@@ -252,7 +238,7 @@ export default function UserManagement() {
             );
         }
 
-        return users.filter(u => u.role !== 'Admin').map(user => (
+        return users.map(user => (
             <TableRow key={user.uid}>
                 <TableCell className="font-medium">{user.displayName}</TableCell>
                 <TableCell>{user.email}</TableCell>

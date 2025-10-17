@@ -1,313 +1,418 @@
 /**
- * @fileoverview Firestore Security Rules for the accounting platform.
- *
- * Core Philosophy:
- * This ruleset enforces a user-ownership model for user profiles and a company-centric model for business data.
- * Users can only manage their own profiles. Companies and their associated data (accounts, vouchers, etc.)
- * are secured such that only authorized users (owners, admins, accountants) can access them.
- * Global configuration collections (economic indicators, institutions, etc.) are publicly readable.
+ * @file Firestore Security Rules
+ * @description This ruleset enforces a role-based access control system, primarily focused on distinguishing 'Accountant' users. Admins are implicitly restricted to user management and have no special access to other data.
  *
  * Data Structure:
- * - /users/{userId}: User profile data, owned by the user with matching UID.
- * - /companies/{companyId}: Company data, owned by a specific user (ownerId).
- * - /companies/{companyId}/accounts: Accounting accounts for the company.
- * - /companies/{companyId}/vouchers: Accounting vouchers for the company.
- * - /companies/{companyId}/subjects: Subjects (clients, providers) for the company.
- * - /companies/{companyId}/cost-centers: Cost centers for the company.
- * - /companies/{companyId}/employees: Employees for the company.
- * - /companies/{companyId}/payrolls: Payroll data for the company.
- * - /economic-indicators/{indicatorId}: Publicly readable economic indicator data.
- * - /institutions/{institutionId}: Publicly readable institution data.
- * - /family-allowance-parameters/{paramId}: Publicly readable family allowance parameters.
- * - /tax-parameters/{paramId}: Publicly readable tax parameters.
+ * - /users/{userId}: Stores individual user profiles, accessible only to the user themselves and on initial account creation.
+ * - /companies: Stores company information. Only Accountants associated with the company can manage company data.
+ * - /companies/{companyId}/accounts: Chart of accounts for a company.
+ * - /companies/{companyId}/vouchers: Accounting vouchers for a company.
+ * - /companies/{companyId}/subjects: Clients, providers, and other subjects related to a company.
+ * - /companies/{companyId}/cost-centers: Cost centers for tracking expenses within a company.
+ * - /companies/{companyId}/employees: Employee records for a company.
+ * - /companies/{companyId}/purchases: Purchase documents for a company.
+ * - /companies/{companyId}/sales: Sales documents for a company.
+ * - /companies/{companyId}/fees: Fee documents for a company.
+ * - /users/{userId}/account-groups: User-defined account groups.
+ * - /users/{userId}/institutions: User-defined pension and health institutions.
+ * - /users/{userId}/family-allowance-parameters: User-defined family allowance parameters.
+ * - /users/{userId}/tax-parameters: User-defined tax parameters for IUT calculations.
+ * - /users/{userId}/health-entities: User-defined health entities.
+ * - /users/{userId}/afp-entities: User-defined AFP entities.
  *
  * Key Security Decisions:
- * - User listing is disallowed for privacy.
- * - Global configuration collections (economic-indicators, institutions) are publicly readable.
- * - Write access to company-related data is restricted to authorized users.
+ * - Admin Role Restriction: Admins are implicitly limited to user management tasks through the Firebase Authentication service, not Firestore data access.
+ * - Accountant Access: Accountants are granted access to company-related data based on companyId association.
+ * - Owner-Only Access for User Data:  User profiles and user-specific collections are strictly controlled by the user's ID.
  *
  * Denormalization for Authorization:
- * To ensure efficient security rules, the following authorization-related data denormalizations are recommended:
- * - Companies: The `Company` document must contain an `ownerId` field representing the UID of the user who owns the company.
- * This enables fast ownership checks without requiring additional reads.
+ * - The `ownerId` field in the `Company` document is used to quickly determine if a user has ownership. The `companyIds` array in the `UserProfile` document lists the companies a user is associated with.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Secures user profile data, allowing only the user to read and write their own profile.
+     * @description Checks if the request is authenticated.
+     */
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    /**
+     * @description Checks if the authenticated user's ID matches the provided user ID.
+     */
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+
+    /**
+     * @description Checks if the authenticated user is associated with the company ID.
+     */
+    function isAccountantForCompany(companyId) {
+      return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyIds.hasAny([companyId]);
+    }
+
+    /**
+     * @description Checks if the user is the owner of a company.
+     */
+    function isCompanyOwner(companyId) {
+      return isSignedIn() && get(/databases/$(database)/documents/companies/$(companyId)).data.ownerId == request.auth.uid;
+    }
+
+    /**
+     * @description Checks if a document exists and the authenticated user is the owner.
+     */
+    function isExistingOwner(userId) {
+      return isOwner(userId) && resource != null;
+    }
+
+    /**
+     * @description Collection to store user profile information.
      * @path /users/{userId}
-     * @allow (create, update, delete) if request.auth.uid == userId
-     * @allow (get, list) if request.auth.uid == userId
-     * @deny (create, update, delete) if request.auth.uid != userId
-     * @deny (get, list) if request.auth.uid != userId
-     * @principle Enforces document ownership for user profiles.
+     * @allow (create) - Allow user to create their own profile if the userId matches their auth.uid.
+     * @allow (get) - Allow user to read their own profile.
+     * @allow (update) - Allow user to update their own profile.
+     * @allow (delete) - Allow user to delete their own profile.
+     * @deny (create) - Deny creation if the userId does not match their auth.uid.
+     * @deny (get) - Deny other users from reading this profile.
+     * @deny (update) - Deny other users from updating this profile.
+     * @deny (delete) - Deny other users from deleting this profile.
+     * @principle Enforces document ownership for writes, restricts access to a user's own data tree.
      */
     match /users/{userId} {
-      function isOwner(userId) {
-        return request.auth.uid == userId;
-      }
       allow get: if isOwner(userId);
       allow list: if false;
       allow create: if isOwner(userId);
-      allow update: if isOwner(userId);
-      allow delete: if isOwner(userId);
+      allow update: if isExistingOwner(userId);
+      allow delete: if isExistingOwner(userId);
     }
 
     /**
-     * @description Secures company data, allowing only the owner to read and write company data.
-     * @path /companies/{companyId}
-     * @allow (create, update, delete) if request.auth.uid == resource.data.ownerId
-     * @allow (get, list) if request.auth.uid == resource.data.ownerId
-     * @deny (create, update, delete) if request.auth.uid != resource.data.ownerId
-     * @deny (get, list) if request.auth.uid != resource.data.ownerId
-     * @principle Enforces document ownership for companies.
+     * @description Collection of all companies managed by the platform.
+     * @path /companies
+     * @allow (create) - Allow a user to create a company if they are authenticated.  The `ownerId` is set to their `uid`.
+     * @allow (get) - Allow anyone to read company data.
+     * @allow (list) - Allow anyone to list companies.
+     * @allow (update) - Allow a company owner to update company data.
+     * @allow (delete) - Allow a company owner to delete company data.
+     * @deny (create) - Deny unauthenticated users from creating companies.
+     * @deny (update) - Deny non-owners from updating company data.
+     * @deny (delete) - Deny non-owners from deleting company data.
+     * @principle Enforces document ownership for writes, allows public reads.
      */
     match /companies/{companyId} {
-        function isOwner(companyId) {
-            return get(/databases/$(database)/documents/companies/$(companyId)).data.ownerId == request.auth.uid;
-        }
-        allow get: if true;
-        allow list: if true;
-        allow create: if request.resource.data.ownerId == request.auth.uid;
-        allow update: if isExistingOwner(companyId);
-        allow delete: if isExistingOwner(companyId);
-
-        function isExistingOwner(companyId) {
-            return (isOwner(companyId) && resource != null);
-        }
-
-        /**
-         * @description Secures company accounts, allowing only the company owner to manage them.
-         * @path /companies/{companyId}/accounts/{accountId}
-         * @allow (create, update, delete) if isOwner(companyId)
-         * @allow (get, list) if isOwner(companyId)
-         * @deny (create, update, delete) if !isOwner(companyId)
-         * @deny (get, list) if !isOwner(companyId)
-         * @principle Enforces company ownership for managing accounts.
-         */
-        match /accounts/{accountId} {
-            allow get: if isOwner(companyId);
-            allow list: if isOwner(companyId);
-            allow create: if isOwner(companyId);
-            allow update: if isExistingOwner(companyId);
-            allow delete: if isExistingOwner(companyId);
-        }
-
-        /**
-         * @description Secures company vouchers, allowing only the company owner to manage them.
-         * @path /companies/{companyId}/vouchers/{voucherId}
-         * @allow (create, update, delete) if isOwner(companyId)
-         * @allow (get, list) if isOwner(companyId)
-         * @deny (create, update, delete) if !isOwner(companyId)
-         * @deny (get, list) if !isOwner(companyId)
-         */
-        match /vouchers/{voucherId} {
-            allow get: if isOwner(companyId);
-            allow list: if isOwner(companyId);
-            allow create: if isOwner(companyId);
-            allow update: if isExistingOwner(companyId);
-            allow delete: if isExistingOwner(companyId);
-        }
-
-        /**
-         * @description Secures company subjects, allowing only the company owner to manage them.
-         * @path /companies/{companyId}/subjects/{subjectId}
-         */
-        match /subjects/{subjectId} {
-            allow get: if isOwner(companyId);
-            allow list: if isOwner(companyId);
-            allow create: if isOwner(companyId);
-            allow update: if isExistingOwner(companyId);
-            allow delete: if isExistingOwner(companyId);
-        }
-
-        /**
-         * @description Secures company cost centers, allowing only the company owner to manage them.
-         * @path /companies/{companyId}/cost-centers/{costCenterId}
-         */
-        match /cost-centers/{costCenterId} {
-            allow get: if isOwner(companyId);
-            allow list: if isOwner(companyId);
-            allow create: if isOwner(companyId);
-            allow update: if isExistingOwner(companyId);
-            allow delete: if isExistingOwner(companyId);
-        }
-
-        /**
-         * @description Secures company employees, allowing only the company owner to manage them.
-         * @path /companies/{companyId}/employees/{employeeId}
-         */
-        match /employees/{employeeId} {
-            allow get: if isOwner(companyId);
-            allow list: if isOwner(companyId);
-            allow create: if isOwner(companyId);
-            allow update: if isExistingOwner(companyId);
-            allow delete: if isExistingOwner(companyId);
-        }
-
-        /**
-         * @description Secures company payrolls, allowing only the company owner to manage them.
-         * @path /companies/{companyId}/payrolls/{payrollId}
-         */
-        match /payrolls/{payrollId} {
-            allow get: if isOwner(companyId);
-            allow list: if isOwner(companyId);
-            allow create: if isOwner(companyId);
-            allow update: if isExistingOwner(companyId);
-            allow delete: if isExistingOwner(companyId);
-        }
-         /**
-          * @description Secures company purchases, allowing only the company owner to manage them.
-          * @path /companies/{companyId}/purchases/{purchaseId}
-          */
-        match /purchases/{purchaseId} {
-            allow get: if isOwner(companyId);
-            allow list: if isOwner(companyId);
-            allow create: if isOwner(companyId);
-            allow update: if isExistingOwner(companyId);
-            allow delete: if isExistingOwner(companyId);
-        }
-
-        /**
-         * @description Secures company sales, allowing only the company owner to manage them.
-         * @path /companies/{companyId}/sales/{saleId}
-         */
-        match /sales/{saleId} {
-            allow get: if isOwner(companyId);
-            allow list: if isOwner(companyId);
-            allow create: if isOwner(companyId);
-            allow update: if isExistingOwner(companyId);
-            allow delete: if isExistingOwner(companyId);
-        }
-
-        /**
-         * @description Secures company fees, allowing only the company owner to manage them.
-         * @path /companies/{companyId}/fees/{feeId}
-         */
-        match /fees/{feeId} {
-            allow get: if isOwner(companyId);
-            allow list: if isOwner(companyId);
-            allow create: if isOwner(companyId);
-            allow update: if isExistingOwner(companyId);
-            allow delete: if isExistingOwner(companyId);
-        }
-
-        /**
-         * @description Secures company economic indicators overrides, allowing only the company owner to manage them.
-         * @path /companies/{companyId}/economic-indicators/{indicatorId}
-         */
-        match /economic-indicators/{indicatorId} {
-            allow get: if isOwner(companyId);
-            allow list: if isOwner(companyId);
-            allow create: if isOwner(companyId);
-            allow update: if isExistingOwner(companyId);
-            allow delete: if isExistingOwner(companyId);
-        }
+      allow get: if true;
+      allow list: if true;
+      allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
+      allow update: if isCompanyOwner(companyId) && resource != null;
+      allow delete: if isCompanyOwner(companyId) && resource != null;
     }
 
     /**
-     * @description Secures user-specific account groups, allowing only the user to manage their own groups.
-     * @path /users/{userId}/account-groups/{groupId}
-     * @allow (create, update, delete) if request.auth.uid == userId
-     * @allow (get, list) if request.auth.uid == userId
-     * @deny (create, update, delete) if request.auth.uid != userId
-     * @deny (get, list) if request.auth.uid != userId
+     * @description Sub-collection of accounts for a specific company.
+     * @path /companies/{companyId}/accounts
+     * @allow (create) - Allow accountants associated with the company to create accounts.
+     * @allow (get) - Allow anyone to read accounts for a company.
+     * @allow (list) - Allow anyone to list accounts for a company.
+     * @allow (update) - Allow accountants associated with the company to update accounts.
+     * @allow (delete) - Allow accountants associated with the company to delete accounts.
+     * @deny (create) - Deny unauthenticated users and non-accountants from creating accounts.
+     * @deny (update) - Deny unauthenticated users and non-accountants from updating accounts.
+     * @deny (delete) - Deny unauthenticated users and non-accountants from deleting accounts.
+     * @principle Restricts access to accountants associated with the company.
      */
-    match /users/{userId}/account-groups/{groupId} {
-        function isOwner(userId) {
-            return request.auth.uid == userId;
-        }
-        allow get: if isOwner(userId);
-        allow list: if isOwner(userId);
-        allow create: if isOwner(userId);
-        allow update: if isOwner(userId);
-        allow delete: if isOwner(userId);
+    match /companies/{companyId}/accounts/{accountId} {
+      allow get: if true;
+      allow list: if true;
+      allow create: if isAccountantForCompany(companyId);
+      allow update: if isAccountantForCompany(companyId) && resource != null;
+      allow delete: if isAccountantForCompany(companyId) && resource != null;
     }
 
     /**
-     * @description Allows public read access to global economic indicators. Write access is denied.
-     * @path /economic-indicators/{indicatorId}
-     * @allow (get, list) if true
-     * @deny (create, update, delete) if false
+     * @description Sub-collection of accounting vouchers for a specific company.
+     * @path /companies/{companyId}/vouchers
+     * @allow (create) - Allow accountants associated with the company to create vouchers.
+     * @allow (get) - Allow anyone to read vouchers for a company.
+     * @allow (list) - Allow anyone to list vouchers for a company.
+     * @allow (update) - Allow accountants associated with the company to update vouchers.
+     * @allow (delete) - Allow accountants associated with the company to delete vouchers.
+     * @deny (create) - Deny unauthenticated users and non-accountants from creating vouchers.
+     * @deny (update) - Deny unauthenticated users and non-accountants from updating vouchers.
+     * @deny (delete) - Deny unauthenticated users and non-accountants from deleting vouchers.
+     * @principle Restricts access to accountants associated with the company.
      */
-    match /economic-indicators/{indicatorId} {
-        allow get: if true;
-        allow list: if true;
-        allow create: if false;
-        allow update: if false;
-        allow delete: if false;
+    match /companies/{companyId}/vouchers/{voucherId} {
+      allow get: if true;
+      allow list: if true;
+      allow create: if isAccountantForCompany(companyId);
+      allow update: if isAccountantForCompany(companyId) && resource != null;
+      allow delete: if isAccountantForCompany(companyId) && resource != null;
     }
 
     /**
-     * @description Allows public read access to health entities. Write access is denied.
-     * @path /health-entities/{entityId}
-     * @allow (get, list) if true
-     * @deny (create, update, delete) if false
+     * @description Sub-collection of subjects (clients, providers) for a specific company.
+     * @path /companies/{companyId}/subjects
+     * @allow (create) - Allow accountants associated with the company to create subjects.
+     * @allow (get) - Allow anyone to read subjects for a company.
+     * @allow (list) - Allow anyone to list subjects for a company.
+     * @allow (update) - Allow accountants associated with the company to update subjects.
+     * @allow (delete) - Allow accountants associated with the company to delete subjects.
+     * @deny (create) - Deny unauthenticated users and non-accountants from creating subjects.
+     * @deny (update) - Deny unauthenticated users and non-accountants from updating subjects.
+     * @deny (delete) - Deny unauthenticated users and non-accountants from deleting subjects.
+     * @principle Restricts access to accountants associated with the company.
      */
-    match /health-entities/{entityId} {
-        allow get: if true;
-        allow list: if true;
-        allow create: if false;
-        allow update: if false;
-        allow delete: if false;
+    match /companies/{companyId}/subjects/{subjectId} {
+      allow get: if true;
+      allow list: if true;
+      allow create: if isAccountantForCompany(companyId);
+      allow update: if isAccountantForCompany(companyId) && resource != null;
+      allow delete: if isAccountantForCompany(companyId) && resource != null;
     }
 
     /**
-     * @description Allows public read access to AFP entities. Write access is denied.
-     * @path /afp-entities/{entityId}
-     * @allow (get, list) if true
-     * @deny (create, update, delete) if false
+     * @description Sub-collection of cost centers for a specific company.
+     * @path /companies/{companyId}/cost-centers
+     * @allow (create) - Allow accountants associated with the company to create cost centers.
+     * @allow (get) - Allow anyone to read cost centers for a company.
+     * @allow (list) - Allow anyone to list cost centers for a company.
+     * @allow (update) - Allow accountants associated with the company to update cost centers.
+     * @allow (delete) - Allow accountants associated with the company to delete cost centers.
+     * @deny (create) - Deny unauthenticated users and non-accountants from creating cost centers.
+     * @deny (update) - Deny unauthenticated users and non-accountants from updating cost centers.
+     * @deny (delete) - Deny unauthenticated users and non-accountants from deleting cost centers.
+     * @principle Restricts access to accountants associated with the company.
      */
-    match /afp-entities/{entityId} {
-        allow get: if true;
-        allow list: if true;
-        allow create: if false;
-        allow update: if false;
-        allow delete: if false;
+    match /companies/{companyId}/cost-centers/{costCenterId} {
+      allow get: if true;
+      allow list: if true;
+      allow create: if isAccountantForCompany(companyId);
+      allow update: if isAccountantForCompany(companyId) && resource != null;
+      allow delete: if isAccountantForCompany(companyId) && resource != null;
     }
 
     /**
-     * @description Allows public read access to family allowance parameters. Write access is denied.
-     * @path /family-allowance-parameters/{paramId}
-     * @allow (get, list) if true
-     * @deny (create, update, delete) if false
+     * @description Sub-collection of employees for a specific company.
+     * @path /companies/{companyId}/employees
+     * @allow (create) - Allow accountants associated with the company to create employees.
+     * @allow (get) - Allow anyone to read employees for a company.
+     * @allow (list) - Allow anyone to list employees for a company.
+     * @allow (update) - Allow accountants associated with the company to update employees.
+     * @allow (delete) - Allow accountants associated with the company to delete employees.
+     * @deny (create) - Deny unauthenticated users and non-accountants from creating employees.
+     * @deny (update) - Deny unauthenticated users and non-accountants from updating employees.
+     * @deny (delete) - Deny unauthenticated users and non-accountants from deleting employees.
+     * @principle Restricts access to accountants associated with the company.
      */
-    match /family-allowance-parameters/{paramId} {
-        allow get: if true;
-        allow list: if true;
-        allow create: if false;
-        allow update: if false;
-        allow delete: if false;
+    match /companies/{companyId}/employees/{employeeId} {
+      allow get: if true;
+      allow list: if true;
+      allow create: if isAccountantForCompany(companyId);
+      allow update: if isAccountantForCompany(companyId) && resource != null;
+      allow delete: if isAccountantForCompany(companyId) && resource != null;
+    }
+
+        /**
+     * @description Sub-collection of purchase documents for a specific company.
+     * @path /companies/{companyId}/purchases
+     * @allow (create) - Allow accountants associated with the company to create purchases.
+     * @allow (get) - Allow anyone to read purchases for a company.
+     * @allow (list) - Allow anyone to list purchases for a company.
+     * @allow (update) - Allow accountants associated with the company to update purchases.
+     * @allow (delete) - Allow accountants associated with the company to delete purchases.
+     * @deny (create) - Deny unauthenticated users and non-accountants from creating purchases.
+     * @deny (update) - Deny unauthenticated users and non-accountants from updating purchases.
+     * @deny (delete) - Deny unauthenticated users and non-accountants from deleting purchases.
+     * @principle Restricts access to accountants associated with the company.
+     */
+    match /companies/{companyId}/purchases/{purchaseId} {
+      allow get: if true;
+      allow list: if true;
+      allow create: if isAccountantForCompany(companyId);
+      allow update: if isAccountantForCompany(companyId) && resource != null;
+      allow delete: if isAccountantForCompany(companyId) && resource != null;
     }
 
     /**
-     * @description Allows public read access to tax parameters. Write access is denied.
-     * @path /tax-parameters/{paramId}
-     * @allow (get, list) if true
-     * @deny (create, update, delete) if false
+     * @description Sub-collection of sales documents for a specific company.
+     * @path /companies/{companyId}/sales
+     * @allow (create) - Allow accountants associated with the company to create sales.
+     * @allow (get) - Allow anyone to read sales for a company.
+     * @allow (list) - Allow anyone to list sales for a company.
+     * @allow (update) - Allow accountants associated with the company to update sales.
+     * @allow (delete) - Allow accountants associated with the company to delete sales.
+     * @deny (create) - Deny unauthenticated users and non-accountants from creating sales.
+     * @deny (update) - Deny unauthenticated users and non-accountants from updating sales.
+     * @deny (delete) - Deny unauthenticated users and non-accountants from deleting sales.
+     * @principle Restricts access to accountants associated with the company.
      */
-    match /tax-parameters/{paramId} {
-        allow get: if true;
-        allow list: if true;
-        allow create: if false;
-        allow update: if false;
-        allow delete: if false;
+    match /companies/{companyId}/sales/{saleId} {
+      allow get: if true;
+      allow list: if true;
+      allow create: if isAccountantForCompany(companyId);
+      allow update: if isAccountantForCompany(companyId) && resource != null;
+      allow delete: if isAccountantForCompany(companyId) && resource != null;
     }
 
     /**
-     * @description Allows public read access to institutions. Write access is denied.
-     * @path /institutions/{institutionId}
-     * @allow (get, list) if true
-     * @deny (create, update, delete) if false
+     * @description Sub-collection of fee documents for a specific company.
+     * @path /companies/{companyId}/fees
+     * @allow (create) - Allow accountants associated with the company to create fees.
+     * @allow (get) - Allow anyone to read fees for a company.
+     * @allow (list) - Allow anyone to list fees for a company.
+     * @allow (update) - Allow accountants associated with the company to update fees.
+     * @allow (delete) - Allow accountants associated with the company to delete fees.
+     * @deny (create) - Deny unauthenticated users and non-accountants from creating fees.
+     * @deny (update) - Deny unauthenticated users and non-accountants from updating fees.
+     * @deny (delete) - Deny unauthenticated users and non-accountants from deleting fees.
+     * @principle Restricts access to accountants associated with the company.
      */
-    match /institutions/{institutionId} {
-        allow get: if true;
-        allow list: if true;
-        allow create: if false;
-        allow update: if false;
-        allow delete: if false;
+    match /companies/{companyId}/fees/{feeId} {
+      allow get: if true;
+      allow list: if true;
+      allow create: if isAccountantForCompany(companyId);
+      allow update: if isAccountantForCompany(companyId) && resource != null;
+      allow delete: if isAccountantForCompany(companyId) && resource != null;
+    }
+    
+    /**
+     * @description User-specific collection of account groups.
+     * @path /users/{userId}/account-groups
+     * @allow (create) - Allow user to create their own account groups.
+     * @allow (get) - Allow user to read their own account groups.
+     * @allow (list) - Allow user to list their own account groups.
+     * @allow (update) - Allow user to update their own account groups.
+     * @allow (delete) - Allow user to delete their own account groups.
+     * @deny (create) - Deny other users from creating account groups for this user.
+     * @deny (get) - Deny other users from reading this user's account groups.
+     * @deny (list) - Deny other users from listing this user's account groups.
+     * @deny (update) - Deny other users from updating this user's account groups.
+     * @deny (delete) - Deny other users from deleting this user's account groups.
+     * @principle Enforces document ownership for writes, restricts access to a user's own data tree.
+     */
+    match /users/{userId}/account-groups/{accountGroupId} {
+      allow get: if isOwner(userId);
+      allow list: if isOwner(userId);
+      allow create: if isOwner(userId);
+      allow update: if isExistingOwner(userId);
+      allow delete: if isExistingOwner(userId);
+    }
+
+    /**
+     * @description User-specific collection of pension and health institutions.
+     * @path /users/{userId}/institutions
+     * @allow (create) - Allow user to create their own institutions.
+     * @allow (get) - Allow user to read their own institutions.
+     * @allow (list) - Allow user to list their own institutions.
+     * @allow (update) - Allow user to update their own institutions.
+     * @allow (delete) - Allow user to delete their own institutions.
+     * @deny (create) - Deny other users from creating institutions for this user.
+     * @deny (get) - Deny other users from reading this user's institutions.
+     * @deny (list) - Deny other users from listing this user's institutions.
+     * @deny (update) - Deny other users from updating this user's institutions.
+     * @deny (delete) - Deny other users from deleting this user's institutions.
+     * @principle Enforces document ownership for writes, restricts access to a user's own data tree.
+     */
+    match /users/{userId}/institutions/{institutionId} {
+      allow get: if isOwner(userId);
+      allow list: if isOwner(userId);
+      allow create: if isOwner(userId);
+      allow update: if isExistingOwner(userId);
+      allow delete: if isExistingOwner(userId);
+    }
+
+    /**
+     * @description User-specific collection of family allowance parameters.
+     * @path /users/{userId}/family-allowance-parameters
+     * @allow (create) - Allow user to create their own family allowance parameters.
+     * @allow (get) - Allow user to read their own family allowance parameters.
+     * @allow (list) - Allow user to list their own family allowance parameters.
+     * @allow (update) - Allow user to update their own family allowance parameters.
+     * @allow (delete) - Allow user to delete their own family allowance parameters.
+     * @deny (create) - Deny other users from creating family allowance parameters for this user.
+     * @deny (get) - Deny other users from reading this user's family allowance parameters.
+     * @deny (list) - Deny other users from listing this user's family allowance parameters.
+     * @deny (update) - Deny other users from updating this user's family allowance parameters.
+     * @deny (delete) - Deny other users from deleting this user's family allowance parameters.
+     * @principle Enforces document ownership for writes, restricts access to a user's own data tree.
+     */
+    match /users/{userId}/family-allowance-parameters/{familyAllowanceParameterId} {
+      allow get: if isOwner(userId);
+      allow list: if isOwner(userId);
+      allow create: if isOwner(userId);
+      allow update: if isExistingOwner(userId);
+      allow delete: if isExistingOwner(userId);
+    }
+
+    /**
+     * @description User-specific collection of tax parameters for IUT.
+     * @path /users/{userId}/tax-parameters
+     * @allow (create) - Allow user to create their own tax parameters.
+     * @allow (get) - Allow user to read their own tax parameters.
+     * @allow (list) - Allow user to list their own tax parameters.
+     * @allow (update) - Allow user to update their own tax parameters.
+     * @allow (delete) - Allow user to delete their own tax parameters.
+     * @deny (create) - Deny other users from creating tax parameters for this user.
+     * @deny (get) - Deny other users from reading this user's tax parameters.
+     * @deny (list) - Deny other users from listing this user's tax parameters.
+     * @deny (update) - Deny other users from updating this user's tax parameters.
+     * @deny (delete) - Deny other users from deleting this user's tax parameters.
+     * @principle Enforces document ownership for writes, restricts access to a user's own data tree.
+     */
+    match /users/{userId}/tax-parameters/{taxParameterId} {
+      allow get: if isOwner(userId);
+      allow list: if isOwner(userId);
+      allow create: if isOwner(userId);
+      allow update: if isExistingOwner(userId);
+      allow delete: if isExistingOwner(userId);
+    }
+
+    /**
+     * @description User-specific collection of health entities (Isapres and Fonasa).
+     * @path /users/{userId}/health-entities
+     * @allow (create) - Allow user to create their own health entities.
+     * @allow (get) - Allow user to read their own health entities.
+     * @allow (list) - Allow user to list their own health entities.
+     * @allow (update) - Allow user to update their own health entities.
+     * @allow (delete) - Allow user to delete their own health entities.
+     * @deny (create) - Deny other users from creating health entities for this user.
+     * @deny (get) - Deny other users from reading this user's health entities.
+     * @deny (list) - Deny other users from listing this user's health entities.
+     * @deny (update) - Deny other users from updating this user's health entities.
+     * @deny (delete) - Deny other users from deleting this user's health entities.
+     * @principle Enforces document ownership for writes, restricts access to a user's own data tree.
+     */
+    match /users/{userId}/health-entities/{healthEntityId} {
+      allow get: if isOwner(userId);
+      allow list: if isOwner(userId);
+      allow create: if isOwner(userId);
+      allow update: if isExistingOwner(userId);
+      allow delete: if isExistingOwner(userId);
+    }
+
+    /**
+     * @description User-specific collection of AFP entities.
+     * @path /users/{userId}/afp-entities
+     * @allow (create) - Allow user to create their own AFP entities.
+     * @allow (get) - Allow user to read their own AFP entities.
+     * @allow (list) - Allow user to list their own AFP entities.
+     * @allow (update) - Allow user to update their own AFP entities.
+     * @allow (delete) - Allow user to delete their own AFP entities.
+     * @deny (create) - Deny other users from creating AFP entities for this user.
+     * @deny (get) - Deny other users from reading this user's AFP entities.
+     * @deny (list) - Deny other users from listing this user's AFP entities.
+     * @deny (update) - Deny other users from updating this user's AFP entities.
+     * @deny (delete) - Deny other users from deleting this user's AFP entities.
+     * @principle Enforces document ownership for writes, restricts access to a user's own data tree.
+     */
+    match /users/{userId}/afp-entities/{afpEntityId} {
+      allow get: if isOwner(userId);
+      allow list: if isOwner(userId);
+      allow create: if isOwner(userId);
+      allow update: if isExistingOwner(userId);
+      allow delete: if isExistingOwner(userId);
     }
   }
 }
