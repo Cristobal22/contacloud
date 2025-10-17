@@ -1,4 +1,3 @@
-
 'use client';
 
 import React from 'react';
@@ -34,7 +33,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useFirestore, useAuth, useCollection, useUser } from "@/firebase"
 import type { UserProfile } from "@/lib/types"
-import { doc, setDoc, updateDoc, collection, deleteDoc, query, where, writeBatch, arrayUnion } from "firebase/firestore"
+import { doc, setDoc, updateDoc, collection, deleteDoc, query, where, writeBatch, arrayUnion, arrayRemove } from "firebase/firestore"
 import { createUserWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth'
 import { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
@@ -145,7 +144,7 @@ export default function UserManagement() {
                 createdUserIds: arrayUnion(user.uid)
             });
             
-            await batch.commit();
+            await batch.commit(); // This line saves the changes to Firestore.
             
             await sendPasswordResetEmail(auth, user.email!);
 
@@ -190,16 +189,23 @@ export default function UserManagement() {
     };
     
     const handleDeleteUser = async () => {
-        if (!firestore || !userToDelete) return;
+        if (!firestore || !userToDelete || !authUser) return;
 
         setIsProcessing(true);
         const userRef = doc(firestore, 'users', userToDelete.uid);
+        const adminRef = doc(firestore, 'users', authUser.uid);
 
         try {
-            // Note: This deletes the Firestore document, not the Firebase Auth user.
-            // That needs to be done manually in the Firebase console for security reasons.
-            await deleteDoc(userRef);
-            toast({ title: "Perfil de usuario eliminado", description: `El perfil de ${userToDelete.displayName} ha sido eliminado de la aplicación.` });
+            // This deletes the Firestore document and removes the ID from the admin's list.
+            // The Firebase Auth user must be deleted manually from the console for security.
+            const batch = writeBatch(firestore);
+            batch.delete(userRef);
+            batch.update(adminRef, {
+                createdUserIds: arrayRemove(userToDelete.uid)
+            });
+            await batch.commit();
+
+            toast({ title: "Perfil de usuario eliminado", description: `El perfil de ${userToDelete.displayName} ha sido eliminado.` });
             setIsDeleteDialogOpen(false);
             setUserToDelete(null);
         } catch (error) {
