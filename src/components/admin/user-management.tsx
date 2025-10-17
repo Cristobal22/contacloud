@@ -1,7 +1,6 @@
-
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     Card,
     CardContent,
@@ -32,9 +31,9 @@ import { MoreHorizontal, PlusCircle } from "lucide-react"
   } from "@/components/ui/alert-dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { useFirestore, useAuth, useUser } from "@/firebase"
+import { useFirestore, useAuth, useUser, useCollection } from "@/firebase"
 import type { UserProfile } from "@/lib/types"
-import { doc, setDoc, updateDoc, collection, deleteDoc, query, where, writeBatch, arrayUnion, arrayRemove, getDocs, documentId } from "firebase/firestore"
+import { doc, setDoc, updateDoc, collection, deleteDoc, writeBatch, arrayUnion, arrayRemove } from "firebase/firestore"
 import { createUserWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth'
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -68,38 +67,12 @@ export default function UserManagement() {
     const { user: authUser } = useUser();
     const { userProfile, loading: profileLoading } = useUserProfile(authUser?.uid);
 
-    const [users, setUsers] = useState<UserProfile[]>([]);
-    const [usersLoading, setUsersLoading] = useState(true);
-    const [usersError, setUsersError] = useState<Error | null>(null);
-    
-    useEffect(() => {
-        const fetchUsers = async () => {
-            if (!firestore || !userProfile || userProfile.role !== 'Admin' || !userProfile.createdUserIds || userProfile.createdUserIds.length === 0) {
-                setUsers([]);
-                setUsersLoading(false);
-                return;
-            }
-            
-            setUsersLoading(true);
-            try {
-                const usersQuery = query(collection(firestore, 'users'), where(documentId(), 'in', userProfile.createdUserIds));
-                const querySnapshot = await getDocs(usersQuery);
-                const fetchedUsers = querySnapshot.docs.map(doc => doc.data() as UserProfile);
-                setUsers(fetchedUsers);
-                setUsersError(null);
-            } catch (error) {
-                console.error("Error fetching created users:", error);
-                setUsersError(error as Error);
-            } finally {
-                setUsersLoading(false);
-            }
-        };
-
-        if (!profileLoading) {
-            fetchUsers();
-        }
-    }, [firestore, userProfile, profileLoading]);
-
+    // This query will fail due to security rules, but we are reverting to the old logic as requested.
+    // The user creation will work, but the list will be empty or show an error.
+    const { data: users, loading: usersLoading, error: usersError } = useCollection<UserProfile>({ 
+      path: 'users',
+      disabled: userProfile?.role !== 'Admin'
+    });
 
     const [isCreateFormOpen, setIsCreateFormOpen] = useState(false);
     const [isEditFormOpen, setIsEditFormOpen] = useState(false);
@@ -164,7 +137,7 @@ export default function UserManagement() {
                 createdUserIds: arrayUnion(user.uid)
             });
             
-            await batch.commit();
+            await batch.commit(); // This is the crucial line that saves to the database
             
             await sendPasswordResetEmail(auth, user.email!);
 
@@ -174,9 +147,7 @@ export default function UserManagement() {
             });
             
             setIsCreateFormOpen(false);
-            // Manually add the new user to the local state to refresh UI immediately
-            setUsers(prevUsers => [...prevUsers, newUserProfile]);
-
+            
         } catch (error: any) {
             console.error('Error creating user:', error);
             if (error.code === 'auth/email-already-in-use') {
@@ -200,7 +171,6 @@ export default function UserManagement() {
                 displayName: selectedUser.displayName,
             });
             toast({ title: "Usuario actualizado", description: "El nombre del usuario ha sido actualizado." });
-            setUsers(prev => prev.map(u => u.uid === selectedUser.uid ? {...u, displayName: selectedUser.displayName} : u));
             setIsEditFormOpen(false);
         } catch (error) {
             toast({ variant: 'destructive', title: 'Error al actualizar', description: 'No se pudieron guardar los cambios.' });
@@ -226,7 +196,6 @@ export default function UserManagement() {
             await batch.commit();
 
             toast({ title: "Perfil de usuario eliminado", description: `El perfil de ${userToDelete.displayName} ha sido eliminado.` });
-            setUsers(prev => prev.filter(u => u.uid !== userToDelete.uid));
             setIsDeleteDialogOpen(false);
             setUserToDelete(null);
         } catch (error) {
@@ -263,8 +232,8 @@ export default function UserManagement() {
              return (
                 <TableRow>
                     <TableCell colSpan={4} className="h-24 text-center text-destructive">
-                        <p className="font-bold">Error de permisos.</p>
-                        <p className='text-xs text-muted-foreground'>No se pudieron cargar los perfiles de usuario. Revisa las reglas de seguridad.</p>
+                        <p className="font-bold">Error de permisos al listar usuarios.</p>
+                        <p className='text-xs text-muted-foreground'>La creación de usuarios funcionará, pero la lista no se puede mostrar.</p>
                     </TableCell>
                 </TableRow>
             );
@@ -280,7 +249,7 @@ export default function UserManagement() {
             );
         }
 
-        return users.map(user => (
+        return users.filter(u => u.role !== 'Admin').map(user => (
             <TableRow key={user.uid}>
                 <TableCell className="font-medium">{user.displayName}</TableCell>
                 <TableCell>{user.email}</TableCell>
@@ -422,3 +391,4 @@ export default function UserManagement() {
         </>
     );
 }
+    
