@@ -24,19 +24,20 @@ import { useCollection, useDoc, useFirestore, useUser } from '@/firebase';
 import type { Employee, CostCenter, AfpEntity, HealthEntity } from '@/lib/types';
 import { SelectedCompanyContext } from '@/app/dashboard/layout';
 import { doc, setDoc, addDoc, collection, DocumentReference } from 'firebase/firestore';
-import { useRouter } from 'next/navigation';
+import { useRouter, useParams } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 import { errorEmitter } from '@/firebase/error-emitter'
 import { FirestorePermissionError } from '@/firebase/errors'
 
-// Tope legal: 4.75 IMM. Asumimos IMM de 460.000 (este valor debe ser actualizado periódicamente)
+// Tope legal: 4.75 IMM. Asumimos IMM de 460000 (este valor debe ser actualizado periódicamente)
 const MINIMUM_WAGE = 460000;
 const GRATIFICATION_CAP_ANNUAL = 4.75 * MINIMUM_WAGE;
 const GRATIFICATION_CAP_MONTHLY = GRATIFICATION_CAP_ANNUAL / 12;
 
-export default function EmployeeFormPage({ params }: { params: { id: string } }) {
-    const { id } = params;
+export default function EmployeeFormPage() {
+    const params = useParams();
+    const id = params.id as string;
     const isNew = id === 'new';
     const { selectedCompany } = React.useContext(SelectedCompanyContext) || {};
     const companyId = selectedCompany?.id;
@@ -353,5 +354,3 @@ export default function EmployeeFormPage({ params }: { params: { id: string } })
 
     
 }
-
-    

@@ -34,13 +34,14 @@ import { useCollection, useDoc, useFirestore } from '@/firebase';
 import type { Voucher, VoucherEntry, Account } from '@/lib/types';
 import { SelectedCompanyContext } from '@/app/dashboard/layout';
 import { doc, setDoc, addDoc, collection } from 'firebase/firestore';
-import { useRouter } from 'next/navigation';
+import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import { errorEmitter } from '@/firebase/error-emitter'
 import { FirestorePermissionError } from '@/firebase/errors'
 
-export default function VoucherEditPage({ params }: { params: { id: string } }) {
-    const { id } = params;
+export default function VoucherEditPage() {
+    const params = useParams();
+    const id = params.id as string;
     const isNew = id === 'new';
     const { selectedCompany } = React.useContext(SelectedCompanyContext) || {};
     const companyId = selectedCompany?.id;
