@@ -73,6 +73,15 @@ import {
       return code.length <= 5;
   }
 
+  const getClassification = (code: string) => {
+    if (code.length === 1) return "Clase";
+    if (code.length === 3) return "Grupo";
+    if (code.length === 5) return "Subgrupo";
+    if (code.length > 5) return "Cuenta";
+    return "";
+  };
+
+
   export default function AccountsPage() {
   const { selectedCompany } = React.useContext(SelectedCompanyContext) || {};
   const companyId = selectedCompany?.id;
@@ -85,6 +94,9 @@ import {
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   const sortedAccounts = React.useMemo(() => {
+    // The data is now displayed in the order it comes from Firestore,
+    // which should be insertion order if not otherwise specified.
+    // If seeded, it will be in the order of `initialChartOfAccounts`.
     return accounts?.sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true })) || [];
   }, [accounts]);
 
@@ -373,6 +385,7 @@ import {
                         <TableHead>Código</TableHead>
                         <TableHead>Nombre de Cuenta</TableHead>
                         <TableHead>Tipo</TableHead>
+                        <TableHead>Clasificación</TableHead>
                         <TableHead className="text-right">Saldo</TableHead>
                         <TableHead>
                         <span className="sr-only">Acciones</span>
@@ -382,7 +395,7 @@ import {
                     <TableBody>
                     {loading && (
                         <TableRow>
-                            <TableCell colSpan={5} className="text-center">Cargando...</TableCell>
+                            <TableCell colSpan={6} className="text-center">Cargando...</TableCell>
                         </TableRow>
                     )}
                     {!loading && sortedAccounts.map((account) => {
@@ -395,6 +408,7 @@ import {
                                 <TableCell>
                                     <Badge variant="secondary">{account.type}</Badge>
                                 </TableCell>
+                                <TableCell>{getClassification(account.code)}</TableCell>
                                 <TableCell className="text-right">${account.balance.toLocaleString('es-CL', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</TableCell>
                                 <TableCell>
                                     <DropdownMenu>
@@ -416,7 +430,7 @@ import {
                     })}
                     {!loading && !companyId && (
                         <TableRow>
-                            <TableCell colSpan={5} className="text-center">
+                            <TableCell colSpan={6} className="text-center">
                                 Selecciona una empresa para ver su plan de cuentas.
                             </TableCell>
                         </TableRow>
