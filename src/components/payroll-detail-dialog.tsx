@@ -46,16 +46,21 @@ const formatCurrency = (value: number) => {
 
 export function PayrollDetailDialog({ isOpen, onClose, data }: PayrollDetailDialogProps) {
     const payrollContentRef = React.useRef<HTMLDivElement>(null);
+    const [pdfInstance, setPdfInstance] = React.useState<jsPDF | null>(null);
     const [pdfUrl, setPdfUrl] = React.useState<string | null>(null);
+    const [isPreview, setIsPreview] = React.useState(false);
+
 
     const handleClose = () => {
         setPdfUrl(null);
+        setPdfInstance(null);
+        setIsPreview(false);
         onClose();
     }
 
-    const generatePdf = async (action: 'preview' | 'download' = 'preview') => {
+    const generatePdf = async () => {
         const input = payrollContentRef.current;
-        if (!input) return;
+        if (!input) return null;
     
         try {
             const canvas = await html2canvas(input, {
@@ -75,7 +80,6 @@ export function PayrollDetailDialog({ isOpen, onClose, data }: PayrollDetailDial
             let finalImgWidth = pdfWidth;
             let finalImgHeight = pdfWidth / ratio;
     
-            // If the image height is greater than the page height, scale by height instead
             if (finalImgHeight > pdfHeight) {
                 finalImgHeight = pdfHeight;
                 finalImgWidth = pdfHeight * ratio;
@@ -85,17 +89,33 @@ export function PayrollDetailDialog({ isOpen, onClose, data }: PayrollDetailDial
             const yOffset = 0;
             
             pdf.addImage(imgData, 'PNG', xOffset, yOffset, finalImgWidth, finalImgHeight);
-    
-            if (action === 'download') {
-                pdf.save(`liquidacion_${data?.employee.rut}_${data?.payroll.period.replace(/\s+/g, '_')}.pdf`);
-            } else {
-                setPdfUrl(pdf.output('datauristring'));
-            }
+            return pdf;
         } catch (error) {
             console.error("Error generating PDF:", error);
+            return null;
         }
     };
     
+    const showPreview = async () => {
+        const pdf = await generatePdf();
+        if (pdf) {
+            setPdfInstance(pdf);
+            setPdfUrl(pdf.output('datauristring'));
+            setIsPreview(true);
+        }
+    };
+
+    const downloadPdf = async () => {
+        let pdfToDownload = pdfInstance;
+        if (!pdfToDownload) {
+            pdfToDownload = await generatePdf();
+        }
+
+        if (pdfToDownload) {
+            pdfToDownload.save(`liquidacion_${data?.employee.rut}_${data?.payroll.period.replace(/\s+/g, '_')}.pdf`);
+        }
+    };
+
     if (!data) return null;
 
     const { payroll, employee } = data;
@@ -106,13 +126,13 @@ export function PayrollDetailDialog({ isOpen, onClose, data }: PayrollDetailDial
                 <DialogHeader>
                     <DialogTitle>Liquidación de Sueldo (Simulación)</DialogTitle>
                     <DialogDescription>
-                        {pdfUrl ? `Vista previa del PDF para ${employee.firstName}` : `Detalle para ${employee.firstName} para el período de ${payroll.period}.`}
+                        {isPreview ? `Vista previa del PDF para ${employee.firstName}` : `Detalle para ${employee.firstName} para el período de ${payroll.period}.`}
                     </DialogDescription>
                 </DialogHeader>
 
-                {pdfUrl ? (
+                {isPreview ? (
                     <div className="h-[600px] border rounded-md">
-                        <iframe src={pdfUrl} width="100%" height="100%" />
+                        {pdfUrl && <iframe src={pdfUrl} width="100%" height="100%" />}
                     </div>
                 ) : (
                     <div ref={payrollContentRef} className="p-4 bg-white text-black">
@@ -166,14 +186,14 @@ export function PayrollDetailDialog({ isOpen, onClose, data }: PayrollDetailDial
                 )}
 
                 <DialogFooter>
-                    {pdfUrl ? (
+                    {isPreview ? (
                          <>
-                            <Button type="button" variant="secondary" onClick={() => setPdfUrl(null)}>Volver</Button>
-                            <Button type="button" onClick={() => generatePdf('download')}>Descargar PDF</Button>
+                            <Button type="button" variant="secondary" onClick={() => setIsPreview(false)}>Volver</Button>
+                            <Button type="button" onClick={downloadPdf}>Descargar PDF</Button>
                          </>
                     ) : (
                          <>
-                            <Button type="button" variant="outline" onClick={() => generatePdf('preview')}>Vista Previa PDF</Button>
+                            <Button type="button" variant="outline" onClick={showPreview}>Vista Previa PDF</Button>
                             <Button type="button" variant="secondary" onClick={handleClose}>Cerrar</Button>
                          </>
                     )}
