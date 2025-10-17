@@ -14,6 +14,8 @@ import { Separator } from "@/components/ui/separator"
 import { Table, TableBody, TableCell, TableRow, TableFooter as TableFooterOriginal } from "@/components/ui/table"
 import type { Employee } from "@/lib/types"
 import React from "react";
+import jsPDF from "jspdf";
+import html2canvas from "html2canvas";
 
 export type SimulatedPayroll = {
     id: string;
@@ -44,92 +46,116 @@ const formatCurrency = (value: number) => {
 }
 
 export function PayrollDetailDialog({ isOpen, onClose, data }: PayrollDetailDialogProps) {
+    const payrollContentRef = React.useRef<HTMLDivElement>(null);
+    const [pdfUrl, setPdfUrl] = React.useState<string | null>(null);
+
+    const handleClose = () => {
+        setPdfUrl(null);
+        onClose();
+    }
+
+    const generatePdf = async (action: 'preview' | 'download' = 'preview') => {
+        if (!payrollContentRef.current) return;
+
+        const canvas = await html2canvas(payrollContentRef.current, { scale: 2 });
+        const imgData = canvas.toDataURL('image/png');
+
+        const pdf = new jsPDF({
+            orientation: 'p',
+            unit: 'px',
+            format: [canvas.width, canvas.height]
+        });
+
+        pdf.addImage(imgData, 'PNG', 0, 0, canvas.width, canvas.height);
+
+        if (action === 'download') {
+            pdf.save(`liquidacion_${data?.employee.rut}_${data?.payroll.period.replace(' ', '_')}.pdf`);
+        } else {
+            setPdfUrl(pdf.output('datauristring'));
+        }
+    };
+    
     if (!data) return null;
 
     const { payroll, employee } = data;
 
     return (
-        <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="sm:max-w-md">
+        <Dialog open={isOpen} onOpenChange={handleClose}>
+            <DialogContent className="max-w-2xl">
                 <DialogHeader>
                     <DialogTitle>Liquidación de Sueldo (Simulación)</DialogTitle>
                     <DialogDescription>
-                        Detalle para {employee.firstName} {employee.lastName} para el período de {payroll.period}.
+                        {pdfUrl ? `Vista previa del PDF para ${employee.firstName}` : `Detalle para ${employee.firstName} para el período de ${payroll.period}.`}
                     </DialogDescription>
                 </DialogHeader>
 
-                <div className="grid gap-4 py-4 text-sm">
-                    <div className="grid grid-cols-2 gap-x-4 gap-y-1">
-                        <div><span className="font-medium">Nombre:</span> {employee.firstName} {employee.lastName}</div>
-                        <div><span className="font-medium">RUT:</span> {employee.rut}</div>
-                        <div><span className="font-medium">Cargo:</span> {employee.position}</div>
-                        <div><span className="font-medium">Período:</span> {payroll.period}</div>
+                {pdfUrl ? (
+                    <div className="h-[600px] border rounded-md">
+                        <iframe src={pdfUrl} width="100%" height="100%" />
                     </div>
-                    
-                    <Separator />
-
-                    <div className="grid grid-cols-2 gap-8">
-                        {/* Haberes */}
-                        <div>
-                            <h4 className="font-semibold mb-2">HABERES</h4>
-                            <Table>
-                                <TableBody>
-                                    <TableRow>
-                                        <TableCell>Sueldo Base</TableCell>
-                                        <TableCell className="text-right">{formatCurrency(payroll.baseSalary)}</TableCell>
-                                    </TableRow>
-                                     <TableRow>
-                                        <TableCell>Gratificación Legal</TableCell>
-                                        <TableCell className="text-right">{formatCurrency(payroll.gratification)}</TableCell>
-                                    </TableRow>
-                                     <TableRow>
-                                        <TableCell>Otros Haberes</TableCell>
-                                        <TableCell className="text-right">{formatCurrency(payroll.otherEarnings)}</TableCell>
-                                    </TableRow>
-                                </TableBody>
-                                <TableFooterOriginal>
-                                    <TableRow className="font-bold bg-muted/50">
-                                        <TableCell>Total Haberes</TableCell>
-                                        <TableCell className="text-right">{formatCurrency(payroll.totalEarnings)}</TableCell>
-                                    </TableRow>
-                                </TableFooterOriginal>
-                            </Table>
+                ) : (
+                    <div ref={payrollContentRef} className="p-4 bg-white text-black">
+                        <div className="text-center mb-4">
+                            <h2 className="text-xl font-bold">Liquidación de Sueldo</h2>
+                            <h3 className="text-lg">{payroll.period}</h3>
                         </div>
-                        {/* Descuentos */}
-                         <div>
-                            <h4 className="font-semibold mb-2">DESCUENTOS</h4>
-                            <Table>
-                                <TableBody>
-                                    <TableRow>
-                                        <TableCell>Cotización AFP ({employee.afp})</TableCell>
-                                        <TableCell className="text-right">{formatCurrency(payroll.afpDiscount)}</TableCell>
-                                    </TableRow>
-                                    <TableRow>
-                                        <TableCell>Cotización Salud ({employee.healthSystem})</TableCell>
-                                        <TableCell className="text-right">{formatCurrency(payroll.healthDiscount)}</TableCell>
-                                    </TableRow>
-                                </TableBody>
-                                <TableFooterOriginal>
-                                    <TableRow className="font-bold bg-muted/50">
-                                        <TableCell>Total Descuentos</TableCell>
-                                        <TableCell className="text-right">{formatCurrency(payroll.totalDiscounts)}</TableCell>
-                                    </TableRow>
-                                </TableFooterOriginal>
-                            </Table>
+                        <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm mb-4">
+                            <div><span className="font-medium">Nombre:</span> {employee.firstName} {employee.lastName}</div>
+                            <div><span className="font-medium">RUT:</span> {employee.rut}</div>
+                            <div><span className="font-medium">Cargo:</span> {employee.position}</div>
+                        </div>
+                        
+                        <Separator className="my-4 bg-gray-300" />
+
+                        <div className="grid grid-cols-2 gap-8">
+                            <div>
+                                <h4 className="font-semibold mb-2 underline">HABERES</h4>
+                                <Table>
+                                    <TableBody>
+                                        <TableRow><TableCell>Sueldo Base</TableCell><TableCell className="text-right">{formatCurrency(payroll.baseSalary)}</TableCell></TableRow>
+                                        <TableRow><TableCell>Gratificación Legal</TableCell><TableCell className="text-right">{formatCurrency(payroll.gratification)}</TableCell></TableRow>
+                                        <TableRow><TableCell>Otros Haberes</TableCell><TableCell className="text-right">{formatCurrency(payroll.otherEarnings)}</TableCell></TableRow>
+                                    </TableBody>
+                                    <TableFooterOriginal>
+                                        <TableRow className="font-bold bg-gray-100"><TableCell>Total Haberes</TableCell><TableCell className="text-right">{formatCurrency(payroll.totalEarnings)}</TableCell></TableRow>
+                                    </TableFooterOriginal>
+                                </Table>
+                            </div>
+                            <div>
+                                <h4 className="font-semibold mb-2 underline">DESCUENTOS</h4>
+                                <Table>
+                                    <TableBody>
+                                        <TableRow><TableCell>Cotización AFP ({employee.afp})</TableCell><TableCell className="text-right">{formatCurrency(payroll.afpDiscount)}</TableCell></TableRow>
+                                        <TableRow><TableCell>Cotización Salud ({employee.healthSystem})</TableCell><TableCell className="text-right">{formatCurrency(payroll.healthDiscount)}</TableCell></TableRow>
+                                    </TableBody>
+                                    <TableFooterOriginal>
+                                        <TableRow className="font-bold bg-gray-100"><TableCell>Total Descuentos</TableCell><TableCell className="text-right">{formatCurrency(payroll.totalDiscounts)}</TableCell></TableRow>
+                                    </TableFooterOriginal>
+                                </Table>
+                            </div>
+                        </div>
+
+                         <Separator className="my-4 bg-gray-300" />
+                    
+                        <div className="flex justify-between items-center bg-gray-700 text-white p-3 rounded-md mt-4">
+                            <span className="text-lg font-bold">ALCANCE LÍQUIDO</span>
+                            <span className="text-lg font-bold">{formatCurrency(payroll.netSalary)}</span>
                         </div>
                     </div>
-
-                    <Separator />
-                    
-                    <div className="flex justify-between items-center bg-primary text-primary-foreground p-3 rounded-md">
-                        <span className="text-lg font-bold">ALCANCE LÍQUIDO</span>
-                        <span className="text-lg font-bold">{formatCurrency(payroll.netSalary)}</span>
-                    </div>
-
-                </div>
+                )}
 
                 <DialogFooter>
-                    <Button type="button" variant="secondary" onClick={onClose}>Cerrar</Button>
+                    {pdfUrl ? (
+                         <>
+                            <Button type="button" variant="secondary" onClick={() => setPdfUrl(null)}>Volver</Button>
+                            <Button type="button" onClick={() => generatePdf('download')}>Descargar PDF</Button>
+                         </>
+                    ) : (
+                         <>
+                            <Button type="button" variant="outline" onClick={() => generatePdf('preview')}>Vista Previa PDF</Button>
+                            <Button type="button" variant="secondary" onClick={handleClose}>Cerrar</Button>
+                         </>
+                    )}
                 </DialogFooter>
             </DialogContent>
         </Dialog>
