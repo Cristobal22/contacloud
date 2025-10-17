@@ -17,7 +17,7 @@ import { useToast } from "@/hooks/use-toast";
 
 
 export default function CompanySettingsPage() {
-    const { selectedCompany } = React.useContext(SelectedCompanyContext) || {};
+    const { selectedCompany, setSelectedCompany } = React.useContext(SelectedCompanyContext) || {};
     const [company, setCompany] = React.useState<Partial<Company> | null>(null);
     const firestore = useFirestore();
     const { toast } = useToast();
@@ -58,6 +58,9 @@ export default function CompanySettingsPage() {
                         title: "Configuración guardada",
                         description: "Los cambios han sido guardados exitosamente.",
                     });
+                    if (setSelectedCompany) {
+                        setSelectedCompany(company as Company);
+                    }
                 })
                 .catch((error) => {
                     errorEmitter.emit('permission-error', new FirestorePermissionError({

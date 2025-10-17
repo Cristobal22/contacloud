@@ -6,8 +6,11 @@ import {
   ChevronDown,
   Home,
   Briefcase,
+  Calendar as CalendarIcon,
 } from "lucide-react"
-import { collection, query, where, documentId } from "firebase/firestore"
+import { collection, query, where, documentId, doc, updateDoc } from "firebase/firestore"
+import { format, startOfMonth, endOfMonth, parseISO } from 'date-fns';
+import { es } from 'date-fns/locale';
 
 import { Button } from "@/components/ui/button"
 import {
@@ -17,6 +20,10 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuPortal,
+  DropdownMenuSubContent
 } from "@/components/ui/dropdown-menu"
 import { DashboardNav } from "@/components/dashboard-nav"
 import { UserNav } from "@/components/user-nav"
@@ -24,6 +31,7 @@ import { Logo } from "@/components/logo"
 import type { Company, SelectedCompanyContextType } from "@/lib/types"
 import { useUser, useFirestore, useCollection } from "@/firebase"
 import { useUserProfile } from "@/firebase/auth/use-user-profile"
+import { useToast } from "@/hooks/use-toast"
 
 export const SelectedCompanyContext = React.createContext<SelectedCompanyContextType | null>(null);
 
@@ -31,6 +39,7 @@ function AccountantDashboardLayout({ children }: { children: React.ReactNode }) 
     const firestore = useFirestore();
     const { user, loading: userLoading } = useUser();
     const { userProfile, loading: profileLoading } = useUserProfile(user?.uid);
+    const { toast } = useToast();
     
     const [selectedCompany, setSelectedCompany] = React.useState<Company | null>(null);
     const [isLoadingCompany, setIsLoadingCompany] = React.useState(true);
@@ -72,7 +81,49 @@ function AccountantDashboardLayout({ children }: { children: React.ReactNode }) 
         localStorage.setItem('selectedCompanyId', company.id);
     };
     
+    const handlePeriodChange = async (year: number, month: number) => {
+        if (!firestore || !selectedCompany) return;
+
+        const newPeriodStart = startOfMonth(new Date(year, month));
+        const newPeriodEnd = endOfMonth(new Date(year, month));
+
+        const companyRef = doc(firestore, 'companies', selectedCompany.id);
+        try {
+            await updateDoc(companyRef, {
+                periodStartDate: format(newPeriodStart, 'yyyy-MM-dd'),
+                periodEndDate: format(newPeriodEnd, 'yyyy-MM-dd'),
+            });
+
+            const updatedCompany = { 
+                ...selectedCompany, 
+                periodStartDate: format(newPeriodStart, 'yyyy-MM-dd'),
+                periodEndDate: format(newPeriodEnd, 'yyyy-MM-dd'),
+            };
+            setSelectedCompany(updatedCompany);
+
+            toast({
+                title: 'Período Actualizado',
+                description: `El período de trabajo se ha cambiado a ${format(newPeriodStart, 'MMMM yyyy', { locale: es })}.`
+            });
+        } catch (error) {
+            console.error("Error updating period:", error);
+            toast({
+                variant: 'destructive',
+                title: 'Error',
+                description: 'No se pudo actualizar el período de trabajo.'
+            });
+        }
+    };
+    
     const isLoading = userLoading || profileLoading || companiesLoading || isLoadingCompany;
+    
+    const currentYear = new Date().getFullYear();
+    const years = Array.from({ length: 5 }, (_, i) => currentYear - i);
+    const months = Array.from({ length: 12 }, (_, i) => ({ value: i, label: format(new Date(0, i), 'MMMM', { locale: es }) }));
+
+    const periodLabel = selectedCompany?.periodStartDate 
+        ? format(parseISO(selectedCompany.periodStartDate), 'MMMM yyyy', { locale: es })
+        : 'Sin Período';
 
     return (
         <SelectedCompanyContext.Provider value={{ selectedCompany, setSelectedCompany: handleCompanyChange }}>
@@ -91,23 +142,13 @@ function AccountantDashboardLayout({ children }: { children: React.ReactNode }) 
                 <div className="flex flex-col sm:pl-64">
                     <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-4 border-b bg-background px-4 sm:justify-end sm:px-6">
                         <div className="flex items-center gap-4">
-                             <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                <Button variant="outline" className="sm:hidden">
-                                    <Home className="h-4 w-4" />
-                                    <span className="sr-only">Toggle Company</span>
-                                </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="start">
-                                <DropdownMenuLabel>Selecciona una Empresa</DropdownMenuLabel>
-                                <DropdownMenuSeparator />
-                                {companies?.map((company) => (
-                                    <DropdownMenuItem key={company.id} onSelect={() => handleCompanyChange(company)}>{company.name}</DropdownMenuItem>
-                                ))}
-                                </DropdownMenuContent>
-                            </DropdownMenu>
+                            {/* Mobile menu - placeholder */}
+                            <Button variant="outline" className="sm:hidden">
+                                <Home className="h-4 w-4" />
+                                <span className="sr-only">Toggle Company</span>
+                            </Button>
 
-                            <div className="hidden sm:flex">
+                            <div className="hidden sm:flex items-center gap-2">
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
                                         <Button variant="outline" className="flex items-center gap-2" disabled={isLoading}>
@@ -124,6 +165,48 @@ function AccountantDashboardLayout({ children }: { children: React.ReactNode }) 
                                         )) : (
                                             <DropdownMenuItem disabled>No tienes empresas asignadas.</DropdownMenuItem>
                                         )}
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
+
+                                 <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button variant="outline" className="flex items-center gap-2 capitalize" disabled={isLoading || !selectedCompany}>
+                                            <CalendarIcon className="h-4 w-4" />
+                                            <span>{periodLabel}</span>
+                                            <ChevronDown className="h-4 w-4" />
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="start">
+                                        <DropdownMenuLabel>Cambiar Período de Trabajo</DropdownMenuLabel>
+                                        <DropdownMenuSeparator/>
+                                         <DropdownMenuSub>
+                                            <DropdownMenuSubTrigger>
+                                                <span>{selectedCompany?.periodStartDate ? parseISO(selectedCompany.periodStartDate).getFullYear() : 'Año'}</span>
+                                            </DropdownMenuSubTrigger>
+                                            <DropdownMenuPortal>
+                                                <DropdownMenuSubContent>
+                                                    {years.map(year => (
+                                                        <DropdownMenuItem key={year} onSelect={() => handlePeriodChange(year, selectedCompany?.periodStartDate ? parseISO(selectedCompany.periodStartDate).getMonth() : new Date().getMonth())}>
+                                                            {year}
+                                                        </DropdownMenuItem>
+                                                    ))}
+                                                </DropdownMenuSubContent>
+                                            </DropdownMenuPortal>
+                                        </DropdownMenuSub>
+                                        <DropdownMenuSub>
+                                            <DropdownMenuSubTrigger>
+                                                 <span>{selectedCompany?.periodStartDate ? format(parseISO(selectedCompany.periodStartDate), 'MMMM', { locale: es}) : 'Mes'}</span>
+                                            </DropdownMenuSubTrigger>
+                                            <DropdownMenuPortal>
+                                                <DropdownMenuSubContent>
+                                                    {months.map(month => (
+                                                        <DropdownMenuItem key={month.value} onSelect={() => handlePeriodChange(selectedCompany?.periodStartDate ? parseISO(selectedCompany.periodStartDate).getFullYear() : new Date().getFullYear(), month.value)}>
+                                                            {month.label}
+                                                        </DropdownMenuItem>
+                                                    ))}
+                                                </DropdownMenuSubContent>
+                                            </DropdownMenuPortal>
+                                        </DropdownMenuSub>
                                     </DropdownMenuContent>
                                 </DropdownMenu>
                             </div>
