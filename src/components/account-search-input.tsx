@@ -32,6 +32,11 @@ export function AccountSearchInput({ label, value, onValueChange, accounts, load
   const [open, setOpen] = React.useState(false)
   const selectedAccount = accounts.find((account) => account.code === value)
 
+  const isGroupAccount = (code: string) => {
+      const parts = code.split('.');
+      return parts.length < 3;
+  }
+
   const popoverContent = (
       <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
           <Command>
@@ -67,11 +72,6 @@ export function AccountSearchInput({ label, value, onValueChange, accounts, load
           </Command>
       </PopoverContent>
   );
-
-  const isGroupAccount = (code: string) => {
-      const parts = code.split('.');
-      return parts.length < 3;
-  }
 
   return (
     <div className="space-y-2">
