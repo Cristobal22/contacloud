@@ -63,14 +63,22 @@ export default function CentralizePurchasesPage() {
         let totalPayable = 0;
 
         purchases.forEach(p => {
+            // Check for credit notes (type 61) and treat amounts as negative
+            const isCreditNote = p.documentType.includes('61');
+            const sign = isCreditNote ? -1 : 1;
+
+            const netAmount = p.netAmount * sign;
+            const taxAmount = p.taxAmount * sign;
+            const totalAmount = p.total * sign;
+
             if (p.assignedAccount) {
                 const current = netSummary.get(p.assignedAccount) || { name: accounts.find(a => a.code === p.assignedAccount)?.name || 'N/A', total: 0, count: 0 };
-                current.total += p.netAmount;
+                current.total += netAmount;
                 current.count++;
                 netSummary.set(p.assignedAccount, current);
             }
-            totalIvaCredit += p.taxAmount;
-            totalPayable += p.total;
+            totalIvaCredit += taxAmount;
+            totalPayable += totalAmount;
         });
 
         const summaryRows: SummaryRow[] = Array.from(netSummary.entries()).map(([code, data]) => ({
@@ -108,39 +116,68 @@ export default function CentralizePurchasesPage() {
         const entries: Omit<VoucherEntry, 'id'>[] = [];
         // Net entries
         summary.forEach(row => {
-            entries.push({
-                account: row.accountCode,
-                description: `Neto compras ${row.accountName}`,
-                debit: row.totalNet,
-                credit: 0,
-            });
+            if (row.totalNet > 0) { // Cargo
+                entries.push({
+                    account: row.accountCode,
+                    description: `Neto compras ${row.accountName}`,
+                    debit: row.totalNet,
+                    credit: 0,
+                });
+            } else { // Abono (caso nota de crédito en cuenta de gasto)
+                 entries.push({
+                    account: row.accountCode,
+                    description: `Ajuste compras ${row.accountName}`,
+                    debit: 0,
+                    credit: -row.totalNet,
+                });
+            }
         });
         // VAT entry
-        if (totalIvaCredit > 0 && selectedCompany.purchasesVatAccount) {
-            entries.push({
-                account: selectedCompany.purchasesVatAccount,
-                description: 'IVA Crédito Fiscal del período',
-                debit: totalIvaCredit,
-                credit: 0,
-            });
+        if (selectedCompany.purchasesVatAccount) {
+            if (totalIvaCredit > 0) {
+                 entries.push({
+                    account: selectedCompany.purchasesVatAccount,
+                    description: 'IVA Crédito Fiscal del período',
+                    debit: totalIvaCredit,
+                    credit: 0,
+                });
+            } else {
+                 entries.push({
+                    account: selectedCompany.purchasesVatAccount,
+                    description: 'Ajuste IVA Crédito Fiscal',
+                    debit: 0,
+                    credit: -totalIvaCredit,
+                });
+            }
         }
         // Payable entry
-        if (totalPayable > 0 && selectedCompany.purchasesInvoicesPayableAccount) {
-            entries.push({
-                account: selectedCompany.purchasesInvoicesPayableAccount,
-                description: 'Cuentas por Pagar Proveedores',
-                debit: 0,
-                credit: totalPayable,
-            });
+        if (selectedCompany.purchasesInvoicesPayableAccount) {
+             if (totalPayable > 0) {
+                entries.push({
+                    account: selectedCompany.purchasesInvoicesPayableAccount,
+                    description: 'Cuentas por Pagar Proveedores',
+                    debit: 0,
+                    credit: totalPayable,
+                });
+            } else {
+                 entries.push({
+                    account: selectedCompany.purchasesInvoicesPayableAccount,
+                    description: 'Disminución Cuentas por Pagar',
+                    debit: -totalPayable,
+                    credit: 0,
+                });
+            }
         }
         
+        const finalEntries = entries.filter(e => e.debit !== 0 || e.credit !== 0);
+
         const voucherData = {
             date: format(lastDay, 'yyyy-MM-dd'),
             type: 'Traspaso' as const,
             description: `Centralización Compras ${monthName} ${periodDate.getFullYear()}`,
             status: 'Contabilizado' as const,
-            total: totalDebit,
-            entries,
+            total: Math.max(totalDebit, totalCredit),
+            entries: finalEntries,
             companyId: companyId,
             createdAt: Timestamp.now(),
         };
@@ -220,7 +257,7 @@ export default function CentralizePurchasesPage() {
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
-                                        {summary.map(row => (
+                                        {summary.filter(r => r.totalNet > 0).map(row => (
                                             <TableRow key={row.accountCode}>
                                                 <TableCell>{row.accountCode} - {row.accountName}</TableCell>
                                                 <TableCell className="text-right">${row.totalNet.toLocaleString('es-CL')}</TableCell>
@@ -230,6 +267,12 @@ export default function CentralizePurchasesPage() {
                                             <TableRow>
                                                 <TableCell>{selectedCompany?.purchasesVatAccount} - IVA Crédito Fiscal</TableCell>
                                                 <TableCell className="text-right">${totalIvaCredit.toLocaleString('es-CL')}</TableCell>
+                                            </TableRow>
+                                        )}
+                                        {totalPayable < 0 && (
+                                            <TableRow>
+                                                <TableCell>{selectedCompany?.purchasesInvoicesPayableAccount} - Disminución Proveedores</TableCell>
+                                                <TableCell className="text-right">${(-totalPayable).toLocaleString('es-CL')}</TableCell>
                                             </TableRow>
                                         )}
                                     </TableBody>
@@ -252,6 +295,18 @@ export default function CentralizePurchasesPage() {
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
+                                        {summary.filter(r => r.totalNet < 0).map(row => (
+                                            <TableRow key={row.accountCode}>
+                                                <TableCell>{row.accountCode} - {row.accountName}</TableCell>
+                                                <TableCell className="text-right">${(-row.totalNet).toLocaleString('es-CL')}</TableCell>
+                                            </TableRow>
+                                        ))}
+                                        {totalIvaCredit < 0 && (
+                                            <TableRow>
+                                                <TableCell>{selectedCompany?.purchasesVatAccount} - Ajuste IVA Crédito</TableCell>
+                                                <TableCell className="text-right">${(-totalIvaCredit).toLocaleString('es-CL')}</TableCell>
+                                            </TableRow>
+                                        )}
                                         {totalPayable > 0 && (
                                             <TableRow>
                                                 <TableCell>{selectedCompany?.purchasesInvoicesPayableAccount} - Proveedores</TableCell>
