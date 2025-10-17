@@ -17,30 +17,24 @@ import {
     CardTitle,
 } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { MoreHorizontal, PlusCircle, Upload, ArrowRight } from "lucide-react"
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuLabel,
-    DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+import { Upload, ArrowRight } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { useCollection, useFirestore } from "@/firebase"
-import { collection, addDoc, setDoc, doc, deleteDoc, writeBatch } from "firebase/firestore"
+import { collection, addDoc, setDoc, doc, writeBatch } from "firebase/firestore"
 import type { Purchase, Account } from "@/lib/types";
 import { errorEmitter } from '@/firebase/error-emitter'
 import { FirestorePermissionError } from '@/firebase/errors'
 import { SelectedCompanyContext } from "../layout";
 import { useToast } from "@/hooks/use-toast";
 import { AccountSearchInput } from "@/components/account-search-input";
+import { useRouter } from "next/navigation";
 
 export default function PurchasesPage() {
     const { selectedCompany } = React.useContext(SelectedCompanyContext) || {};
     const companyId = selectedCompany?.id;
     const firestore = useFirestore();
     const { toast } = useToast();
+    const router = useRouter();
     const fileInputRef = React.useRef<HTMLInputElement>(null);
 
     const { data: purchases, loading: purchasesLoading } = useCollection<Purchase>({
@@ -133,8 +127,8 @@ export default function PurchasesPage() {
             <CardHeader>
                 <div className="flex items-center justify-between">
                     <div>
-                        <CardTitle>Centralización de Compras</CardTitle>
-                        <CardDescription>Importa y asigna cuentas a tus documentos de compra para centralizar.</CardDescription>
+                        <CardTitle>1. Importar y Asignar Cuentas de Compra</CardTitle>
+                        <CardDescription>Importa documentos y asigna las cuentas de gasto/activo para cada uno.</CardDescription>
                     </div>
                     <div className="flex gap-2">
                         <input type="file" ref={fileInputRef} className="hidden" accept=".csv" onChange={handleFileImport} />
@@ -142,7 +136,12 @@ export default function PurchasesPage() {
                             <Upload className="h-4 w-4" />
                             Importar Compras (CSV)
                         </Button>
-                        <Button size="sm" className="gap-1" disabled={true}>
+                        <Button 
+                            size="sm" 
+                            className="gap-1" 
+                            disabled={pendingPurchases.length === 0}
+                            onClick={() => router.push('/dashboard/purchases/centralize')}
+                        >
                            Ir a Centralizar <ArrowRight className="h-4 w-4" />
                         </Button>
                     </div>
