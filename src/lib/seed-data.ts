@@ -37,27 +37,18 @@ export const initialFamilyAllowanceParameters: Omit<FamilyAllowanceParameter, 'i
 ];
 
 export const initialTaxParameters: Omit<TaxParameter, 'id'>[] = [
-    { tramo: "1", desde: 0, hasta: 13.5, factor: 0, rebaja: 0 },
-    { tramo: "2", desde: 13.5, hasta: 30, factor: 0.04, rebaja: 0.54 },
-    { tramo: "3", desde: 30, hasta: 50, factor: 0.08, rebaja: 1.74 },
-    { tramo: "4", desde: 50, hasta: 70, factor: 0.135, rebaja: 4.49 },
-    { tramo: "5", desde: 70, hasta: 90, factor: 0.23, rebaja: 11.14 },
-    { tramo: "6", desde: 90, hasta: 120, factor: 0.304, rebaja: 17.8 },
-    { tramo: "7", desde: 120, hasta: 310, factor: 0.35, rebaja: 23.32 },
-    { tramo: "8", desde: 310, hasta: Infinity, factor: 0.4, rebaja: 38.82 }
+    { tramo: "Exento", desde: 0, hasta: 13.5, factor: 0, rebaja: 0 },
+    { tramo: "Tramo 1", desde: 13.5, hasta: 30, factor: 0.04, rebaja: 0.54 },
+    { tramo: "Tramo 2", desde: 30, hasta: 50, factor: 0.08, rebaja: 1.74 },
+    { tramo: "Tramo 3", desde: 50, hasta: 70, factor: 0.135, rebaja: 4.49 },
+    { tramo: "Tramo 4", desde: 70, hasta: 90, factor: 0.23, rebaja: 11.14 },
+    { tramo: "Tramo 5", desde: 90, hasta: 120, factor: 0.304, rebaja: 17.8 },
+    { tramo: "Tramo 6", desde: 120, hasta: 310, factor: 0.35, rebaja: 23.32 },
+    { tramo: "Tramo 7", desde: 310, hasta: Infinity, factor: 0.4, rebaja: 38.82 }
 ];
 
-// Historical data for UF, UTM, and Minimum Wage in Chile
+// Historical data for UF, UTM, and Minimum Wage in Chile, with projection to Sep 2025.
 export const initialEconomicIndicators: Omit<EconomicIndicator, 'id'>[] = [
-    // 2024
-    { year: 2024, month: 1, uf: 37033.48, utm: 64666, minWage: 460000 },
-    { year: 2024, month: 2, uf: 37072.1, utm: 64793, minWage: 460000 },
-    { year: 2024, month: 3, uf: 37248.06, utm: 65182, minWage: 460000 },
-    { year: 2024, month: 4, uf: 37338.45, utm: 65443, minWage: 460000 },
-    { year: 2024, month: 5, uf: 37476.53, utm: 65770, minWage: 460000 },
-    { year: 2024, month: 6, uf: 37482.52, utm: 65770, minWage: 460000 },
-    { year: 2024, month: 7, uf: 37510.99, utm: 66395, minWage: 500000 },
-
     // 2023
     { year: 2023, month: 1, uf: 35284.1, utm: 61769, minWage: 410000 },
     { year: 2023, month: 2, uf: 35384.81, utm: 61954, minWage: 410000 },
@@ -71,6 +62,33 @@ export const initialEconomicIndicators: Omit<EconomicIndicator, 'id'>[] = [
     { year: 2023, month: 10, uf: 36341.38, utm: 64114, minWage: 460000 },
     { year: 2023, month: 11, uf: 36561.4, utm: 64216, minWage: 460000 },
     { year: 2023, month: 12, uf: 36785.49, utm: 64343, minWage: 460000 },
+
+    // 2024
+    { year: 2024, month: 1, uf: 37033.48, utm: 64666, minWage: 460000 },
+    { year: 2024, month: 2, uf: 37072.1, utm: 64793, minWage: 460000 },
+    { year: 2024, month: 3, uf: 37248.06, utm: 65182, minWage: 460000 },
+    { year: 2024, month: 4, uf: 37338.45, utm: 65443, minWage: 460000 },
+    { year: 2024, month: 5, uf: 37476.53, utm: 65770, minWage: 460000 },
+    { year: 2024, month: 6, uf: 37482.52, utm: 65770, minWage: 460000 },
+    { year: 2024, month: 7, uf: 37510.99, utm: 66395, minWage: 500000 },
+    // Projection Starts
+    { year: 2024, month: 8, uf: 37540.0, utm: 66500, minWage: 500000 },
+    { year: 2024, month: 9, uf: 37570.0, utm: 66600, minWage: 500000 },
+    { year: 2024, month: 10, uf: 37600.0, utm: 66700, minWage: 500000 },
+    { year: 2024, month: 11, uf: 37630.0, utm: 66800, minWage: 500000 },
+    { year: 2024, month: 12, uf: 37660.0, utm: 66900, minWage: 500000 },
+    
+    // 2025
+    { year: 2025, month: 1, uf: 37700.0, utm: 67000, minWage: 500000 },
+    { year: 2025, month: 2, uf: 37740.0, utm: 67150, minWage: 500000 },
+    { year: 2025, month: 3, uf: 37780.0, utm: 67300, minWage: 500000 },
+    { year: 2025, month: 4, uf: 37820.0, utm: 67450, minWage: 500000 },
+    { year: 2025, month: 5, uf: 37860.0, utm: 67600, minWage: 500000 },
+    { year: 2025, month: 6, uf: 37900.0, utm: 67750, minWage: 500000 },
+    { year: 2025, month: 7, uf: 37940.0, utm: 67900, minWage: 500000 },
+    { year: 2025, month: 8, uf: 37980.0, utm: 68050, minWage: 500000 },
+    { year: 2025, month: 9, uf: 38020.0, utm: 68200, minWage: 500000 },
+
 ].map(item => ({
     ...item,
     uta: item.utm * 12,
