@@ -1,3 +1,4 @@
+
 import type { AfpEntity, EconomicIndicator, FamilyAllowanceParameter, HealthEntity, Institution, TaxParameter } from "./types";
 
 export const initialAfpEntities: Omit<AfpEntity, 'id'>[] = [
@@ -54,7 +55,7 @@ export const initialEconomicIndicators: Omit<EconomicIndicator, 'id'>[] = [
     { year: 2024, month: 3, uf: 37248.06, utm: 65182, minWage: 460000 },
     { year: 2024, month: 4, uf: 37338.45, utm: 65443, minWage: 460000 },
     { year: 2024, month: 5, uf: 37476.53, utm: 65770, minWage: 460000 },
-    { year: 2024, month: 6, uf: 37482.52, utm: 65770, minWage: 460000 }, // June UTM is often same as May
+    { year: 2024, month: 6, uf: 37482.52, utm: 65770, minWage: 460000 },
     { year: 2024, month: 7, uf: 37510.99, utm: 66395, minWage: 500000 },
 
     // 2023
@@ -70,48 +71,6 @@ export const initialEconomicIndicators: Omit<EconomicIndicator, 'id'>[] = [
     { year: 2023, month: 10, uf: 36341.38, utm: 64114, minWage: 460000 },
     { year: 2023, month: 11, uf: 36561.4, utm: 64216, minWage: 460000 },
     { year: 2023, month: 12, uf: 36785.49, utm: 64343, minWage: 460000 },
-
-    // 2022
-    { year: 2022, month: 1, uf: 31278.43, utm: 54442, minWage: 350000 },
-    { year: 2022, month: 2, uf: 31538.99, utm: 55537, minWage: 350000 },
-    { year: 2022, month: 3, uf: 31802.73, utm: 55704, minWage: 350000 },
-    { year: 2022, month: 4, uf: 32174.58, utm: 56739, minWage: 350000 },
-    { year: 2022, month: 5, uf: 32630.98, utm: 58774, minWage: 380000 },
-    { year: 2022, month: 6, uf: 32997.55, utm: 59577, minWage: 380000 },
-    { year: 2022, month: 7, uf: 33405.02, utm: 60183, minWage: 380000 },
-    { year: 2022, month: 8, uf: 33835.45, utm: 60853, minWage: 400000 },
-    { year: 2022, month: 9, uf: 34170.89, utm: 60853, minWage: 400000 },
-    { year: 2022, month: 10, uf: 34493.63, utm: 61157, minWage: 400000 },
-    { year: 2022, month: 11, uf: 34789.73, utm: 61460, minWage: 400000 },
-    { year: 2022, month: 12, uf: 35111.98, utm: 61624, minWage: 400000 },
-
-    // 2021
-    { year: 2021, month: 1, uf: 29215.11, utm: 50973, minWage: 326500 },
-    { year: 2021, month: 2, uf: 29272.07, utm: 51228, minWage: 326500 },
-    { year: 2021, month: 3, uf: 29332.95, utm: 51592, minWage: 326500 },
-    { year: 2021, month: 4, uf: 29432.84, utm: 52365, minWage: 326500 },
-    { year: 2021, month: 5, uf: 29522.61, utm: 52365, minWage: 337000 },
-    { year: 2021, month: 6, uf: 29578.53, utm: 52629, minWage: 337000 },
-    { year: 2021, month: 7, uf: 29643.08, utm: 52893, minWage: 337000 },
-    { year: 2021, month: 8, uf: 29752.46, utm: 53158, minWage: 337000 },
-    { year: 2021, month: 9, uf: 29899.96, utm: 53422, minWage: 337000 },
-    { year: 2021, month: 10, uf: 30107.03, utm: 53703, minWage: 337000 },
-    { year: 2021, month: 11, uf: 30514.88, utm: 54171, minWage: 337000 },
-    { year: 2021, month: 12, uf: 30991.73, utm: 54442, minWage: 337000 },
-
-    // 2020
-    { year: 2020, month: 1, uf: 28309.94, utm: 49673, minWage: 320500 },
-    { year: 2020, month: 2, uf: 28416.32, utm: 49922, minWage: 320500 },
-    { year: 2020, month: 3, uf: 28551.48, utm: 50021, minWage: 320500 },
-    { year: 2020, month: 4, uf: 28622.77, utm: 50322, minWage: 320500 },
-    { year: 2020, month: 5, uf: 28654.51, utm: 50322, minWage: 320500 },
-    { year: 2020, month: 6, uf: 28669.76, utm: 50322, minWage: 320500 },
-    { year: 2020, month: 7, uf: 28678.75, utm: 50322, minWage: 320500 },
-    { year: 2020, month: 8, uf: 28723.77, utm: 50322, minWage: 320500 },
-    { year: 2020, month: 9, uf: 28796.88, utm: 50322, minWage: 326500 },
-    { year: 2020, month: 10, uf: 28913.33, utm: 50679, minWage: 326500 },
-    { year: 2020, month: 11, uf: 29013.92, utm: 50973, minWage: 326500 },
-    { year: 2020, month: 12, uf: 29074.88, utm: 50973, minWage: 326500 }
 ].map(item => ({
     ...item,
     uta: item.utm * 12,
