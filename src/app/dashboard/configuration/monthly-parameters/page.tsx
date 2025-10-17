@@ -1,4 +1,3 @@
-
 'use client';
 import {
     Card,
@@ -14,13 +13,14 @@ import {
   import React from "react";
   import { useCollection, useFirestore, useDoc } from "@/firebase";
   import type { EconomicIndicator } from "@/lib/types";
-  import { doc, setDoc } from "firebase/firestore";
+  import { doc, setDoc, writeBatch, collection } from "firebase/firestore";
   import { useToast } from "@/hooks/use-toast";
   import { errorEmitter } from "@/firebase/error-emitter";
   import { FirestorePermissionError } from "@/firebase/errors";
   import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
   import { SelectedCompanyContext } from "../../layout";
   import { cn } from "@/lib/utils";
+  import { initialEconomicIndicators } from "@/lib/seed-data";
 
   export default function MonthlyParametersPage() {
     const { selectedCompany } = React.useContext(SelectedCompanyContext) || {};
@@ -42,13 +42,16 @@ import {
     const globalIndicatorRef = React.useMemo(() => 
         firestore ? doc(firestore, `economic-indicators/${indicatorId}`) : null,
     [firestore, indicatorId]);
-    const { data: globalIndicator } = useDoc<EconomicIndicator>(globalIndicatorRef);
+    const { data: globalIndicator, loading: globalLoading } = useDoc<EconomicIndicator>(globalIndicatorRef);
+
+    const { data: allGlobalIndicators, loading: allGlobalsLoading } = useCollection<EconomicIndicator>({ path: 'economic-indicators' });
+
 
     // Reference to the company-specific override
     const companyIndicatorRef = React.useMemo(() =>
         firestore && companyId ? doc(firestore, `companies/${companyId}/economic-indicators/${indicatorId}`) : null,
     [firestore, companyId, indicatorId]);
-    const { data: companyIndicator } = useDoc<EconomicIndicator>(companyIndicatorRef);
+    const { data: companyIndicator, loading: companyLoading } = useDoc<EconomicIndicator>(companyIndicatorRef);
 
     // List all company-specific indicators for the history table
     const { data: companyOverrides } = useCollection<EconomicIndicator>({
@@ -57,7 +60,10 @@ import {
     });
 
     React.useEffect(() => {
-      setIsLoading(true);
+      const loading = globalLoading || companyLoading;
+      setIsLoading(loading);
+      if (loading) return;
+
       // Prioritize company-specific indicator
       if (companyIndicator) {
           setIndicator(companyIndicator);
@@ -73,8 +79,7 @@ import {
           setIndicator({ id: indicatorId, year, month });
           setIsCompanySpecific(false);
       }
-      setIsLoading(false);
-    }, [year, month, globalIndicator, companyIndicator, indicatorId]);
+    }, [year, month, globalIndicator, companyIndicator, indicatorId, globalLoading, companyLoading]);
 
 
     const handleSave = async () => {
@@ -88,12 +93,12 @@ import {
             ...indicator,
             year: Number(year),
             month: Number(month),
-            uf: Number(indicator.uf) || undefined,
-            utm: Number(indicator.utm) || undefined,
-            uta: indicator.utm ? Number(indicator.utm) * 12 : undefined,
-            minWage: Number(indicator.minWage) || undefined,
-            gratificationCap: indicator.minWage ? Math.round((4.75 * Number(indicator.minWage))/12) : undefined,
+            uf: Number(indicator.uf) || 0,
+            utm: Number(indicator.utm) || 0,
+            uta: indicator.utm ? Number(indicator.utm) * 12 : 0,
+            minWage: Number(indicator.minWage) || 0,
         };
+        dataToSave.gratificationCap = dataToSave.minWage ? Math.round((4.75 * dataToSave.minWage)/12) : 0;
 
         try {
             await setDoc(docRef, dataToSave, { merge: true });
@@ -114,14 +119,47 @@ import {
         setIndicator(prev => ({ ...prev, [field]: value }));
     };
 
+    const handleSeedData = async () => {
+        if (!firestore) return;
+        const collectionPath = `economic-indicators`;
+        const batch = writeBatch(firestore);
+        
+        initialEconomicIndicators.forEach(indicatorData => {
+            const id = `${indicatorData.year}-${indicatorData.month.toString().padStart(2, '0')}`;
+            const docRef = doc(firestore, collectionPath, id);
+            batch.set(docRef, { ...indicatorData, id });
+        });
+
+        try {
+            await batch.commit();
+            toast({
+                title: "Datos Cargados",
+                description: "Los indicadores económicos han sido poblados exitosamente.",
+            });
+        } catch (error) {
+            console.error("Error seeding economic indicators: ", error);
+             errorEmitter.emit('permission-error', new FirestorePermissionError({
+                path: collectionPath,
+                operation: 'create',
+            }));
+        }
+    };
+
     return (
       <div className="grid gap-6">
         <Card>
           <CardHeader>
-            <CardTitle>Parámetros Económicos Mensuales</CardTitle>
-            <CardDescription>
-                Gestiona los parámetros para los cálculos. Los valores guardados aquí son específicos para la empresa <span className="font-bold">{selectedCompany?.name || ''}</span>.
-            </CardDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>Parámetros Económicos Mensuales</CardTitle>
+                <CardDescription>
+                    Gestiona los parámetros para los cálculos. Los valores guardados aquí son específicos para la empresa <span className="font-bold">{selectedCompany?.name || ''}</span>.
+                </CardDescription>
+              </div>
+               {!allGlobalsLoading && allGlobalIndicators?.length === 0 && (
+                  <Button size="sm" onClick={handleSeedData}>Poblar Datos Globales</Button>
+              )}
+            </div>
           </CardHeader>
           <CardContent>
               <form className="grid gap-6">
@@ -160,19 +198,19 @@ import {
                    <div className="grid gap-6 md:grid-cols-3">
                       <div className="space-y-2">
                           <Label htmlFor="uf">Valor UF (último día del mes)</Label>
-                          <Input id="uf" type="number" placeholder="Ingresa el valor de la UF" value={indicator.uf || ''} onChange={e => handleFieldChange('uf', e.target.value)} disabled={!companyId} />
+                          <Input id="uf" type="number" placeholder="Ingresa el valor de la UF" value={indicator.uf || ''} onChange={e => handleFieldChange('uf', e.target.value)} disabled={!companyId || isLoading} />
                       </div>
                       <div className="space-y-2">
                           <Label htmlFor="utm">Valor UTM</Label>
-                          <Input id="utm" type="number" placeholder="Ingresa el valor de la UTM" value={indicator.utm || ''} onChange={e => handleFieldChange('utm', e.target.value)} disabled={!companyId} />
+                          <Input id="utm" type="number" placeholder="Ingresa el valor de la UTM" value={indicator.utm || ''} onChange={e => handleFieldChange('utm', e.target.value)} disabled={!companyId || isLoading} />
                       </div>
                       <div className="space-y-2">
                           <Label htmlFor="sueldo-minimo">Sueldo Mínimo</Label>
-                          <Input id="sueldo-minimo" type="number" placeholder="Ingresa el sueldo mínimo" value={indicator.minWage || ''} onChange={e => handleFieldChange('minWage', e.target.value)} disabled={!companyId} />
+                          <Input id="sueldo-minimo" type="number" placeholder="Ingresa el sueldo mínimo" value={indicator.minWage || ''} onChange={e => handleFieldChange('minWage', e.target.value)} disabled={!companyId || isLoading} />
                       </div>
                   </div>
                   {isCompanySpecific && (
-                      <p className="text-sm text-blue-600">Estás viendo valores personalizados para esta empresa.</p>
+                      <p className="text-sm text-blue-600">Estás viendo valores personalizados para esta empresa. Los valores globales pueden ser diferentes.</p>
                   )}
                    <div className="flex justify-end">
                       <Button onClick={handleSave} disabled={isLoading || !companyId}>
@@ -204,7 +242,7 @@ import {
                             <TableRow><TableCell colSpan={4} className="text-center">Cargando historial...</TableCell></TableRow>
                         ) : companyOverrides && companyOverrides.length > 0 ? (
                            companyOverrides.sort((a,b) => b.id.localeCompare(a.id)).map(ind => (
-                               <TableRow key={ind.id} className={cn(ind.id === indicatorId && "bg-blue-100")}>
+                               <TableRow key={ind.id} className={cn(ind.id === indicatorId && "bg-blue-100 dark:bg-blue-900/50")}>
                                    <TableCell>{ind.year}-{ind.month.toString().padStart(2, '0')}</TableCell>
                                    <TableCell className="text-right">${ind.uf?.toLocaleString('es-CL', {minimumFractionDigits: 2})}</TableCell>
                                    <TableCell className="text-right">${ind.utm?.toLocaleString('es-CL')}</TableCell>
