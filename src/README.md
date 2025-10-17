@@ -7,7 +7,7 @@ Contador Cloud es una moderna aplicación de contabilidad multi-tenant diseñada
 
 - **Arquitectura Multi-Tenant Segura**:
     - **Roles de Usuario**: El sistema distingue entre `Admin` (para la gestión de la plataforma y los contadores) y `Accountant` (para la gestión contable de sus propias empresas).
-    - **Aislamiento de Datos**: Un contador solo puede ver y gestionar las empresas que él mismo ha creado. Las reglas de seguridad de Firestore garantizan que los datos de una empresa solo sean accesibles por su propietario.
+    - **Aislamiento de Datos**: Un contador solo puede ver y gestionar las empresas que él mismo ha creado. Las reglas de seguridad de Firestore garantizan que los datos de una empresa solo sean accesibles por su propietario. El rol de `Admin` está estrictamente limitado a la gestión de usuarios y **no tiene acceso a los datos de las empresas**.
     - **Gestión de Usuarios**: Los administradores pueden crear nuevos usuarios contadores directamente desde su panel de control.
 
 - **Integración con Firebase**:

@@ -72,10 +72,12 @@ import {
     const companiesQuery = React.useMemo(() => {
         if (!firestore || !userProfile) return null;
 
+        // Admins should not see any companies. Return null to prevent any query.
         if (userProfile.role === 'Admin') {
-            return collection(firestore, 'companies');
+            return null;
         }
 
+        // Accountants see only their assigned companies.
         if (userProfile.role === 'Accountant' && userProfile.companyIds && userProfile.companyIds.length > 0) {
             // Firestore 'in' queries are limited to 30 elements. We slice to stay within limits.
             return query(collection(firestore, 'companies'), where(documentId(), 'in', userProfile.companyIds.slice(0, 30)));
@@ -86,7 +88,7 @@ import {
 
     const { data: companies, loading: companiesLoading, error } = useCollection<Company>({ 
       query: companiesQuery,
-      // Disable query if the user profile is loading or if there's no valid query (e.g., an accountant with no companies)
+      // Disable query if the user profile is loading or if there's no valid query
       disabled: profileLoading || !companiesQuery
     });
     
@@ -95,7 +97,7 @@ import {
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false);
     const [companyToDelete, setCompanyToDelete] = React.useState<Company | null>(null);
     
-    const loading = profileLoading || companiesLoading;
+    const loading = profileLoading || (userProfile?.role !== 'Admin' && companiesLoading);
 
     const handleCreateNew = () => {
         setSelectedCompanyLocal({ id: `new-${Date.now()}`, name: '', rut: '', address: '', giro: '', active: true, ownerId: user?.uid });
@@ -232,12 +234,16 @@ import {
               <div className="flex items-center justify-between">
                   <div>
                       <CardTitle>Empresas</CardTitle>
-                      <CardDescription>Gestiona tus empresas cliente.</CardDescription>
+                      <CardDescription>
+                        {userProfile?.role === 'Admin' ? 'Los administradores no gestionan empresas.' : 'Gestiona tus empresas cliente.'}
+                      </CardDescription>
                   </div>
-                  <Button size="sm" className="gap-1" onClick={handleCreateNew}>
-                      <PlusCircle className="h-4 w-4" />
-                      Agregar Empresa
-                  </Button>
+                  {userProfile?.role === 'Accountant' && (
+                    <Button size="sm" className="gap-1" onClick={handleCreateNew}>
+                        <PlusCircle className="h-4 w-4" />
+                        Agregar Empresa
+                    </Button>
+                  )}
               </div>
           </CardHeader>
           <CardContent>
@@ -257,6 +263,10 @@ import {
                 {loading ? (
                   <TableRow>
                       <TableCell colSpan={5} className="text-center">Cargando...</TableCell>
+                  </TableRow>
+                ) : userProfile?.role === 'Admin' ? (
+                   <TableRow>
+                      <TableCell colSpan={5} className="text-center">La gestión de empresas no está disponible para administradores.</TableCell>
                   </TableRow>
                 ) : companies && companies.length > 0 ? (
                   companies.map((company) => (
@@ -283,14 +293,6 @@ import {
                               <DropdownMenuItem onClick={() => handleGoToSettings(company)}>
                                 Configuración
                               </DropdownMenuItem>
-                              {userProfile?.role === 'Admin' && (
-                                <>
-                                  <DropdownMenuSeparator />
-                                  <DropdownMenuItem className="text-destructive" onClick={() => handleOpenDeleteDialog(company)}>
-                                    Eliminar
-                                  </DropdownMenuItem>
-                                </>
-                              )}
                           </DropdownMenuContent>
                           </DropdownMenu>
                       </TableCell>
