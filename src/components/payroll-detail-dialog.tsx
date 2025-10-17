@@ -1,3 +1,4 @@
+
 'use client';
 
 import {
@@ -10,12 +11,14 @@ import {
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
-import { Table, TableBody, TableCell, TableRow, TableFooter as TableFooterOriginal } from "@/components/ui/table"
+import { Table, TableBody, TableCell, TableRow, TableHeader, TableHead, TableFooter } from "@/components/ui/table"
 import type { Employee } from "@/lib/types"
 import React from "react";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import { cn } from "@/lib/utils";
+import { Logo } from "./logo";
+import { SelectedCompanyContext } from "@/app/dashboard/layout";
 
 export type SimulatedPayroll = {
     id: string;
@@ -47,12 +50,13 @@ const formatCurrency = (value: number) => {
 
 export function PayrollDetailDialog({ isOpen, onClose, data }: PayrollDetailDialogProps) {
     const payrollContentRef = React.useRef<HTMLDivElement>(null);
-    const [pdfUrl, setPdfUrl] = React.useState<string | null>(null);
+    const { selectedCompany } = React.useContext(SelectedCompanyContext) || {};
+
+    const [pdf, setPdf] = React.useState<jsPDF | null>(null);
     const [isPreview, setIsPreview] = React.useState(false);
 
-
     const handleClose = () => {
-        setPdfUrl(null);
+        setPdf(null);
         setIsPreview(false);
         onClose();
     }
@@ -69,14 +73,14 @@ export function PayrollDetailDialog({ isOpen, onClose, data }: PayrollDetailDial
             });
     
             const imgData = canvas.toDataURL('image/png');
-            const pdf = new jsPDF('p', 'mm', 'a4');
-            const pdfWidth = pdf.internal.pageSize.getWidth();
-            const pdfHeight = pdf.internal.pageSize.getHeight();
+            const pdfDoc = new jsPDF('p', 'mm', 'a4');
+            const pdfWidth = pdfDoc.internal.pageSize.getWidth();
+            const pdfHeight = pdfDoc.internal.pageSize.getHeight();
             const imgWidth = canvas.width;
             const imgHeight = canvas.height;
             const ratio = imgWidth / imgHeight;
             
-            let finalImgWidth = pdfWidth - 20; // with margin
+            let finalImgWidth = pdfWidth - 20;
             let finalImgHeight = finalImgWidth / ratio;
     
             if (finalImgHeight > pdfHeight - 20) {
@@ -87,8 +91,8 @@ export function PayrollDetailDialog({ isOpen, onClose, data }: PayrollDetailDial
             const xOffset = (pdfWidth - finalImgWidth) / 2;
             const yOffset = 10;
             
-            pdf.addImage(imgData, 'PNG', xOffset, yOffset, finalImgWidth, finalImgHeight);
-            return pdf;
+            pdfDoc.addImage(imgData, 'PNG', xOffset, yOffset, finalImgWidth, finalImgHeight);
+            return pdfDoc;
         } catch (error) {
             console.error("Error generating PDF:", error);
             return null;
@@ -96,21 +100,19 @@ export function PayrollDetailDialog({ isOpen, onClose, data }: PayrollDetailDial
     };
     
     const togglePreview = async () => {
-        if (isPreview) {
+       if (isPreview) {
             setIsPreview(false);
-            setPdfUrl(null);
-            return;
-        }
-
-        const pdf = await generatePdf();
-        if (pdf) {
-            setPdfUrl(pdf.output('datauristring'));
-            setIsPreview(true);
+        } else {
+            const generatedPdf = await generatePdf();
+            if (generatedPdf) {
+                setPdf(generatedPdf);
+                setIsPreview(true);
+            }
         }
     };
 
     const downloadPdf = async () => {
-        const pdfToDownload = await generatePdf();
+        const pdfToDownload = pdf || await generatePdf();
         if (pdfToDownload) {
             pdfToDownload.save(`liquidacion_${data?.employee.rut}_${data?.payroll.period.replace(/\s+/g, '_')}.pdf`);
         }
@@ -122,7 +124,7 @@ export function PayrollDetailDialog({ isOpen, onClose, data }: PayrollDetailDial
 
     return (
         <Dialog open={isOpen} onOpenChange={handleClose}>
-            <DialogContent className="max-w-2xl">
+            <DialogContent className="max-w-4xl">
                 <DialogHeader>
                     <DialogTitle>Liquidación de Sueldo (Simulación)</DialogTitle>
                     <DialogDescription>
@@ -131,65 +133,89 @@ export function PayrollDetailDialog({ isOpen, onClose, data }: PayrollDetailDial
                 </DialogHeader>
 
                 <div className="relative">
-                     {/* The content to be captured, always rendered but conditionally visible */}
-                    <div ref={payrollContentRef} className={cn("p-4 bg-white text-black transition-opacity", isPreview && "opacity-0 absolute -z-10")}>
-                        <div className="text-center mb-4">
-                            <h2 className="text-xl font-bold">Liquidación de Sueldo</h2>
-                            <h3 className="text-lg">{payroll.period}</h3>
-                        </div>
-                        <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm mb-4">
-                            <div><span className="font-medium">Nombre:</span> {employee.firstName} {employee.lastName}</div>
-                            <div><span className="font-medium">RUT:</span> {employee.rut}</div>
-                            <div><span className="font-medium">Cargo:</span> {employee.position}</div>
-                        </div>
-                        
-                        <Separator className="my-4 bg-gray-300" />
-
-                        <div className="grid grid-cols-2 gap-8">
-                            <div>
-                                <h4 className="font-semibold mb-2 underline">HABERES</h4>
-                                <Table>
-                                    <TableBody>
-                                        <TableRow><TableCell>Sueldo Base</TableCell><TableCell className="text-right">{formatCurrency(payroll.baseSalary)}</TableCell></TableRow>
-                                        <TableRow><TableCell>Gratificación Legal</TableCell><TableCell className="text-right">{formatCurrency(payroll.gratification)}</TableCell></TableRow>
-                                        <TableRow><TableCell>Otros Haberes</TableCell><TableCell className="text-right">{formatCurrency(payroll.otherEarnings)}</TableCell></TableRow>
-                                    </TableBody>
-                                    <TableFooterOriginal>
-                                        <TableRow className="font-bold bg-gray-100"><TableCell>Total Haberes</TableCell><TableCell className="text-right">{formatCurrency(payroll.totalEarnings)}</TableCell></TableRow>
-                                    </TableFooterOriginal>
-                                </Table>
+                    <div 
+                        className={cn("bg-white text-black transition-opacity", isPreview && "opacity-0 absolute -z-10 pointer-events-none")}
+                        ref={payrollContentRef}
+                    >
+                       <div className="p-8 border border-gray-300 rounded-lg">
+                            {/* Header */}
+                            <div className="flex justify-between items-start mb-6">
+                                <div>
+                                    <h1 className="text-2xl font-bold text-gray-800">Liquidación de Sueldo</h1>
+                                    <p className="text-gray-600">Período: {payroll.period}</p>
+                                </div>
+                                <div className="text-right">
+                                    <Logo className="justify-end"/>
+                                    <p className="text-sm text-gray-500 mt-1">{selectedCompany?.name}</p>
+                                    <p className="text-xs text-gray-500">{selectedCompany?.rut}</p>
+                                </div>
                             </div>
-                            <div>
-                                <h4 className="font-semibold mb-2 underline">DESCUENTOS</h4>
-                                <Table>
-                                    <TableBody>
-                                        <TableRow><TableCell>Cotización AFP ({employee.afp})</TableCell><TableCell className="text-right">{formatCurrency(payroll.afpDiscount)}</TableCell></TableRow>
-                                        <TableRow><TableCell>Cotización Salud ({employee.healthSystem})</TableCell><TableCell className="text-right">{formatCurrency(payroll.healthDiscount)}</TableCell></TableRow>
-                                    </TableBody>
-                                    <TableFooterOriginal>
-                                        <TableRow className="font-bold bg-gray-100"><TableCell>Total Descuentos</TableCell><TableCell className="text-right">{formatCurrency(payroll.totalDiscounts)}</TableCell></TableRow>
-                                    </TableFooterOriginal>
-                                </Table>
+                            
+                            {/* Employee Details */}
+                            <div className="border-t border-b border-gray-200 py-3 mb-6">
+                                <h3 className="text-base font-semibold mb-2 text-gray-700">Información del Trabajador</h3>
+                                <div className="grid grid-cols-2 gap-x-8 gap-y-1 text-sm">
+                                    <div><span className="font-medium text-gray-600">Nombre:</span> {employee.firstName} {employee.lastName}</div>
+                                    <div><span className="font-medium text-gray-600">RUT:</span> {employee.rut}</div>
+                                    <div><span className="font-medium text-gray-600">Cargo:</span> {employee.position}</div>
+                                </div>
                             </div>
-                        </div>
 
-                         <Separator className="my-4 bg-gray-300" />
-                    
-                        <div className="flex justify-between items-center bg-gray-700 text-white p-3 rounded-md mt-4">
-                            <span className="text-lg font-bold">ALCANCE LÍQUIDO</span>
-                            <span className="text-lg font-bold">{formatCurrency(payroll.netSalary)}</span>
-                        </div>
+                            {/* Main Table */}
+                            <Table>
+                                <TableHeader>
+                                    <TableRow className="bg-gray-50">
+                                        <TableHead className="font-bold text-gray-600">Concepto</TableHead>
+                                        <TableHead className="text-right font-bold text-gray-600">Haberes</TableHead>
+                                        <TableHead className="text-right font-bold text-gray-600">Descuentos</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    <TableRow><TableCell>Sueldo Base</TableCell><TableCell className="text-right">{formatCurrency(payroll.baseSalary)}</TableCell><TableCell></TableCell></TableRow>
+                                    <TableRow><TableCell>Gratificación Legal</TableCell><TableCell className="text-right">{formatCurrency(payroll.gratification)}</TableCell><TableCell></TableCell></TableRow>
+                                    <TableRow><TableCell>Otros Haberes (Movilización, Colación, etc.)</TableCell><TableCell className="text-right">{formatCurrency(payroll.otherEarnings)}</TableCell><TableCell></TableCell></TableRow>
+                                    <TableRow><TableCell>Cotización AFP ({employee.afp})</TableCell><TableCell></TableCell><TableCell className="text-right">{formatCurrency(payroll.afpDiscount)}</TableCell></TableRow>
+                                    <TableRow><TableCell>Cotización Salud ({employee.healthSystem})</TableCell><TableCell></TableCell><TableCell className="text-right">{formatCurrency(payroll.healthDiscount)}</TableCell></TableRow>
+                                </TableBody>
+                                <TableFooter>
+                                    <TableRow className="bg-gray-100 font-bold">
+                                        <TableCell>Totales</TableCell>
+                                        <TableCell className="text-right">{formatCurrency(payroll.totalEarnings)}</TableCell>
+                                        <TableCell className="text-right">{formatCurrency(payroll.totalDiscounts)}</TableCell>
+                                    </TableRow>
+                                </TableFooter>
+                            </Table>
+
+                             {/* Grand Total */}
+                             <div className="flex justify-end mt-6">
+                                <div className="w-full max-w-sm space-y-2">
+                                    <div className="flex justify-between">
+                                        <span className="text-gray-600 font-medium">Total Haberes:</span>
+                                        <span>{formatCurrency(payroll.totalEarnings)}</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                        <span className="text-gray-600 font-medium">Total Descuentos:</span>
+                                        <span>{formatCurrency(payroll.totalDiscounts)}</span>
+                                    </div>
+                                    <Separator className="my-2"/>
+                                    <div className="flex justify-between text-lg font-bold text-gray-800">
+                                        <span>Sueldo Líquido a Pagar:</span>
+                                        <span>{formatCurrency(payroll.netSalary)}</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                       </div>
                     </div>
-
                     {/* PDF Preview Iframe */}
                     {isPreview && (
                         <div className="h-[600px] border rounded-md">
-                            {pdfUrl && <iframe src={pdfUrl} width="100%" height="100%" title="Vista previa de liquidación"/>}
+                            {pdf && <iframe src={pdf.output('datauristring')} width="100%" height="100%" title="Vista previa de liquidación"/>}
                         </div>
                     )}
                 </div>
 
-                <DialogFooter>
+                <DialogFooter className="gap-2">
                     <Button type="button" variant="secondary" onClick={handleClose}>Cerrar</Button>
                     <Button type="button" variant="outline" onClick={togglePreview}>
                         {isPreview ? "Ocultar Vista Previa" : "Vista Previa PDF"}
