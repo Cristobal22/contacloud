@@ -1,3 +1,4 @@
+
 'use client';
 
 import {
@@ -115,16 +116,16 @@ export function PayrollDetailDialog({ isOpen, onClose, data }: PayrollDetailDial
 
     return (
         <Dialog open={isOpen} onOpenChange={handleClose}>
-            <DialogContent className="max-w-4xl">
-                <DialogHeader>
+            <DialogContent className="max-w-4xl grid-rows-[auto_1fr_auto] p-0 max-h-[90svh]">
+                <DialogHeader className="p-6 pb-0">
                     <DialogTitle>Liquidación de Sueldo</DialogTitle>
                     <DialogDescription>
                         {`Detalle para ${employee.firstName} para el período de ${payroll.period}.`}
                     </DialogDescription>
                 </DialogHeader>
 
-                <div className="relative">
-                    <ScrollArea className="h-[600px] w-full">
+                <div className="relative overflow-y-auto px-6">
+                    <div className="h-[600px] w-full">
                         <div 
                             className={cn(
                                 "bg-white text-black transition-opacity duration-300", 
@@ -216,19 +217,19 @@ export function PayrollDetailDialog({ isOpen, onClose, data }: PayrollDetailDial
                                 </div>
                         </div>
                         </div>
-                    </ScrollArea>
+                    </div>
                     
                     {/* PDF Preview Iframe */}
                     {isPreview && (
-                        <div className="absolute top-0 left-0 right-0 bottom-0 bg-white p-6 pt-0">
-                             <div className="h-[600px] border rounded-md">
+                        <div className="absolute top-[80px] left-6 right-6 bottom-[80px] bg-white">
+                             <div className="h-full border rounded-md">
                                 {pdfInstance && <iframe src={pdfInstance.output('datauristring')} width="100%" height="100%" title="Vista previa de liquidación"/>}
                             </div>
                         </div>
                     )}
                 </div>
 
-                <DialogFooter>
+                <DialogFooter className="p-6 pt-0">
                     <Button type="button" variant="secondary" onClick={handleClose}>Cerrar</Button>
                     <Button type="button" variant="outline" onClick={togglePreview}>
                         {isPreview ? "Ocultar Vista Previa" : "Vista Previa PDF"}
