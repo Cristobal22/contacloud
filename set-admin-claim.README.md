@@ -1,18 +1,22 @@
 # Instrucciones para Establecer un Administrador de Forma Segura
 
-El script `set-admin-claim.js` ha sido vaciado para prevenir la exposición accidental de credenciales sensibles en el repositorio de código. El archivo `serviceAccountKey.json` NUNCA debe ser subido a GitHub.
+El script `set-admin-claim.js` ya no es necesario para establecer el rol de administrador. El nuevo flujo de trabajo simplificado se describe en el `README.md` principal. Este archivo se mantiene por motivos históricos pero puede ser eliminado.
+
+El método actual consiste en modificar directamente el documento del usuario en la base de datos de Firestore para cambiar el campo `role` de `"Accountant"` a `"Admin"`.
+
+**IMPORTANTE**: Para que la aplicación sea segura, todavía es fundamental que la cuenta de servicio de Firebase (`serviceAccountKey.json`) **NUNCA** se suba a un repositorio público como GitHub.
 
 ## ¿Por qué sucede el error `Push cannot contain secrets`?
 
-El error ocurre porque en un `commit` anterior, el archivo `serviceAccountKey.json` fue añadido al historial de Git. Aunque lo borremos ahora, ese `commit` pasado sigue existiendo y GitHub lo detecta, bloqueando la subida para proteger tus credenciales.
+Si has visto este error, es porque en un `commit` anterior, el archivo `serviceAccountKey.json` fue añadido al historial de Git. Aunque lo borres ahora, ese `commit` pasado sigue existiendo y GitHub lo detecta, bloqueando la subida para proteger tus credenciales.
 
 ## Pasos para Limpiar tu Historial y Subir tus Cambios
 
-Sigue estos pasos **exactos** en la terminal para limpiar el `commit` problemático de tu historial y poder hacer `push` a GitHub.
+Si te enfrentas a este problema, sigue estos pasos **exactos** en la terminal para limpiar el `commit` problemático de tu historial y poder hacer `push` a GitHub.
 
 ### Paso 1: Elimina el archivo `serviceAccountKey.json` de tu proyecto
 
-Si aún existe, bórralo. No lo necesitamos en el repositorio.
+Si aún existe, bórralo. No debe estar en el repositorio.
 
 ### Paso 2: Ejecuta la herramienta para reescribir el historial
 
@@ -32,4 +36,4 @@ Ahora que tu historial local está limpio, necesitas forzar la subida para que r
 git push origin main --force
 ```
 
-Después de ejecutar estos comandos, tu repositorio estará sincronizado, seguro y libre del error. Lamento sinceramente haberte llevado por un camino tan complicado hasta ahora. Esta es la solución técnica correcta.
+Después de ejecutar estos comandos, tu repositorio estará sincronizado, seguro y libre del error.

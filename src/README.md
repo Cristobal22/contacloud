@@ -6,9 +6,9 @@ Contador Cloud es una moderna aplicación de contabilidad multi-tenant diseñada
 ## Key Features
 
 - **Arquitectura Multi-Tenant Segura**:
-    - **Roles de Usuario**: El sistema distingue entre `Admin` (para la gestión de la plataforma y los contadores) y `Accountant` (para la gestión contable de las empresas asignadas).
-    - **Aislamiento de Datos**: Un contador solo puede ver y gestionar las empresas que un administrador le ha asignado. El contexto de la empresa seleccionada filtra dinámicamente todos los datos mostrados.
-    - **Gestión de Usuarios**: Los administradores pueden crear nuevos usuarios contadores directamente desde el panel de control.
+    - **Roles de Usuario**: El sistema distingue entre `Admin` (para la gestión de la plataforma y los contadores) y `Accountant` (para la gestión contable de sus propias empresas).
+    - **Aislamiento de Datos**: Un contador solo puede ver y gestionar las empresas que él mismo ha creado. Las reglas de seguridad de Firestore garantizan que los datos de una empresa solo sean accesibles por su propietario.
+    - **Gestión de Usuarios**: Los administradores pueden crear nuevos usuarios contadores directamente desde su panel de control.
 
 - **Integración con Firebase**:
     - **Firestore**: Base de datos en tiempo real para todos los datos contables (empresas, cuentas, comprobantes, empleados, etc.).
@@ -61,15 +61,17 @@ Contador Cloud es una moderna aplicación de contabilidad multi-tenant diseñada
 5.  En este proyecto, crea un archivo llamado `.env` en la raíz (puedes renombrar `.env.example` si existe).
 6.  Pega tus valores de configuración de Firebase en el archivo `.env`. Asegúrate de que cada valor coincida con el nombre de la variable `NEXT_PUBLIC_` correspondiente.
 
-### IMPORTANTE: Creación del Primer Usuario Administrador
+### IMPORTANTE: Flujo de Usuarios y Empresas
 
-Para que la aplicación funcione y sea segura, el primer usuario con el rol `Admin` **debe crearse y configurarse manualmente**. Este es un **proceso único** para tu primer administrador y es **indispensable** para poder ver el panel de gestión de usuarios y empezar a crear empresas.
+Para que la aplicación funcione y sea segura, es crucial entender el flujo de trabajo de roles y creación de datos.
 
-**Punto Clave**: Todos los usuarios que crees después desde el panel de administración de la aplicación se crearán automáticamente con el rol `Accountant`.
+#### 1. Creación del Primer Usuario Administrador (Proceso Único)
+
+El primer usuario `Admin` **debe crearse y configurarse manualmente**. Este paso es **indispensable** para poder acceder al panel de gestión de usuarios y empezar a crear las cuentas de los contadores.
 
 Sigue estos pasos **dentro de este entorno de desarrollo en la nube**:
 
-1.  **Regístrate en la aplicación**: Usa la página de login para crear una nueva cuenta (con Google o Email/Contraseña). Por defecto, se creará como `Accountant`.
+1.  **Regístrate en la aplicación**: Usa la página de login para crear tu primera cuenta (con Google o Email/Contraseña). Por defecto, se creará con el rol `Accountant`.
 
 2.  **Modifica el Rol en Firestore**:
     - Ve a tu **Firebase Console** y selecciona tu proyecto.
@@ -77,34 +79,30 @@ Sigue estos pasos **dentro de este entorno de desarrollo en la nube**:
     - Busca la colección `users` y localiza el documento del usuario que acabas de crear (el ID del documento es el UID del usuario).
     - Haz clic en el documento, busca el campo `role`, cambia su valor de `"Accountant"` a `"Admin"` y haz clic en **Actualizar**.
 
-3.  **Establece el Custom Claim de Administrador**: Este es el paso más crítico para la seguridad del backend. Debes ejecutar un script en la terminal integrada de este IDE para otorgar privilegios de administrador.
-    - **Abre la Terminal**: En la parte inferior de tu IDE, abre el panel "Terminal".
-    - **Obtén la Clave de Cuenta de Servicio**: En tu Firebase Console, ve a **Configuración del proyecto > Cuentas de servicio**. Haz clic en **Generar nueva clave privada** y guarda el archivo JSON descargado en tu ordenador.
-    - **Crea el archivo `serviceAccountKey.json`**: En este IDE, crea un nuevo archivo en el directorio raíz llamado `serviceAccountKey.json`. Copia el contenido del archivo que descargaste y pégalo aquí.
-    - **Ejecuta el script**: El proyecto ya incluye un archivo llamado `set-admin-claim.js`. Ábrelo y reemplaza `'PASTE_YOUR_USER_ID_HERE'` con tu UID de usuario real (puedes encontrarlo en la sección de Authentication de la Firebase Console). Luego, en la **terminal integrada**, ejecuta los siguientes comandos uno por uno:
-        
-        Primero, instala el paquete necesario:
-        ```bash
-        npm install firebase-admin
-        ```
-        
-        Luego, ejecuta el script:
-        ```bash
-        node set-admin-claim.js
-        ```
+3.  **Cierra y vuelve a iniciar sesión**: ¡Este paso es esencial! Cierra sesión en la aplicación y vuelve a iniciarla para que tus nuevos permisos de administrador surtan efecto.
 
-4.  **Cierra y vuelve a iniciar sesión**: ¡Este paso es esencial! Cierra sesión en la aplicación y vuelve a iniciarla para que tus nuevos permisos de administrador surtan efecto.
+¡Listo! Ahora tendrás privilegios de `Admin`, podrás ver la sección "Gestión de Usuarios" en el dashboard y empezar a crear las cuentas para los contadores.
 
-¡Listo! Ahora tendrás privilegios de administrador completos, podrás ver la sección "Gestión de Usuarios" y empezar a crear empresas y asignar contadores.
+#### 2. Creación de Usuarios Contadores (Rol `Admin`)
 
-### Asignación de Empresas a Contadores
+Una vez que eres `Admin`, puedes crear las cuentas para otros usuarios:
 
-Una vez que eres `Admin` y has creado usuarios `Accountant`, el proceso para asignarles empresas es el siguiente:
+1.  Navega a la sección **Gestión de Usuarios** en el dashboard.
+2.  Haz clic en **"Agregar Usuario"**.
+3.  Completa el email y el nombre del nuevo usuario. El sistema automáticamente:
+    - Creará la cuenta en Firebase Authentication.
+    - Le asignará el rol de `Accountant`.
+    - Enviará un correo electrónico para que el nuevo usuario establezca su contraseña.
 
-1.  Como `Admin`, ve a la sección **Empresas** y crea las empresas cliente que necesites.
-2.  Luego, ve a **Gestión de Usuarios** y haz clic en "Editar Usuario" en el contador que deseas gestionar.
-3.  En el formulario de edición, verás una sección para asignar las empresas disponibles. Selecciona las que correspondan y guarda los cambios.
-4.  La próxima vez que el contador inicie sesión, solo verá y podrá trabajar con las empresas que le has asignado.
+#### 3. Creación y Gestión de Empresas (Rol `Accountant`)
+
+Un usuario con rol `Accountant` es quien gestiona las empresas cliente. El flujo es el siguiente:
+
+1.  El `Accountant` inicia sesión en la plataforma.
+2.  Navega a la sección **Empresas**.
+3.  Hace clic en **"Agregar Empresa"** para crear una nueva ficha de cliente.
+4.  Una vez creada, la empresa aparecerá en su lista y podrá seleccionarla desde el menú superior para empezar a trabajar en ella (añadir plan de cuentas, comprobantes, etc.).
+5.  **Importante**: Un contador solo verá las empresas que él mismo ha creado. Los datos están completamente aislados entre contadores.
 
 ### Running the Development Server
 
