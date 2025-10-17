@@ -113,6 +113,8 @@ export default function UserManagement() {
         setIsProcessing(true);
 
         try {
+            // This part is temporary for user creation in the client.
+            // Ideally, this should be a backend function for security.
             const tempPassword = Math.random().toString(36).slice(-8) + 'A1!';
             const userCredential = await createUserWithEmailAndPassword(auth, newUser.email, tempPassword);
             const user = userCredential.user;
@@ -137,7 +139,8 @@ export default function UserManagement() {
                 createdUserIds: arrayUnion(user.uid)
             });
             
-            await batch.commit(); // This is the crucial line that saves to the database
+            // This is the crucial line that saves to the database
+            await batch.commit(); 
             
             await sendPasswordResetEmail(auth, user.email!);
 
@@ -391,4 +394,3 @@ export default function UserManagement() {
         </>
     );
 }
-    
