@@ -94,10 +94,7 @@ import {
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   const sortedAccounts = React.useMemo(() => {
-    // The data is now displayed in the order it comes from Firestore,
-    // which should be insertion order if not otherwise specified.
-    // If seeded, it will be in the order of `initialChartOfAccounts`.
-    return accounts?.sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true })) || [];
+    return accounts?.sort((a, b) => a.code.localeCompare(b.code)) || [];
   }, [accounts]);
 
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
