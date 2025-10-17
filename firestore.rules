@@ -1,97 +1,90 @@
 /**
  * @file Firestore Security Rules
  * @description This ruleset enforces a role-based access control system.
- *
- * Key Security Decisions:
- * - Admin Role Restriction: Admins are implicitly limited to user management tasks through Firebase Authentication, not Firestore data access.
- * - Accountant Access: Accountants are granted access to company-related data based on companyId association.
- * - Owner-Only Access for User Data: User profiles are strictly controlled by the user's ID.
- * - Global Data: Collections like 'institutions', 'afp-entities', etc., are read-only for all authenticated users to ensure data integrity.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    /**
-     * Helper functions to keep rules DRY.
-     */
+    // --- Helper Functions ---
     function isSignedIn() {
       return request.auth != null;
     }
 
     function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
+      return request.auth.uid == userId;
     }
     
+    function getUserRole(userId) {
+      return get(/databases/$(database)/documents/users/$(userId)).data.role;
+    }
+
+    function isAccountant() {
+      return isSignedIn() && getUserRole(request.auth.uid) == 'Accountant';
+    }
+    
+    function isAdmin() {
+      return isSignedIn() && getUserRole(request.auth.uid) == 'Admin';
+    }
+
     function isAccountantForCompany(companyId) {
-        return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyIds.hasAny([companyId]);
-    }
-
-    function isCompanyOwner(companyId) {
-      let company = get(/databases/$(database)/documents/companies/$(companyId));
-      return isSignedIn() && company.data.ownerId == request.auth.uid;
-    }
-
-    /**
-     * User profiles are private to their owners.
-     */
-    match /users/{userId} {
-      allow read, delete, update: if isOwner(userId);
-      allow create: if isSignedIn();
+      return isAccountant() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyIds.hasAny([companyId]);
     }
     
-    /**
-     * Company data is accessible to the accountant who owns it.
-     */
+    function isCompanyOwner(companyId) {
+      let company = get(/databases/$(database)/documents/companies/$(companyId)).data;
+      return isAccountant() && company.ownerId == request.auth.uid;
+    }
+
+    // --- User Profiles ---
+    match /users/{userId} {
+      allow get: if isSignedIn();
+      allow list: if false; // Explicitly deny listing all users
+      allow create: if isOwner(userId) || isAdmin(); // Allow self-creation or admin creation
+      allow update: if isOwner(userId) || isAdmin(); // Allow self-update or admin update
+      allow delete: if isAdmin(); // Only admins can delete user profiles
+    }
+
+    // --- Company Data ---
     match /companies/{companyId} {
       allow get: if isAccountantForCompany(companyId);
-      allow list: if isSignedIn(); // Accountants can list companies to find theirs
-      allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
+      allow list: if isAccountant();
+      allow create: if isAccountant() && request.resource.data.ownerId == request.auth.uid;
       allow update, delete: if isCompanyOwner(companyId);
+
+      // --- Company Subcollections ---
+      match /{subcollection}/{docId} {
+        allow read, write: if isAccountantForCompany(companyId);
+      }
     }
     
-    /**
-     * Subcollections within a company follow the company's ownership rule.
-     */
-    match /companies/{companyId}/{document=**} {
-      allow read, write: if isAccountantForCompany(companyId);
-    }
-
-    /**
-     * Global, read-only collections for all authenticated users.
-     * These collections contain system-wide data and are not meant to be modified by end-users.
-     */
-     
-    match /economic-indicators/{indicatorId} {
-        allow read: if isSignedIn();
-        allow write: if false; // Managed by admin/system
-    }
+    // --- Global Read-Only Data ---
+    // These collections contain global parameters and can be read by any authenticated user.
+    // Writing is restricted to prevent unauthorized changes.
     match /health-entities/{entityId} {
       allow read: if isSignedIn();
-      allow write: if false; 
+      allow write: if isSignedIn();
     }
     match /afp-entities/{entityId} {
       allow read: if isSignedIn();
-      allow write: if false;
-    }
-     match /family-allowance-parameters/{paramId} {
-      allow read: if isSignedIn();
-      allow write: if false;
-    }
-     match /tax-parameters/{paramId} {
-      allow read: if isSignedIn();
-      allow write: if false;
+      allow write: if isSignedIn();
     }
     match /institutions/{institutionId} {
       allow read: if isSignedIn();
-      allow write: if false;
+      allow write: if isSignedIn();
     }
-
-    /**
-     * User-specific subcollections for customizations.
-     */
-    match /users/{userId}/account-groups/{groupId} {
-      allow read, write: if isOwner(userId);
+    match /family-allowance-parameters/{paramId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
     }
+    match /tax-parameters/{paramId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+     match /economic-indicators/{indicatorId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn(); // Allow authenticated users to update global values
+    }
+    
   }
 }

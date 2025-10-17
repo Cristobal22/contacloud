@@ -11,7 +11,7 @@ import {
   import { Button } from "@/components/ui/button"
   import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
   import React from "react";
-  import { useCollection, useFirestore, useDoc } from "@/firebase";
+  import { useCollection, useFirestore, useDoc, useUser } from "@/firebase";
   import type { EconomicIndicator } from "@/lib/types";
   import { doc, setDoc, writeBatch, collection } from "firebase/firestore";
   import { useToast } from "@/hooks/use-toast";
@@ -21,11 +21,14 @@ import {
   import { SelectedCompanyContext } from "../../layout";
   import { cn } from "@/lib/utils";
   import { initialEconomicIndicators } from "@/lib/seed-data";
+  import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+  import { ChevronDown } from "lucide-react";
 
   export default function MonthlyParametersPage() {
     const { selectedCompany } = React.useContext(SelectedCompanyContext) || {};
     const companyId = selectedCompany?.id;
     const firestore = useFirestore();
+    const { user } = useUser();
     const { toast } = useToast();
     const currentYear = new Date().getFullYear();
     const currentMonth = new Date().getMonth() + 1;
@@ -82,12 +85,20 @@ import {
     }, [year, month, globalIndicator, companyIndicator, indicatorId, globalLoading, companyLoading]);
 
 
-    const handleSave = async () => {
-        if (!firestore || !companyId || !indicator.id) return;
+    const handleSave = async (scope: 'company' | 'global') => {
+        if (!firestore || !user || !indicator.id) return;
+        if (scope === 'company' && !companyId) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Selecciona una empresa para guardar parámetros específicos.'});
+            return;
+        }
         
         setIsLoading(true);
-        // Always save to the company-specific path
-        const docRef = doc(firestore, `companies/${companyId}/economic-indicators`, indicator.id);
+        
+        const path = scope === 'company'
+            ? `companies/${companyId}/economic-indicators`
+            : 'economic-indicators';
+        
+        const docRef = doc(firestore, path, indicator.id);
         
         const dataToSave: Partial<EconomicIndicator> = {
             ...indicator,
@@ -102,9 +113,12 @@ import {
 
         try {
             await setDoc(docRef, dataToSave, { merge: true });
-            toast({ title: 'Parámetros Guardados', description: 'Los valores personalizados para esta empresa han sido guardados.' });
+            const description = scope === 'company'
+                ? `Los valores personalizados para ${selectedCompany?.name} han sido guardados.`
+                : 'Los valores globales han sido actualizados.';
+            toast({ title: 'Parámetros Guardados', description });
         } catch (error) {
-            console.error("Error saving company-specific indicators", error);
+            console.error("Error saving indicators:", error);
             errorEmitter.emit('permission-error', new FirestorePermissionError({
                 path: docRef.path,
                 operation: 'update',
@@ -153,7 +167,7 @@ import {
               <div>
                 <CardTitle>Parámetros Económicos Mensuales</CardTitle>
                 <CardDescription>
-                    Gestiona los parámetros para los cálculos. Los valores guardados aquí son específicos para la empresa <span className="font-bold">{selectedCompany?.name || ''}</span>.
+                    Gestiona los parámetros para los cálculos. Los valores guardados aquí pueden ser globales o específicos por empresa.
                 </CardDescription>
               </div>
                {!allGlobalsLoading && allGlobalIndicators?.length === 0 && (
@@ -198,24 +212,37 @@ import {
                    <div className="grid gap-6 md:grid-cols-3">
                       <div className="space-y-2">
                           <Label htmlFor="uf">Valor UF (último día del mes)</Label>
-                          <Input id="uf" type="number" placeholder="Ingresa el valor de la UF" value={indicator.uf || ''} onChange={e => handleFieldChange('uf', e.target.value)} disabled={!companyId || isLoading} />
+                          <Input id="uf" type="number" placeholder="Ingresa el valor de la UF" value={indicator.uf || ''} onChange={e => handleFieldChange('uf', e.target.value)} disabled={!user || isLoading} />
                       </div>
                       <div className="space-y-2">
                           <Label htmlFor="utm">Valor UTM</Label>
-                          <Input id="utm" type="number" placeholder="Ingresa el valor de la UTM" value={indicator.utm || ''} onChange={e => handleFieldChange('utm', e.target.value)} disabled={!companyId || isLoading} />
+                          <Input id="utm" type="number" placeholder="Ingresa el valor de la UTM" value={indicator.utm || ''} onChange={e => handleFieldChange('utm', e.target.value)} disabled={!user || isLoading} />
                       </div>
                       <div className="space-y-2">
                           <Label htmlFor="sueldo-minimo">Sueldo Mínimo</Label>
-                          <Input id="sueldo-minimo" type="number" placeholder="Ingresa el sueldo mínimo" value={indicator.minWage || ''} onChange={e => handleFieldChange('minWage', e.target.value)} disabled={!companyId || isLoading} />
+                          <Input id="sueldo-minimo" type="number" placeholder="Ingresa el sueldo mínimo" value={indicator.minWage || ''} onChange={e => handleFieldChange('minWage', e.target.value)} disabled={!user || isLoading} />
                       </div>
                   </div>
                   {isCompanySpecific && (
                       <p className="text-sm text-blue-600">Estás viendo valores personalizados para esta empresa. Los valores globales pueden ser diferentes.</p>
                   )}
                    <div className="flex justify-end">
-                      <Button onClick={handleSave} disabled={isLoading || !companyId}>
-                          {isLoading ? 'Guardando...' : 'Guardar para esta Empresa'}
-                      </Button>
+                       <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button disabled={isLoading || !user} className="gap-1">
+                              <span>Guardar Cambios</span>
+                              <ChevronDown className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onSelect={() => handleSave('company')} disabled={!companyId}>
+                              Solo para {selectedCompany?.name || 'esta empresa'}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onSelect={() => handleSave('global')}>
+                              Para Todas Mis Empresas (Global)
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                   </div>
               </form>
           </CardContent>
