@@ -35,6 +35,7 @@ export type Company = {
   startYear?: number;
   periodStartDate?: string;
   periodEndDate?: string;
+  lastClosedDate?: string;
   profitAccount?: string;
   lossAccount?: string;
   salesInvoicesReceivableAccount?: string;
