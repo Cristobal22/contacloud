@@ -1,279 +1,378 @@
-/**
- * @fileoverview Firestore Security Rules for the accounting platform.
- *
- * Core Philosophy:
- * This ruleset enforces a hybrid security model, balancing user-specific data access with shared company-level access.
- *
- * Data Structure:
- * - User profiles are stored under `/users/{userId}` and are only accessible to the owning user.
- * - Company data and related entities (accounts, vouchers, subjects, employees) are stored under `/companies/{companyId}`.
- *   Access to company data is generally restricted to users associated with that company, typically the company owner or administrators.
- * - Global data such as economic indicators, AFPs, and health entities are stored at the root level and are publicly readable, but only modifiable by administrators.
- *
- * Key Security Decisions:
- * - User listing is disallowed to prevent unauthorized access to user data.
- * - Company ownership and association is determined by the `companyIds` field in the user's profile and the `ownerId` field in the company document.
- * - Global data is publicly readable to facilitate calculations and configuration, but write access is strictly controlled.
- *
- * Denormalization for Authorization:
- * - Company documents contain an `ownerId` field to simplify ownership checks.
- * - User profiles contain a `companyIds` array to quickly determine which companies a user is associated with.
- *
- * Structural Segregation:
- * - User-specific data (like account groups) is stored under the `/users/{userId}` path, while company-specific data is stored under `/companies/{companyId}`.
- */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper function to check if the user is signed in
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    // Helper function to check if the user is the owner of the resource
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
-    }
-
-    // Helper function to check if the user is the existing owner of the resource
-    function isExistingOwner(userId) {
-      return isOwner(userId) && resource != null;
-    }
-
-    // Helper function to check if the user is an admin (Placeholder)
-    function isAdmin() {
-        return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Admin';
-    }
-
-    // Helper function to check if the user is associated with the company
-    function isAssociatedWithCompany(companyId) {
-      return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyIds.hasAny([companyId]);
-    }
-
     /**
-     * @description Rules for user profile information.
+     * @description Allows a user to read and write their own profile data.
      * @path /users/{userId}
-     * @allow (create) - If the user is creating their own profile (self-registration).
-     * @allow (get, update, delete) - If the user is the owner of the profile.
-     * @deny (list) - Prevents listing all users.
-     * @deny (create) - If the user is not creating their own profile.
-     * @deny (update, delete) - If the user is not the owner of the profile.
-     * @principle Enforces document ownership for writes.
+     * @allow (get, create, update, delete) if the user is authenticated and the requested userId matches their own.
+     * @deny (get, create, update, delete) if the user is not authenticated or the userId does not match.
+     * @principle Enforces strict user-ownership for profile data.
      */
     match /users/{userId} {
-      allow get: if isOwner(userId);
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
+      function isOwner(userId) {
+        return request.auth.uid == userId;
+      }
+
+      function isExistingOwner(userId) {
+          return isOwner(userId) && exists(/databases/$(database)/documents/users/$(userId));
+      }
+
+      allow get: if isSignedIn() && isOwner(userId);
       allow list: if false;
-      allow create: if isOwner(userId);
-      allow update: if isExistingOwner(userId);
-      allow delete: if isExistingOwner(userId);
+      allow create: if isSignedIn() && isOwner(userId);
+      allow update: if isSignedIn() && isExistingOwner(userId);
+      allow delete: if isSignedIn() && isExistingOwner(userId);
     }
 
     /**
-     * @description Rules for company documents.
-     * @path /companies/{companyId}
-     * @allow (get, list) - If the user is associated with the company.
-     * @allow (create) - If the user is signed in and sets themself as the owner.
-     * @allow (update, delete) - If the user is the owner of the company.
-     * @deny (create) - If the user is not setting themself as the owner.
-     * @deny (update, delete) - If the user is not the owner of the company.
-     * @principle Enforces document ownership for writes and requires association for reads.
+     * @description Denies listing of companies, but allows creating a company if the user is authenticated and setting the ownerId.
+     * @path /companies
+     * @allow (create) if the user is authenticated and sets the ownerId to their UID.
+     * @deny (get, list, update, delete) All read, list, update, and delete operations are denied, and create is only allowed with ownerId validation.
+     * @principle Restricts listing companies, but allows authenticated users to create companies they own.
      */
     match /companies/{companyId} {
-      allow get, list: if isAssociatedWithCompany(companyId);
-      allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
-      allow update, delete: if isExistingOwner(resource.data.ownerId);
+        function isSignedIn() {
+            return request.auth != null;
+        }
+
+        allow get: if false;
+        allow list: if false;
+        allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
+        allow update: if false;
+        allow delete: if false;
     }
 
     /**
-     * @description Rules for account documents within a company.
-     * @path /companies/{companyId}/accounts/{accountId}
-     * @allow (get, list) - If the user is associated with the company.
-     * @allow (create, update, delete) - If the user is associated with the company.
-     * @principle Requires association with the company for all access.
+     * @description Allows access to company-specific data (accounts) for users associated with the company.
+     * @path /companies/{companyId}/accounts
+     * @allow (get, list, create, update, delete) if the user is associated with the company.
+     * @deny (get, list, create, update, delete) if the user is not associated with the company.
+     * @principle Enforces multi-tenancy by validating user association with the company.
      */
     match /companies/{companyId}/accounts/{accountId} {
-      allow get, list: if isAssociatedWithCompany(companyId);
-      allow create, update, delete: if isAssociatedWithCompany(companyId);
+        function isSignedIn() {
+            return request.auth != null;
+        }
+
+        function isAssociatedWithCompany(companyId) {
+            return isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+                && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyIds.hasAny([companyId]);
+        }
+
+        allow get: if isAssociatedWithCompany(companyId);
+        allow list: if isAssociatedWithCompany(companyId);
+        allow create: if isAssociatedWithCompany(companyId);
+        allow update: if isAssociatedWithCompany(companyId);
+        allow delete: if isAssociatedWithCompany(companyId);
     }
 
     /**
-     * @description Rules for voucher documents within a company.
-     * @path /companies/{companyId}/vouchers/{voucherId}
-     * @allow (get, list) - If the user is associated with the company.
-     * @allow (create, update, delete) - If the user is associated with the company.
-     * @principle Requires association with the company for all access.
+     * @description Allows access to company-specific data (vouchers) for users associated with the company.
+     * @path /companies/{companyId}/vouchers
+     * @allow (get, list, create, update, delete) if the user is associated with the company.
+     * @deny (get, list, create, update, delete) if the user is not associated with the company.
+     * @principle Enforces multi-tenancy by validating user association with the company.
      */
     match /companies/{companyId}/vouchers/{voucherId} {
-      allow get, list: if isAssociatedWithCompany(companyId);
-      allow create, update, delete: if isAssociatedWithCompany(companyId);
+        function isSignedIn() {
+            return request.auth != null;
+        }
+
+        function isAssociatedWithCompany(companyId) {
+            return isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+                && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyIds.hasAny([companyId]);
+        }
+
+        allow get: if isAssociatedWithCompany(companyId);
+        allow list: if isAssociatedWithCompany(companyId);
+        allow create: if isAssociatedWithCompany(companyId);
+        allow update: if isAssociatedWithCompany(companyId);
+        allow delete: if isAssociatedWithCompany(companyId);
     }
 
-    /**
-     * @description Rules for subject documents within a company.
-     * @path /companies/{companyId}/subjects/{subjectId}
-     * @allow (get, list) - If the user is associated with the company.
-     * @allow (create, update, delete) - If the user is associated with the company.
-     * @principle Requires association with the company for all access.
+     /**
+     * @description Allows access to company-specific data (subjects) for users associated with the company.
+     * @path /companies/{companyId}/subjects
+     * @allow (get, list, create, update, delete) if the user is associated with the company.
+     * @deny (get, list, create, update, delete) if the user is not associated with the company.
+     * @principle Enforces multi-tenancy by validating user association with the company.
      */
     match /companies/{companyId}/subjects/{subjectId} {
-      allow get, list: if isAssociatedWithCompany(companyId);
-      allow create, update, delete: if isAssociatedWithCompany(companyId);
+        function isSignedIn() {
+            return request.auth != null;
+        }
+
+        function isAssociatedWithCompany(companyId) {
+            return isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+                && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyIds.hasAny([companyId]);
+        }
+
+        allow get: if isAssociatedWithCompany(companyId);
+        allow list: if isAssociatedWithCompany(companyId);
+        allow create: if isAssociatedWithCompany(companyId);
+        allow update: if isAssociatedWithCompany(companyId);
+        allow delete: if isAssociatedWithCompany(companyId);
     }
 
     /**
-     * @description Rules for cost center documents within a company.
-     * @path /companies/{companyId}/cost-centers/{costCenterId}
-     * @allow (get, list) - If the user is associated with the company.
-     * @allow (create, update, delete) - If the user is associated with the company.
-     * @principle Requires association with the company for all access.
+     * @description Allows access to company-specific data (cost-centers) for users associated with the company.
+     * @path /companies/{companyId}/cost-centers
+     * @allow (get, list, create, update, delete) if the user is associated with the company.
+     * @deny (get, list, create, update, delete) if the user is not associated with the company.
+     * @principle Enforces multi-tenancy by validating user association with the company.
      */
     match /companies/{companyId}/cost-centers/{costCenterId} {
-      allow get, list: if isAssociatedWithCompany(companyId);
-      allow create, update, delete: if isAssociatedWithCompany(companyId);
+        function isSignedIn() {
+            return request.auth != null;
+        }
+
+        function isAssociatedWithCompany(companyId) {
+            return isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+                && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyIds.hasAny([companyId]);
+        }
+
+        allow get: if isAssociatedWithCompany(companyId);
+        allow list: if isAssociatedWithCompany(companyId);
+        allow create: if isAssociatedWithCompany(companyId);
+        allow update: if isAssociatedWithCompany(companyId);
+        allow delete: if isAssociatedWithCompany(companyId);
     }
 
     /**
-     * @description Rules for employee documents within a company.
-     * @path /companies/{companyId}/employees/{employeeId}
-     * @allow (get, list) - If the user is associated with the company.
-     * @allow (create, update, delete) - If the user is associated with the company.
-     * @principle Requires association with the company for all access.
+     * @description Allows access to company-specific data (employees) for users associated with the company.
+     * @path /companies/{companyId}/employees
+     * @allow (get, list, create, update, delete) if the user is associated with the company.
+     * @deny (get, list, create, update, delete) if the user is not associated with the company.
+     * @principle Enforces multi-tenancy by validating user association with the company.
      */
     match /companies/{companyId}/employees/{employeeId} {
-      allow get, list: if isAssociatedWithCompany(companyId);
-      allow create, update, delete: if isAssociatedWithCompany(companyId);
+        function isSignedIn() {
+            return request.auth != null;
+        }
+
+        function isAssociatedWithCompany(companyId) {
+            return isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+                && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyIds.hasAny([companyId]);
+        }
+
+        allow get: if isAssociatedWithCompany(companyId);
+        allow list: if isAssociatedWithCompany(companyId);
+        allow create: if isAssociatedWithCompany(companyId);
+        allow update: if isAssociatedWithCompany(companyId);
+        allow delete: if isAssociatedWithCompany(companyId);
     }
 
     /**
-     * @description Rules for purchase documents within a company.
-     * @path /companies/{companyId}/purchases/{purchaseId}
-     * @allow (get, list) - If the user is associated with the company.
-     * @allow (create, update, delete) - If the user is associated with the company.
-     * @principle Requires association with the company for all access.
+     * @description Allows access to company-specific data (purchases) for users associated with the company.
+     * @path /companies/{companyId}/purchases
+     * @allow (get, list, create, update, delete) if the user is associated with the company.
+     * @deny (get, list, create, update, delete) if the user is not associated with the company.
+     * @principle Enforces multi-tenancy by validating user association with the company.
      */
     match /companies/{companyId}/purchases/{purchaseId} {
-      allow get, list: if isAssociatedWithCompany(companyId);
-      allow create, update, delete: if isAssociatedWithCompany(companyId);
+        function isSignedIn() {
+            return request.auth != null;
+        }
+
+        function isAssociatedWithCompany(companyId) {
+            return isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+                && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyIds.hasAny([companyId]);
+        }
+
+        allow get: if isAssociatedWithCompany(companyId);
+        allow list: if isAssociatedWithCompany(companyId);
+        allow create: if isAssociatedWithCompany(companyId);
+        allow update: if isAssociatedWithCompany(companyId);
+        allow delete: if isAssociatedWithCompany(companyId);
     }
 
-    /**
-     * @description Rules for sales documents within a company.
-     * @path /companies/{companyId}/sales/{saleId}
-     * @allow (get, list) - If the user is associated with the company.
-     * @allow (create, update, delete) - If the user is associated with the company.
-     * @principle Requires association with the company for all access.
+     /**
+     * @description Allows access to company-specific data (sales) for users associated with the company.
+     * @path /companies/{companyId}/sales
+     * @allow (get, list, create, update, delete) if the user is associated with the company.
+     * @deny (get, list, create, update, delete) if the user is not associated with the company.
+     * @principle Enforces multi-tenancy by validating user association with the company.
      */
     match /companies/{companyId}/sales/{saleId} {
-      allow get, list: if isAssociatedWithCompany(companyId);
-      allow create, update, delete: if isAssociatedWithCompany(companyId);
+        function isSignedIn() {
+            return request.auth != null;
+        }
+
+        function isAssociatedWithCompany(companyId) {
+            return isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+                && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyIds.hasAny([companyId]);
+        }
+
+        allow get: if isAssociatedWithCompany(companyId);
+        allow list: if isAssociatedWithCompany(companyId);
+        allow create: if isAssociatedWithCompany(companyId);
+        allow update: if isAssociatedWithCompany(companyId);
+        allow delete: if isAssociatedWithCompany(companyId);
     }
 
     /**
-     * @description Rules for fee documents within a company.
-     * @path /companies/{companyId}/fees/{feeId}
-     * @allow (get, list) - If the user is associated with the company.
-     * @allow (create, update, delete) - If the user is associated with the company.
-     * @principle Requires association with the company for all access.
+     * @description Allows access to company-specific data (fees) for users associated with the company.
+     * @path /companies/{companyId}/fees
+     * @allow (get, list, create, update, delete) if the user is associated with the company.
+     * @deny (get, list, create, update, delete) if the user is not associated with the company.
+     * @principle Enforces multi-tenancy by validating user association with the company.
      */
     match /companies/{companyId}/fees/{feeId} {
-      allow get, list: if isAssociatedWithCompany(companyId);
-      allow create, update, delete: if isAssociatedWithCompany(companyId);
+        function isSignedIn() {
+            return request.auth != null;
+        }
+
+        function isAssociatedWithCompany(companyId) {
+            return isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+                && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyIds.hasAny([companyId]);
+        }
+
+        allow get: if isAssociatedWithCompany(companyId);
+        allow list: if isAssociatedWithCompany(companyId);
+        allow create: if isAssociatedWithCompany(companyId);
+        allow update: if isAssociatedWithCompany(companyId);
+        allow delete: if isAssociatedWithCompany(companyId);
     }
 
-     /**
-      * @description Rules for company-specific economic indicator overrides.
-      * @path /companies/{companyId}/economic-indicators/{indicatorId}
-      * @allow (get, list) - If the user is associated with the company.
-      * @allow (create, update, delete) - If the user is associated with the company.
-      */
-    match /companies/{companyId}/economic-indicators/{indicatorId} {
-      allow get, list: if isAssociatedWithCompany(companyId);
-      allow create, update, delete: if isAssociatedWithCompany(companyId);
-    }
-    
     /**
-     * @description Rules for account group documents within a user's profile.
-     * @path /users/{userId}/account-groups/{groupId}
-     * @allow (get, list) - If the user is the owner of the profile.
-     * @allow (create, update, delete) - If the user is the owner of the profile.
-     * @principle Enforces document ownership for writes.
+     * @description Allows access to company-specific data (economic-indicators) for users associated with the company.
+     * @path /companies/{companyId}/economic-indicators/{indicatorId}
+     * @allow (get, list, create, update, delete) if the user is associated with the company.
+     * @deny (get, list, create, update, delete) if the user is not associated with the company.
+     * @principle Enforces multi-tenancy by validating user association with the company.
      */
-    match /users/{userId}/account-groups/{groupId} {
-      allow get, list: if isOwner(userId);
-      allow create, update, delete: if isOwner(userId);
+    match /companies/{companyId}/economic-indicators/{indicatorId} {
+        function isSignedIn() {
+            return request.auth != null;
+        }
+
+        function isAssociatedWithCompany(companyId) {
+            return isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+                && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyIds.hasAny([companyId]);
+        }
+
+        allow get: if isAssociatedWithCompany(companyId);
+        allow list: if isAssociatedWithCompany(companyId);
+        allow create: if isAssociatedWithCompany(companyId);
+        allow update: if isAssociatedWithCompany(companyId);
+        allow delete: if isAssociatedWithCompany(companyId);
     }
 
     /**
-     * @description Rules for global economic indicator documents.
+     * @description Allows a user to read and write their own account group data.
+     * @path /users/{userId}/account-groups
+     * @allow (get, list, create, update, delete) if the user is authenticated and the requested userId matches their own.
+     * @deny (get, list, create, update, delete) if the user is not authenticated or the userId does not match.
+     * @principle Enforces strict user-ownership for account group data.
+     */
+    match /users/{userId}/account-groups/{accountGroupId} {
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
+      function isOwner(userId) {
+        return request.auth.uid == userId;
+      }
+
+      function isExistingOwner(userId) {
+          return isOwner(userId) && exists(/databases/$(database)/documents/users/$(userId)/account-groups/$(accountGroupId));
+      }
+
+      allow get: if isSignedIn() && isOwner(userId);
+      allow list: if isSignedIn() && isOwner(userId);
+      allow create: if isSignedIn() && isOwner(userId);
+      allow update: if isSignedIn() && isExistingOwner(userId);
+      allow delete: if isSignedIn() && isExistingOwner(userId);
+    }
+
+    /**
+     * @description Allows public read access to economic indicator data.
      * @path /economic-indicators/{indicatorId}
-     * @allow get, list: if true;
-     * @allow create, update, delete: if isAdmin();
-     * @principle Allows public read access, restricts writes to admins.
+     * @allow (get, list) to all users.
+     * @deny (create, update, delete) to all users.
      */
     match /economic-indicators/{indicatorId} {
-      allow get, list: if true;
-      allow create, update, delete: if isAdmin();
-    }
-
-    /**
-     * @description Rules for global health entity documents.
-     * @path /health-entities/{entityId}
-     * @allow get, list: if true;
-     * @allow create, update, delete: if isAdmin();
-     * @principle Allows public read access, restricts writes to admins.
-     */
-    match /health-entities/{entityId} {
-      allow get, list: if true;
-      allow create, update, delete: if isAdmin();
+      allow get: if true;
+      allow list: if true;
+      allow create: if false;
+      allow update: if false;
+      allow delete: if false;
     }
 
      /**
-      * @description Rules for global AFP entity documents.
-      * @path /afp-entities/{entityId}
-      * @allow get, list: if true;
-      * @allow create, update, delete: if isAdmin();
-      * @principle Allows public read access, restricts writes to admins.
-      */
-    match /afp-entities/{entityId} {
-      allow get, list: if true;
-      allow create, update, delete: if isAdmin();
+     * @description Allows public read access to health entities data.
+     * @path /health-entities/{entityId}
+     * @allow (get, list) to all users.
+     * @deny (create, update, delete) to all users.
+     */
+    match /health-entities/{entityId} {
+      allow get: if true;
+      allow list: if true;
+      allow create: if false;
+      allow update: if false;
+      allow delete: if false;
     }
 
     /**
-     * @description Rules for global family allowance parameter documents.
+     * @description Allows public read access to afp entities data.
+     * @path /afp-entities/{entityId}
+     * @allow (get, list) to all users.
+     * @deny (create, update, delete) to all users.
+     */
+    match /afp-entities/{entityId} {
+      allow get: if true;
+      allow list: if true;
+      allow create: if false;
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    /**
+     * @description Allows public read access to family allowance parameters data.
      * @path /family-allowance-parameters/{paramId}
-     * @allow get, list: if true;
-     * @allow create, update, delete: if isAdmin();
-     * @principle Allows public read access, restricts writes to admins.
+     * @allow (get, list) to all users.
+     * @deny (create, update, delete) to all users.
      */
     match /family-allowance-parameters/{paramId} {
-      allow get, list: if true;
-      allow create, update, delete: if isAdmin();
+      allow get: if true;
+      allow list: if true;
+      allow create: if false;
+      allow update: if false;
+      allow delete: if false;
     }
 
     /**
-     * @description Rules for global tax parameter documents.
+     * @description Allows public read access to tax parameters data.
      * @path /tax-parameters/{paramId}
-     * @allow get, list: if true;
-     * @allow create, update, delete: if isAdmin();
-     * @principle Allows public read access, restricts writes to admins.
+     * @allow (get, list) to all users.
+     * @deny (create, update, delete) to all users.
      */
     match /tax-parameters/{paramId} {
-      allow get, list: if true;
-      allow create, update, delete: if isAdmin();
+      allow get: if true;
+      allow list: if true;
+      allow create: if false;
+      allow update: if false;
+      allow delete: if false;
     }
 
     /**
-     * @description Rules for global institution documents.
+     * @description Allows public read access to institutions data.
      * @path /institutions/{institutionId}
-     * @allow get, list: if true;
-     * @allow create, update, delete: if isAdmin();
-     * @principle Allows public read access, restricts writes to admins.
+     * @allow (get, list) to all users.
+     * @deny (create, update, delete) to all users.
      */
     match /institutions/{institutionId} {
-      allow get, list: if true;
-      allow create, update, delete: if isAdmin();
+      allow get: if true;
+      allow list: if true;
+      allow create: if false;
+      allow update: if false;
+      allow delete: if false;
     }
   }
 }
