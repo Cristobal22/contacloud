@@ -8,7 +8,7 @@ import {
     CardTitle,
     CardFooter,
 } from "@/components/ui/card"
-import { Button, buttonVariants } from "@/components/ui/button"
+import { Button } from "@/components/ui/button"
 import { useCollection, useFirestore } from "@/firebase"
 import { collection, addDoc, writeBatch, doc, Timestamp } from "firebase/firestore"
 import type { Purchase, Account, VoucherEntry } from "@/lib/types";
@@ -21,7 +21,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFoo
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertCircle, ArrowLeft } from "lucide-react";
 import Link from "next/link";
-import { format, lastDayOfMonth, parseISO } from "date-fns";
+import { format, lastDayOfMonth, parseISO, isBefore, isEqual } from "date-fns";
 import { es } from "date-fns/locale";
 
 type SummaryRow = {
@@ -38,7 +38,7 @@ export default function CentralizePurchasesPage() {
     const { toast } = useToast();
     const router = useRouter();
 
-    const { data: purchases, loading: purchasesLoading } = useCollection<Purchase>({
+    const { data: allPurchases, loading: purchasesLoading } = useCollection<Purchase>({
         path: companyId ? `companies/${companyId}/purchases` : undefined,
         companyId: companyId,
         query: companyId ? (c, q, w) => q(c, w('status', '==', 'Pendiente')) : undefined,
@@ -50,33 +50,57 @@ export default function CentralizePurchasesPage() {
     const [isProcessing, setIsProcessing] = React.useState(false);
 
     const loading = purchasesLoading || accountsLoading;
-
-    const { summary, totalDebit, totalCredit, unassignedCount, isValid } = React.useMemo(() => {
-        if (!purchases || !accounts) {
-            return { summary: [], totalDebit: 0, totalCredit: 0, unassignedCount: 0, isValid: false };
+    
+    const {
+        summary,
+        totalDebit,
+        totalCredit,
+        unassignedCount,
+        closedPeriodDocs,
+        purchasesToProcess,
+        isValid
+    } = React.useMemo(() => {
+        if (!allPurchases || !accounts || !selectedCompany) {
+            return { summary: [], totalDebit: 0, totalCredit: 0, unassignedCount: 0, closedPeriodDocs: [], purchasesToProcess: [], isValid: false };
         }
+        
+        const lastClosed = selectedCompany.lastClosedDate ? parseISO(selectedCompany.lastClosedDate) : null;
 
-        const unassigned = purchases.filter(p => !p.assignedAccount).length;
+        const processableDocs = allPurchases.filter(p => {
+            if (!lastClosed) return true;
+            const docDate = parseISO(p.date);
+            // A document can be processed if its date is AFTER the last closing date.
+            return isAfter(docDate, lastClosed);
+        });
+
+        const rejectedDocs = allPurchases.filter(p => {
+             if (!lastClosed) return false;
+            const docDate = parseISO(p.date);
+            // A document is rejected if its date is on or before the last closing date.
+            return isBefore(docDate, lastClosed) || isEqual(docDate, lastClosed);
+        });
+
+        const unassigned = processableDocs.filter(p => !p.assignedAccount).length;
 
         const netSummary = new Map<string, { name: string, total: number, count: number }>();
         let totalIvaCredit = 0;
         let totalPayable = 0;
 
-        purchases.forEach(p => {
-            // Check for credit notes (type 61) and treat amounts as negative
-            const isCreditNote = p.documentType.includes('61');
-            const sign = isCreditNote ? -1 : 1;
+        processableDocs.forEach(p => {
+            if (!p.assignedAccount) return;
+
+            // NCE (61) are credit, NDE (56) are debit. Others are debit.
+            const sign = p.documentType.includes('61') ? -1 : 1;
 
             const netAmount = p.netAmount * sign;
             const taxAmount = p.taxAmount * sign;
             const totalAmount = p.total * sign;
 
-            if (p.assignedAccount) {
-                const current = netSummary.get(p.assignedAccount) || { name: accounts.find(a => a.code === p.assignedAccount)?.name || 'N/A', total: 0, count: 0 };
-                current.total += netAmount;
-                current.count++;
-                netSummary.set(p.assignedAccount, current);
-            }
+            const current = netSummary.get(p.assignedAccount) || { name: accounts.find(a => a.code === p.assignedAccount)?.name || 'N/A', total: 0, count: 0 };
+            current.total += netAmount;
+            current.count++;
+            netSummary.set(p.assignedAccount, current);
+            
             totalIvaCredit += taxAmount;
             totalPayable += totalAmount;
         });
@@ -88,8 +112,12 @@ export default function CentralizePurchasesPage() {
             docCount: data.count,
         }));
         
+        // Debit is the sum of net amounts and VAT.
+        // If totalPayable is negative (due to a large credit note), we add its absolute value to debit side.
         const debit = summaryRows.reduce((sum, row) => sum + row.totalNet, 0) + totalIvaCredit;
-
+        
+        const isBalanced = Math.round(debit) === Math.round(totalPayable);
+        
         return {
             summary: summaryRows,
             totalIvaCredit,
@@ -97,12 +125,14 @@ export default function CentralizePurchasesPage() {
             totalDebit: debit,
             totalCredit: totalPayable,
             unassignedCount: unassigned,
-            isValid: unassigned === 0 && purchases.length > 0 && Math.round(debit) === Math.round(totalPayable),
+            closedPeriodDocs: rejectedDocs,
+            purchasesToProcess: processableDocs,
+            isValid: unassigned === 0 && processableDocs.length > 0 && isBalanced,
         };
-    }, [purchases, accounts]);
+    }, [allPurchases, accounts, selectedCompany]);
 
     const handleCentralize = async () => {
-        if (!firestore || !companyId || !selectedCompany || !purchases || !isValid) {
+        if (!firestore || !companyId || !selectedCompany || !purchasesToProcess || !isValid) {
             toast({ variant: 'destructive', title: 'Error de validación', description: 'No se puede centralizar. Revisa que todo esté correcto.' });
             return;
         }
@@ -116,14 +146,14 @@ export default function CentralizePurchasesPage() {
         const entries: Omit<VoucherEntry, 'id'>[] = [];
         // Net entries
         summary.forEach(row => {
-            if (row.totalNet > 0) { // Cargo
+            if (row.totalNet > 0) { // Cargo (debit)
                 entries.push({
                     account: row.accountCode,
                     description: `Neto compras ${row.accountName}`,
                     debit: row.totalNet,
                     credit: 0,
                 });
-            } else { // Abono (caso nota de crédito en cuenta de gasto)
+            } else if (row.totalNet < 0) { // Abono (credit)
                  entries.push({
                     account: row.accountCode,
                     description: `Ajuste compras ${row.accountName}`,
@@ -141,7 +171,7 @@ export default function CentralizePurchasesPage() {
                     debit: totalIvaCredit,
                     credit: 0,
                 });
-            } else {
+            } else if (totalIvaCredit < 0){
                  entries.push({
                     account: selectedCompany.purchasesVatAccount,
                     description: 'Ajuste IVA Crédito Fiscal',
@@ -159,7 +189,7 @@ export default function CentralizePurchasesPage() {
                     debit: 0,
                     credit: totalPayable,
                 });
-            } else {
+            } else if (totalPayable < 0) {
                  entries.push({
                     account: selectedCompany.purchasesInvoicesPayableAccount,
                     description: 'Disminución Cuentas por Pagar',
@@ -176,7 +206,7 @@ export default function CentralizePurchasesPage() {
             type: 'Traspaso' as const,
             description: `Centralización Compras ${monthName} ${periodDate.getFullYear()}`,
             status: 'Contabilizado' as const,
-            total: Math.max(totalDebit, totalCredit),
+            total: Math.abs(totalPayable),
             entries: finalEntries,
             companyId: companyId,
             createdAt: Timestamp.now(),
@@ -186,7 +216,7 @@ export default function CentralizePurchasesPage() {
         const newVoucherRef = doc(collection(firestore, `companies/${companyId}/vouchers`));
         batch.set(newVoucherRef, voucherData);
 
-        purchases.forEach(purchase => {
+        purchasesToProcess.forEach(purchase => {
             const purchaseRef = doc(firestore, `companies/${companyId}/purchases`, purchase.id);
             batch.update(purchaseRef, { status: 'Contabilizado', voucherId: newVoucherRef.id });
         });
@@ -222,14 +252,14 @@ export default function CentralizePurchasesPage() {
             
             {loading && <p>Cargando vista previa...</p>}
 
-            {!loading && purchases && purchases.length === 0 && (
+            {!loading && allPurchases && allPurchases.length === 0 && (
                 <Card>
                     <CardHeader><CardTitle>Sin Documentos Pendientes</CardTitle></CardHeader>
                     <CardContent><p className="text-muted-foreground">No hay documentos de compra pendientes por centralizar. Vuelve a la página anterior para importar nuevos documentos.</p></CardContent>
                 </Card>
             )}
 
-            {!loading && purchases && purchases.length > 0 && (
+            {!loading && allPurchases && allPurchases.length > 0 && (
                 <Card>
                     <CardHeader>
                         <CardTitle>Resumen del Asiento a Generar</CardTitle>
@@ -238,9 +268,18 @@ export default function CentralizePurchasesPage() {
                          {unassignedCount > 0 && (
                              <Alert variant="destructive" className="mb-4">
                                 <AlertCircle className="h-4 w-4" />
-                                <AlertTitle>Atención Requerida</AlertTitle>
+                                <AlertTitle>Atención Requerida: Cuentas no Asignadas</AlertTitle>
                                 <AlertDescription>
-                                    Hay <span className="font-bold">{unassignedCount}</span> documento(s) de compra sin una cuenta de gasto/activo asignada. Debes asignarlas todas antes de poder centralizar.
+                                    Hay <span className="font-bold">{unassignedCount}</span> documento(s) de compra sin una cuenta de gasto/activo asignada. Debes asignarlas todas antes de poder centralizar. Vuelve a la página anterior para corregirlo.
+                                </AlertDescription>
+                            </Alert>
+                         )}
+                         {closedPeriodDocs.length > 0 && (
+                             <Alert variant="destructive" className="mb-4">
+                                <AlertCircle className="h-4 w-4" />
+                                <AlertTitle>Atención Requerida: Documentos en Período Cerrado</AlertTitle>
+                                <AlertDescription>
+                                    Hay <span className="font-bold">{closedPeriodDocs.length}</span> documento(s) con fecha en un período ya cerrado. No serán incluidos en esta centralización y permanecerán pendientes.
                                 </AlertDescription>
                             </Alert>
                          )}
@@ -279,7 +318,7 @@ export default function CentralizePurchasesPage() {
                                     <TableFooter>
                                         <TableRow className="font-bold text-base">
                                             <TableCell>Total Debe</TableCell>
-                                            <TableCell className="text-right">${totalDebit.toLocaleString('es-CL')}</TableCell>
+                                            <TableCell className="text-right">${Math.round(totalDebit).toLocaleString('es-CL')}</TableCell>
                                         </TableRow>
                                     </TableFooter>
                                 </Table>
@@ -317,7 +356,7 @@ export default function CentralizePurchasesPage() {
                                      <TableFooter>
                                         <TableRow className="font-bold text-base">
                                             <TableCell>Total Haber</TableCell>
-                                            <TableCell className="text-right">${totalCredit.toLocaleString('es-CL')}</TableCell>
+                                            <TableCell className="text-right">${Math.round(totalCredit).toLocaleString('es-CL')}</TableCell>
                                         </TableRow>
                                     </TableFooter>
                                 </Table>
@@ -331,7 +370,7 @@ export default function CentralizePurchasesPage() {
                                 {isValid ? 'El asiento está cuadrado.' : 'El asiento no está cuadrado o faltan datos.'}
                            </p>
                            <p className="text-sm text-muted-foreground">
-                               Diferencia: ${(totalDebit - totalCredit).toLocaleString('es-CL')}
+                               Diferencia: ${(Math.round(totalDebit) - Math.round(totalCredit)).toLocaleString('es-CL')}
                            </p>
                         </div>
                         <Button 
