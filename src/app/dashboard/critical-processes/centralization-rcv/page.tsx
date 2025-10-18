@@ -94,10 +94,10 @@ export default function CentralizationRcvPage() {
 
                 const summary: RcvSummary = rows.reduce((acc, row) => {
                     const columns = row.split(';');
-                    if (columns.length < 3) return acc;
-                    acc.netAmount += parseFloat(columns[0]) || 0;
-                    acc.taxAmount += parseFloat(columns[1]) || 0;
-                    acc.totalAmount += parseFloat(columns[2]) || 0;
+                    if (columns.length < 15) return acc;
+                    acc.netAmount += parseFloat(columns[10]) || 0;
+                    acc.taxAmount += parseFloat(columns[11]) || 0;
+                    acc.totalAmount += parseFloat(columns[14]) || 0;
                     return acc;
                 }, { netAmount: 0, taxAmount: 0, totalAmount: 0 });
 
