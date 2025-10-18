@@ -95,6 +95,7 @@ export default function CentralizationRcvPage() {
                 const summary: RcvSummary = rows.reduce((acc, row) => {
                     const columns = row.split(';');
                     if (columns.length < 15) return acc;
+                    // Column 10: Monto Neto, Column 11: Monto IVA Recuperable, Column 14: Monto Total
                     acc.netAmount += parseFloat(columns[10]) || 0;
                     acc.taxAmount += parseFloat(columns[11]) || 0;
                     acc.totalAmount += parseFloat(columns[14]) || 0;
@@ -109,9 +110,9 @@ export default function CentralizationRcvPage() {
                 const lastDay = lastDayOfMonth(periodDate);
                 const monthName = format(periodDate, 'MMMM', { locale: es });
                 
-                const defaultResultAccount = type === 'purchase' 
-                    ? accounts?.find(a => a.code.startsWith('6')) // First expense account
-                    : accounts?.find(a => a.code.startsWith('4')); // First income account
+                const defaultResultAccount = type === 'purchase'
+                    ? accounts?.find(a => a.name.toUpperCase().includes('GASTOS') && a.code.length > 5) // Find a detail expense account
+                    : accounts?.find(a => a.code.startsWith('40101') && a.code.length > 5); // Find a detail income account
                 
                 if (!defaultResultAccount) {
                     throw new Error(`No se encontró una cuenta de resultado por defecto para ${type === 'purchase' ? 'gastos' : 'ingresos'}.`);
