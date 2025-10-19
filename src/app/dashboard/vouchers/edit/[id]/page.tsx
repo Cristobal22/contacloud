@@ -52,7 +52,7 @@ import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import { errorEmitter } from '@/firebase/error-emitter'
 import { FirestorePermissionError } from '@/firebase/errors'
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, isAfter } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -92,7 +92,7 @@ export default function VoucherEditPage() {
                 entries: [],
                 companyId: companyId,
             });
-            setEntries([{ id: `new-entry-${Date.now()}`, account: '', description: '', debit: 0, credit: 0 }]);
+            setEntries([{ id: `new-entry-${Date.now()}-${Math.random()}`, account: '', description: '', debit: 0, credit: 0 }]);
         } else if (existingVoucher) {
             setVoucher(existingVoucher);
             setEntries(existingVoucher.entries);
@@ -109,7 +109,7 @@ export default function VoucherEditPage() {
     const handleAddEntry = () => {
         setEntries([
             ...entries,
-            { id: `new-entry-${Date.now()}`, account: '', description: '', debit: 0, credit: 0 }
+            { id: `new-entry-${Date.now()}-${Math.random()}`, account: '', description: '', debit: 0, credit: 0 }
         ]);
     };
 
