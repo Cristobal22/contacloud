@@ -136,8 +136,8 @@ export default function PurchasesPage() {
             <CardHeader>
                 <div className="flex items-center justify-between">
                     <div>
-                        <CardTitle>1. Importar y Asignar Cuentas de Compra</CardTitle>
-                        <CardDescription>Importa documentos y asigna las cuentas de gasto/activo para cada uno.</CardDescription>
+                        <CardTitle>Centralización de Compras</CardTitle>
+                        <CardDescription>Paso 1: Importa documentos y asigna las cuentas de gasto/activo.</CardDescription>
                     </div>
                     <div className="flex gap-2">
                         <input type="file" ref={fileInputRef} className="hidden" accept=".csv" onChange={handleFileImport} />

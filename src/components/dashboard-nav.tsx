@@ -129,7 +129,7 @@ const criticalProcessesSections = [
         icon: GitMerge,
         links: [
             { href: '/dashboard/critical-processes/centralization-remunerations', label: 'Centralización Remuneraciones', icon: FileText },
-            { href: '/dashboard/critical-processes/centralization-rcv', label: 'Centralización RCV (SII)', icon: FileText },
+            { href: '/dashboard/purchases', label: 'Centralización Compras', icon: FileText },
         ]
     },
     {
