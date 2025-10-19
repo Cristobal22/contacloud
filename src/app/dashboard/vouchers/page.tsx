@@ -120,20 +120,22 @@ import { useToast } from "@/hooks/use-toast"
         if (!firestore || !companyId || !voucherToUndo) return;
 
         const voucherRef = doc(firestore, `companies/${companyId}/vouchers`, voucherToUndo.id);
+        const isPurchase = voucherToUndo.description.includes('Compras');
+        const collectionName = isPurchase ? 'purchases' : 'sales';
         
         try {
-            const purchasesQuery = query(
-                collection(firestore, `companies/${companyId}/purchases`),
+            const docsQuery = query(
+                collection(firestore, `companies/${companyId}/${collectionName}`),
                 where('voucherId', '==', voucherToUndo.id)
             );
-            const purchasesSnapshot = await getDocs(purchasesQuery);
+            const docsSnapshot = await getDocs(docsQuery);
 
             const batch = writeBatch(firestore);
 
-            // Revert purchases status
-            purchasesSnapshot.forEach(purchaseDoc => {
-                const purchaseRef = doc(firestore, `companies/${companyId}/purchases`, purchaseDoc.id);
-                batch.update(purchaseRef, { status: 'Pendiente', voucherId: '' });
+            // Revert associated documents status
+            docsSnapshot.forEach(docToUpdate => {
+                const docRef = doc(firestore, `companies/${companyId}/${collectionName}`, docToUpdate.id);
+                batch.update(docRef, { status: 'Pendiente', voucherId: '' });
             });
 
             // Delete the voucher
@@ -143,7 +145,7 @@ import { useToast } from "@/hooks/use-toast"
 
             toast({
                 title: "Centralización Anulada",
-                description: "El comprobante ha sido eliminado y las compras asociadas han vuelto al estado 'Pendiente'.",
+                description: `El comprobante ha sido eliminado y los documentos asociados han vuelto al estado 'Pendiente'.`,
             });
 
         } catch (error) {
@@ -166,7 +168,7 @@ import { useToast } from "@/hooks/use-toast"
                       <CardDescription>Gestiona los comprobantes de la empresa.</CardDescription>
                   </div>
                   <Button size="sm" className="gap-1" disabled={!companyId} asChild>
-                    <Link href="/dashboard/vouchers/edit/new">
+                    <Link href={`/dashboard/vouchers/edit/new`}>
                       <PlusCircle className="h-4 w-4" />
                       Agregar Comprobante
                     </Link>
@@ -194,7 +196,7 @@ import { useToast } from "@/hooks/use-toast"
                   </TableRow>
                 )}
                 {!loading && vouchers?.map((voucher) => {
-                  const isCentralizationVoucher = voucher.description.startsWith('Centralización Compra');
+                  const isCentralizationVoucher = voucher.description.startsWith('Centralización');
 
                   return (
                     <TableRow key={voucher.id}>
@@ -306,7 +308,7 @@ import { useToast } from "@/hooks/use-toast"
                 <AlertDialogHeader>
                     <AlertDialogTitle>¿Estás seguro de anular la centralización?</AlertDialogTitle>
                     <AlertDialogDescription>
-                        Esta acción es irreversible. Se eliminará el comprobante de centralización <span className="font-bold">{voucherToUndo?.description}</span> y todas las compras asociadas volverán al estado 'Pendiente'.
+                        Esta acción es irreversible. Se eliminará el comprobante de centralización <span className="font-bold">{voucherToUndo?.description}</span> y todos los documentos asociados volverán al estado 'Pendiente'.
                     </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>

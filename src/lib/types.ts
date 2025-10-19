@@ -171,8 +171,9 @@ export type Sale = {
   documentNumber: string;
   customer: string;
   total: number;
-  status: 'Pendiente' | 'Pagada' | 'Vencida';
+  status: 'Pendiente' | 'Contabilizado' | 'Vencida';
   companyId: string;
+  voucherId?: string;
 };
 
 export type Fee = {

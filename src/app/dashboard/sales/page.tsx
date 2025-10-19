@@ -8,34 +8,26 @@ import {
     TableHead,
     TableHeader,
     TableRow,
-  } from "@/components/ui/table"
-  import {
+} from "@/components/ui/table"
+import {
     Card,
     CardContent,
     CardDescription,
     CardHeader,
     CardTitle,
-  } from "@/components/ui/card"
-  import { Button, buttonVariants } from "@/components/ui/button"
-  import { Badge } from "@/components/ui/badge"
-  import { MoreHorizontal, PlusCircle } from "lucide-react"
-  import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuLabel,
-    DropdownMenuTrigger,
-  } from "@/components/ui/dropdown-menu"
-   import {
-    Dialog,
-    DialogContent,
-    DialogHeader,
-    DialogTitle,
-    DialogDescription,
-    DialogFooter,
-    DialogClose,
-  } from "@/components/ui/dialog"
-    import {
+} from "@/components/ui/card"
+import { Button, buttonVariants } from "@/components/ui/button"
+import { Upload, ArrowRight, Trash2 } from "lucide-react"
+import { Input } from "@/components/ui/input"
+import { useCollection, useFirestore } from "@/firebase"
+import { collection, addDoc, writeBatch, query, where, getDocs, doc } from "firebase/firestore"
+import type { Sale } from "@/lib/types";
+import { errorEmitter } from '@/firebase/error-emitter'
+import { FirestorePermissionError } from '@/firebase/errors'
+import { SelectedCompanyContext } from "../layout";
+import { useToast } from "@/hooks/use-toast";
+import { useRouter } from "next/navigation";
+import {
     AlertDialog,
     AlertDialogAction,
     AlertDialogCancel,
@@ -44,256 +36,220 @@ import {
     AlertDialogFooter,
     AlertDialogHeader,
     AlertDialogTitle,
-  } from "@/components/ui/alert-dialog"
-  import { Input } from "@/components/ui/input"
-  import { Label } from "@/components/ui/label"
-  import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-  import { useCollection, useFirestore } from "@/firebase"
-  import { collection, addDoc, setDoc, doc, deleteDoc } from "firebase/firestore"
-  import type { Sale } from "@/lib/types";
-  import { errorEmitter } from '@/firebase/error-emitter'
-  import { FirestorePermissionError } from '@/firebase/errors'
-import { SelectedCompanyContext } from "../layout";
+} from "@/components/ui/alert-dialog"
 
-  export default function SalesPage() {
+export default function SalesPage() {
     const { selectedCompany } = React.useContext(SelectedCompanyContext) || {};
     const companyId = selectedCompany?.id;
-
     const firestore = useFirestore();
-    const { data: sales, loading } = useCollection<Sale>({ 
-      path: companyId ? `companies/${companyId}/sales` : undefined,
-      companyId: companyId 
+    const { toast } = useToast();
+    const router = useRouter();
+    const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+    const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false);
+
+    const { data: sales, loading: salesLoading } = useCollection<Sale>({
+        path: companyId ? `companies/${companyId}/sales` : undefined,
+        companyId: companyId
     });
 
-    const [isFormOpen, setIsFormOpen] = React.useState(false);
-    const [selectedSale, setSelectedSale] = React.useState<Partial<Sale> | null>(null);
-    const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false);
-    const [saleToDelete, setSaleToDelete] = React.useState<Sale | null>(null);
+    const loading = salesLoading;
 
-    const handleCreateNew = () => {
-        setSelectedSale({
-            id: `new-${Date.now()}`,
-            date: new Date().toISOString().substring(0,10),
-            documentNumber: '',
-            customer: '',
-            total: 0,
-            status: 'Pendiente',
-            companyId: companyId,
-        });
-        setIsFormOpen(true);
-    };
+    const handleFileImport = (event: React.ChangeEvent<HTMLInputElement>) => {
+        if (!event.target.files || !firestore || !companyId) return;
+        const file = event.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                const text = e.target?.result as string;
+                const lines = text.split('\n').slice(1).filter(line => line.trim() !== '');
+                if (lines.length === 0) {
+                    toast({ variant: 'destructive', title: 'Error de archivo', description: 'El archivo CSV está vacío o tiene un formato incorrecto.' });
+                    return;
+                }
 
-    const handleEdit = (sale: Sale) => {
-        setSelectedSale(sale);
-        setIsFormOpen(true);
-    };
+                const batch = writeBatch(firestore);
+                const collectionRef = collection(firestore, `companies/${companyId}/sales`);
+                let count = 0;
 
-    const handleOpenDeleteDialog = (sale: Sale) => {
-        setSaleToDelete(sale);
-        setIsDeleteDialogOpen(true);
-    };
+                lines.forEach(line => {
+                    const columns = line.split(';');
+                    if (columns.length < 14) return;
 
-     const handleSave = () => {
-        if (!firestore || !companyId || !selectedSale) return;
+                    const parseDate = (dateStr: string) => {
+                        const [day, month, year] = dateStr.split('-');
+                        if (!day || !month || !year) return new Date().toISOString().substring(0, 10);
+                        return new Date(`${year}-${month}-${day}`).toISOString().substring(0,10);
+                    };
+                    
+                    const newSale: Omit<Sale, 'id'> = {
+                        date: parseDate(columns[6]?.trim() || ''),
+                        documentNumber: columns[5]?.trim() || '',
+                        customer: columns[4]?.trim() || '',
+                        total: parseFloat(columns[13]) || 0,
+                        status: 'Pendiente',
+                        companyId: companyId
+                    };
 
-        const isNew = selectedSale.id?.startsWith('new-');
-        const collectionPath = `companies/${companyId}/sales`;
-        const collectionRef = collection(firestore, collectionPath);
-        
-        const saleData = {
-          date: selectedSale.date || new Date().toISOString().substring(0,10),
-          documentNumber: selectedSale.documentNumber || '',
-          customer: selectedSale.customer || '',
-          total: selectedSale.total || 0,
-          status: selectedSale.status || 'Pendiente',
-          companyId: companyId
-        };
-        
-        setIsFormOpen(false);
-        setSelectedSale(null);
+                    if (newSale.documentNumber && newSale.customer) {
+                        const docRef = doc(collectionRef);
+                        batch.set(docRef, newSale);
+                        count++;
+                    }
+                });
 
-        if (isNew) {
-            addDoc(collectionRef, saleData)
-                .catch(err => {
+                if (count === 0) {
+                     toast({ variant: 'destructive', title: 'Error de formato', description: 'No se encontraron documentos válidos en el archivo.' });
+                    return;
+                }
+                
+                try {
+                    await batch.commit();
+                    toast({ title: 'Importación Exitosa', description: `Se importaron ${count} documentos de venta.` });
+                } catch (error) {
                     errorEmitter.emit('permission-error', new FirestorePermissionError({
-                        path: collectionPath,
+                        path: `companies/${companyId}/sales`,
                         operation: 'create',
-                        requestResourceData: saleData,
                     }));
-                });
-        } else if (selectedSale.id) {
-            const docRef = doc(firestore, collectionPath, selectedSale.id);
-            setDoc(docRef, saleData, { merge: true })
-                .catch(err => {
-                    errorEmitter.emit('permission-error', new FirestorePermissionError({
-                        path: docRef.path,
-                        operation: 'update',
-                        requestResourceData: saleData,
-                    }));
-                });
+                }
+            };
+            reader.readAsText(file, 'ISO-8859-1');
         }
+        if (fileInputRef.current) fileInputRef.current.value = '';
     };
 
-    const handleDelete = () => {
-        if (!firestore || !companyId || !saleToDelete) return;
-        const docRef = doc(firestore, `companies/${companyId}/sales`, saleToDelete.id);
-        
-        setIsDeleteDialogOpen(false);
-        setSaleToDelete(null);
+    const handleDeletePending = async () => {
+        if (!firestore || !companyId) return;
 
-        deleteDoc(docRef)
-            .catch(err => {
-                 errorEmitter.emit('permission-error', new FirestorePermissionError({
-                    path: docRef.path,
-                    operation: 'delete',
-                }));
+        const collectionPath = `companies/${companyId}/sales`;
+        const q = query(collection(firestore, collectionPath), where("status", "==", "Pendiente"));
+
+        try {
+            const querySnapshot = await getDocs(q);
+            if (querySnapshot.empty) {
+                toast({ description: "No hay documentos pendientes para eliminar." });
+                setIsDeleteDialogOpen(false);
+                return;
+            }
+
+            const batch = writeBatch(firestore);
+            querySnapshot.forEach(doc => {
+                batch.delete(doc.ref);
             });
-    };
-    
-    const handleFieldChange = (field: keyof Sale, value: string | number) => {
-        if (selectedSale) {
-            setSelectedSale({ ...selectedSale, [field]: value });
+            
+            await batch.commit();
+            toast({
+                title: 'Proceso Cancelado',
+                description: 'Se han eliminado todos los documentos de venta pendientes.',
+                variant: 'destructive'
+            });
+
+        } catch (error) {
+            errorEmitter.emit('permission-error', new FirestorePermissionError({
+                path: collectionPath,
+                operation: 'delete',
+            }));
+        } finally {
+            setIsDeleteDialogOpen(false);
         }
     };
+
+
+    const pendingSales = sales?.filter(p => p.status === 'Pendiente') || [];
 
     return (
-      <>
-      <Card>
-        <CardHeader>
-            <div className="flex items-center justify-between">
-                <div>
-                    <CardTitle>Ventas</CardTitle>
-                    <CardDescription>Gestiona tus documentos de venta.</CardDescription>
-                </div>
-                <Button size="sm" className="gap-1" onClick={handleCreateNew} disabled={!companyId}>
-                    <PlusCircle className="h-4 w-4" />
-                    Agregar Venta
-                </Button>
-            </div>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Fecha</TableHead>
-                <TableHead>Nº Documento</TableHead>
-                <TableHead>Cliente</TableHead>
-                <TableHead>Estado</TableHead>
-                <TableHead className="text-right">Total</TableHead>
-                <TableHead>
-                  <span className="sr-only">Acciones</span>
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-                {loading && (
-                    <TableRow>
-                        <TableCell colSpan={6} className="text-center">Cargando...</TableCell>
-                    </TableRow>
-                )}
-                {!loading && sales?.map((sale) => (
-                    <TableRow key={sale.id}>
-                    <TableCell>{new Date(sale.date).toLocaleDateString('es-CL', { timeZone: 'UTC' })}</TableCell>
-                    <TableCell className="font-medium">{sale.documentNumber}</TableCell>
-                    <TableCell>{sale.customer}</TableCell>
-                    <TableCell>
-                        <Badge variant={
-                            sale.status === 'Pagada' ? 'default' :
-                            sale.status === 'Vencida' ? 'destructive' : 'secondary'
-                        }>
-                            {sale.status}
-                        </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">${sale.total.toLocaleString('es-CL')}</TableCell>
-                    <TableCell>
-                        <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                            <Button aria-haspopup="true" size="icon" variant="ghost">
-                            <MoreHorizontal className="h-4 w-4" />
-                            <span className="sr-only">Toggle menu</span>
+        <>
+            <Card>
+                <CardHeader>
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <CardTitle>Centralización de Ventas</CardTitle>
+                            <CardDescription>Paso 1: Importa los documentos de venta desde el archivo del SII.</CardDescription>
+                        </div>
+                        <div className="flex gap-2">
+                            <input type="file" ref={fileInputRef} className="hidden" accept=".csv" onChange={handleFileImport} />
+                            <Button size="sm" className="gap-1" onClick={() => fileInputRef.current?.click()} disabled={!companyId}>
+                                <Upload className="h-4 w-4" />
+                                Importar Ventas (CSV)
                             </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                            <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-                            <DropdownMenuItem onClick={() => handleEdit(sale)}>Editar</DropdownMenuItem>
-                            <DropdownMenuItem className="text-destructive" onClick={() => handleOpenDeleteDialog(sale)}>Anular</DropdownMenuItem>
-                        </DropdownMenuContent>
-                        </DropdownMenu>
-                    </TableCell>
-                    </TableRow>
-                ))}
-                {!loading && sales?.length === 0 && (
-                    <TableRow>
-                        <TableCell colSpan={6} className="text-center">
-                            {!companyId ? "Selecciona una empresa para ver sus ventas." : "No se encontraron documentos de venta."}
-                        </TableCell>
-                    </TableRow>
-                )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
-      
-      <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
-            <DialogContent className="sm:max-w-[425px]">
-                <DialogHeader>
-                    <DialogTitle>{selectedSale?.id?.startsWith('new-') ? 'Agregar Venta' : 'Editar Venta'}</DialogTitle>
-                    <DialogDescription>
-                        Rellena los detalles del documento.
-                    </DialogDescription>
-                </DialogHeader>
-                <div className="grid gap-4 py-4">
-                    <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="date" className="text-right">Fecha</Label>
-                        <Input id="date" type="date" value={selectedSale?.date || ''} onChange={(e) => handleFieldChange('date', e.target.value)} className="col-span-3" />
+                            {pendingSales.length > 0 && (
+                                <>
+                                    <Button 
+                                        size="sm" 
+                                        variant="destructive"
+                                        className="gap-1" 
+                                        onClick={() => setIsDeleteDialogOpen(true)}
+                                    >
+                                        <Trash2 className="h-4 w-4" />
+                                        Eliminar Pendientes
+                                    </Button>
+                                    <Button 
+                                        size="sm" 
+                                        className="gap-1" 
+                                        onClick={() => router.push('/dashboard/sales/centralize')}
+                                    >
+                                    Ir a Centralizar <ArrowRight className="h-4 w-4" />
+                                    </Button>
+                                </>
+                            )}
+                        </div>
                     </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="documentNumber" className="text-right">Nº Documento</Label>
-                        <Input id="documentNumber" value={selectedSale?.documentNumber || ''} onChange={(e) => handleFieldChange('documentNumber', e.target.value)} className="col-span-3" />
-                    </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="customer" className="text-right">Cliente</Label>
-                        <Input id="customer" value={selectedSale?.customer || ''} onChange={(e) => handleFieldChange('customer', e.target.value)} className="col-span-3" />
-                    </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="total" className="text-right">Total</Label>
-                        <Input id="total" type="number" value={selectedSale?.total ?? ''} onChange={(e) => handleFieldChange('total', parseFloat(e.target.value))} className="col-span-3" />
-                    </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="status" className="text-right">Estado</Label>
-                        <Select value={selectedSale?.status || 'Pendiente'} onValueChange={(value) => handleFieldChange('status', value)}>
-                            <SelectTrigger className="col-span-3"><SelectValue /></SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="Pendiente">Pendiente</SelectItem>
-                                <SelectItem value="Pagada">Pagada</SelectItem>
-                                <SelectItem value="Vencida">Vencida</SelectItem>
-                            </SelectContent>
-                        </Select>
-                    </div>
-                </div>
-                <DialogFooter>
-                    <DialogClose asChild><Button type="button" variant="secondary">Cancelar</Button></DialogClose>
-                    <Button type="submit" onClick={handleSave}>Guardar</Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
+                </CardHeader>
+                <CardContent>
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Fecha</TableHead>
+                                <TableHead>Nº Documento</TableHead>
+                                <TableHead>Cliente</TableHead>
+                                <TableHead className="text-right">Total</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {loading && (
+                                <TableRow>
+                                    <TableCell colSpan={4} className="text-center">Cargando...</TableCell>
+                                </TableRow>
+                            )}
+                            {!loading && pendingSales.map((sale) => (
+                                <TableRow key={sale.id}>
+                                    <TableCell>{new Date(sale.date).toLocaleDateString('es-CL', { timeZone: 'UTC' })}</TableCell>
+                                    <TableCell className="font-medium">{sale.documentNumber}</TableCell>
+                                    <TableCell>{sale.customer}</TableCell>
+                                    <TableCell className="text-right font-bold">${sale.total.toLocaleString('es-CL')}</TableCell>
+                                </TableRow>
+                            ))}
+                            {!loading && pendingSales.length === 0 && (
+                                <TableRow>
+                                    <TableCell colSpan={4} className="text-center h-24">
+                                        {!companyId ? "Selecciona una empresa para empezar." : "No hay documentos de venta pendientes. ¡Importa un archivo!"}
+                                    </TableCell>
+                                </TableRow>
+                            )}
+                        </TableBody>
+                    </Table>
+                </CardContent>
+            </Card>
 
-        <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-            <AlertDialogContent>
-                <AlertDialogHeader>
-                    <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                        Esta acción no se puede deshacer. Esto eliminará permanentemente el documento de venta.
-                    </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                    <AlertDialogAction className={buttonVariants({ variant: "destructive" })} onClick={handleDelete}>
-                        Sí, eliminar
-                    </AlertDialogAction>
-                </AlertDialogFooter>
-            </AlertDialogContent>
-        </AlertDialog>
-      </>
+            <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>¿Estás absolutamente seguro?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Esta acción no se puede deshacer. Se eliminarán permanentemente **todos** los documentos de venta con estado "Pendiente" para la empresa seleccionada.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction
+                            className={buttonVariants({ variant: "destructive" })}
+                            onClick={handleDeletePending}
+                        >
+                            Sí, eliminar pendientes
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+        </>
     )
-  }
+}

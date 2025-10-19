@@ -29,7 +29,6 @@ import {
   Book,
   FileCog,
   RefreshCw,
-  GitMerge,
   Lock,
   Building,
   HeartPulse,
@@ -54,9 +53,6 @@ const accountantNavSections = [
                 icon: Banknote,
                 links: [
                     { href: '/dashboard/vouchers', label: 'Comprobantes', icon: FileText },
-                    { href: '/dashboard/purchases', label: 'Compras', icon: FileText },
-                    { href: '/dashboard/sales', label: 'Ventas', icon: FileText },
-                    { href: '/dashboard/fees', label: 'Honorarios', icon: FileText },
                     { href: '/dashboard/bank-reconciliation', label: 'Conciliación Bancaria', icon: Scale },
                 ]
             }
@@ -126,10 +122,11 @@ const payrollSections = [
 const criticalProcessesSections = [
     {
         title: 'Centralización',
-        icon: GitMerge,
+        icon: RefreshCw,
         links: [
             { href: '/dashboard/critical-processes/centralization-remunerations', label: 'Centralización Remuneraciones', icon: FileText },
             { href: '/dashboard/purchases', label: 'Centralización Compras', icon: FileText },
+            { href: '/dashboard/sales', label: 'Centralización Ventas', icon: FileText },
         ]
     },
     {
