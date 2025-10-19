@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { useCollection, useFirestore } from "@/firebase"
-import { collection, addDoc, writeBatch, doc, Timestamp } from "firebase/firestore"
+import { collection, addDoc, writeBatch, doc, Timestamp, getDocs, query, where } from "firebase/firestore"
 import type { Purchase, Account, VoucherEntry } from "@/lib/types";
 import { errorEmitter } from '@/firebase/error-emitter'
 import { FirestorePermissionError } from '@/firebase/errors'
@@ -19,9 +19,9 @@ import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { AlertCircle, ArrowLeft } from "lucide-react";
+import { AlertCircle } from "lucide-react";
 import Link from "next/link";
-import { format, lastDayOfMonth, parseISO, isAfter, isEqual } from "date-fns";
+import { format, lastDayOfMonth, parseISO, isAfter, isEqual, isBefore } from "date-fns";
 import { es } from "date-fns/locale";
 
 type SummaryRow = {
@@ -87,6 +87,7 @@ export default function CentralizePurchasesPage() {
         processableDocs.forEach(p => {
             if (!p.assignedAccount) return;
 
+            // Handle credit notes (type 61) by inverting amounts
             const sign = p.documentType.includes('61') ? -1 : 1;
             const netAmount = p.netAmount * sign;
             const taxAmount = p.taxAmount * sign;
@@ -197,7 +198,7 @@ export default function CentralizePurchasesPage() {
             type: 'Traspaso' as const,
             description: `Centralización Compras ${monthName} ${periodDate.getFullYear()}`,
             status: 'Contabilizado' as const,
-            total: Math.abs(totalPayable),
+            total: Math.abs(finalEntries.reduce((sum, e) => sum + e.debit, 0)),
             entries: finalEntries,
             companyId: companyId,
             createdAt: Timestamp.now(),
@@ -231,14 +232,9 @@ export default function CentralizePurchasesPage() {
 
     return (
         <div className="space-y-6">
-            <div className="flex items-center gap-4">
-                <Button variant="outline" size="icon" asChild>
-                    <Link href="/dashboard/purchases"><ArrowLeft className="h-4 w-4" /></Link>
-                </Button>
-                <div>
-                    <h1 className="text-2xl font-bold tracking-tight">2. Vista Previa y Centralización de Compras</h1>
-                    <p className="text-muted-foreground">Verifica los totales y confirma la generación del asiento contable.</p>
-                </div>
+            <div>
+                <h1 className="text-2xl font-bold tracking-tight">2. Vista Previa y Centralización de Compras</h1>
+                <p className="text-muted-foreground">Verifica los totales y confirma la generación del asiento contable.</p>
             </div>
             
             {loading && <p>Cargando vista previa...</p>}
@@ -376,12 +372,17 @@ export default function CentralizePurchasesPage() {
                                Diferencia: ${(Math.round(totalDebit) - Math.round(totalCredit)).toLocaleString('es-CL')}
                            </p>
                         </div>
-                        <Button 
-                            onClick={handleCentralize} 
-                            disabled={!isValid || isProcessing}
-                        >
-                            {isProcessing ? "Procesando..." : "Centralizar y Contabilizar"}
-                        </Button>
+                        <div className="flex gap-2">
+                             <Button variant="outline" asChild>
+                                <Link href="/dashboard/purchases">Atrás y Corregir</Link>
+                            </Button>
+                            <Button 
+                                onClick={handleCentralize} 
+                                disabled={!isValid || isProcessing}
+                            >
+                                {isProcessing ? "Procesando..." : "Centralizar y Contabilizar"}
+                            </Button>
+                        </div>
                     </CardFooter>
                 </Card>
             )}
