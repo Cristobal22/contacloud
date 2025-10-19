@@ -16,11 +16,11 @@ import {
     CardHeader,
     CardTitle,
 } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Upload, ArrowRight } from "lucide-react"
+import { Button, buttonVariants } from "@/components/ui/button"
+import { Upload, ArrowRight, Trash2 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { useCollection, useFirestore } from "@/firebase"
-import { collection, addDoc, setDoc, doc, writeBatch } from "firebase/firestore"
+import { collection, addDoc, setDoc, doc, writeBatch, query, where, getDocs } from "firebase/firestore"
 import type { Purchase, Account } from "@/lib/types";
 import { errorEmitter } from '@/firebase/error-emitter'
 import { FirestorePermissionError } from '@/firebase/errors'
@@ -29,6 +29,16 @@ import { useToast } from "@/hooks/use-toast";
 import { AccountSearchInput } from "@/components/account-search-input";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 export default function PurchasesPage() {
     const { selectedCompany } = React.useContext(SelectedCompanyContext) || {};
@@ -37,6 +47,8 @@ export default function PurchasesPage() {
     const { toast } = useToast();
     const router = useRouter();
     const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+    const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false);
 
     const { data: purchases, loading: purchasesLoading } = useCollection<Purchase>({
         path: companyId ? `companies/${companyId}/purchases` : undefined,
@@ -129,84 +141,155 @@ export default function PurchasesPage() {
         if (fileInputRef.current) fileInputRef.current.value = '';
     };
 
+    const handleDeletePending = async () => {
+        if (!firestore || !companyId) return;
+
+        const collectionPath = `companies/${companyId}/purchases`;
+        const q = query(collection(firestore, collectionPath), where("status", "==", "Pendiente"));
+
+        try {
+            const querySnapshot = await getDocs(q);
+            if (querySnapshot.empty) {
+                toast({ description: "No hay documentos pendientes para eliminar." });
+                setIsDeleteDialogOpen(false);
+                return;
+            }
+
+            const batch = writeBatch(firestore);
+            querySnapshot.forEach(doc => {
+                batch.delete(doc.ref);
+            });
+            
+            await batch.commit();
+            toast({
+                title: 'Proceso Cancelado',
+                description: 'Se han eliminado todos los documentos de compra pendientes.',
+                variant: 'destructive'
+            });
+
+        } catch (error) {
+            errorEmitter.emit('permission-error', new FirestorePermissionError({
+                path: collectionPath,
+                operation: 'delete',
+            }));
+        } finally {
+            setIsDeleteDialogOpen(false);
+        }
+    };
+
+
     const pendingPurchases = purchases?.filter(p => p.status === 'Pendiente') || [];
 
     return (
-        <Card>
-            <CardHeader>
-                <div className="flex items-center justify-between">
-                    <div>
-                        <CardTitle>Centralización de Compras</CardTitle>
-                        <CardDescription>Paso 1: Importa documentos y asigna las cuentas de gasto/activo.</CardDescription>
+        <>
+            <Card>
+                <CardHeader>
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <CardTitle>Centralización de Compras</CardTitle>
+                            <CardDescription>Paso 1: Importa documentos y asigna las cuentas de gasto/activo.</CardDescription>
+                        </div>
+                        <div className="flex gap-2">
+                            <input type="file" ref={fileInputRef} className="hidden" accept=".csv" onChange={handleFileImport} />
+                            <Button size="sm" className="gap-1" onClick={() => fileInputRef.current?.click()} disabled={!companyId}>
+                                <Upload className="h-4 w-4" />
+                                Importar Compras (CSV)
+                            </Button>
+                            {pendingPurchases.length > 0 && (
+                                <>
+                                    <Button 
+                                        size="sm" 
+                                        variant="destructive"
+                                        className="gap-1" 
+                                        onClick={() => setIsDeleteDialogOpen(true)}
+                                    >
+                                        <Trash2 className="h-4 w-4" />
+                                        Eliminar Pendientes
+                                    </Button>
+                                    <Button 
+                                        size="sm" 
+                                        className="gap-1" 
+                                        onClick={() => router.push('/dashboard/purchases/centralize')}
+                                    >
+                                    Ir a Centralizar <ArrowRight className="h-4 w-4" />
+                                    </Button>
+                                </>
+                            )}
+                        </div>
                     </div>
-                    <div className="flex gap-2">
-                        <input type="file" ref={fileInputRef} className="hidden" accept=".csv" onChange={handleFileImport} />
-                        <Button size="sm" className="gap-1" onClick={() => fileInputRef.current?.click()} disabled={!companyId}>
-                            <Upload className="h-4 w-4" />
-                            Importar Compras (CSV)
-                        </Button>
-                        <Button 
-                            size="sm" 
-                            className="gap-1" 
-                            disabled={pendingPurchases.length === 0}
-                            onClick={() => router.push('/dashboard/purchases/centralize')}
+                </CardHeader>
+                <CardContent>
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Fecha</TableHead>
+                                <TableHead>Documento</TableHead>
+                                <TableHead>Proveedor</TableHead>
+                                <TableHead className="w-[300px]">Cuenta de Gasto/Activo</TableHead>
+                                <TableHead className="text-right">Neto</TableHead>
+                                <TableHead className="text-right">IVA</TableHead>
+                                <TableHead className="text-right">Total</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {loading && (
+                                <TableRow>
+                                    <TableCell colSpan={7} className="text-center">Cargando...</TableCell>
+                                </TableRow>
+                            )}
+                            {!loading && pendingPurchases.map((purchase) => (
+                                <TableRow 
+                                    key={purchase.id}
+                                    className={cn(!purchase.assignedAccount && "bg-destructive/10 border-l-4 border-destructive")}
+                                >
+                                    <TableCell>{new Date(purchase.date).toLocaleDateString('es-CL', { timeZone: 'UTC' })}</TableCell>
+                                    <TableCell className="font-medium">{purchase.documentType} {purchase.documentNumber}</TableCell>
+                                    <TableCell>{purchase.supplier}</TableCell>
+                                    <TableCell>
+                                        <AccountSearchInput 
+                                            value={purchase.assignedAccount || ''}
+                                            onValueChange={(value) => handleAccountChange(purchase.id, value)}
+                                            accounts={accounts || []}
+                                            loading={accountsLoading}
+                                            label=""
+                                        />
+                                    </TableCell>
+                                    <TableCell className="text-right">${purchase.netAmount.toLocaleString('es-CL')}</TableCell>
+                                    <TableCell className="text-right">${purchase.taxAmount.toLocaleString('es-CL')}</TableCell>
+                                    <TableCell className="text-right font-bold">${purchase.total.toLocaleString('es-CL')}</TableCell>
+                                </TableRow>
+                            ))}
+                            {!loading && pendingPurchases.length === 0 && (
+                                <TableRow>
+                                    <TableCell colSpan={7} className="text-center h-24">
+                                        {!companyId ? "Selecciona una empresa para empezar." : "No hay documentos de compra pendientes. ¡Importa un archivo!"}
+                                    </TableCell>
+                                </TableRow>
+                            )}
+                        </TableBody>
+                    </Table>
+                </CardContent>
+            </Card>
+
+            <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>¿Estás absolutamente seguro?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Esta acción no se puede deshacer. Se eliminarán permanentemente **todos** los documentos de compra con estado "Pendiente" para la empresa seleccionada.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction
+                            className={buttonVariants({ variant: "destructive" })}
+                            onClick={handleDeletePending}
                         >
-                           Ir a Centralizar <ArrowRight className="h-4 w-4" />
-                        </Button>
-                    </div>
-                </div>
-            </CardHeader>
-            <CardContent>
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>Fecha</TableHead>
-                            <TableHead>Documento</TableHead>
-                            <TableHead>Proveedor</TableHead>
-                            <TableHead className="w-[300px]">Cuenta de Gasto/Activo</TableHead>
-                            <TableHead className="text-right">Neto</TableHead>
-                            <TableHead className="text-right">IVA</TableHead>
-                            <TableHead className="text-right">Total</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {loading && (
-                            <TableRow>
-                                <TableCell colSpan={7} className="text-center">Cargando...</TableCell>
-                            </TableRow>
-                        )}
-                        {!loading && pendingPurchases.map((purchase) => (
-                            <TableRow 
-                                key={purchase.id}
-                                className={cn(!purchase.assignedAccount && "bg-destructive/10 border-l-4 border-destructive")}
-                            >
-                                <TableCell>{new Date(purchase.date).toLocaleDateString('es-CL', { timeZone: 'UTC' })}</TableCell>
-                                <TableCell className="font-medium">{purchase.documentType} {purchase.documentNumber}</TableCell>
-                                <TableCell>{purchase.supplier}</TableCell>
-                                <TableCell>
-                                    <AccountSearchInput 
-                                        value={purchase.assignedAccount || ''}
-                                        onValueChange={(value) => handleAccountChange(purchase.id, value)}
-                                        accounts={accounts || []}
-                                        loading={accountsLoading}
-                                        label=""
-                                    />
-                                </TableCell>
-                                <TableCell className="text-right">${purchase.netAmount.toLocaleString('es-CL')}</TableCell>
-                                <TableCell className="text-right">${purchase.taxAmount.toLocaleString('es-CL')}</TableCell>
-                                <TableCell className="text-right font-bold">${purchase.total.toLocaleString('es-CL')}</TableCell>
-                            </TableRow>
-                        ))}
-                        {!loading && pendingPurchases.length === 0 && (
-                            <TableRow>
-                                <TableCell colSpan={7} className="text-center h-24">
-                                    {!companyId ? "Selecciona una empresa para empezar." : "No hay documentos de compra pendientes. ¡Importa un archivo!"}
-                                </TableCell>
-                            </TableRow>
-                        )}
-                    </TableBody>
-                </Table>
-            </CardContent>
-        </Card>
+                            Sí, eliminar pendientes
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+        </>
     )
 }
