@@ -15,6 +15,27 @@ import { errorEmitter } from '@/firebase/error-emitter'
 import { FirestorePermissionError } from '@/firebase/errors'
 import { useToast } from "@/hooks/use-toast";
 
+const defaultAccountMappings: { [key in keyof Partial<Company>]: string } = {
+    profitAccount: '40105', // UTILIDAD BRUTA
+    lossAccount: '40192', // GANANCIAS (PERDIDAS) OP. CONT.
+    salesInvoicesReceivableAccount: '1010401', // CLIENTES
+    salesNotesReceivableAccount: '1010401', // CLIENTES (same as invoices for simplicity)
+    salesVatAccount: '2010920', // IVA DEBITO FISCAL
+    purchasesInvoicesPayableAccount: '2010201', // PROVEEDORES
+    purchasesNotesPayableAccount: '2010201', // PROVEEDORES (same as invoices)
+    purchasesVatAccount: '1010802', // IVA CREDITO FISCAL
+    vatRemanentAccount: '1010803', // IVA REMANENTE CREDITO FISCAL
+    feesPayableAccount: '2010220', // HONORARIOS POR PAGAR
+    feesWithholdingAccount: '2010930', // RETENCION IMPUESTO HONORARIOS
+    incomeFeesReceivableAccount: '1010415', // HONORARIOS POR COBRAR
+    incomeFeesWithholdingAccount: '2010940', // RETENCION INGRESO HONORARIO
+    remunerationExpenseAccount: '4010810', // GASTOS DE SUELDOS Y SALARIOS
+    salariesPayableAccount: '2010215', // SUELDOS POR PAGAR
+    afpPayableAccount: '2010225', // IMPOSICIONES POR PAGAR
+    healthPayableAccount: '2010225', // IMPOSICIONES POR PAGAR (using the same for simplicity)
+    unemploymentInsurancePayableAccount: '2010225', // IMPOSICIONES POR PAGAR (using the same)
+};
+
 
 export default function CompanySettingsPage() {
     const { selectedCompany, setSelectedCompany } = React.useContext(SelectedCompanyContext) || {};
@@ -72,6 +93,48 @@ export default function CompanySettingsPage() {
         }
     };
 
+    const handleAssignDefaults = () => {
+        if (!accounts || accounts.length === 0) {
+            toast({
+                variant: 'destructive',
+                title: 'Error',
+                description: 'No hay un plan de cuentas cargado para esta empresa.'
+            });
+            return;
+        }
+
+        const accountMap = new Map(accounts.map(acc => [acc.code, acc]));
+        let updatedCompany = { ...company };
+        let missingAccounts: string[] = [];
+
+        for (const key in defaultAccountMappings) {
+            const field = key as keyof Company;
+            const code = defaultAccountMappings[field];
+
+            if (accountMap.has(code)) {
+                updatedCompany[field] = code as any;
+            } else {
+                missingAccounts.push(`${field} (código ${code})`);
+            }
+        }
+
+        if (missingAccounts.length > 0) {
+            toast({
+                variant: 'destructive',
+                title: 'Faltan Cuentas Predeterminadas',
+                description: `No se pudieron asignar todas las cuentas. Faltan las siguientes: ${missingAccounts.join(', ')}.`,
+                duration: 10000,
+            });
+        } else {
+            setCompany(updatedCompany);
+            toast({
+                title: 'Cuentas Asignadas',
+                description: 'Se han asignado las cuentas predeterminadas. Guarda los cambios para confirmarlos.'
+            });
+        }
+    };
+
+
     if (!company) {
         return (
             <Card>
@@ -89,8 +152,15 @@ export default function CompanySettingsPage() {
     return (
         <Card>
             <CardHeader>
-                <CardTitle>Configuración de la Empresa</CardTitle>
-                <CardDescription>Modificación de datos para {company.name}</CardDescription>
+                <div className="flex items-start justify-between">
+                    <div>
+                        <CardTitle>Configuración de la Empresa</CardTitle>
+                        <CardDescription>Modificación de datos para {company.name}</CardDescription>
+                    </div>
+                    <Button variant="outline" onClick={handleAssignDefaults} disabled={accountsLoading}>
+                        Asignar Cuentas Predeterminadas
+                    </Button>
+                </div>
             </CardHeader>
             <CardContent className="space-y-8">
                 {/* General */}
