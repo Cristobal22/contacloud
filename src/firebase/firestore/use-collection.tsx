@@ -21,11 +21,16 @@ function getQueryKey(q: Query | CollectionReference | null | undefined): string 
         return q.path;
     }
     // It's a Query, build a key from its internal properties
-    const queryParts: string[] = [(q as any)._query.path.segments.join('/')];
-    (q as any)._query.explicitOrderBy.forEach((orderBy: any) => {
+    const internalQuery = (q as any)._query;
+    if (!internalQuery || !internalQuery.path) {
+        return 'invalid-query';
+    }
+    
+    const queryParts: string[] = [internalQuery.path.segments.join('/')];
+    internalQuery.explicitOrderBy.forEach((orderBy: any) => {
         queryParts.push(`orderBy:${orderBy.field.segments.join('.')}:${orderBy.dir}`);
     });
-    (q as any)._query.filters.forEach((filter: any) => {
+    internalQuery.filters.forEach((filter: any) => {
         const filterStr = `${filter.field.segments.join('.')}${filter.op}${filter.value}`;
         queryParts.push(`filter:${filterStr}`);
     });
