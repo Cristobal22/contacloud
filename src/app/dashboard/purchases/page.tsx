@@ -28,6 +28,7 @@ import { SelectedCompanyContext } from "../layout";
 import { useToast } from "@/hooks/use-toast";
 import { AccountSearchInput } from "@/components/account-search-input";
 import { useRouter } from "next/navigation";
+import { cn } from "@/lib/utils";
 
 export default function PurchasesPage() {
     const { selectedCompany } = React.useContext(SelectedCompanyContext) || {};
@@ -82,7 +83,6 @@ export default function PurchasesPage() {
                     const columns = line.split(';');
                     if (columns.length < 15) return;
 
-                    // Helper to parse DD-MM-YYYY format
                     const parseDate = (dateStr: string) => {
                         const [day, month, year] = dateStr.split('-');
                         if (!day || !month || !year) return new Date().toISOString().substring(0, 10);
@@ -176,7 +176,10 @@ export default function PurchasesPage() {
                             </TableRow>
                         )}
                         {!loading && pendingPurchases.map((purchase) => (
-                            <TableRow key={purchase.id}>
+                            <TableRow 
+                                key={purchase.id}
+                                className={cn(!purchase.assignedAccount && "bg-destructive/10 border-l-4 border-destructive")}
+                            >
                                 <TableCell>{new Date(purchase.date).toLocaleDateString('es-CL', { timeZone: 'UTC' })}</TableCell>
                                 <TableCell className="font-medium">{purchase.documentType} {purchase.documentNumber}</TableCell>
                                 <TableCell>{purchase.supplier}</TableCell>

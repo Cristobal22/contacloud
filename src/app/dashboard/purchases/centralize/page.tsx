@@ -21,7 +21,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFoo
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertCircle, ArrowLeft } from "lucide-react";
 import Link from "next/link";
-import { format, lastDayOfMonth, parseISO, isBefore, isEqual } from "date-fns";
+import { format, lastDayOfMonth, parseISO, isAfter, isEqual } from "date-fns";
 import { es } from "date-fns/locale";
 
 type SummaryRow = {
@@ -55,13 +55,13 @@ export default function CentralizePurchasesPage() {
         summary,
         totalDebit,
         totalCredit,
-        unassignedCount,
+        unassignedDocs,
         closedPeriodDocs,
         purchasesToProcess,
         isValid
     } = React.useMemo(() => {
         if (!allPurchases || !accounts || !selectedCompany) {
-            return { summary: [], totalDebit: 0, totalCredit: 0, unassignedCount: 0, closedPeriodDocs: [], purchasesToProcess: [], isValid: false };
+            return { summary: [], totalDebit: 0, totalCredit: 0, unassignedDocs: [], closedPeriodDocs: [], purchasesToProcess: [], isValid: false };
         }
         
         const lastClosed = selectedCompany.lastClosedDate ? parseISO(selectedCompany.lastClosedDate) : null;
@@ -69,18 +69,16 @@ export default function CentralizePurchasesPage() {
         const processableDocs = allPurchases.filter(p => {
             if (!lastClosed) return true;
             const docDate = parseISO(p.date);
-            // A document can be processed if its date is AFTER the last closing date.
             return isAfter(docDate, lastClosed);
         });
 
         const rejectedDocs = allPurchases.filter(p => {
              if (!lastClosed) return false;
             const docDate = parseISO(p.date);
-            // A document is rejected if its date is on or before the last closing date.
             return isBefore(docDate, lastClosed) || isEqual(docDate, lastClosed);
         });
 
-        const unassigned = processableDocs.filter(p => !p.assignedAccount).length;
+        const unassigned = processableDocs.filter(p => !p.assignedAccount);
 
         const netSummary = new Map<string, { name: string, total: number, count: number }>();
         let totalIvaCredit = 0;
@@ -89,9 +87,7 @@ export default function CentralizePurchasesPage() {
         processableDocs.forEach(p => {
             if (!p.assignedAccount) return;
 
-            // NCE (61) are credit, NDE (56) are debit. Others are debit.
             const sign = p.documentType.includes('61') ? -1 : 1;
-
             const netAmount = p.netAmount * sign;
             const taxAmount = p.taxAmount * sign;
             const totalAmount = p.total * sign;
@@ -112,8 +108,6 @@ export default function CentralizePurchasesPage() {
             docCount: data.count,
         }));
         
-        // Debit is the sum of net amounts and VAT.
-        // If totalPayable is negative (due to a large credit note), we add its absolute value to debit side.
         const debit = summaryRows.reduce((sum, row) => sum + row.totalNet, 0) + totalIvaCredit;
         
         const isBalanced = Math.round(debit) === Math.round(totalPayable);
@@ -124,10 +118,10 @@ export default function CentralizePurchasesPage() {
             totalPayable,
             totalDebit: debit,
             totalCredit: totalPayable,
-            unassignedCount: unassigned,
+            unassignedDocs: unassigned,
             closedPeriodDocs: rejectedDocs,
             purchasesToProcess: processableDocs,
-            isValid: unassigned === 0 && processableDocs.length > 0 && isBalanced,
+            isValid: unassigned.length === 0 && processableDocs.length > 0 && isBalanced,
         };
     }, [allPurchases, accounts, selectedCompany]);
 
@@ -144,16 +138,15 @@ export default function CentralizePurchasesPage() {
         const monthName = format(periodDate, 'MMMM', { locale: es });
 
         const entries: Omit<VoucherEntry, 'id'>[] = [];
-        // Net entries
         summary.forEach(row => {
-            if (row.totalNet > 0) { // Cargo (debit)
+            if (row.totalNet > 0) {
                 entries.push({
                     account: row.accountCode,
                     description: `Neto compras ${row.accountName}`,
                     debit: row.totalNet,
                     credit: 0,
                 });
-            } else if (row.totalNet < 0) { // Abono (credit)
+            } else if (row.totalNet < 0) {
                  entries.push({
                     account: row.accountCode,
                     description: `Ajuste compras ${row.accountName}`,
@@ -162,7 +155,6 @@ export default function CentralizePurchasesPage() {
                 });
             }
         });
-        // VAT entry
         if (selectedCompany.purchasesVatAccount) {
             if (totalIvaCredit > 0) {
                  entries.push({
@@ -180,7 +172,6 @@ export default function CentralizePurchasesPage() {
                 });
             }
         }
-        // Payable entry
         if (selectedCompany.purchasesInvoicesPayableAccount) {
              if (totalPayable > 0) {
                 entries.push({
@@ -265,21 +256,33 @@ export default function CentralizePurchasesPage() {
                         <CardTitle>Resumen del Asiento a Generar</CardTitle>
                     </CardHeader>
                     <CardContent>
-                         {unassignedCount > 0 && (
+                         {unassignedDocs.length > 0 && (
                              <Alert variant="destructive" className="mb-4">
                                 <AlertCircle className="h-4 w-4" />
-                                <AlertTitle>Atención Requerida: Cuentas no Asignadas</AlertTitle>
+                                <AlertTitle>Atención Requerida: {unassignedDocs.length} Documento(s) Sin Cuenta Asignada</AlertTitle>
                                 <AlertDescription>
-                                    Hay <span className="font-bold">{unassignedCount}</span> documento(s) de compra sin una cuenta de gasto/activo asignada. Debes asignarlas todas antes de poder centralizar. Vuelve a la página anterior para corregirlo.
+                                    <p>Debes asignar una cuenta de gasto a todos los documentos. Vuelve a la página anterior para corregir:</p>
+                                    <ul className="list-disc pl-5 mt-2 text-xs">
+                                       {unassignedDocs.slice(0, 5).map(doc => (
+                                           <li key={doc.id}>Folio {doc.documentNumber} de {doc.supplier}</li>
+                                       ))}
+                                        {unassignedDocs.length > 5 && <li>... y {unassignedDocs.length - 5} más.</li>}
+                                    </ul>
                                 </AlertDescription>
                             </Alert>
                          )}
                          {closedPeriodDocs.length > 0 && (
                              <Alert variant="destructive" className="mb-4">
                                 <AlertCircle className="h-4 w-4" />
-                                <AlertTitle>Atención Requerida: Documentos en Período Cerrado</AlertTitle>
+                                <AlertTitle>Atención Requerida: {closedPeriodDocs.length} Documento(s) en Período Cerrado</AlertTitle>
                                 <AlertDescription>
-                                    Hay <span className="font-bold">{closedPeriodDocs.length}</span> documento(s) con fecha en un período ya cerrado. No serán incluidos en esta centralización y permanecerán pendientes.
+                                    <p>Estos documentos no serán incluidos en esta centralización y permanecerán pendientes:</p>
+                                     <ul className="list-disc pl-5 mt-2 text-xs">
+                                       {closedPeriodDocs.slice(0, 5).map(doc => (
+                                           <li key={doc.id}>Folio {doc.documentNumber} de {doc.supplier} (Fecha: {new Date(doc.date).toLocaleDateString('es-CL')})</li>
+                                       ))}
+                                        {closedPeriodDocs.length > 5 && <li>... y {closedPeriodDocs.length - 5} más.</li>}
+                                    </ul>
                                 </AlertDescription>
                             </Alert>
                          )}
