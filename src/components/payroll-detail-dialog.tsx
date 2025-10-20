@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import {
@@ -45,9 +44,9 @@ export function PayrollDetailDialog({ isOpen, onClose, data }: PayrollDetailDial
     const [isPreview, setIsPreview] = React.useState(false);
     
     const firestore = useFirestore();
+    const companyId = selectedCompany?.id;
     const { data: taxParameters, loading: taxLoading } = useCollection<TaxParameter>({ path: 'tax-parameters' });
     const { data: economicIndicators, loading: indicatorsLoading } = useCollection<EconomicIndicator>({ path: companyId ? `companies/${companyId}/economic-indicators` : 'economic-indicators'});
-    const companyId = selectedCompany?.id;
 
     const handleClose = () => {
         setPdfInstance(null);
