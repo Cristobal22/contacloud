@@ -21,7 +21,7 @@ Contador Cloud es una moderna aplicación de contabilidad multi-tenant diseñada
     - **Gestión de Comprobantes Profesional**: Flujo de trabajo completo con estados "Borrador" y "Contabilizado". Un comprobante contabilizado puede ser editado, pero se revierte a "Borrador" para garantizar la integridad de los informes.
     - **Informes Precisos**: Libro Diario, Libro Mayor y Balances que **solo** consideran comprobantes contabilizados, asegurando la fiabilidad de los datos.
     - **Gestión de Remuneraciones**: Módulo completo para la gestión de empleados y el procesamiento de liquidaciones de sueldo.
-    - **Datos Maestros Precargados**: Scripts para poblar datos esenciales como entidades de AFP, Salud, parámetros de IUT y Asignación Familiar.
+    - **Datos Maestros Precargados**: Los usuarios pueden cargar y actualizar datos esenciales como entidades de AFP, Salud, parámetros de IUT y Asignación Familiar directamente desde la interfaz de usuario.
 
 - **Procesos Críticos Asistidos por IA**:
     - **Centralización de Remuneraciones**: Genera automáticamente el asiento contable de centralización de sueldos a partir de las liquidaciones procesadas.
@@ -59,16 +59,7 @@ Contador Cloud es una moderna aplicación de contabilidad multi-tenant diseñada
 5.  En este proyecto, crea un archivo `.env` en la raíz (puedes renombrar `.env.example`).
 6.  Pega tus valores de configuración en el `.env`, asegurándote de que coincidan con las variables `NEXT_PUBLIC_`.
 
-### 2. Configurar Acceso de Administrador (Server-Side)
-
-Para que los scripts de inicialización y actualización funcionen, necesitas credenciales de servidor.
-
-1.  En tu Firebase Console, ve a **Configuración del proyecto > Cuentas de servicio**.
-2.  Selecciona "Node.js" y haz clic en **Generar nueva clave privada**.
-3.  Se descargará un archivo JSON. **Renómbralo a `service-account.json`** y muévelo a la raíz de este proyecto.
-4.  **IMPORTANTE**: El archivo `service-account.json` está incluido en `.gitignore` para evitar que se suba a tu repositorio. ¡Nunca compartas este archivo!
-
-### 3. Crear el Primer Usuario Administrador (Flujo Simplificado)
+### 2. Crear el Primer Usuario Administrador (Flujo Simplificado)
 
 El primer usuario `Admin` es indispensable para empezar a crear las cuentas de los contadores y gestionar los parámetros.
 
@@ -82,18 +73,15 @@ El primer usuario `Admin` es indispensable para empezar a crear las cuentas de l
 
 ¡Listo! Ahora tendrás privilegios de `Admin` y podrás gestionar usuarios y parámetros.
 
-### 4. Actualizar Parámetros Globales (Rol `Admin`)
+### 3. Actualizar Parámetros Globales
 
-Con el tiempo, los parámetros económicos y previsionales (UTM, sueldo mínimo, tablas de impuestos, etc.) cambian. Para mantener la aplicación al día, un administrador puede ejecutar un script de actualización.
+Con el tiempo, los parámetros económicos y previsionales (UTM, sueldo mínimo, tablas de impuestos, etc.) cambian. Para mantener la aplicación al día, un administrador o contador puede cargarlos directamente.
 
-1.  Abre una terminal en la raíz del proyecto.
-2.  Ejecuta el siguiente comando:
-    ```bash
-    npm run update-params
-    ```
-3.  El script te pedirá confirmación, borrará los datos antiguos y cargará la información más reciente que se encuentre en el código fuente de la aplicación.
+1.  Navega a la sección de parámetros correspondiente (ej: Remuneraciones > Parámetros IUT).
+2.  Selecciona el período (mes/año) que deseas actualizar.
+3.  Usa el botón **"Cargar Parámetros Predeterminados"** para poblar la base de datos con la información más reciente que se encuentra en el código fuente de la aplicación.
 
-### 5. Running the Development Server
+### 4. Running the Development Server
 
 1.  **Instala las dependencias**:
     ```bash
@@ -107,7 +95,7 @@ La aplicación estará disponible en `http://localhost:9002`.
 
 ## Flujo de Trabajo
 
-- **Rol Admin**: Crea y gestiona las cuentas de los `Accountant` desde la sección "Gestión de Usuarios". Actualiza los parámetros globales del sistema usando los comandos de la terminal.
+- **Rol Admin**: Crea y gestiona las cuentas de los `Accountant` desde la sección "Gestión de Usuarios". Puede actualizar los parámetros globales del sistema desde las páginas de configuración.
 - **Rol Accountant**:
     1. Inicia sesión y navega a **Empresas** para crear una nueva ficha de cliente.
     2. Al crear la empresa, se le redirige a la configuración para cargar el **Plan de Cuentas Predeterminado** o empezar uno desde cero.

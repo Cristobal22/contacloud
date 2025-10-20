@@ -8,8 +8,7 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "init-admin": "node init-admin.mjs",
-    "update-params": "node update-seed-data.mjs"
+    "init-admin": "node init-admin.mjs"
   },
   "dependencies": {
     "@genkit-ai/google-genai": "latest",

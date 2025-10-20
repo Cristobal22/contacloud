@@ -22,7 +22,7 @@ import type { TaxParameter } from "@/lib/types"
 import { useToast } from "@/hooks/use-toast";
 import React from "react";
 import { initialTaxParameters } from "@/lib/seed-data";
-import { writeBatch, collection, getDocs, doc, query, where } from "firebase/firestore";
+import { writeBatch, collection, getDocs, doc, query, where, deleteDoc } from "firebase/firestore";
 import {
     AlertDialog,
     AlertDialogAction,
@@ -43,13 +43,13 @@ export default function ParametrosIUTPage() {
     const { toast } = useToast();
     const firestore = useFirestore();
     const { user } = useUser();
-    const { userProfile } = useUserProfile(user?.uid);
     const currentYear = new Date().getFullYear();
     const currentMonth = new Date().getMonth() + 1;
 
     const [year, setYear] = React.useState(currentYear);
     const [month, setMonth] = React.useState(currentMonth);
     const [isUpdateDialogOpen, setIsUpdateDialogOpen] = React.useState(false);
+    const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false);
 
     const taxParamsQuery = React.useMemo(() => {
         if (!firestore) return null;
@@ -62,21 +62,14 @@ export default function ParametrosIUTPage() {
 
     const { data: tablaIUT, loading } = useCollection<TaxParameter>({ query: taxParamsQuery });
 
-    const handleUpdateParameters = async () => {
+    const handleLoadPredefined = async () => {
         if (!firestore) return;
         setIsUpdateDialogOpen(false);
 
         const collectionRef = collection(firestore, 'tax-parameters');
-        const q = query(collectionRef, where('year', '==', year), where('month', '==', month));
         const batch = writeBatch(firestore);
 
         try {
-            // Delete existing documents for the selected period
-            const existingDocs = await getDocs(q);
-            existingDocs.forEach(doc => {
-                batch.delete(doc.ref);
-            });
-
             // Add new documents from seed data for the selected period
             const newParamsForPeriod = initialTaxParameters.map(param => ({
                 ...param,
@@ -85,21 +78,54 @@ export default function ParametrosIUTPage() {
             }));
             
             newParamsForPeriod.forEach(param => {
-                const docRef = doc(collectionRef, `${year}-${month}-${param.tramo.replace(/\s+/g, '-')}`);
-                batch.set(docRef, param);
+                const docRef = doc(collectionRef, `${year}-${month.toString().padStart(2, '0')}-${param.tramo.replace(/\s+/g, '-')}`);
+                batch.set(docRef, param, { merge: true });
             });
 
             await batch.commit();
             toast({
-                title: 'Parámetros Actualizados',
-                description: `Los parámetros de IUT para ${month}/${year} se han actualizado correctamente.`,
+                title: 'Parámetros Cargados',
+                description: `Los parámetros de IUT para ${month}/${year} se han cargado correctamente.`,
             });
         } catch (error) {
-            console.error('Error actualizando parámetros IUT:', error);
+            console.error('Error cargando parámetros IUT:', error);
             toast({
                 variant: 'destructive',
-                title: 'Error al actualizar',
-                description: 'No se pudieron actualizar los parámetros. Revisa los permisos de Firestore.',
+                title: 'Error al cargar',
+                description: 'No se pudieron cargar los parámetros. Revisa los permisos de Firestore.',
+            });
+        }
+    };
+
+    const handleDeletePeriod = async () => {
+         if (!firestore) return;
+        setIsDeleteDialogOpen(false);
+
+        const collectionRef = collection(firestore, 'tax-parameters');
+        const q = query(collectionRef, where('year', '==', year), where('month', '==', month));
+        const batch = writeBatch(firestore);
+        
+        try {
+             const existingDocs = await getDocs(q);
+             if (existingDocs.empty) {
+                toast({ variant: 'destructive', title: 'Sin Datos', description: 'No hay parámetros para eliminar en este período.' });
+                return;
+             }
+            existingDocs.forEach(doc => {
+                batch.delete(doc.ref);
+            });
+            await batch.commit();
+            toast({
+                title: 'Parámetros Eliminados',
+                description: `Los parámetros de IUT para ${month}/${year} han sido eliminados.`,
+                variant: 'destructive'
+            });
+        } catch (error) {
+             console.error('Error eliminando parámetros IUT:', error);
+            toast({
+                variant: 'destructive',
+                title: 'Error al eliminar',
+                description: 'No se pudieron eliminar los parámetros.',
             });
         }
     };
@@ -114,28 +140,43 @@ export default function ParametrosIUTPage() {
         <>
             <Card>
                 <CardHeader>
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-col sm:flex-row items-start justify-between gap-4">
                         <div>
                             <CardTitle>Parámetros del Impuesto Único de Segunda Categoría (IUT)</CardTitle>
                             <CardDescription>Tabla para el cálculo del impuesto único al trabajo dependiente.</CardDescription>
                         </div>
-                        {userProfile?.role === 'Admin' && (
-                            <AlertDialog open={isUpdateDialogOpen} onOpenChange={setIsUpdateDialogOpen}>
-                                <Button onClick={() => setIsUpdateDialogOpen(true)}>Actualizar Parámetros</Button>
+                        <div className="flex gap-2">
+                            <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+                                <Button variant="destructive" onClick={() => setIsDeleteDialogOpen(true)} disabled={!user}>Eliminar del Período</Button>
                                 <AlertDialogContent>
                                     <AlertDialogHeader>
-                                        <AlertDialogTitle>¿Confirmas la actualización?</AlertDialogTitle>
+                                        <AlertDialogTitle>¿Confirmas la eliminación?</AlertDialogTitle>
                                         <AlertDialogDescription>
-                                            Esta acción borrará los parámetros de IUT para el período seleccionado ({month}/{year}) y los reemplazará con los datos del sistema. Asegúrate de seleccionar el período correcto.
+                                            Esta acción borrará permanentemente los parámetros de IUT para el período seleccionado ({month}/{year}).
                                         </AlertDialogDescription>
                                     </AlertDialogHeader>
                                     <AlertDialogFooter>
                                         <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                        <AlertDialogAction onClick={handleUpdateParameters}>Sí, actualizar</AlertDialogAction>
+                                        <AlertDialogAction onClick={handleDeletePeriod} className={buttonVariants({ variant: "destructive" })}>Sí, eliminar</AlertDialogAction>
                                     </AlertDialogFooter>
                                 </AlertDialogContent>
                             </AlertDialog>
-                        )}
+                            <AlertDialog open={isUpdateDialogOpen} onOpenChange={setIsUpdateDialogOpen}>
+                                <Button onClick={() => setIsUpdateDialogOpen(true)} disabled={!user}>Cargar Parámetros Predeterminados</Button>
+                                <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                        <AlertDialogTitle>¿Confirmas la carga?</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                            Esta acción cargará los parámetros predeterminados del sistema para el período seleccionado ({month}/{year}). Si ya existen datos, serán sobrescritos.
+                                        </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                        <AlertDialogAction onClick={handleLoadPredefined}>Sí, cargar</AlertDialogAction>
+                                    </AlertDialogFooter>
+                                </AlertDialogContent>
+                            </AlertDialog>
+                        </div>
                     </div>
                     <div className="flex items-end gap-4 pt-4">
                         <div className="space-y-2">
