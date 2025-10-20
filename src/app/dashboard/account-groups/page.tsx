@@ -53,11 +53,13 @@ import {
   import { errorEmitter } from '@/firebase/error-emitter'
   import { FirestorePermissionError } from '@/firebase/errors'
   import { useToast } from '@/hooks/use-toast';
+import { useUserProfile } from '@/firebase/auth/use-user-profile';
 
 
 export default function AccountGroupsPage() {
     const firestore = useFirestore();
     const { user } = useUser();
+    const { userProfile } = useUserProfile(user?.uid);
     const { toast } = useToast();
     
     const accountGroupsCollection = React.useMemo(() => 
@@ -152,13 +154,16 @@ export default function AccountGroupsPage() {
                             <CardDescription>Los grupos principales que clasifican el plan de cuentas. Son específicos para tu usuario.</CardDescription>
                         </div>
                         <div className="flex gap-2">
-                             <Button size="sm" className="gap-1" onClick={handleUpdateParameters}>
-                                Ayuda
-                            </Button>
-                            <Button size="sm" className="gap-1" onClick={handleCreateNew}>
-                                <PlusCircle className="h-4 w-4" />
-                                Agregar Grupo
-                            </Button>
+                             {userProfile?.role === 'Admin' ? (
+                                <Button size="sm" onClick={handleUpdateParameters} >
+                                    Actualizar Parámetros
+                                </Button>
+                            ) : (
+                                <Button size="sm" className="gap-1" onClick={handleCreateNew}>
+                                    <PlusCircle className="h-4 w-4" />
+                                    Agregar Grupo
+                                </Button>
+                            )}
                         </div>
                     </div>
                 </CardHeader>

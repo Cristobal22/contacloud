@@ -22,7 +22,7 @@ import type { TaxParameter } from "@/lib/types"
 import { useToast } from "@/hooks/use-toast";
 import React from "react";
 import { initialTaxParameters } from "@/lib/seed-data";
-import { writeBatch, collection, getDocs } from "firebase/firestore";
+import { writeBatch, collection, getDocs, doc } from "firebase/firestore";
 import {
     AlertDialog,
     AlertDialogAction,

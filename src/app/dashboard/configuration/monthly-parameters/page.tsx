@@ -12,7 +12,7 @@ import {
   import { Button, buttonVariants } from "@/components/ui/button"
   import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
   import React from "react";
-  import { useCollection, useFirestore, useUser } from "@/firebase";
+  import { useCollection, useFirestore, useUser, useDoc } from "@/firebase";
   import type { EconomicIndicator } from "@/lib/types";
   import { doc, setDoc, writeBatch, collection, getDocs } from "firebase/firestore";
   import { useToast } from "@/hooks/use-toast";
@@ -64,7 +64,7 @@ import { initialEconomicIndicators } from "@/lib/seed-data";
     const companyIndicatorRef = React.useMemo(() =>
         firestore && companyId ? doc(firestore, `companies/${companyId}/economic-indicators/${indicatorId}`) : null,
     [firestore, companyId, indicatorId]);
-    const { data: companyIndicator, loading: companyLoading } = useDoc<EconomicIndicator>(companyIndicatorRef);
+    const { data: companyIndicator, loading: companyLoading } = useDoc<EconomicIndicator>(companyIndicatorRef as any);
 
 
     React.useEffect(() => {
@@ -243,7 +243,7 @@ import { initialEconomicIndicators } from "@/lib/seed-data";
                             )}
                         </div>
                         <div className="flex justify-end pt-4">
-                            <Button disabled={isLoading || !user} onClick={() => handleSave('company')} className="gap-1">
+                            <Button disabled={isLoading || !user || !companyId} onClick={() => handleSave('company')} className="gap-1">
                                 <span>Guardar para {selectedCompany?.name || '...'}</span>
                             </Button>
                         </div>
