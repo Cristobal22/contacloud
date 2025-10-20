@@ -28,7 +28,7 @@ import { useCollection, useFirestore } from '@/firebase';
 import type { Purchase, Sale, Account } from '@/lib/types';
 import { SelectedCompanyContext } from '../layout';
 import { useToast } from '@/hooks/use-toast';
-import { addDoc, collection, doc, writeBatch } from 'firebase/firestore';
+import { addDoc, collection, doc, writeBatch, query, where } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { format, lastDayOfMonth } from 'date-fns';
@@ -48,19 +48,31 @@ export default function TreasuryPage() {
     const [paymentAccount, setPaymentAccount] = React.useState<string>('1010102'); // Default to 'BANCOS'
     const [isProcessing, setIsProcessing] = React.useState(false);
 
+    const purchasesQuery = React.useMemo(() => {
+        if (!firestore || !companyId) return null;
+        return query(collection(firestore, `companies/${companyId}/purchases`), where('status', '==', 'Contabilizado'));
+    }, [firestore, companyId]);
+
+    const salesQuery = React.useMemo(() => {
+        if (!firestore || !companyId) return null;
+        return query(collection(firestore, `companies/${companyId}/sales`), where('status', '==', 'Contabilizado'));
+    }, [firestore, companyId]);
+
+    const accountsQuery = React.useMemo(() => {
+        if (!firestore || !companyId) return null;
+        return query(collection(firestore, `companies/${companyId}/accounts`), where('type', '==', 'Activo'));
+    }, [firestore, companyId]);
+
     const { data: purchases, loading: purchasesLoading } = useCollection<Purchase>({
-        path: companyId ? `companies/${companyId}/purchases` : undefined,
-        query: companyId ? (c, q, w) => q(c, w('status', '==', 'Contabilizado')) : undefined,
+        query: purchasesQuery,
     });
 
     const { data: sales, loading: salesLoading } = useCollection<Sale>({
-        path: companyId ? `companies/${companyId}/sales` : undefined,
-        query: companyId ? (c, q, w) => q(c, w('status', '==', 'Contabilizado')) : undefined,
+        query: salesQuery,
     });
     
     const { data: accounts, loading: accountsLoading } = useCollection<Account>({
-        path: companyId ? `companies/${companyId}/accounts` : undefined,
-        query: companyId ? (c, q, w) => q(c, w('type', '==', 'Activo')) : undefined,
+        query: accountsQuery,
     });
 
     const loading = purchasesLoading || salesLoading || accountsLoading;
