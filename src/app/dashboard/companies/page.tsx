@@ -358,19 +358,16 @@ import {
                         <Label htmlFor="rut">RUT</Label>
                         <Input id="rut" value={selectedCompanyLocal?.rut || ''} onChange={(e) => handleFieldChange('rut', e.target.value)} />
                     </div>
+                     <div className="space-y-2">
+                        <Label htmlFor="giro">Giro o Actividad Comercial</Label>
+                        <Input id="giro" value={selectedCompanyLocal?.giro || ''} onChange={(e) => handleFieldChange('giro', e.target.value)} />
+                    </div>
                     {/* Hide detailed fields on creation dialog */}
                     {!selectedCompanyLocal?.id?.startsWith('new-') && (
                         <>
                             <div className="space-y-2">
                                 <Label htmlFor="address">Dirección</Label>
                                 <Input id="address" value={selectedCompanyLocal?.address || ''} onChange={(e) => handleFieldChange('address', e.target.value)} />
-                            </div>
-                            <div className="space-y-2">
-                                <Label htmlFor="giro">Giro o Actividad Comercial</Label>
-                                <Input id="giro" value={selectedCompanyLocal?.giro || ''} onChange={(e) => handleFieldChange('giro', e.target.value)} />
-                                <p className="text-xs text-muted-foreground">
-                                    Consulte los códigos de actividad en el <a href="https://www.sii.cl/ayudas/ayudas_por_servicios/1956-codigos-1959.html" target="_blank" rel="noopener noreferrer" className="text-primary underline">sitio del SII</a>.
-                                </p>
                             </div>
                             <div className="flex items-center space-x-2 pt-2">
                                 <Switch id="active" checked={selectedCompanyLocal?.active || false} onCheckedChange={(checked) => handleFieldChange('active', checked)} />

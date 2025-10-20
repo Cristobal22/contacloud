@@ -179,6 +179,13 @@ export default function CompanySettingsPage() {
                             <Input id="address" value={company.address || ''} onChange={(e) => handleInputChange('address', e.target.value)} />
                         </div>
                     </div>
+                     <div className="space-y-2 mt-4">
+                        <Label htmlFor="giro">Giro o Actividad Comercial</Label>
+                        <Input id="giro" value={company.giro || ''} onChange={(e) => handleInputChange('giro', e.target.value)} />
+                        <p className="text-xs text-muted-foreground">
+                            Consulte los códigos de actividad en el <a href="https://www.sii.cl/ayudas/ayudas_por_servicios/1956-codigos-1959.html" target="_blank" rel="noopener noreferrer" className="text-primary underline">sitio del SII</a>.
+                        </p>
+                    </div>
                      <div className="flex items-center space-x-2 pt-4">
                         <Checkbox id="isDistributor" checked={!!company.isDistributor} onCheckedChange={(checked) => handleCheckboxChange('isDistributor', !!checked)} />
                         <Label htmlFor="isDistributor">Es Distribuidora (recupera imp. Art. 42)</Label>
