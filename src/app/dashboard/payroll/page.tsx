@@ -22,7 +22,7 @@ import {
   import { Button, buttonVariants } from "@/components/ui/button"
   import { Eye, MoreHorizontal, Trash2 } from "lucide-react"
   import { useCollection, useFirestore, useUser } from '@/firebase';
-  import type { Employee, AfpEntity, HealthEntity, Payroll, EconomicIndicator } from '@/lib/types';
+  import type { Employee, AfpEntity, HealthEntity, Payroll, EconomicIndicator, TaxParameter } from '@/lib/types';
 import { SelectedCompanyContext } from '../layout';
 import { PayrollDetailDialog } from '@/components/payroll-detail-dialog';
 import { Label } from '@/components/ui/label';
@@ -94,12 +94,13 @@ export default function PayrollPage() {
 
     const { data: globalIndicators, loading: globalIndicatorsLoading } = useCollection<EconomicIndicator>({ path: 'economic-indicators' });
     const { data: companyIndicators, loading: companyIndicatorsLoading } = useCollection<EconomicIndicator>({ path: companyId ? `companies/${companyId}/economic-indicators` : undefined });
+    const { data: taxParameters, loading: taxParametersLoading } = useCollection<TaxParameter>({ path: 'tax-parameters' });
 
-    const loading = employeesLoading || afpLoading || healthLoading || payrollsLoading || globalIndicatorsLoading || companyIndicatorsLoading;
+    const loading = employeesLoading || afpLoading || healthLoading || payrollsLoading || globalIndicatorsLoading || companyIndicatorsLoading || taxParametersLoading;
     
     const handleProcessPayrolls = async () => {
-        if (!employees || !afpEntities || !healthEntities || !companyId || !firestore || !selectedCompany) {
-            toast({ variant: 'destructive', title: 'Faltan datos', description: 'No se pueden procesar las liquidaciones sin empleados o parámetros económicos.'});
+        if (!employees || !afpEntities || !healthEntities || !companyId || !firestore || !selectedCompany || !taxParameters) {
+            toast({ variant: 'destructive', title: 'Faltan datos', description: 'No se pueden procesar las liquidaciones sin empleados o parámetros económicos/tributarios.'});
             return;
         }
 
@@ -116,14 +117,13 @@ export default function PayrollPage() {
 
         setIsProcessing(true);
         
-        // Find the correct economic indicator (company-specific or global)
         const periodIndicatorId = `${year}-${month.toString().padStart(2, '0')}`;
         const companyIndicator = companyIndicators?.find(i => i.id === periodIndicatorId);
         const globalIndicator = globalIndicators?.find(i => i.id === periodIndicatorId);
         const periodIndicator = companyIndicator || globalIndicator;
         
-        if (!periodIndicator?.minWage) {
-            toast({ variant: 'destructive', title: 'Faltan Parámetros', description: `No se encontraron los parámetros económicos (sueldo mínimo) para ${month}/${year}.`});
+        if (!periodIndicator?.minWage || !periodIndicator?.utm) {
+            toast({ variant: 'destructive', title: 'Faltan Parámetros', description: `No se encontraron los parámetros económicos (sueldo mínimo, UTM) para ${month}/${year}.`});
             setIsProcessing(false);
             return;
         }
@@ -164,7 +164,17 @@ export default function PayrollPage() {
             }
             
             const afpDiscount = taxableEarnings * afpPercentage;
-            const totalDiscounts = afpDiscount + healthDiscount;
+
+            // IUT Calculation
+            const taxableIncomeInUTM = taxableEarnings / periodIndicator.utm!;
+            const taxBracket = taxParameters.find(t => taxableIncomeInUTM > t.desde && taxableIncomeInUTM <= t.hasta);
+            let iut = 0;
+            if (taxBracket) {
+                const taxInUTM = (taxableIncomeInUTM * taxBracket.factor) - taxBracket.rebaja;
+                iut = taxInUTM > 0 ? taxInUTM * periodIndicator.utm! : 0;
+            }
+
+            const totalDiscounts = afpDiscount + healthDiscount + iut;
             const netSalary = totalEarnings - totalDiscounts;
             
             const newPayroll: Omit<Payroll, 'id'> = {
@@ -177,11 +187,12 @@ export default function PayrollPage() {
                 gratification: gratification,
                 taxableEarnings: taxableEarnings,
                 nonTaxableEarnings: nonTaxableEarnings,
-                otherTaxableEarnings: 0, // Placeholder for other taxable items
+                otherTaxableEarnings: 0, 
                 totalEarnings: totalEarnings,
                 afpDiscount: afpDiscount,
                 healthDiscount: healthDiscount,
-                otherDiscounts: 0, // Placeholder
+                iut: iut,
+                otherDiscounts: 0,
                 totalDiscounts: totalDiscounts,
                 netSalary: netSalary,
                 companyId: companyId,
@@ -304,21 +315,23 @@ export default function PayrollPage() {
                                     <TableHead>Empleado</TableHead>
                                     <TableHead>Período</TableHead>
                                     <TableHead className="text-right">Sueldo Base</TableHead>
-                                    <TableHead className="text-right">Descuentos Legales</TableHead>
+                                    <TableHead className="text-right">Descuentos</TableHead>
+                                    <TableHead className="text-right">Impuesto Único</TableHead>
                                     <TableHead className="text-right font-bold">Sueldo Líquido</TableHead>
                                     <TableHead className="text-center">Acciones</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
                             {loading ? (
-                                <TableRow><TableCell colSpan={6} className="text-center">Cargando datos...</TableCell></TableRow>
+                                <TableRow><TableCell colSpan={7} className="text-center">Cargando datos...</TableCell></TableRow>
                             ) : filteredPayrolls.length > 0 ? (
                                 filteredPayrolls.map((payroll) => (
                                     <TableRow key={payroll.id}>
                                         <TableCell className="font-medium">{payroll.employeeName}</TableCell>
                                         <TableCell>{payroll.period}</TableCell>
                                         <TableCell className="text-right">${Math.round(payroll.baseSalary).toLocaleString('es-CL')}</TableCell>
-                                        <TableCell className="text-right text-destructive">-${Math.round(payroll.totalDiscounts).toLocaleString('es-CL')}</TableCell>
+                                        <TableCell className="text-right text-destructive">-${Math.round(payroll.afpDiscount + payroll.healthDiscount).toLocaleString('es-CL')}</TableCell>
+                                        <TableCell className="text-right text-destructive">-${Math.round(payroll.iut || 0).toLocaleString('es-CL')}</TableCell>
                                         <TableCell className="text-right font-bold">${Math.round(payroll.netSalary).toLocaleString('es-CL')}</TableCell>
                                         <TableCell className="text-center">
                                             <DropdownMenu>
@@ -342,7 +355,7 @@ export default function PayrollPage() {
                                     </TableRow>
                                 ))
                             ) : (
-                                <TableRow><TableCell colSpan={6} className="text-center">
+                                <TableRow><TableCell colSpan={7} className="text-center">
                                     {!companyId ? "Selecciona una empresa para ver sus liquidaciones." : "No se encontraron liquidaciones para este período."}
                                 </TableCell></TableRow>
                             )}

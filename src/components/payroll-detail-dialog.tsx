@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import {
@@ -194,6 +195,7 @@ export function PayrollDetailDialog({ isOpen, onClose, data }: PayrollDetailDial
                                             <TableBody>
                                                 <TableRow><TableCell>Cotización AFP ({employee.afp})</TableCell><TableCell className="text-right">{formatCurrency(payroll.afpDiscount)}</TableCell></TableRow>
                                                 <TableRow><TableCell>Cotización Salud ({employee.healthSystem})</TableCell><TableCell className="text-right">{formatCurrency(payroll.healthDiscount)}</TableCell></TableRow>
+                                                <TableRow><TableCell>Impuesto Único</TableCell><TableCell className="text-right">{formatCurrency(payroll.iut || 0)}</TableCell></TableRow>
                                             </TableBody>
                                             <TableFooter>
                                                 <TableRow className="bg-gray-100 font-bold text-base">

@@ -201,6 +201,7 @@ export type Payroll = {
   totalEarnings: number;
   afpDiscount: number;
   healthDiscount: number;
+  iut?: number; // Impuesto Único a los Trabajadores
   otherDiscounts: number;
   totalDiscounts: number;
   netSalary: number;
