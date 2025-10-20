@@ -257,13 +257,15 @@
             "type": "object",
             "properties": {
                 "id": { "type": "string" },
+                "year": { "type": "number" },
+                "month": { "type": "number" },
                 "tramo": { "type": "string" },
                 "desde": { "type": "number" },
                 "hasta": { "type": "number" },
                 "factor": { "type": "number" },
                 "rebaja": { "type": "number" }
             },
-            "required": ["id", "tramo", "desde", "hasta", "factor", "rebaja"]
+            "required": ["id", "year", "month", "tramo", "desde", "hasta", "factor", "rebaja"]
         },
          "HealthEntity": {
             "title": "HealthEntity",

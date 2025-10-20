@@ -227,6 +227,8 @@ export type FamilyAllowanceParameter = {
 
 export type TaxParameter = {
     id: string;
+    year: number;
+    month: number;
     tramo: string;
     desde: number;
     hasta: number;
