@@ -243,58 +243,105 @@ export const initialFamilyAllowanceParameters: Omit<FamilyAllowanceParameter, 'i
 ];
 
 export const initialTaxParameters: Omit<TaxParameter, 'id'>[] = [
-    // --- 2023 ---
-    { year: 2023, month: 1, tramo: "Exento", desde: 0, hasta: 792796.5, factor: 0, rebaja: 0 },
-    { year: 2023, month: 1, tramo: "Tramo 1", desde: 792796.51, hasta: 1761770, factor: 0.04, rebaja: 31711.86 },
-    { year: 2023, month: 1, tramo: "Tramo 2", desde: 1761770.01, hasta: 2936283.33, factor: 0.08, rebaja: 102182.66 },
-    // ... more 2023 data would go here
-
-    // --- 2024 ---
-    // Enero 2024
-    { year: 2024, month: 1, tramo: "Exento", desde: 0, hasta: 863266.5, factor: 0, rebaja: 0 },
-    { year: 2024, month: 1, tramo: "Tramo 1", desde: 863266.51, hasta: 1918370, factor: 0.04, rebaja: 34530.66 },
-    // ... etc for 2024
-
-    // --- August 2024 ---
-    { year: 2024, month: 8, tramo: "Exento", desde: 0, hasta: 924376.5, factor: 0, rebaja: 0 },
-    { year: 2024, month: 8, tramo: "Tramo 1", desde: 924376.51, hasta: 2054170, factor: 0.04, rebaja: 36975.06 },
-    { year: 2024, month: 8, tramo: "Tramo 2", desde: 2054170.01, hasta: 3423616.67, factor: 0.08, rebaja: 119141.86 },
-    { year: 2024, month: 8, tramo: "Tramo 3", desde: 3423616.68, hasta: 4793063.33, factor: 0.135, rebaja: 307440.78 },
-    { year: 2024, month: 8, tramo: "Tramo 4", desde: 4793063.34, hasta: 6162510, factor: 0.23, rebaja: 757876.15 },
-    { year: 2024, month: 8, tramo: "Tramo 5", desde: 6162510.01, hasta: 8216680, factor: 0.304, rebaja: 1215102.84 },
-    { year: 2024, month: 8, tramo: "Tramo 6", desde: 8216680.01, hasta: 21221006.67, factor: 0.35, rebaja: 1593070.12 },
-    { year: 2024, month: 8, tramo: "Tramo 7", desde: 21221006.68, hasta: 999999999, factor: 0.4, rebaja: 2654120.45 },
-
-    // --- September 2024 ---
-    { year: 2024, month: 9, tramo: "Exento", desde: 0, hasta: 928309.5, factor: 0, rebaja: 0 },
-    { year: 2024, month: 9, tramo: "Tramo 1", desde: 928309.51, hasta: 2062910, factor: 0.04, rebaja: 37132.38 },
-    { year: 2024, month: 9, tramo: "Tramo 2", desde: 2062910.01, hasta: 3438183.33, factor: 0.08, rebaja: 119648.78 },
-    { year: 2024, month: 9, tramo: "Tramo 3", desde: 3438183.34, hasta: 4813456.67, factor: 0.135, rebaja: 308748.86 },
-    { year: 2024, month: 9, tramo: "Tramo 4", desde: 4813456.68, hasta: 6188730, factor: 0.23, rebaja: 760882.68 },
-    { year: 2024, month: 9, tramo: "Tramo 5", desde: 6188730.01, hasta: 8251640, factor: 0.304, rebaja: 1220427.9 },
-    { year: 2024, month: 9, tramo: "Tramo 6", desde: 8251640.01, hasta: 21312346.67, factor: 0.35, rebaja: 1600203.34 },
-    { year: 2024, month: 9, tramo: "Tramo 7", desde: 21312346.68, hasta: 999999999, factor: 0.4, rebaja: 2665820.68 },
-
-    // --- October 2024 ---
-    { year: 2024, month: 10, tramo: "Exento", desde: 0, hasta: 931804.5, factor: 0, rebaja: 0 },
-    { year: 2024, month: 10, tramo: "Tramo 1", desde: 931804.51, hasta: 2070676.67, factor: 0.04, rebaja: 37272.18 },
-    { year: 2024, month: 10, tramo: "Tramo 2", desde: 2070676.68, hasta: 3451127.78, factor: 0.08, rebaja: 120099.25 },
-    { year: 2024, month: 10, tramo: "Tramo 3", desde: 3451127.79, hasta: 4831578.89, factor: 0.135, rebaja: 309911.27 },
-    { year: 2024, month: 10, tramo: "Tramo 4", desde: 4831578.9, hasta: 6212030, factor: 0.23, rebaja: 763750.48 },
-    { year: 2024, month: 10, tramo: "Tramo 5", desde: 6212030.01, hasta: 8282706.67, factor: 0.304, rebaja: 1224880.7 },
-    { year: 2024, month: 10, tramo: "Tramo 6", desde: 8282706.68, hasta: 21422231.11, factor: 0.35, rebaja: 1605665.21 },
-    { year: 2024, month: 10, tramo: "Tramo 7", desde: 21422231.12, hasta: 999999999, factor: 0.4, rebaja: 2676776.77 },
-
-    // --- November 2024 ---
-    { year: 2024, month: 11, tramo: "Exento", desde: 0, hasta: 936306, factor: 0, rebaja: 0 },
-    { year: 2024, month: 11, tramo: "Tramo 1", desde: 936306.01, hasta: 2080680, factor: 0.04, rebaja: 37452.24 },
-    { year: 2024, month: 11, tramo: "Tramo 2", desde: 2080680.01, hasta: 3467800, factor: 0.08, rebaja: 120679.44 },
-    { year: 2024, month: 11, tramo: "Tramo 3", desde: 3467800.01, hasta: 4854920, factor: 0.135, rebaja: 311408.44 },
-    { year: 2024, month: 11, tramo: "Tramo 4", desde: 4854920.01, hasta: 6242040, factor: 0.23, rebaja: 767376.64 },
-    { year: 2024, month: 11, tramo: "Tramo 5", desde: 6242040.01, hasta: 8322720, factor: 0.304, rebaja: 1229787.6 },
-    { year: 2024, month: 11, tramo: "Tramo 6", desde: 8322720.01, hasta: 21526320, factor: 0.35, rebaja: 1612450.8 },
-    { year: 2024, month: 11, tramo: "Tramo 7", desde: 21526320.01, hasta: 999999999, factor: 0.4, rebaja: 2688766.8 },
-
+    // 2025 - January (UTM: 67429)
+    { year: 2025, month: 1, tramo: "Exento", desde: 0, hasta: 909522, factor: 0, rebaja: 0 },
+    { year: 2025, month: 1, tramo: "Tramo 1", desde: 909522.01, hasta: 2022870, factor: 0.04, rebaja: 36380.88 },
+    { year: 2025, month: 1, tramo: "Tramo 2", desde: 2022870.01, hasta: 3371450, factor: 0.08, rebaja: 117392.68 },
+    { year: 2025, month: 1, tramo: "Tramo 3", desde: 3371450.01, hasta: 4720030, factor: 0.135, rebaja: 302946.18 },
+    { year: 2025, month: 1, tramo: "Tramo 4", desde: 4720030.01, hasta: 6068610, factor: 0.23, rebaja: 759507.78 },
+    { year: 2025, month: 1, tramo: "Tramo 5", desde: 6068610.01, hasta: 8091480, factor: 0.304, rebaja: 1205863.98 },
+    { year: 2025, month: 1, tramo: "Tramo 6", desde: 8091480.01, hasta: 20898990, factor: 0.35, rebaja: 1583504.58 },
+    { year: 2025, month: 1, tramo: "Tramo 7", desde: 20898990.01, hasta: Infinity, factor: 0.4, rebaja: 2628423.78 },
+    // 2025 - February (UTM: 67294)
+    { year: 2025, month: 2, tramo: "Exento", desde: 0, hasta: 907618, factor: 0, rebaja: 0 },
+    { year: 2025, month: 2, tramo: "Tramo 1", desde: 907618.01, hasta: 2018820, factor: 0.04, rebaja: 36304.72 },
+    { year: 2025, month: 2, tramo: "Tramo 2", desde: 2018820.01, hasta: 3364700, factor: 0.08, rebaja: 117091.56 },
+    { year: 2025, month: 2, tramo: "Tramo 3", desde: 3364700.01, hasta: 4710580, factor: 0.135, rebaja: 302150.06 },
+    { year: 2025, month: 2, tramo: "Tramo 4", desde: 4710580.01, hasta: 6056460, factor: 0.23, rebaja: 749655.16 },
+    { year: 2025, month: 2, tramo: "Tramo 5", desde: 6056460.01, hasta: 8075280, factor: 0.304, rebaja: 1197833.20 },
+    { year: 2025, month: 2, tramo: "Tramo 6", desde: 8075280.01, hasta: 20861140, factor: 0.35, rebaja: 1569296.08 },
+    { year: 2025, month: 2, tramo: "Tramo 7", desde: 20861140.01, hasta: Infinity, factor: 0.4, rebaja: 2612353.08 },
+    // 2025 - March (UTM: 68034)
+    { year: 2025, month: 3, tramo: "Exento", desde: 0, hasta: 918459, factor: 0, rebaja: 0 },
+    { year: 2025, month: 3, tramo: "Tramo 1", desde: 918459.01, hasta: 2041020, factor: 0.04, rebaja: 36738.36 },
+    { year: 2025, month: 3, tramo: "Tramo 2", desde: 2041020.01, hasta: 3401700, factor: 0.08, rebaja: 118379.16 },
+    { year: 2025, month: 3, tramo: "Tramo 3", desde: 3401700.01, hasta: 4762380, factor: 0.135, rebaja: 305472.66 },
+    { year: 2025, month: 3, tramo: "Tramo 4", desde: 4762380.01, hasta: 6123060, factor: 0.23, rebaja: 760928.46 },
+    { year: 2025, month: 3, tramo: "Tramo 5", desde: 6123060.01, hasta: 8164080, factor: 0.304, rebaja: 1211005.20 },
+    { year: 2025, month: 3, tramo: "Tramo 6", desde: 8164080.01, hasta: 21090540, factor: 0.35, rebaja: 1581427.38 },
+    { year: 2025, month: 3, tramo: "Tramo 7", desde: 21090540.01, hasta: Infinity, factor: 0.4, rebaja: 2637747.38 },
+    // 2025 - April (UTM: 68306)
+    { year: 2025, month: 4, tramo: "Exento", desde: 0, hasta: 922131, factor: 0, rebaja: 0 },
+    { year: 2025, month: 4, tramo: "Tramo 1", desde: 922131.01, hasta: 2049180, factor: 0.04, rebaja: 36885.24 },
+    { year: 2025, month: 4, tramo: "Tramo 2", desde: 2049180.01, hasta: 3415300, factor: 0.08, rebaja: 118852.44 },
+    { year: 2025, month: 4, tramo: "Tramo 3", desde: 3415300.01, hasta: 4781420, factor: 0.135, rebaja: 306693.94 },
+    { year: 2025, month: 4, tramo: "Tramo 4", desde: 4781420.01, hasta: 6147540, factor: 0.23, rebaja: 764008.14 },
+    { year: 2025, month: 4, tramo: "Tramo 5", desde: 6147540.01, hasta: 8196720, factor: 0.304, rebaja: 1215846.80 },
+    { year: 2025, month: 4, tramo: "Tramo 6", desde: 8196720.01, hasta: 21174860, factor: 0.35, rebaja: 1592895.92 },
+    { year: 2025, month: 4, tramo: "Tramo 7", desde: 21174860.01, hasta: Infinity, factor: 0.4, rebaja: 2651638.92 },
+    // 2025 - May (UTM: 68648)
+    { year: 2025, month: 5, tramo: "Exento", desde: 0, hasta: 926748, factor: 0, rebaja: 0 },
+    { year: 2025, month: 5, tramo: "Tramo 1", desde: 926748.01, hasta: 2059440, factor: 0.04, rebaja: 37069.92 },
+    { year: 2025, month: 5, tramo: "Tramo 2", desde: 2059440.01, hasta: 3432400, factor: 0.08, rebaja: 119531.12 },
+    { year: 2025, month: 5, tramo: "Tramo 3", desde: 3432400.01, hasta: 4805360, factor: 0.135, rebaja: 308435.52 },
+    { year: 2025, month: 5, tramo: "Tramo 4", desde: 4805360.01, hasta: 6178320, factor: 0.23, rebaja: 768121.92 },
+    { year: 2025, month: 5, tramo: "Tramo 5", desde: 6178320.01, hasta: 8237760, factor: 0.304, rebaja: 1221934.40 },
+    { year: 2025, month: 5, tramo: "Tramo 6", desde: 8237760.01, hasta: 21280570, factor: 0.35, rebaja: 1600871.36 },
+    { year: 2025, month: 5, tramo: "Tramo 7", desde: 21280570.01, hasta: Infinity, factor: 0.4, rebaja: 2664876.56 },
+    // 2025 - June (UTM: 68785)
+    { year: 2025, month: 6, tramo: "Exento", desde: 0, hasta: 928598, factor: 0, rebaja: 0 },
+    { year: 2025, month: 6, tramo: "Tramo 1", desde: 928598.01, hasta: 2063550, factor: 0.04, rebaja: 37143.90 },
+    { year: 2025, month: 6, tramo: "Tramo 2", desde: 2063550.01, hasta: 3439250, factor: 0.08, rebaja: 119685.90 },
+    { year: 2025, month: 6, tramo: "Tramo 3", desde: 3439250.01, hasta: 4814950, factor: 0.135, rebaja: 308844.65 },
+    { year: 2025, month: 6, tramo: "Tramo 4", desde: 4814950.01, hasta: 6190650, factor: 0.23, rebaja: 769752.95 },
+    { year: 2025, month: 6, tramo: "Tramo 5", desde: 6190650.01, hasta: 8254200, factor: 0.304, rebaja: 1224373.00 },
+    { year: 2025, month: 6, tramo: "Tramo 6", desde: 8254200.01, hasta: 21323350, factor: 0.35, rebaja: 1604066.20 },
+    { year: 2025, month: 6, tramo: "Tramo 7", desde: 21323350.01, hasta: Infinity, factor: 0.4, rebaja: 2669943.70 },
+    // 2025 - July (UTM: 68923)
+    { year: 2025, month: 7, tramo: "Exento", desde: 0, hasta: 930446, factor: 0, rebaja: 0 },
+    { year: 2025, month: 7, tramo: "Tramo 1", desde: 930446.01, hasta: 2067690, factor: 0.04, rebaja: 37217.84 },
+    { year: 2025, month: 7, tramo: "Tramo 2", desde: 2067690.01, hasta: 3446150, factor: 0.08, rebaja: 120198.84 },
+    { year: 2025, month: 7, tramo: "Tramo 3", desde: 3446150.01, hasta: 4824610, factor: 0.135, rebaja: 310207.14 },
+    { year: 2025, month: 7, tramo: "Tramo 4", desde: 4824610.01, hasta: 6203070, factor: 0.23, rebaja: 771884.94 },
+    { year: 2025, month: 7, tramo: "Tramo 5", desde: 6203070.01, hasta: 8270760, factor: 0.304, rebaja: 1226811.72 },
+    { year: 2025, month: 7, tramo: "Tramo 6", desde: 8270760.01, hasta: 21366130, factor: 0.35, rebaja: 1607284.36 },
+    { year: 2025, month: 7, tramo: "Tramo 7", desde: 21366130.01, hasta: Infinity, factor: 0.4, rebaja: 2675011.36 },
+    // 2025 - August (UTM: 68647)
+    { year: 2025, month: 8, tramo: "Exento", desde: 0, hasta: 925774, factor: 0, rebaja: 0 },
+    { year: 2025, month: 8, tramo: "Tramo 1", desde: 925774.01, hasta: 2059380, factor: 0.04, rebaja: 37030.96 },
+    { year: 2025, month: 8, tramo: "Tramo 2", desde: 2059380.01, hasta: 3432300, factor: 0.08, rebaja: 119528.60 },
+    { year: 2025, month: 8, tramo: "Tramo 3", desde: 3432300.01, hasta: 4805220, factor: 0.135, rebaja: 308431.60 },
+    { year: 2025, month: 8, tramo: "Tramo 4", desde: 4805220.01, hasta: 6178140, factor: 0.23, rebaja: 768110.60 },
+    { year: 2025, month: 8, tramo: "Tramo 5", desde: 6178140.01, hasta: 8237520, factor: 0.304, rebaja: 1221905.92 },
+    { year: 2025, month: 8, tramo: "Tramo 6", desde: 8237520.01, hasta: 21280370, factor: 0.35, rebaja: 1600830.92 },
+    { year: 2025, month: 8, tramo: "Tramo 7", desde: 21280370.01, hasta: Infinity, factor: 0.4, rebaja: 2664837.42 },
+    // 2025 - September (UTM: 69265)
+    { year: 2025, month: 9, tramo: "Exento", desde: 0, hasta: 935077, factor: 0, rebaja: 0 },
+    { year: 2025, month: 9, tramo: "Tramo 1", desde: 935077.01, hasta: 2077950, factor: 0.04, rebaja: 37403.10 },
+    { year: 2025, month: 9, tramo: "Tramo 2", desde: 2077950.01, hasta: 3463250, factor: 0.08, rebaja: 120521.10 },
+    { year: 2025, month: 9, tramo: "Tramo 3", desde: 3463250.01, hasta: 4848550, factor: 0.135, rebaja: 310999.85 },
+    { year: 2025, month: 9, tramo: "Tramo 4", desde: 4848550.01, hasta: 6233850, factor: 0.23, rebaja: 772845.85 },
+    { year: 2025, month: 9, tramo: "Tramo 5", desde: 6233850.01, hasta: 8311800, factor: 0.304, rebaja: 1229431.80 },
+    { year: 2025, month: 9, tramo: "Tramo 6", desde: 8311800.01, hasta: 21472150, factor: 0.35, rebaja: 1615259.80 },
+    { year: 2025, month: 9, tramo: "Tramo 7", desde: 21472150.01, hasta: Infinity, factor: 0.4, rebaja: 2688867.30 },
+    // 2025 - October (UTM: 69265)
+    { year: 2025, month: 10, tramo: "Exento", desde: 0, hasta: 935077, factor: 0, rebaja: 0 },
+    { year: 2025, month: 10, tramo: "Tramo 1", desde: 935077.01, hasta: 2077950, factor: 0.04, rebaja: 37403.10 },
+    { year: 2025, month: 10, tramo: "Tramo 2", desde: 2077950.01, hasta: 3463250, factor: 0.08, rebaja: 120521.10 },
+    { year: 2025, month: 10, tramo: "Tramo 3", desde: 3463250.01, hasta: 4848550, factor: 0.135, rebaja: 310999.85 },
+    { year: 2025, month: 10, tramo: "Tramo 4", desde: 4848550.01, hasta: 6233850, factor: 0.23, rebaja: 772845.85 },
+    { year: 2025, month: 10, tramo: "Tramo 5", desde: 6233850.01, hasta: 8311800, factor: 0.304, rebaja: 1229431.80 },
+    { year: 2025, month: 10, tramo: "Tramo 6", desde: 8311800.01, hasta: 21472150, factor: 0.35, rebaja: 1615259.80 },
+    { year: 2025, month: 10, tramo: "Tramo 7", desde: 21472150.01, hasta: Infinity, factor: 0.4, rebaja: 2688867.30 },
+    // 2025 - November (UTM: 69542)
+    { year: 2025, month: 11, tramo: "Exento", desde: 0, hasta: 938817, factor: 0, rebaja: 0 },
+    { year: 2025, month: 11, tramo: "Tramo 1", desde: 938817.01, hasta: 2086260, factor: 0.04, rebaja: 37552.68 },
+    { year: 2025, month: 11, tramo: "Tramo 2", desde: 2086260.01, hasta: 3477100, factor: 0.08, rebaja: 121003.08 },
+    { year: 2025, month: 11, tramo: "Tramo 3", desde: 3477100.01, hasta: 4867940, factor: 0.135, rebaja: 312243.58 },
+    { year: 2025, month: 11, tramo: "Tramo 4", desde: 4867940.01, hasta: 6258780, factor: 0.23, rebaja: 776353.08 },
+    { year: 2025, month: 11, tramo: "Tramo 5", desde: 6258780.01, hasta: 8345040, factor: 0.304, rebaja: 1234861.60 },
+    { year: 2025, month: 11, tramo: "Tramo 6", desde: 8345040.01, hasta: 21558020, factor: 0.35, rebaja: 1621719.44 },
+    { year: 2025, month: 11, tramo: "Tramo 7", desde: 21558020.01, hasta: Infinity, factor: 0.4, rebaja: 2699620.44 },
 ];
 
 
@@ -313,7 +360,6 @@ export const initialEconomicIndicators: Omit<EconomicIndicator, 'id'>[] = [
     { year: 2023, month: 10, uf: 36341.38, utm: 64114, minWage: 460000 },
     { year: 2023, month: 11, uf: 36561.4, utm: 64216, minWage: 460000 },
     { year: 2023, month: 12, uf: 36785.49, utm: 64343, minWage: 460000 },
-
     // 2024
     { year: 2024, month: 1, uf: 37033.48, utm: 64666, minWage: 460000 },
     { year: 2024, month: 2, uf: 37072.1, utm: 64793, minWage: 460000 },
@@ -322,29 +368,27 @@ export const initialEconomicIndicators: Omit<EconomicIndicator, 'id'>[] = [
     { year: 2024, month: 5, uf: 37476.53, utm: 65770, minWage: 460000 },
     { year: 2024, month: 6, uf: 37482.52, utm: 65770, minWage: 460000 },
     { year: 2024, month: 7, uf: 37510.99, utm: 66395, minWage: 500000 },
-    // Projection Starts
     { year: 2024, month: 8, uf: 37540.0, utm: 66500, minWage: 500000 },
     { year: 2024, month: 9, uf: 37570.0, utm: 66600, minWage: 500000 },
     { year: 2024, month: 10, uf: 37600.0, utm: 66700, minWage: 500000 },
     { year: 2024, month: 11, uf: 37630.0, utm: 66800, minWage: 500000 },
     { year: 2024, month: 12, uf: 37660.0, utm: 66900, minWage: 500000 },
-    
     // 2025
-    { year: 2025, month: 1, uf: 37700.0, utm: 67000, minWage: 500000 },
-    { year: 2025, month: 2, uf: 37740.0, utm: 67150, minWage: 500000 },
-    { year: 2025, month: 3, uf: 37780.0, utm: 67300, minWage: 500000 },
-    { year: 2025, month: 4, uf: 37820.0, utm: 67450, minWage: 500000 },
-    { year: 2025, month: 5, uf: 37860.0, utm: 67600, minWage: 500000 },
-    { year: 2025, month: 6, uf: 37900.0, utm: 67750, minWage: 500000 },
-    { year: 2025, month: 7, uf: 37940.0, utm: 67900, minWage: 500000 },
-    { year: 2025, month: 8, uf: 37980.0, utm: 68050, minWage: 500000 },
-    { year: 2025, month: 9, uf: 38020.0, utm: 68200, minWage: 500000 },
-
+    { year: 2025, month: 1, uf: 37700.0, utm: 67429, minWage: 500000 },
+    { year: 2025, month: 2, uf: 37740.0, utm: 67294, minWage: 500000 },
+    { year: 2025, month: 3, uf: 37780.0, utm: 68034, minWage: 500000 },
+    { year: 2025, month: 4, uf: 37820.0, utm: 68306, minWage: 500000 },
+    { year: 2025, month: 5, uf: 37860.0, utm: 68648, minWage: 500000 },
+    { year: 2025, month: 6, uf: 37900.0, utm: 68785, minWage: 500000 },
+    { year: 2025, month: 7, uf: 37940.0, utm: 68923, minWage: 500000 },
+    { year: 2025, month: 8, uf: 37980.0, utm: 68647, minWage: 500000 },
+    { year: 2025, month: 9, uf: 38020.0, utm: 69265, minWage: 500000 },
+    { year: 2025, month: 10, uf: 37600.0, utm: 69265, minWage: 500000 },
+    { year: 2025, month: 11, uf: 37630.0, utm: 69542, minWage: 500000 },
 ].map(item => ({
     ...item,
     uta: item.utm * 12,
     gratificationCap: Math.round((4.75 * item.minWage) / 12)
 }));
-
 
     
