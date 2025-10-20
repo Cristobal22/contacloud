@@ -89,7 +89,7 @@ export default function AccountGroupsPage() {
     const handleUpdateParameters = () => {
         toast({
             title: "Actualización de Parámetros",
-            description: "Para poblar o actualizar los grupos, el administrador de la aplicación debe modificar el archivo 'src/lib/seed-data.ts'.",
+            description: "Los grupos de cuentas son específicos de tu usuario. Puedes agregar, editar o eliminar grupos directamente desde esta tabla.",
             duration: 6000,
         });
     };
@@ -149,11 +149,11 @@ export default function AccountGroupsPage() {
                     <div className="flex items-center justify-between">
                         <div>
                             <CardTitle>Grupos de Cuentas Contables</CardTitle>
-                            <CardDescription>Los grupos principales que clasifican el plan de cuentas.</CardDescription>
+                            <CardDescription>Los grupos principales que clasifican el plan de cuentas. Son específicos para tu usuario.</CardDescription>
                         </div>
                         <div className="flex gap-2">
                              <Button size="sm" className="gap-1" onClick={handleUpdateParameters}>
-                                Actualizar Parámetros
+                                Ayuda
                             </Button>
                             <Button size="sm" className="gap-1" onClick={handleCreateNew}>
                                 <PlusCircle className="h-4 w-4" />
@@ -203,7 +203,7 @@ export default function AccountGroupsPage() {
                             {!loading && accountGroups?.length === 0 && (
                                 <TableRow>
                                     <TableCell colSpan={3} className="text-center">
-                                        No se encontraron grupos de cuentas. Puedes poblarlos con el botón "Actualizar Parámetros".
+                                        No has creado ningún grupo de cuentas.
                                     </TableCell>
                                 </TableRow>
                             )}
