@@ -1,3 +1,4 @@
+
 'use client';
 
 import {
@@ -54,7 +55,10 @@ export default function ParametrosIUTPage() {
         );
     }, [firestore, year, month]);
 
-    const { data: tablaIUT, loading } = useCollection<TaxParameter>({ query: taxParamsQuery });
+    const { data: tablaIUT, loading } = useCollection<TaxParameter>({ 
+      query: taxParamsQuery,
+      disabled: !taxParamsQuery
+    });
 
     const calculateEffectiveRate = (desde: number, hasta: number, factor: number, rebaja: number) => {
         if (hasta === Infinity || hasta === 0 || factor === 0) return 'Exento';
@@ -226,23 +230,26 @@ export default function ParametrosIUTPage() {
                                     <TableCell colSpan={5} className="text-center">Cargando...</TableCell>
                                 </TableRow>
                             )}
-                            {!loading && tablaIUT?.sort((a, b) => a.desde - b.desde).map((item) => (
-                                <TableRow key={item.id}>
-                                    <TableCell className="text-right">${item.desde.toLocaleString('es-CL')}</TableCell>
-                                    <TableCell className="text-right border-r">
-                                        {item.hasta === Infinity || item.hasta >= 999999999 ? 'Y más' : `$${item.hasta.toLocaleString('es-CL')}`}
-                                    </TableCell>
-                                    <TableCell className="text-center">{item.factor === 0 ? 'Exento' : item.factor.toString().replace('.',',')}</TableCell>
-                                    <TableCell className="text-right">${item.rebaja.toLocaleString('es-CL')}</TableCell>
-                                    <TableCell className="text-center">{calculateEffectiveRate(item.desde, item.hasta, item.factor, item.rebaja)}</TableCell>
-                                </TableRow>
-                            ))}
-                             {!loading && tablaIUT?.length === 0 && (
+                            {!loading && tablaIUT && tablaIUT.length > 0 ? (
+                                tablaIUT.sort((a, b) => a.desde - b.desde).map((item) => (
+                                    <TableRow key={item.id}>
+                                        <TableCell className="text-right">${item.desde.toLocaleString('es-CL')}</TableCell>
+                                        <TableCell className="text-right border-r">
+                                            {item.hasta === Infinity || item.hasta >= 999999999 ? 'Y más' : `$${item.hasta.toLocaleString('es-CL')}`}
+                                        </TableCell>
+                                        <TableCell className="text-center">{item.factor === 0 ? 'Exento' : item.factor.toString().replace('.',',')}</TableCell>
+                                        <TableCell className="text-right">${item.rebaja.toLocaleString('es-CL')}</TableCell>
+                                        <TableCell className="text-center">{calculateEffectiveRate(item.desde, item.hasta, item.factor, item.rebaja)}</TableCell>
+                                    </TableRow>
+                                ))
+                            ) : (
+                                !loading && (
                                 <TableRow>
                                     <TableCell colSpan={5} className="text-center">
                                         No se encontraron parámetros de IUT para el período seleccionado.
                                     </TableCell>
                                 </TableRow>
+                                )
                             )}
                         </TableBody>
                     </Table>
