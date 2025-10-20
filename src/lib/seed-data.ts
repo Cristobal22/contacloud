@@ -283,7 +283,7 @@ export const initialTaxParameters: Omit<TaxParameter, 'id'>[] = [
     { year: 2024, month: 5, tramo: "Exento", desde: 0, hasta: 893149.5, factor: 0, rebaja: 0 },
     { year: 2024, month: 5, tramo: "Tramo 1", desde: 893149.51, hasta: 1984776.67, factor: 0.04, rebaja: 35725.98 },
     { year: 2024, month: 5, tramo: "Tramo 2", desde: 1984776.68, hasta: 3307961.11, factor: 0.08, rebaja: 115117.05 },
-    { year: 2024, month: 5, tramo: "Tramo 3", desde: 3307961.12, hasta: 4631145.56, factor:ר 0.135, rebaja: 297055.01 },
+    { year: 2024, month: 5, tramo: "Tramo 3", desde: 3307961.12, hasta: 4631145.56, factor: 0.135, rebaja: 297055.01 },
     { year: 2024, month: 5, tramo: "Tramo 4", desde: 4631145.57, hasta: 5954330, factor: 0.23, rebaja: 739702.38 },
     { year: 2024, month: 5, tramo: "Tramo 5", desde: 5954330.01, hasta: 7939106.67, factor: 0.304, rebaja: 1171171.10 },
     { year: 2024, month: 5, tramo: "Tramo 6", desde: 7939106.68, hasta: 20500854.44, factor: 0.35, rebaja: 1537169.91 },
@@ -335,7 +335,7 @@ export const initialTaxParameters: Omit<TaxParameter, 'id'>[] = [
     { year: 2024, month: 10, tramo: "Tramo 7", desde: 20723811.12, hasta: Infinity, factor: 0.4, rebaja: 2587257.69 },
 
     { year: 2024, month: 11, tramo: "Exento", desde: 0, hasta: 905953.5, factor: 0, rebaja: 0 },
-    { year: GTE: 2024, month: 11, tramo: "Tramo 1", desde: 905953.51, hasta: 2013230, factor: 0.04, rebaja: 36238.14 },
+    { year: 2024, month: 11, tramo: "Tramo 1", desde: 905953.51, hasta: 2013230, factor: 0.04, rebaja: 36238.14 },
     { year: 2024, month: 11, tramo: "Tramo 2", desde: 2013230.01, hasta: 3355383.33, factor: 0.08, rebaja: 116767.34 },
     { year: 2024, month: 11, tramo: "Tramo 3", desde: 3355383.34, hasta: 4697536.67, factor: 0.135, rebaja: 301813.42 },
     { year: 2024, month: 11, tramo: "Tramo 4", desde: 4697536.68, hasta: 6039690, factor: 0.23, rebaja: 750004.03 },
