@@ -1,3 +1,4 @@
+
 'use client';
 
 import React from 'react';
@@ -29,6 +30,7 @@ import { ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 import { errorEmitter } from '@/firebase/error-emitter'
 import { FirestorePermissionError } from '@/firebase/errors'
+import { nationalities, regions, communesByRegion } from '@/lib/geographical-data';
 
 // Tope legal: 4.75 IMM. Asumimos IMM de 460000 (este valor debe ser actualizado periódicamente)
 const MINIMUM_WAGE = 460000;
@@ -52,6 +54,8 @@ export default function EmployeeFormPage() {
     const { data: existingEmployee, loading: employeeLoading } = useDoc<Employee>(employeeRef);
 
     const [employee, setEmployee] = React.useState<Partial<Employee> | null>(null);
+    const [availableCommunes, setAvailableCommunes] = React.useState<string[]>([]);
+
 
     const { data: costCenters, loading: costCentersLoading } = useCollection<CostCenter>({
         path: companyId ? `companies/${companyId}/cost-centers` : undefined,
@@ -77,12 +81,23 @@ export default function EmployeeFormPage() {
             });
         } else if (existingEmployee) {
             setEmployee(existingEmployee);
+            if (existingEmployee.region) {
+                setAvailableCommunes(communesByRegion[existingEmployee.region] || []);
+            }
         }
     }, [isNew, existingEmployee, companyId]);
 
     const handleFieldChange = (field: keyof Employee, value: string | number | boolean | undefined) => {
         if (employee) {
-            setEmployee((prev) => ({ ...prev, [field]: value }));
+            const updatedEmployee = { ...employee, [field]: value };
+            
+            if (field === 'region' && typeof value === 'string') {
+                setAvailableCommunes(communesByRegion[value] || []);
+                // Reset commune if region changes
+                updatedEmployee.commune = ''; 
+            }
+
+            setEmployee(updatedEmployee);
         }
     };
     
@@ -163,10 +178,34 @@ export default function EmployeeFormPage() {
                         <div className="space-y-2"><Label>Nombres</Label><Input value={employee.firstName || ''} onChange={(e) => handleFieldChange('firstName', e.target.value)} /></div>
                         <div className="space-y-2"><Label>Apellidos</Label><Input value={employee.lastName || ''} onChange={(e) => handleFieldChange('lastName', e.target.value)} /></div>
                         <div className="space-y-2"><Label>Fecha de Nacimiento</Label><Input type="date" value={employee.birthDate || ''} onChange={(e) => handleFieldChange('birthDate', e.target.value)} /></div>
-                        <div className="space-y-2"><Label>Nacionalidad</Label><Input value={employee.nationality || ''} onChange={(e) => handleFieldChange('nationality', e.target.value)} /></div>
+                        <div className="space-y-2">
+                            <Label>Nacionalidad</Label>
+                            <Select value={employee.nationality} onValueChange={(v) => handleFieldChange('nationality', v)}>
+                                <SelectTrigger><SelectValue placeholder="Selecciona..." /></SelectTrigger>
+                                <SelectContent>
+                                    {nationalities.map(n => <SelectItem key={n} value={n}>{n}</SelectItem>)}
+                                </SelectContent>
+                            </Select>
+                        </div>
                         <div className="space-y-2"><Label>Dirección</Label><Input value={employee.address || ''} onChange={(e) => handleFieldChange('address', e.target.value)} /></div>
-                        <div className="space-y-2"><Label>Comuna</Label><Input value={employee.commune || ''} onChange={(e) => handleFieldChange('commune', e.target.value)} /></div>
-                        <div className="space-y-2"><Label>Región</Label><Input value={employee.region || ''} onChange={(e) => handleFieldChange('region', e.target.value)} /></div>
+                         <div className="space-y-2">
+                            <Label>Región</Label>
+                            <Select value={employee.region} onValueChange={(v) => handleFieldChange('region', v)}>
+                                <SelectTrigger><SelectValue placeholder="Selecciona..." /></SelectTrigger>
+                                <SelectContent>
+                                    {regions.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Comuna</Label>
+                            <Select value={employee.commune} onValueChange={(v) => handleFieldChange('commune', v)} disabled={!employee.region}>
+                                <SelectTrigger><SelectValue placeholder="Selecciona una región primero..." /></SelectTrigger>
+                                <SelectContent>
+                                    {availableCommunes.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                                </SelectContent>
+                            </Select>
+                        </div>
                         <div className="space-y-2"><Label>Teléfono</Label><Input value={employee.phone || ''} onChange={(e) => handleFieldChange('phone', e.target.value)} /></div>
                         <div className="space-y-2"><Label>Email</Label><Input type="email" value={employee.email || ''} onChange={(e) => handleFieldChange('email', e.target.value)} /></div>
                         <div className="space-y-2">
