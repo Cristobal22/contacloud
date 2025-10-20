@@ -40,7 +40,7 @@ export default function ParametrosIUTPage() {
         const batch = writeBatch(firestore);
         
         initialTaxParameters.forEach(paramData => {
-            const docRef = doc(collection(firestore, collectionPath));
+            const docRef = doc(collection(firestore, collectionPath, paramData.id));
             batch.set(docRef, paramData);
         });
 
