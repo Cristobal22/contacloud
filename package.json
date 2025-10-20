@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
+    "update-params": "tsx update-seed-data.ts",
     "init-admin": "node init-admin.mjs"
   },
   "dependencies": {
