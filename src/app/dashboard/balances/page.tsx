@@ -63,17 +63,6 @@ export default function BalancesPage() {
             return voucherDate >= startDate && voucherDate <= endDate;
         });
 
-        const accountMovements = new Map<string, { debit: number; credit: number }>();
-
-        filteredVouchers.forEach(voucher => {
-            voucher.entries.forEach(entry => {
-                const current = accountMovements.get(entry.account) || { debit: 0, credit: 0 };
-                current.debit += Number(entry.debit) || 0;
-                current.credit += Number(entry.credit) || 0;
-                accountMovements.set(entry.account, current);
-            });
-        });
-        
         const balanceMap = new Map<string, BalanceRow>();
         
         // Initialize all accounts from the chart of accounts
@@ -84,43 +73,70 @@ export default function BalancesPage() {
                 initialBalance: acc.balance || 0,
                 debit: 0,
                 credit: 0,
-                finalBalance: acc.balance || 0
+                finalBalance: 0, // Will be calculated later
             });
         });
 
         // Apply movements to detail accounts
-        accountMovements.forEach((mov, code) => {
-            if (balanceMap.has(code)) {
-                const acc = balanceMap.get(code)!;
-                acc.debit += mov.debit;
-                acc.credit += mov.credit;
-
-                const accountInfo = accounts.find(a => a.code === code);
-                if (accountInfo?.type === 'Activo' || (accountInfo?.type === 'Resultado' && mov.debit > mov.credit)) {
-                    acc.finalBalance = acc.initialBalance + mov.debit - mov.credit;
-                } else {
-                    acc.finalBalance = acc.initialBalance + mov.credit - mov.debit;
+        filteredVouchers.forEach(voucher => {
+            voucher.entries.forEach(entry => {
+                if (balanceMap.has(entry.account)) {
+                    const acc = balanceMap.get(entry.account)!;
+                    acc.debit += Number(entry.debit) || 0;
+                    acc.credit += Number(entry.credit) || 0;
                 }
-            }
+            });
         });
 
         const sortedCodes = Array.from(balanceMap.keys()).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+        
+        // Calculate final balance for all accounts based on movements
+        sortedCodes.forEach(code => {
+            const acc = balanceMap.get(code)!;
+            const accountInfo = accounts.find(a => a.code === code);
+             if (accountInfo?.type === 'Activo' || (accountInfo?.type === 'Resultado' && acc.debit > acc.credit)) {
+                acc.finalBalance = acc.initialBalance + acc.debit - acc.credit;
+            } else {
+                acc.finalBalance = acc.initialBalance + acc.credit - acc.debit;
+            }
+        });
+
 
         // Aggregate balances up the hierarchy
         for (let i = sortedCodes.length - 1; i >= 0; i--) {
             const code = sortedCodes[i];
-            const parts = code.split('.');
-            if (parts.length > 1) {
-                const parentCode = parts.slice(0, -1).join('.');
-                if (balanceMap.has(parentCode)) {
-                    const child = balanceMap.get(code)!;
-                    const parent = balanceMap.get(parentCode)!;
-                    parent.debit += child.debit;
-                    parent.credit += child.credit;
-                    parent.finalBalance += child.finalBalance; 
-                }
+            
+            let parentCode = '';
+            if (code.length > 5) { // Cuenta -> Subgrupo
+                parentCode = code.substring(0, 5);
+            } else if (code.length === 5) { // Subgrupo -> Grupo
+                parentCode = code.substring(0, 3);
+            } else if (code.length === 3) { // Grupo -> Clase
+                parentCode = code.substring(0, 1);
+            }
+
+            if (parentCode && balanceMap.has(parentCode)) {
+                const child = balanceMap.get(code)!;
+                const parent = balanceMap.get(parentCode)!;
+                parent.debit += child.debit;
+                parent.credit += child.credit;
+                // Don't aggregate final balances, as they are calculated from movements.
             }
         }
+        
+        // Recalculate final balance for parent accounts after aggregation
+         sortedCodes.forEach(code => {
+            if (code.length < 6) { // Only for group accounts
+                const acc = balanceMap.get(code)!;
+                const accountInfo = accounts.find(a => a.code === code);
+                 if (accountInfo?.type === 'Activo' || accountInfo?.type === 'Resultado') {
+                    acc.finalBalance = acc.initialBalance + acc.debit - acc.credit;
+                } else {
+                    acc.finalBalance = acc.initialBalance + acc.credit - acc.debit;
+                }
+            }
+        });
+
         
         const balanceData = sortedCodes.map(code => balanceMap.get(code)!);
         setGeneratedBalance(balanceData);
@@ -130,7 +146,7 @@ export default function BalancesPage() {
         if (!generatedBalance) return { debit: 0, credit: 0 };
         // The total is the sum of the top-level accounts (e.g., '1', '2', '3', etc.)
         return generatedBalance
-            .filter(row => !row.code.includes('.'))
+            .filter(row => row.code.length === 1) // Only sum top-level classes
             .reduce((acc, row) => ({
                 debit: acc.debit + row.debit,
                 credit: acc.credit + row.credit,
