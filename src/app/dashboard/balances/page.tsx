@@ -14,9 +14,10 @@ import { DateRange } from "react-day-picker";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import { useCollection } from "@/firebase";
+import { useCollection, useFirestore } from "@/firebase";
 import type { Account, Voucher } from "@/lib/types";
 import { SelectedCompanyContext } from "../layout";
+import { collection, query, where } from "firebase/firestore";
 
 type BalanceRow = {
     code: string;
@@ -30,6 +31,7 @@ type BalanceRow = {
 export default function BalancesPage() {
     const { selectedCompany } = React.useContext(SelectedCompanyContext) || {};
     const companyId = selectedCompany?.id;
+    const firestore = useFirestore();
 
     const [date, setDate] = React.useState<DateRange | undefined>({
         from: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
@@ -41,11 +43,20 @@ export default function BalancesPage() {
         path: companyId ? `companies/${companyId}/accounts` : undefined,
         companyId: companyId,
     });
+    
+    const vouchersQuery = React.useMemo(() => {
+        if (!firestore || !companyId) return null;
+        return query(
+            collection(firestore, `companies/${companyId}/vouchers`), 
+            where('status', '==', 'Contabilizado')
+        );
+    }, [firestore, companyId]);
+
     const { data: vouchers, loading: vouchersLoading } = useCollection<Voucher>({
-        path: companyId ? `companies/${companyId}/vouchers` : undefined,
-        companyId: companyId,
-        query: companyId ? (collection, query, where) => query(collection(`companies/${companyId}/vouchers`), where('status', '==', 'Contabilizado')) : undefined,
+        query: vouchersQuery,
+        disabled: !vouchersQuery
     });
+
 
     const loading = accountsLoading || vouchersLoading;
 
@@ -107,13 +118,13 @@ export default function BalancesPage() {
             const code = sortedCodes[i];
             
             let parentCode = '';
-            if (code.length > 5) { // Cuenta -> Subgrupo
-                parentCode = code.substring(0, 5);
-            } else if (code.length === 5) { // Subgrupo -> Grupo
-                parentCode = code.substring(0, 3);
-            } else if (code.length === 3) { // Grupo -> Clase
-                parentCode = code.substring(0, 1);
+            if (code.length > 1) { // Cuenta -> Subgrupo, Grupo, Clase
+                parentCode = code.substring(0, code.length - 2);
+                 if (code.length > 5) parentCode = code.substring(0, 5);
+                 if (code.length === 5) parentCode = code.substring(0, 3);
+                 if (code.length === 3) parentCode = code.substring(0, 1);
             }
+           
 
             if (parentCode && balanceMap.has(parentCode)) {
                 const child = balanceMap.get(code)!;
