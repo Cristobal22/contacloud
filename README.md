@@ -21,7 +21,7 @@ Contador Cloud es una moderna aplicación de contabilidad multi-tenant diseñada
     - **Gestión de Comprobantes Profesional**: Flujo de trabajo completo con estados "Borrador" y "Contabilizado". Un comprobante contabilizado puede ser editado, pero se revierte a "Borrador" para garantizar la integridad de los informes.
     - **Informes Precisos**: Libro Diario, Libro Mayor y Balances que **solo** consideran comprobantes contabilizados, asegurando la fiabilidad de los datos.
     - **Gestión de Remuneraciones**: Módulo completo para la gestión de empleados y el procesamiento de liquidaciones de sueldo.
-    - **Datos Maestros Precargados**: Los usuarios pueden cargar y actualizar datos esenciales como entidades de AFP, Salud, parámetros de IUT y Asignación Familiar directamente desde la interfaz de usuario.
+    - **Datos Maestros Precargados**: Los administradores pueden actualizar datos esenciales como entidades de AFP, Salud, parámetros de IUT y Asignación Familiar directamente desde la terminal.
 
 - **Procesos Críticos Asistidos por IA**:
     - **Centralización de Remuneraciones**: Genera automáticamente el asiento contable de centralización de sueldos a partir de las liquidaciones procesadas.
@@ -49,6 +49,7 @@ Contador Cloud es una moderna aplicación de contabilidad multi-tenant diseñada
 - Node.js (v18 o superior recomendado)
 - npm o yarn
 - Un proyecto de Firebase con la **facturación activada** (necesario para Genkit y servicios de Google Cloud).
+- **Credenciales de Administrador de Firebase**: Debes descargar el archivo JSON de la cuenta de servicio de tu proyecto de Firebase. Ve a **Configuración del proyecto > Cuentas de servicio**, genera una nueva clave privada y guarda el archivo. Luego, configura la variable de entorno `GOOGLE_APPLICATION_CREDENTIALS` para que apunte a la ruta de ese archivo.
 
 ### 1. Firebase Setup
 
@@ -73,13 +74,17 @@ El primer usuario `Admin` es indispensable para empezar a crear las cuentas de l
 
 ¡Listo! Ahora tendrás privilegios de `Admin` y podrás gestionar usuarios y parámetros.
 
-### 3. Actualizar Parámetros Globales
+### 3. Actualizar Parámetros Globales (Tarea de Admin)
 
-Con el tiempo, los parámetros económicos y previsionales (UTM, sueldo mínimo, tablas de impuestos, etc.) cambian. Para mantener la aplicación al día, un administrador o contador puede cargarlos directamente.
+Con el tiempo, los parámetros económicos y previsionales (UTM, sueldo mínimo, tablas de impuestos, etc.) cambian. Para mantener la aplicación al día, un administrador debe ejecutar un script.
 
-1.  Navega a la sección de parámetros correspondiente (ej: Remuneraciones > Parámetros IUT).
-2.  Selecciona el período (mes/año) que deseas actualizar.
-3.  Usa el botón **"Cargar Parámetros Predeterminados"** para poblar la base de datos con la información más reciente que se encuentra en el código fuente de la aplicación.
+1.  **Asegúrate de tener los datos actualizados en el código**: Un desarrollador debe primero actualizar los valores en el archivo `src/lib/seed-data.ts`.
+2.  **Configura las credenciales de Admin**: Asegúrate de que tu variable de entorno `GOOGLE_APPLICATION_CREDENTIALS` esté apuntando a tu archivo de clave de servicio de Firebase.
+3.  **Ejecuta el Script de Actualización**: Abre una terminal en la raíz del proyecto y ejecuta el siguiente comando:
+    ```bash
+    npm run update-params
+    ```
+4.  El script borrará los parámetros antiguos y cargará los nuevos desde el archivo `seed-data.ts` a la base de datos.
 
 ### 4. Running the Development Server
 
@@ -95,7 +100,7 @@ La aplicación estará disponible en `http://localhost:9002`.
 
 ## Flujo de Trabajo
 
-- **Rol Admin**: Crea y gestiona las cuentas de los `Accountant` desde la sección "Gestión de Usuarios". Puede actualizar los parámetros globales del sistema desde las páginas de configuración.
+- **Rol Admin**: Crea y gestiona las cuentas de los `Accountant` desde la sección "Gestión de Usuarios". Actualiza los parámetros globales del sistema ejecutando `npm run update-params`.
 - **Rol Accountant**:
     1. Inicia sesión y navega a **Empresas** para crear una nueva ficha de cliente.
     2. Al crear la empresa, se le redirige a la configuración para cargar el **Plan de Cuentas Predeterminado** o empezar uno desde cero.
