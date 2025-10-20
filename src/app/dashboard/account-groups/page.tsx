@@ -59,7 +59,6 @@ import { useUserProfile } from '@/firebase/auth/use-user-profile';
 export default function AccountGroupsPage() {
     const firestore = useFirestore();
     const { user } = useUser();
-    const { userProfile } = useUserProfile(user?.uid);
     const { toast } = useToast();
     
     const accountGroupsCollection = React.useMemo(() => 
@@ -88,14 +87,6 @@ export default function AccountGroupsPage() {
         setIsDeleteDialogOpen(true);
     };
 
-    const handleUpdateParameters = () => {
-        toast({
-            title: "Actualización de Parámetros",
-            description: "Los grupos de cuentas son específicos de tu usuario. Puedes agregar, editar o eliminar grupos directamente desde esta tabla.",
-            duration: 6000,
-        });
-    };
-    
     const handleSave = () => {
         if (!firestore || !user || !selectedGroup || !selectedGroup.name) return;
 
@@ -154,16 +145,10 @@ export default function AccountGroupsPage() {
                             <CardDescription>Los grupos principales que clasifican el plan de cuentas. Son específicos para tu usuario.</CardDescription>
                         </div>
                         <div className="flex gap-2">
-                             {userProfile?.role === 'Admin' ? (
-                                <Button size="sm" onClick={handleUpdateParameters} >
-                                    Actualizar Parámetros
-                                </Button>
-                            ) : (
-                                <Button size="sm" className="gap-1" onClick={handleCreateNew}>
-                                    <PlusCircle className="h-4 w-4" />
-                                    Agregar Grupo
-                                </Button>
-                            )}
+                            <Button size="sm" className="gap-1" onClick={handleCreateNew}>
+                                <PlusCircle className="h-4 w-4" />
+                                Agregar Grupo
+                            </Button>
                         </div>
                     </div>
                 </CardHeader>

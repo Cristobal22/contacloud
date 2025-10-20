@@ -61,7 +61,7 @@ Contador Cloud es una moderna aplicación de contabilidad multi-tenant diseñada
 
 ### 2. Configurar Acceso de Administrador (Server-Side)
 
-Para que el script de inicialización funcione, necesitas credenciales de servidor.
+Para que los scripts de inicialización y actualización funcionen, necesitas credenciales de servidor.
 
 1.  En tu Firebase Console, ve a **Configuración del proyecto > Cuentas de servicio**.
 2.  Selecciona "Node.js" y haz clic en **Generar nueva clave privada**.
@@ -70,7 +70,7 @@ Para que el script de inicialización funcione, necesitas credenciales de servid
 
 ### 3. Crear el Primer Usuario Administrador (Flujo Simplificado)
 
-El primer usuario `Admin` es indispensable para empezar a crear las cuentas de los contadores.
+El primer usuario `Admin` es indispensable para empezar a crear las cuentas de los contadores y gestionar los parámetros.
 
 1.  **Regístrate en la aplicación**: Usa la página de login para crear tu primera cuenta (con Google o Email/Contraseña). Por defecto, se creará con el rol `Accountant`.
 2.  **Ejecuta el Script de Admin**: Abre una terminal en la raíz del proyecto y ejecuta el siguiente comando:
@@ -80,9 +80,20 @@ El primer usuario `Admin` es indispensable para empezar a crear las cuentas de l
 3.  El script te pedirá el email del usuario que acabas de registrar. Ingrésalo y el script lo promoverá a `Admin`.
 4.  **Cierra y vuelve a iniciar sesión**: ¡Este paso es esencial! Cierra sesión en la aplicación y vuelve a iniciarla para que tus nuevos permisos de administrador surtan efecto.
 
-¡Listo! Ahora tendrás privilegios de `Admin`, podrás ver la sección "Gestión de Usuarios" y empezar a crear las cuentas para los contadores.
+¡Listo! Ahora tendrás privilegios de `Admin` y podrás gestionar usuarios y parámetros.
 
-### 4. Running the Development Server
+### 4. Actualizar Parámetros Globales (Rol `Admin`)
+
+Con el tiempo, los parámetros económicos y previsionales (UTM, sueldo mínimo, tablas de impuestos, etc.) cambian. Para mantener la aplicación al día, un administrador puede ejecutar un script de actualización.
+
+1.  Abre una terminal en la raíz del proyecto.
+2.  Ejecuta el siguiente comando:
+    ```bash
+    npm run update-params
+    ```
+3.  El script te pedirá confirmación, borrará los datos antiguos y cargará la información más reciente que se encuentre en el código fuente de la aplicación.
+
+### 5. Running the Development Server
 
 1.  **Instala las dependencias**:
     ```bash
@@ -96,7 +107,7 @@ La aplicación estará disponible en `http://localhost:9002`.
 
 ## Flujo de Trabajo
 
-- **Rol Admin**: Crea y gestiona las cuentas de los `Accountant` desde la sección "Gestión de Usuarios".
+- **Rol Admin**: Crea y gestiona las cuentas de los `Accountant` desde la sección "Gestión de Usuarios". Actualiza los parámetros globales del sistema usando los comandos de la terminal.
 - **Rol Accountant**:
     1. Inicia sesión y navega a **Empresas** para crear una nueva ficha de cliente.
     2. Al crear la empresa, se le redirige a la configuración para cargar el **Plan de Cuentas Predeterminado** o empezar uno desde cero.
@@ -112,3 +123,4 @@ La aplicación estará disponible en `http://localhost:9002`.
 - `firestore.rules`: Reglas de seguridad para Firestore.
 - `.github/workflows/`: Workflows de CI/CD para despliegue automático.
 - `init-admin.mjs`: Script para inicializar el primer usuario administrador.
+- `update-seed-data.mjs`: Script para actualizar los datos de parámetros globales.

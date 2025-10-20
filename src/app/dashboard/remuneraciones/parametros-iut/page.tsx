@@ -38,50 +38,7 @@ import { useUserProfile } from "@/firebase/auth/use-user-profile";
 
 export default function ParametrosIUTPage() {
     const { toast } = useToast();
-    const firestore = useFirestore();
-    const { user } = useUser();
-    const { userProfile } = useUserProfile(user?.uid);
     const { data: tablaIUT, loading } = useCollection<TaxParameter>({ path: 'tax-parameters' });
-
-    const [isSubmitting, setIsSubmitting] = React.useState(false);
-    const [isAlertOpen, setIsAlertOpen] = React.useState(false);
-
-    const handleUpdateParameters = async () => {
-        if (!firestore) return;
-        setIsSubmitting(true);
-
-        const collectionRef = collection(firestore, 'tax-parameters');
-
-        try {
-            const batch = writeBatch(firestore);
-            // Delete existing documents
-            const existingDocs = await getDocs(collectionRef);
-            existingDocs.forEach(doc => batch.delete(doc.ref));
-
-            // Add new documents
-            initialTaxParameters.forEach(param => {
-                const docRef = doc(collectionRef, param.id);
-                batch.set(docRef, param);
-            });
-
-            await batch.commit();
-            toast({
-                title: "Parámetros Actualizados",
-                description: "La tabla de IUT ha sido actualizada con los valores más recientes.",
-            });
-        } catch (error) {
-            console.error("Error updating tax parameters: ", error);
-            toast({
-                variant: 'destructive',
-                title: "Error de Permisos",
-                description: "No se pudieron actualizar los parámetros. Asegúrate de tener los permisos necesarios."
-            })
-        } finally {
-            setIsSubmitting(false);
-            setIsAlertOpen(false);
-        }
-    };
-
 
     return (
         <>
@@ -92,11 +49,6 @@ export default function ParametrosIUTPage() {
                             <CardTitle>Parámetros del Impuesto Único de Segunda Categoría (IUT)</CardTitle>
                             <CardDescription>Tabla para el cálculo del impuesto único al trabajo dependiente.</CardDescription>
                         </div>
-                         {userProfile?.role === 'Admin' && (
-                            <Button size="sm" onClick={() => setIsAlertOpen(true)} disabled={isSubmitting}>
-                                {isSubmitting ? 'Actualizando...' : 'Actualizar Parámetros'}
-                            </Button>
-                        )}
                     </div>
                 </CardHeader>
                 <CardContent>
@@ -134,26 +86,6 @@ export default function ParametrosIUTPage() {
                 </CardContent>
             </Card>
 
-            <AlertDialog open={isAlertOpen} onOpenChange={setIsAlertOpen}>
-                <AlertDialogContent>
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>¿Confirmas la actualización?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                            Esta acción borrará todos los parámetros de IUT existentes y los reemplazará con los valores del sistema. Esta acción es recomendada si los datos están desactualizados o corruptos.
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                        <AlertDialogAction
-                            className={buttonVariants({ variant: "destructive" })}
-                            onClick={handleUpdateParameters}
-                            disabled={isSubmitting}
-                        >
-                            Sí, actualizar
-                        </AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
         </>
     )
 }

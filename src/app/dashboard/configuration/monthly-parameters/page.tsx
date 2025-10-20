@@ -9,32 +9,20 @@ import {
   } from "@/components/ui/card"
   import { Input } from "@/components/ui/input"
   import { Label } from "@/components/ui/label"
-  import { Button, buttonVariants } from "@/components/ui/button"
+  import { Button } from "@/components/ui/button"
   import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
   import React from "react";
   import { useCollection, useFirestore, useUser, useDoc } from "@/firebase";
   import type { EconomicIndicator } from "@/lib/types";
-  import { doc, setDoc, writeBatch, collection, getDocs } from "firebase/firestore";
+  import { doc, setDoc } from "firebase/firestore";
   import { useToast } from "@/hooks/use-toast";
   import { errorEmitter } from "@/firebase/error-emitter";
   import { FirestorePermissionError } from "@/firebase/errors";
   import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
   import { SelectedCompanyContext } from "../../layout";
   import { cn } from "@/lib/utils";
-  import { ChevronDown } from "lucide-react";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import {
-    AlertDialog,
-    AlertDialogAction,
-    AlertDialogCancel,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
+  import { ScrollArea } from "@/components/ui/scroll-area";
 import { useUserProfile } from "@/firebase/auth/use-user-profile";
-import { initialEconomicIndicators } from "@/lib/seed-data";
 
   export default function MonthlyParametersPage() {
     const { selectedCompany } = React.useContext(SelectedCompanyContext) || {};
@@ -51,9 +39,6 @@ import { initialEconomicIndicators } from "@/lib/seed-data";
     const [indicator, setIndicator] = React.useState<Partial<EconomicIndicator>>({});
     const [isLoading, setIsLoading] = React.useState(false);
     const [isCompanySpecific, setIsCompanySpecific] = React.useState(false);
-    
-    const [isSubmitting, setIsSubmitting] = React.useState(false);
-    const [isAlertOpen, setIsAlertOpen] = React.useState(false);
     
     const indicatorId = `${year}-${month.toString().padStart(2, '0')}`;
 
@@ -140,40 +125,6 @@ import { initialEconomicIndicators } from "@/lib/seed-data";
         setIndicator(prev => ({ ...prev, [field]: value }));
     };
     
-    const handleUpdateParameters = async () => {
-        if (!firestore) return;
-        setIsSubmitting(true);
-
-        const collectionRef = collection(firestore, 'economic-indicators');
-        try {
-            const batch = writeBatch(firestore);
-            const existingDocs = await getDocs(collectionRef);
-            existingDocs.forEach(doc => batch.delete(doc.ref));
-
-            initialEconomicIndicators.forEach(item => {
-                const id = `${item.year}-${item.month.toString().padStart(2, '0')}`;
-                const docRef = doc(collectionRef, id);
-                batch.set(docRef, item);
-            });
-
-            await batch.commit();
-            toast({
-                title: "Parámetros Actualizados",
-                description: "Los indicadores económicos han sido actualizados.",
-            });
-        } catch (error) {
-            console.error("Error updating economic indicators: ", error);
-            toast({
-                variant: 'destructive',
-                title: "Error de Permisos",
-                description: "No se pudieron actualizar los indicadores."
-            })
-        } finally {
-            setIsSubmitting(false);
-            setIsAlertOpen(false);
-        }
-    };
-
     return (
       <>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -256,11 +207,6 @@ import { initialEconomicIndicators } from "@/lib/seed-data";
                 <CardHeader>
                     <div className="flex items-center justify-between">
                         <CardTitle>Historial Global</CardTitle>
-                         {userProfile?.role === 'Admin' && (
-                            <Button size="sm" onClick={() => setIsAlertOpen(true)} disabled={isSubmitting}>
-                                {isSubmitting ? 'Actualizando...' : 'Actualizar Parámetros'}
-                            </Button>
-                        )}
                     </div>
                      <CardDescription>Valores de referencia para todos los usuarios.</CardDescription>
                 </CardHeader>
@@ -297,26 +243,6 @@ import { initialEconomicIndicators } from "@/lib/seed-data";
                 </CardContent>
             </Card>
         </div>
-        <AlertDialog open={isAlertOpen} onOpenChange={setIsAlertOpen}>
-            <AlertDialogContent>
-                <AlertDialogHeader>
-                    <AlertDialogTitle>¿Confirmas la actualización?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                        Esta acción borrará todos los indicadores económicos globales existentes y los reemplazará con los valores del sistema.
-                    </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                    <AlertDialogAction
-                        className={buttonVariants({ variant: "destructive" })}
-                        onClick={handleUpdateParameters}
-                        disabled={isSubmitting}
-                    >
-                        Sí, actualizar
-                    </AlertDialogAction>
-                </AlertDialogFooter>
-            </AlertDialogContent>
-        </AlertDialog>
     </>
   )
 }
