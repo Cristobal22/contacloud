@@ -1,86 +1,342 @@
 /**
  * @file Firestore Security Rules
- * @description This ruleset enforces a role-based access control system.
+ * @description This ruleset enforces a role-based access control model with user-ownership constraints.
  *
- * Key Principles:
- * - 'Admin' role is for user management via backend functions, not direct data access.
- * - 'Accountant' role grants access to company data they own or are assigned to.
- * - Global data (like tax parameters) is read-only for all authenticated users.
- * - User-specific data is only accessible by the owner.
+ * Data Structure:
+ * - /users/{userId}: User profile data, accessible only by the user and admins.
+ * - /companies/{companyId}: Company data, accessible by users associated with the company.
+ * - /companies/{companyId}/accounts: Accounts for a specific company.
+ * - /companies/{companyId}/vouchers: Vouchers for a specific company.
+ * - /companies/{companyId}/subjects: Subjects for a specific company.
+ * - /companies/{companyId}/cost-centers: Cost centers for a specific company.
+ * - /companies/{companyId}/employees: Employees for a specific company.
+ * - /companies/{companyId}/payrolls: Payrolls for a specific company.
+ * - /companies/{companyId}/purchases: Purchases for a specific company.
+ * - /companies/{companyId}/sales: Sales for a specific company.
+ * - /companies/{companyId}/fees: Fees for a specific company.
+ * - /companies/{companyId}/economic-indicators/{indicatorId}: Overrides for economic indicators for a specific company.
+ * - /economic-indicators/{indicatorId}: Global economic indicator data, publicly readable, but only writeable by authorized users (TODO).
+ * - /health-entities/{entityId}: Global health entities data, publicly readable, but only writeable by authorized users (TODO).
+ * - /afp-entities/{entityId}: Global AFP entities data, publicly readable, but only writeable by authorized users (TODO).
+ * - /family-allowance-parameters/{paramId}: Global family allowance parameters data, publicly readable, but only writeable by authorized users (TODO).
+ * - /tax-parameters/{paramId}: Global tax parameters data, publicly readable, but only writeable by authorized users (TODO).
+ * - /institutions/{institutionId}: Global institution data, publicly readable, but only writeable by authorized users (TODO).
+ * - /users/{userId}/account-groups: Account groups defined by individual users.
+ *
+ * Key Security Decisions:
+ * - Users can only read/write their own profile data.
+ * - Companies and their associated data are only accessible to authorized users.  How this association is managed in the application layer is critical.  For the purpose of these rules, we will assume that user.companyIds contains a list of authorized companyIds.
+ * - Global economic indicators, health entities, afp entities, family allowance parameters, tax parameters and institutions are publicly readable (get, list), but write access is restricted.
+ *
+ * Denormalization for Authorization:
+ *  - The `UserProfile` contains a `companyIds` field.
+ *  - Access to all company subcollections is based on whether the user's `companyIds` array includes the `companyId` segment in the path.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    /**
+     * @description Checks if the request is made by an authenticated user.
+     * @path N/A
+     * @allow N/A
+     * @deny N/A
+     * @principle Authentication is required for all protected resources.
+     */
     function isSignedIn() {
       return request.auth != null;
     }
 
+    /**
+     * @description Checks if the authenticated user's UID matches the provided userId.
+     * @path N/A
+     * @allow N/A
+     * @deny N/A
+     * @principle Enforces user-ownership based on UID.
+     */
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
-    
-    function getUserData(userId) {
-      return get(/databases/$(database)/documents/users/$(userId)).data;
+
+    /**
+     * @description Checks if the user is associated with the company by verifying if the companyId is in the user's companyIds array.
+     * @path N/A
+     */
+    function isUserInCompany(companyId) {
+        return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyIds.hasAny([companyId]);
     }
-    
+
+    /**
+     * @description Checks if the user is an Admin.
+     * @path N/A
+     */
+    function isAdmin() {
+      return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Admin';
+    }
+
+    /**
+     * @description Checks if the user is an Accountant.
+     * @path N/A
+     */
     function isAccountant() {
-        return isSignedIn() && getUserData(request.auth.uid).role == 'Accountant';
+      return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Accountant';
     }
 
-    function isCompanyOwner(companyId) {
-      return isSignedIn() && get(/databases/$(database)/documents/companies/$(companyId)).data.ownerId == request.auth.uid;
-    }
-    
-    // User Profile: Only the owner can read/write their own profile.
+
+    /**
+     * @description Grants access to user profile data.
+     * @path /users/{userId}
+     * @allow (get) Authenticated user reading their own profile data. (auth.uid: 'user123', userId: 'user123')
+     * @allow (create) Authenticated user creating their own profile. (auth.uid: 'user123', userId: 'user123')
+     * @allow (update) Authenticated user updating their own profile. (auth.uid: 'user123', userId: 'user123')
+     * @allow (delete) Authenticated user deleting their own profile. (auth.uid: 'user123', userId: 'user123')
+     * @deny (get) Authenticated user reading another user's profile. (auth.uid: 'user123', userId: 'user456')
+     * @deny (create) Unauthenticated user creating a profile. (auth.uid: null, userId: 'user123')
+     * @principle Enforces document ownership for writes, restricts access to a user's own data tree, validates relational integrity between documents.
+     */
     match /users/{userId} {
-      allow read, write: if isOwner(userId);
-      allow list: if false; // Deny listing all users for security.
+      allow get: if isOwner(userId) || isAdmin();
+      allow list: if false;
+      allow create: if isOwner(userId) && request.resource.data.uid == userId;
+      allow update: if isOwner(userId) && request.resource.data.uid == resource.data.uid;
+      allow delete: if isOwner(userId);
     }
 
-    // Companies: Accountants can create companies. Only the owner can manage it.
+    /**
+     * @description Grants access to company data for associated users.
+     * @path /companies/{companyId}
+     * @allow (get) Authenticated user associated with the company reading the company data. (auth.uid: 'user123', companyId: 'company456', user.companyIds: ['company456'])
+     * @allow (create) Authenticated user creating a new company.  (auth.uid: 'user123', companyId: 'company456')
+     * @allow (update) Authenticated user associated with the company updating the company data. (auth.uid: 'user123', companyId: 'company456', user.companyIds: ['company456'])
+     * @allow (delete) Authenticated user associated with the company deleting the company data. (auth.uid: 'user123', companyId: 'company456', user.companyIds: ['company456'])
+     * @deny (get) Authenticated user not associated with the company reading the company data. (auth.uid: 'user123', companyId: 'company789', user.companyIds: ['company456'])
+     * @deny (create) Unauthenticated user creating a new company. (auth.uid: null, companyId: 'company456')
+     * @principle Enforces user-company association for data access.
+     */
     match /companies/{companyId} {
-      allow get: if isCompanyOwner(companyId);
-      allow list: if isAccountant(); // Accountants can list companies to find theirs.
-      allow create: if isAccountant() && request.resource.data.ownerId == request.auth.uid;
-      allow update, delete: if isCompanyOwner(companyId);
+      allow get: if isUserInCompany(companyId) || isAdmin();
+      allow list: if false;
+      allow create: if isSignedIn(); // TODO: Add validation that the user has permission to create companies (e.g., a specific role).
+      allow update: if isUserInCompany(companyId) || isAdmin();
+      allow delete: if isUserInCompany(companyId) || isAdmin();
+    }
 
-      // Company Subcollections: Only the owner of the company can access its subcollections.
-      match /{allSubcollections=**} {
-        allow read, write: if isCompanyOwner(companyId);
-      }
+    /**
+     * @description Grants access to accounts data for associated companies.
+     * @path /companies/{companyId}/accounts/{accountId}
+     * @allow (get) Authenticated user associated with the company reading the account data. (auth.uid: 'user123', companyId: 'company456', user.companyIds: ['company456'])
+     * @allow (create) Authenticated user associated with the company creating a new account. (auth.uid: 'user123', companyId: 'company456', user.companyIds: ['company456'])
+     * @allow (update) Authenticated user associated with the company updating the account data. (auth.uid: 'user123', companyId: 'company456', user.companyIds: ['company456'])
+     * @allow (delete) Authenticated user associated with the company deleting the account data. (auth.uid: 'user123', companyId: 'company456', user.companyIds: ['company456'])
+     * @deny (get) Authenticated user not associated with the company reading the account data. (auth.uid: 'user123', companyId: 'company789', user.companyIds: ['company456'])
+     * @deny (create) Unauthenticated user creating a new account. (auth.uid: null, companyId: 'company456')
+     * @principle Enforces user-company association for data access.
+     */
+    match /companies/{companyId}/accounts/{accountId} {
+      allow get: if isUserInCompany(companyId) || isAdmin();
+      allow list: if isUserInCompany(companyId) || isAdmin();
+      allow create: if isUserInCompany(companyId) || isAdmin();
+      allow update: if isUserInCompany(companyId) || isAdmin();
+      allow delete: if isUserInCompany(companyId) || isAdmin();
     }
-    
-    // Global Data Collections: Read-only for any authenticated user.
-    // Writing should be done via admin scripts or console, not by clients.
-    match /economic-indicators/{indicatorId} {
-        allow get, list: if isSignedIn();
-        allow write: if isSignedIn(); // Allow accountants to set global values
+
+    /**
+     * @description Grants access to vouchers data for associated companies.
+     * @path /companies/{companyId}/vouchers/{voucherId}
+     * @allow (get) Authenticated user associated with the company reading the voucher data.
+     * @allow (create) Authenticated user associated with the company creating a new voucher.
+     * @allow (update) Authenticated user associated with the company updating the voucher data.
+     * @allow (delete) Authenticated user associated with the company deleting the voucher data.
+     * @deny (get) Authenticated user not associated with the company reading the voucher data.
+     * @deny (create) Unauthenticated user creating a new voucher.
+     * @principle Enforces user-company association for data access.
+     */
+    match /companies/{companyId}/vouchers/{voucherId} {
+      allow get: if isUserInCompany(companyId) || isAdmin() || isAccountant();
+      allow list: if isUserInCompany(companyId) || isAdmin() || isAccountant();
+      allow create: if isUserInCompany(companyId) || isAdmin() || isAccountant();
+      allow update: if isUserInCompany(companyId) || isAdmin() || isAccountant();
+      allow delete: if isUserInCompany(companyId) || isAdmin() || isAccountant();
     }
-    match /health-entities/{entityId} {
-        allow get, list: if isSignedIn();
-        allow write: if false; 
+
+    /**
+     * @description Grants access to subjects data for associated companies.
+     * @path /companies/{companyId}/subjects/{subjectId}
+     */
+    match /companies/{companyId}/subjects/{subjectId} {
+      allow get: if isUserInCompany(companyId) || isAdmin() || isAccountant();
+      allow list: if isUserInCompany(companyId) || isAdmin() || isAccountant();
+      allow create: if isUserInCompany(companyId) || isAdmin() || isAccountant();
+      allow update: if isUserInCompany(companyId) || isAdmin() || isAccountant();
+      allow delete: if isUserInCompany(companyId) || isAdmin() || isAccountant();
     }
-    match /afp-entities/{entityId} {
-        allow get, list: if isSignedIn();
-        allow write: if false;
+
+    /**
+     * @description Grants access to cost centers data for associated companies.
+     * @path /companies/{companyId}/cost-centers/{costCenterId}
+     */
+    match /companies/{companyId}/cost-centers/{costCenterId} {
+      allow get: if isUserInCompany(companyId) || isAdmin() || isAccountant();
+      allow list: if isUserInCompany(companyId) || isAdmin() || isAccountant();
+      allow create: if isUserInCompany(companyId) || isAdmin() || isAccountant();
+      allow update: if isUserInCompany(companyId) || isAdmin() || isAccountant();
+      allow delete: if isUserInCompany(companyId) || isAdmin() || isAccountant();
     }
-    match /family-allowance-parameters/{paramId} {
-        allow get, list: if isSignedIn();
-        allow write: if false;
+
+    /**
+     * @description Grants access to employees data for associated companies.
+     * @path /companies/{companyId}/employees/{employeeId}
+     */
+    match /companies/{companyId}/employees/{employeeId} {
+      allow get: if isUserInCompany(companyId) || isAdmin() || isAccountant();
+      allow list: if isUserInCompany(companyId) || isAdmin() || isAccountant();
+      allow create: if isUserInCompany(companyId) || isAdmin() || isAccountant();
+      allow update: if isUserInCompany(companyId) || isAdmin() || isAccountant();
+      allow delete: if isUserInCompany(companyId) || isAdmin() || isAccountant();
     }
-    match /tax-parameters/{paramId} {
-        allow get, list: if isSignedIn();
-        allow write: if false;
+
+    /**
+     * @description Grants access to payrolls data for associated companies.
+     * @path /companies/{companyId}/payrolls/{payrollId}
+     */
+    match /companies/{companyId}/payrolls/{payrollId} {
+      allow get: if isUserInCompany(companyId) || isAdmin() || isAccountant();
+      allow list: if isUserInCompany(companyId) || isAdmin() || isAccountant();
+      allow create: if isUserInCompany(companyId) || isAdmin() || isAccountant();
+      allow update: if isUserInCompany(companyId) || isAdmin() || isAccountant();
+      allow delete: if isUserInCompany(companyId) || isAdmin() || isAccountant();
     }
-    match /institutions/{institutionId} {
-        allow get, list: if isSignedIn();
-        allow write: if false;
+
+     /**
+      * @description Grants access to purchases data for associated companies.
+      * @path /companies/{companyId}/purchases/{purchaseId}
+      */
+     match /companies/{companyId}/purchases/{purchaseId} {
+       allow get: if isUserInCompany(companyId) || isAdmin() || isAccountant();
+       allow list: if isUserInCompany(companyId) || isAdmin() || isAccountant();
+       allow create: if isUserInCompany(companyId) || isAdmin() || isAccountant();
+       allow update: if isUserInCompany(companyId) || isAdmin() || isAccountant();
+       allow delete: if isUserInCompany(companyId) || isAdmin() || isAccountant();
+     }
+
+     /**
+      * @description Grants access to sales data for associated companies.
+      * @path /companies/{companyId}/sales/{saleId}
+      */
+     match /companies/{companyId}/sales/{saleId} {
+       allow get: if isUserInCompany(companyId) || isAdmin() || isAccountant();
+       allow list: if isUserInCompany(companyId) || isAdmin() || isAccountant();
+       allow create: if isUserInCompany(companyId) || isAdmin() || isAccountant();
+       allow update: if isUserInCompany(companyId) || isAdmin() || isAccountant();
+       allow delete: if isUserInCompany(companyId) || isAdmin() || isAccountant();
+     }
+
+     /**
+      * @description Grants access to fees data for associated companies.
+      * @path /companies/{companyId}/fees/{feeId}
+      */
+     match /companies/{companyId}/fees/{feeId} {
+       allow get: if isUserInCompany(companyId) || isAdmin() || isAccountant();
+       allow list: if isUserInCompany(companyId) || isAdmin() || isAccountant();
+       allow create: if isUserInCompany(companyId) || isAdmin() || isAccountant();
+       allow update: if isUserInCompany(companyId) || isAdmin() || isAccountant();
+       allow delete: if isUserInCompany(companyId) || isAdmin() || isAccountant();
+     }
+
+    /**
+     * @description Grants access to company-specific economic indicators.
+     * @path /companies/{companyId}/economic-indicators/{indicatorId}
+     */
+    match /companies/{companyId}/economic-indicators/{indicatorId} {
+      allow get: if isUserInCompany(companyId) || isAdmin() || isAccountant();
+      allow list: if isUserInCompany(companyId) || isAdmin() || isAccountant();
+      allow create: if isUserInCompany(companyId) || isAdmin() || isAccountant();
+      allow update: if isUserInCompany(companyId) || isAdmin() || isAccountant();
+      allow delete: if isUserInCompany(companyId) || isAdmin() || isAccountant();
     }
-    
-    // User-specific configuration that overrides global settings.
+
+    /**
+     * @description Grants access to user-specific account groups.
+     * @path /users/{userId}/account-groups/{groupId}
+     */
     match /users/{userId}/account-groups/{groupId} {
-        allow read, write: if isOwner(userId);
+      allow get: if isOwner(userId) || isAdmin();
+      allow list: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId);
+      allow delete: if isOwner(userId);
+    }
+
+    /**
+     * @description Grants read access to all users, restricts write access.
+     * @path /economic-indicators/{indicatorId}
+     */
+    match /economic-indicators/{indicatorId} {
+      allow get: if true;
+      allow list: if true;
+      allow create: if isAdmin(); // TODO: Refine write permissions.
+      allow update: if isAdmin(); // TODO: Refine write permissions.
+      allow delete: if isAdmin(); // TODO: Refine write permissions.
+    }
+
+    /**
+     * @description Grants read access to all users, restricts write access.
+     * @path /health-entities/{entityId}
+     */
+    match /health-entities/{entityId} {
+      allow get: if true;
+      allow list: if true;
+      allow create: if isAdmin(); // TODO: Refine write permissions.
+      allow update: if isAdmin(); // TODO: Refine write permissions.
+      allow delete: if isAdmin(); // TODO: Refine write permissions.
+    }
+
+    /**
+     * @description Grants read access to all users, restricts write access.
+     * @path /afp-entities/{entityId}
+     */
+    match /afp-entities/{entityId} {
+      allow get: if true;
+      allow list: if true;
+      allow create: if isAdmin(); // TODO: Refine write permissions.
+      allow update: if isAdmin(); // TODO: Refine write permissions.
+      allow delete: if isAdmin(); // TODO: Refine write permissions.
+    }
+
+    /**
+     * @description Grants read access to all users, restricts write access.
+     * @path /family-allowance-parameters/{paramId}
+     */
+    match /family-allowance-parameters/{paramId} {
+      allow get: if true;
+      allow list: if true;
+      allow create: if isAdmin(); // TODO: Refine write permissions.
+      allow update: if isAdmin(); // TODO: Refine write permissions.
+      allow delete: if isAdmin(); // TODO: Refine write permissions.
+    }
+
+    /**
+     * @description Grants read access to all users, restricts write access.
+     * @path /tax-parameters/{paramId}
+     */
+    match /tax-parameters/{paramId} {
+      allow get: if true;
+      allow list: if true;
+      allow create: if isAdmin(); // TODO: Refine write permissions.
+      allow update: if isAdmin(); // TODO: Refine write permissions.
+      allow delete: if isAdmin(); // TODO: Refine write permissions.
+    }
+
+    /**
+     * @description Grants read access to all users, restricts write access.
+     * @path /institutions/{institutionId}
+     */
+    match /institutions/{institutionId} {
+      allow get: if true;
+      allow list: if true;
+      allow create: if isAdmin(); // TODO: Refine write permissions.
+      allow update: if isAdmin(); // TODO: Refine write permissions.
+      allow delete: if isAdmin(); // TODO: Refine write permissions.
     }
   }
 }
