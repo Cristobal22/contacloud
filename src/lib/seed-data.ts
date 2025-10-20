@@ -342,6 +342,44 @@ export const initialTaxParameters: Omit<TaxParameter, 'id'>[] = [
     { year: 2024, month: 11, tramo: "Tramo 5", desde: 6039690.01, hasta: 8052920, factor: 0.304, rebaja: 1187420.49 },
     { year: 2024, month: 11, tramo: "Tramo 6", desde: 8052920.01, hasta: 20799736.67, factor: 0.35, rebaja: 1554054.41 },
     { year: 2024, month: 11, tramo: "Tramo 7", desde: 20799736.68, hasta: Infinity, factor: 0.4, rebaja: 2593941.24 },
+
+    // 2025 Data from user images
+    // August 2025
+    { year: 2025, month: 8, tramo: "Exento", desde: 0, hasta: 989350.5, factor: 0, rebaja: 0 },
+    { year: 2025, month: 8, tramo: "Tramo 1", desde: 989350.51, hasta: 2198556.67, factor: 0.04, rebaja: 39574.02 },
+    { year: 2025, month: 8, tramo: "Tramo 2", desde: 2198556.68, hasta: 3664261.11, factor: 0.08, rebaja: 127516.29 },
+    { year: 2025, month: 8, tramo: "Tramo 3", desde: 3664261.12, hasta: 5129965.56, factor: 0.135, rebaja: 329050.65 },
+    { year: 2025, month: 8, tramo: "Tramo 4", desde: 5129965.57, hasta: 6595670, factor: 0.23, rebaja: 816897.38 },
+    { year: 2025, month: 8, tramo: "Tramo 5", desde: 6595670.01, hasta: 8794226.67, factor: 0.304, rebaja: 1305577.06 },
+    { year: 2025, month: 8, tramo: "Tramo 6", desde: 8794226.68, hasta: 22797741.11, factor: 0.35, rebaja: 1708111.49 },
+    { year: 2025, month: 8, tramo: "Tramo 7", desde: 22797741.12, hasta: Infinity, factor: 0.4, rebaja: 2847998.54 },
+    // September 2025
+    { year: 2025, month: 9, tramo: "Exento", desde: 0, hasta: 993142.5, factor: 0, rebaja: 0 },
+    { year: 2025, month: 9, tramo: "Tramo 1", desde: 993142.51, hasta: 2206983.33, factor: 0.04, rebaja: 39725.70 },
+    { year: 2025, month: 9, tramo: "Tramo 2", desde: 2206983.34, hasta: 3678305.56, factor: 0.08, rebaja: 127995.03 },
+    { year: 2025, month: 9, tramo: "Tramo 3", desde: 3678305.57, hasta: 5149627.78, factor: 0.135, rebaja: 330301.84 },
+    { year: 2025, month: 9, tramo: "Tramo 4", desde: 5149627.79, hasta: 6620950, factor: 0.23, rebaja: 820120.20 },
+    { year: 2025, month: 9, tramo: "Tramo 5", desde: 6620950.01, hasta: 8827933.33, factor: 0.304, rebaja: 1310570.60 },
+    { year: 2025, month: 9, tramo: "Tramo 6", desde: 8827933.34, hasta: 22896505.56, factor: 0.35, rebaja: 1714573.53 },
+    { year: 2025, month: 9, tramo: "Tramo 7", desde: 22896505.57, hasta: Infinity, factor: 0.4, rebaja: 2859398.81 },
+    // October 2025
+    { year: 2025, month: 10, tramo: "Exento", desde: 0, hasta: 996135, factor: 0, rebaja: 0 },
+    { year: 2025, month: 10, tramo: "Tramo 1", desde: 996135.01, hasta: 2213633.33, factor: 0.04, rebaja: 39845.40 },
+    { year: 2025, month: 10, tramo: "Tramo 2", desde: 2213633.34, hasta: 3689388.89, factor: 0.08, rebaja: 128390.73 },
+    { year: 2025, month: 10, tramo: "Tramo 3", desde: 3689388.90, hasta: 5165144.44, factor: 0.135, rebaja: 331307.12 },
+    { year: 2025, month: 10, tramo: "Tramo 4", desde: 5165144.45, hasta: 6640900, factor: 0.23, rebaja: 822554.40 },
+    { year: 2025, month: 10, tramo: "Tramo 5", desde: 6640900.01, hasta: 8854533.33, factor: 0.304, rebaja: 1314545.60 },
+    { year: 2025, month: 10, tramo: "Tramo 6", desde: 8854533.34, hasta: 22998344.44, factor: 0.35, rebaja: 1719879.73 },
+    { year: 2025, month: 10, tramo: "Tramo 7", desde: 22998344.45, hasta: Infinity, factor: 0.4, rebaja: 2869796.95 },
+    // November 2025
+    { year: 2025, month: 11, tramo: "Exento", desde: 0, hasta: 1001407.5, factor: 0, rebaja: 0 },
+    { year: 2025, month: 11, tramo: "Tramo 1", desde: 1001407.51, hasta: 2225350, factor: 0.04, rebaja: 40056.30 },
+    { year: 2025, month: 11, tramo: "Tramo 2", desde: 2225350.01, hasta: 3708916.67, factor: 0.08, rebaja: 129070.30 },
+    { year: 2025, month: 11, tramo: "Tramo 3", desde: 3708916.68, hasta: 5192483.33, factor: 0.135, rebaja: 332960.22 },
+    { year: 2025, month: 11, tramo: "Tramo 4", desde: 5192483.34, hasta: 6676050, factor: 0.23, rebaja: 827291.30 },
+    { year: 2025, month: 11, tramo: "Tramo 5", desde: 6676050.01, hasta: 8901400, factor: 0.304, rebaja: 1322045.50 },
+    { year: 2025, month: 11, tramo: "Tramo 6", desde: 8901400.01, hasta: 23119450, factor: 0.35, rebaja: 1729469.50 },
+    { year: 2025, month: 11, tramo: "Tramo 7", desde: 23119450.01, hasta: Infinity, factor: 0.4, rebaja: 2885442 },
 ];
 
 
