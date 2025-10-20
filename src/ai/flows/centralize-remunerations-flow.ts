@@ -38,6 +38,7 @@ El asiento contable debe seguir esta estructura:
 - HABER:
   - El total de descuentos de AFP debe ir a la cuenta de pasivo definida en 'afpPayableAccount'.
   - El total de descuentos de Salud debe ir a la cuenta de pasivo definida en 'healthPayableAccount'.
+  - El total de descuentos del Seguro de Cesantía debe ir a la cuenta de pasivo definida en 'unemploymentInsurancePayableAccount'.
   - El sueldo líquido total por pagar debe ir a la cuenta de pasivo definida en 'salariesPayableAccount'.
 
 Asegúrate de que el comprobante esté perfectamente balanceado (Total Debe = Total Haber). Cada línea del asiento debe tener una descripción clara.

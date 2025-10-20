@@ -70,6 +70,7 @@ export default function CentralizationRemunerationsPage() {
             let totalBaseSalary = 0;
             let totalAfpDiscount = 0;
             let totalHealthDiscount = 0;
+            let totalUnemploymentInsuranceDiscount = 0;
             let totalNetSalary = 0;
 
             activeEmployees.forEach(emp => {
@@ -81,10 +82,17 @@ export default function CentralizationRemunerationsPage() {
                 
                 const afpDiscount = baseSalary * afpPercentage;
                 const healthDiscount = baseSalary * healthPercentage;
-                const net = baseSalary - afpDiscount - healthDiscount;
+                
+                let unemploymentInsuranceDiscount = 0;
+                if (emp.hasUnemploymentInsurance && emp.unemploymentInsuranceType === 'Indefinido') {
+                    unemploymentInsuranceDiscount = baseSalary * 0.006;
+                }
+
+                const net = baseSalary - afpDiscount - healthDiscount - unemploymentInsuranceDiscount;
 
                 totalAfpDiscount += afpDiscount;
                 totalHealthDiscount += healthDiscount;
+                totalUnemploymentInsuranceDiscount += unemploymentInsuranceDiscount;
                 totalNetSalary += net;
             });
             
@@ -113,6 +121,7 @@ export default function CentralizationRemunerationsPage() {
                     totalBaseSalary: Math.round(totalBaseSalary),
                     totalAfpDiscount: Math.round(totalAfpDiscount),
                     totalHealthDiscount: Math.round(totalHealthDiscount),
+                    totalUnemploymentInsuranceDiscount: Math.round(totalUnemploymentInsuranceDiscount),
                     totalNetSalary: Math.round(totalNetSalary),
                 },
                 accounts,

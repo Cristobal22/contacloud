@@ -164,23 +164,26 @@ export default function PayrollPage() {
             }
             
             const afpDiscount = taxableEarnings * afpPercentage;
+
+            let unemploymentInsuranceDiscount = 0;
+            if (emp.hasUnemploymentInsurance && emp.unemploymentInsuranceType === 'Indefinido') {
+                unemploymentInsuranceDiscount = taxableEarnings * 0.006;
+            }
             
-            // --- Correct IUT Calculation ---
-            const taxBase = taxableEarnings - afpDiscount - healthDiscount;
-            const taxBracket = taxParameters.find(t => taxBase > t.desde && taxBase <= t.hasta);
+            const taxBase = taxableEarnings - afpDiscount - healthDiscount - unemploymentInsuranceDiscount;
+            const taxBracket = taxParameters.find(t => taxBase > t.desde && taxBase <= t.hasta && t.year === year && t.month === month);
 
             let iut = 0;
             let iutFactor = 0;
-            let iutRebajaInCLP = 0; // The rebate is in CLP, not UTM
+            let iutRebajaInCLP = 0;
             if (taxBracket) {
                 iutFactor = taxBracket.factor;
                 iutRebajaInCLP = taxBracket.rebaja;
                 iut = (taxBase * iutFactor) - iutRebajaInCLP;
                 if (iut < 0) iut = 0;
             }
-            // --- End of Correction ---
 
-            const totalDiscounts = afpDiscount + healthDiscount + iut;
+            const totalDiscounts = afpDiscount + healthDiscount + iut + unemploymentInsuranceDiscount;
             const netSalary = totalEarnings - totalDiscounts;
             
             const newPayroll: Omit<Payroll, 'id'> = {
@@ -197,6 +200,7 @@ export default function PayrollPage() {
                 totalEarnings: totalEarnings,
                 afpDiscount: afpDiscount,
                 healthDiscount: healthDiscount,
+                unemploymentInsuranceDiscount: unemploymentInsuranceDiscount,
                 iut: iut,
                 iutFactor: iutFactor,
                 iutRebajaInCLP: iutRebajaInCLP,

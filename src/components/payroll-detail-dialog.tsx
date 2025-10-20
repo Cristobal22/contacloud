@@ -208,6 +208,7 @@ export function PayrollDetailDialog({ isOpen, onClose, data }: PayrollDetailDial
                                             <TableBody>
                                                 <TableRow><TableCell>Cotización AFP ({employee.afp})</TableCell><TableCell className="text-right">{formatCurrency(payroll.afpDiscount)}</TableCell></TableRow>
                                                 <TableRow><TableCell>Cotización Salud ({employee.healthSystem})</TableCell><TableCell className="text-right">{formatCurrency(payroll.healthDiscount)}</TableCell></TableRow>
+                                                <TableRow><TableCell>Seguro de Cesantía</TableCell><TableCell className="text-right">{formatCurrency(payroll.unemploymentInsuranceDiscount)}</TableCell></TableRow>
                                                 
                                                 <TableRow><TableCell className="pl-6 text-gray-500">Impuesto según tramo ({iutFactorDisplay})</TableCell><TableCell className="text-right text-gray-500">{formatCurrency(taxAmountPreRebate)}</TableCell></TableRow>
                                                 <TableRow><TableCell className="pl-6 text-gray-500">(-) Rebaja por tramo</TableCell><TableCell className="text-right text-gray-500">{formatCurrency(rebateAmount)}</TableCell></TableRow>

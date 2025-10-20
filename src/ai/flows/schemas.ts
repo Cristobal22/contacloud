@@ -1,4 +1,5 @@
 
+
 import { z } from 'zod';
 
 // Helper Schemas
@@ -73,6 +74,7 @@ const PayrollSummarySchema = z.object({
     totalBaseSalary: z.number().describe("Suma total de sueldos base."),
     totalAfpDiscount: z.number().describe("Suma total de descuentos de AFP."),
     totalHealthDiscount: z.number().describe("Suma total de descuentos de salud."),
+    totalUnemploymentInsuranceDiscount: z.number().describe("Suma total de descuentos de seguro de cesantía."),
     totalNetSalary: z.number().describe("Suma total de sueldos líquidos a pagar."),
 });
 
