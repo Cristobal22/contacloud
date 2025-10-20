@@ -22,7 +22,7 @@ import {
   } from "@/components/ui/select"
 import { Checkbox } from '@/components/ui/checkbox';
 import { useCollection, useDoc, useFirestore, useUser } from '@/firebase';
-import type { Employee, CostCenter, AfpEntity, HealthEntity } from '@/lib/types';
+import type { Employee, CostCenter, AfpEntity, HealthEntity, EconomicIndicator } from '@/lib/types';
 import { SelectedCompanyContext } from '@/app/dashboard/layout';
 import { doc, setDoc, addDoc, collection, DocumentReference } from 'firebase/firestore';
 import { useRouter, useParams } from 'next/navigation';
@@ -31,11 +31,6 @@ import Link from 'next/link';
 import { errorEmitter } from '@/firebase/error-emitter'
 import { FirestorePermissionError } from '@/firebase/errors'
 import { nationalities, regions, communesByRegion } from '@/lib/geographical-data';
-
-// Tope legal: 4.75 IMM. Asumimos IMM de 460000 (este valor debe ser actualizado periódicamente)
-const MINIMUM_WAGE = 460000;
-const GRATIFICATION_CAP_ANNUAL = 4.75 * MINIMUM_WAGE;
-const GRATIFICATION_CAP_MONTHLY = GRATIFICATION_CAP_ANNUAL / 12;
 
 export default function EmployeeFormPage() {
     const params = useParams();
@@ -68,6 +63,25 @@ export default function EmployeeFormPage() {
      const { data: healthEntities, loading: healthLoading } = useCollection<HealthEntity>({
         path: 'health-entities',
     });
+
+    // Fetch economic indicators to get the latest minimum wage for gratification cap
+    const { data: economicIndicators, loading: indicatorsLoading } = useCollection<EconomicIndicator>({
+        path: 'economic-indicators',
+    });
+
+    const gratificationCapMonthly = React.useMemo(() => {
+        if (!economicIndicators || economicIndicators.length === 0) {
+            return 0;
+        }
+        // Get the most recent indicator with a minimum wage
+        const latestIndicator = economicIndicators
+            .filter(i => i.minWage)
+            .sort((a, b) => b.id.localeCompare(a.id))[0];
+        
+        if (!latestIndicator || !latestIndicator.minWage) return 0;
+        
+        return Math.round((4.75 * latestIndicator.minWage) / 12);
+    }, [economicIndicators]);
 
     React.useEffect(() => {
         if (isNew) {
@@ -103,12 +117,17 @@ export default function EmployeeFormPage() {
     
     // Auto-calculate gratification when base salary or type changes
     React.useEffect(() => {
-        if (employee?.gratificationType === 'Automatico' && employee.baseSalary) {
+        if (employee?.gratificationType === 'Automatico' && employee.baseSalary && gratificationCapMonthly > 0) {
             const calculatedGratification = employee.baseSalary * 0.25;
-            const finalGratification = Math.min(calculatedGratification, GRATIFICATION_CAP_MONTHLY);
+            const finalGratification = Math.min(calculatedGratification, gratificationCapMonthly);
             setEmployee(prev => prev ? {...prev, gratification: Math.round(finalGratification)} : null);
+        } else if (employee?.gratificationType === 'Manual') {
+            // Optionally clear or keep the manual value. Keeping it is often desired.
+        } else if (employee?.gratificationType === 'Automatico' && !employee.baseSalary) {
+             setEmployee(prev => prev ? {...prev, gratification: 0} : null);
         }
-    }, [employee?.baseSalary, employee?.gratificationType]);
+
+    }, [employee?.baseSalary, employee?.gratificationType, gratificationCapMonthly]);
 
 
     const handleSaveChanges = () => {
@@ -143,7 +162,7 @@ export default function EmployeeFormPage() {
         }
     };
 
-    if (employeeLoading) {
+    if (employeeLoading || indicatorsLoading) {
         return <p>Cargando empleado...</p>;
     }
     
