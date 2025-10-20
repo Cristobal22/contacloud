@@ -88,7 +88,7 @@ export default function ParametrosIUTPage() {
                                 <TableCell colSpan={3} className="text-center">Cargando...</TableCell>
                             </TableRow>
                         )}
-                        {!loading && tablaIUT?.map((item) => (
+                        {!loading && tablaIUT?.sort((a, b) => a.desde - b.desde).map((item) => (
                             <TableRow key={item.id}>
                                 <TableCell className="font-medium">{`Más de ${item.desde.toLocaleString('es-CL')} ${item.hasta !== Infinity && item.hasta < 999999999 ? `hasta ${item.hasta.toLocaleString('es-CL')}`: ''}`}</TableCell>
                                 <TableCell>{`${(item.factor * 100).toFixed(1).replace('.',',')}%`}</TableCell>

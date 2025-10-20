@@ -209,6 +209,7 @@
                 "totalEarnings": { "type": "number" },
                 "afpDiscount": { "type": "number" },
                 "healthDiscount": { "type": "number" },
+                "iut": { "type": "number", "description": "Impuesto Único a los Trabajadores" },
                 "otherDiscounts": { "type": "number" },
                 "totalDiscounts": { "type": "number" },
                 "netSalary": { "type": "number" },
