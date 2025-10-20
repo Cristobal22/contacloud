@@ -1,4 +1,3 @@
-
 'use client';
 
 import {
@@ -16,22 +15,35 @@ import {
     CardHeader,
     CardTitle,
 } from "@/components/ui/card"
-import { useCollection, useFirestore } from "@/firebase"
+import { useCollection, useFirestore, useUser } from "@/firebase"
 import type { TaxParameter } from "@/lib/types"
 import React from "react";
-import { collection, query, where } from "firebase/firestore";
+import { collection, query, where, writeBatch, getDocs, doc } from "firebase/firestore";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import { useUserProfile } from "@/firebase/auth/use-user-profile";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { useToast } from "@/hooks/use-toast";
+import { initialTaxParameters } from "@/lib/seed-data";
+import { errorEmitter } from "@/firebase/error-emitter";
+import { FirestorePermissionError } from "@/firebase/errors";
+import { Trash2, UploadCloud } from "lucide-react";
 
 export default function ParametrosIUTPage() {
     const firestore = useFirestore();
+    const { user } = useUser();
+    const { userProfile } = useUserProfile(user?.uid);
+    const { toast } = useToast();
     const currentYear = new Date().getFullYear();
     const currentMonth = new Date().getMonth() + 1;
 
     const [year, setYear] = React.useState(currentYear);
     const [month, setMonth] = React.useState(currentMonth);
+    const [isSubmitting, setIsSubmitting] = React.useState(false);
+    const [isDialogOpen, setIsDialogOpen] = React.useState<{type: 'load' | 'delete', open: boolean}>({type: 'load', open: false});
     
     const taxParamsQuery = React.useMemo(() => {
         if (!firestore) return null;
@@ -50,6 +62,94 @@ export default function ParametrosIUTPage() {
         return `${effectiveRate.toFixed(2).replace('.', ',')}%`;
     }
 
+    const handleLoadDefaults = async () => {
+        if (!firestore) return;
+
+        setIsSubmitting(true);
+        
+        const paramsForPeriod = initialTaxParameters.filter(p => p.year === year && p.month === month);
+
+        if (paramsForPeriod.length === 0) {
+            toast({
+                variant: "destructive",
+                title: "Sin Datos",
+                description: `No hay parámetros predefinidos en el código para ${month}/${year}.`,
+            });
+            setIsSubmitting(false);
+            setIsDialogOpen({type: 'load', open: false});
+            return;
+        }
+
+        try {
+            const batch = writeBatch(firestore);
+            const collectionRef = collection(firestore, 'tax-parameters');
+            
+            // First, delete existing params for the period
+            const existingQuery = query(collectionRef, where('year', '==', year), where('month', '==', month));
+            const existingSnapshot = await getDocs(existingQuery);
+            existingSnapshot.forEach(doc => batch.delete(doc.ref));
+
+            // Then, add the new ones
+            paramsForPeriod.forEach(param => {
+                const newDocRef = doc(collectionRef);
+                batch.set(newDocRef, param);
+            });
+
+            await batch.commit();
+            toast({
+                title: "Parámetros Cargados",
+                description: `Se han cargado los parámetros para el período ${month}/${year}.`,
+            });
+        } catch (error) {
+            console.error("Error loading tax parameters:", error);
+            errorEmitter.emit('permission-error', new FirestorePermissionError({
+                path: 'tax-parameters',
+                operation: 'create',
+            }));
+        } finally {
+            setIsSubmitting(false);
+            setIsDialogOpen({type: 'load', open: false});
+        }
+    };
+
+    const handleDeletePeriod = async () => {
+        if (!firestore) return;
+        
+        setIsSubmitting(true);
+        try {
+            const collectionRef = collection(firestore, 'tax-parameters');
+            const q = query(collectionRef, where('year', '==', year), where('month', '==', month));
+            const snapshot = await getDocs(q);
+            
+            if (snapshot.empty) {
+                toast({ variant: 'destructive', title: 'Sin Datos', description: 'No hay parámetros que eliminar para este período.' });
+                return;
+            }
+
+            const batch = writeBatch(firestore);
+            snapshot.forEach(doc => {
+                batch.delete(doc.ref);
+            });
+
+            await batch.commit();
+            toast({
+                title: "Parámetros Eliminados",
+                description: `Se han eliminado los parámetros para el período ${month}/${year}.`,
+                variant: 'destructive'
+            });
+
+        } catch (error) {
+            console.error("Error deleting tax parameters:", error);
+            errorEmitter.emit('permission-error', new FirestorePermissionError({
+                path: 'tax-parameters',
+                operation: 'delete',
+            }));
+        } finally {
+             setIsSubmitting(false);
+             setIsDialogOpen({type: 'delete', open: false});
+        }
+    };
+
     return (
         <>
             <Card>
@@ -59,6 +159,16 @@ export default function ParametrosIUTPage() {
                             <CardTitle>Parámetros del Impuesto Único de Segunda Categoría (IUT)</CardTitle>
                             <CardDescription>Tabla para el cálculo del impuesto único al trabajo dependiente. Estos son los valores globales.</CardDescription>
                         </div>
+                        {userProfile?.role === 'Admin' && (
+                            <div className="flex gap-2">
+                                <Button variant="destructive" size="sm" onClick={() => setIsDialogOpen({type: 'delete', open: true})} disabled={isSubmitting}>
+                                    <Trash2 className="mr-2 h-4 w-4"/> Eliminar del Período
+                                </Button>
+                                <Button size="sm" onClick={() => setIsDialogOpen({type: 'load', open: true})} disabled={isSubmitting}>
+                                    <UploadCloud className="mr-2 h-4 w-4"/> Cargar Predeterminados
+                                </Button>
+                            </div>
+                        )}
                     </div>
                     <div className="flex items-end gap-4 pt-4">
                         <div className="space-y-2">
@@ -139,6 +249,39 @@ export default function ParametrosIUTPage() {
                 </CardContent>
             </Card>
 
+            <AlertDialog open={isDialogOpen.open && isDialogOpen.type === 'load'} onOpenChange={(open) => setIsDialogOpen({type: 'load', open})}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>¿Confirmas la carga de parámetros?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Esta acción cargará los parámetros predefinidos para el período {month}/{year}. Si ya existen datos para este período, serán reemplazados.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel disabled={isSubmitting}>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleLoadDefaults} disabled={isSubmitting}>
+                            {isSubmitting ? 'Cargando...' : 'Sí, Cargar'}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
+            <AlertDialog open={isDialogOpen.open && isDialogOpen.type === 'delete'} onOpenChange={(open) => setIsDialogOpen({type: 'delete', open})}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>¿Confirmas la eliminación?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Esta acción eliminará permanentemente todos los parámetros de IUT para el período {month}/{year}. Esta acción no se puede deshacer.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel disabled={isSubmitting}>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction className={buttonVariants({ variant: "destructive" })} onClick={handleDeletePeriod} disabled={isSubmitting}>
+                            {isSubmitting ? 'Eliminando...' : 'Sí, Eliminar'}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </>
     )
 }
