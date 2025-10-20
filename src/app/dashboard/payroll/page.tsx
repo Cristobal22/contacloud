@@ -164,9 +164,10 @@ export default function PayrollPage() {
             }
             
             const afpDiscount = taxableEarnings * afpPercentage;
-
-            // IUT Calculation
-            const taxableIncomeInUTM = taxableEarnings / periodIndicator.utm!;
+            
+            // --- Correct IUT Calculation ---
+            const taxBase = taxableEarnings - afpDiscount - healthDiscount;
+            const taxableIncomeInUTM = taxBase / periodIndicator.utm!;
             const taxBracket = taxParameters.find(t => taxableIncomeInUTM > t.desde && taxableIncomeInUTM <= t.hasta);
             let iut = 0;
             let iutFactor = 0;
@@ -177,6 +178,7 @@ export default function PayrollPage() {
                 const taxInUTM = (taxableIncomeInUTM * iutFactor) - iutRebajaInUTM;
                 iut = taxInUTM > 0 ? taxInUTM * periodIndicator.utm! : 0;
             }
+            // --- End of Correction ---
 
             const totalDiscounts = afpDiscount + healthDiscount + iut;
             const netSalary = totalEarnings - totalDiscounts;
