@@ -16,22 +16,32 @@ import {
     CardHeader,
     CardTitle,
   } from "@/components/ui/card"
-  import { useCollection } from "@/firebase"
+  import { useCollection, useFirestore } from "@/firebase"
   import type { Account, Voucher } from "@/lib/types"
 import { SelectedCompanyContext } from '../layout';
+import { collection, query, where } from 'firebase/firestore';
   
   export default function LedgerPage() {
     const { selectedCompany } = React.useContext(SelectedCompanyContext) || {};
     const companyId = selectedCompany?.id;
+    const firestore = useFirestore();
 
     const { data: accounts, loading: accountsLoading } = useCollection<Account>({
-        path: `companies/${companyId}/accounts`,
+        path: companyId ? `companies/${companyId}/accounts` : undefined,
         companyId: companyId,
     });
+    
+    const vouchersQuery = React.useMemo(() => {
+        if (!firestore || !companyId) return null;
+        return query(
+            collection(firestore, `companies/${companyId}/vouchers`),
+            where('status', '==', 'Contabilizado')
+        );
+    }, [firestore, companyId]);
+
     const { data: vouchers, loading: vouchersLoading } = useCollection<Voucher>({
-      path: `companies/${companyId}/vouchers`,
-      companyId: companyId,
-      query: companyId ? (collection, query, where) => query(collection(`companies/${companyId}/vouchers`), where('status', '==', 'Contabilizado')) : undefined,
+      query: vouchersQuery,
+      disabled: !vouchersQuery
     });
 
     const ledgerBalances = React.useMemo(() => {

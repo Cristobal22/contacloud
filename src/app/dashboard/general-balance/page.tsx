@@ -11,12 +11,13 @@ import {
 import { Button } from "@/components/ui/button";
 import { DateRangePicker } from "@/components/date-range-picker";
 import { DateRange } from "react-day-picker";
-import { useCollection } from "@/firebase";
+import { useCollection, useFirestore } from "@/firebase";
 import type { Account, Voucher } from "@/lib/types";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter as TableFooterOriginal } from "@/components/ui/table";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { SelectedCompanyContext } from "../layout";
+import { collection, query, where } from "firebase/firestore";
 
 type BalanceSheetData = {
     assets: AccountWithBalance[];
@@ -32,6 +33,7 @@ type AccountWithBalance = Account & { finalBalance: number };
 export default function GeneralBalancePage() {
     const { selectedCompany } = React.useContext(SelectedCompanyContext) || {};
     const companyId = selectedCompany?.id;
+    const firestore = useFirestore();
 
     const [date, setDate] = React.useState<DateRange | undefined>({
         from: new Date(new Date().getFullYear(), 0, 1),
@@ -44,10 +46,18 @@ export default function GeneralBalancePage() {
         path: companyId ? `companies/${companyId}/accounts` : undefined,
         companyId: companyId,
     });
+    
+    const vouchersQuery = React.useMemo(() => {
+        if (!firestore || !companyId) return null;
+        return query(
+            collection(firestore, `companies/${companyId}/vouchers`),
+            where('status', '==', 'Contabilizado')
+        );
+    }, [firestore, companyId]);
+
     const { data: vouchers, loading: vouchersLoading } = useCollection<Voucher>({
-        path: companyId ? `companies/${companyId}/vouchers` : undefined,
-        companyId: companyId,
-        query: companyId ? (collection, query, where) => query(collection(`companies/${companyId}/vouchers`), where('status', '==', 'Contabilizado')) : undefined,
+        query: vouchersQuery,
+        disabled: !vouchersQuery
     });
     
     const loading = accountsLoading || vouchersLoading;
