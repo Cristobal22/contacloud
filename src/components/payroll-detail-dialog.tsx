@@ -128,13 +128,12 @@ export function PayrollDetailDialog({ isOpen, onClose, data }: PayrollDetailDial
     
     const taxBracket = taxParameters?.find(t => taxableBaseInUTM > t.desde && taxableBaseInUTM <= t.hasta);
 
-    const taxAmountPreRebate = taxBracket && periodIndicator?.utm 
-        ? taxableBaseInUTM * taxBracket.factor * periodIndicator.utm 
-        : 0;
+    const taxAmountPreRebateInUTM = taxableBaseInUTM * (payroll.iutFactor || 0);
+    const rebateAmountInUTM = payroll.iutRebajaInUTM || 0;
+    const finalTaxInUTM = taxAmountPreRebateInUTM - rebateAmountInUTM;
 
-    const rebateAmount = taxBracket && periodIndicator?.utm
-        ? taxBracket.rebaja * periodIndicator.utm
-        : 0;
+    const taxAmountPreRebate = periodIndicator?.utm ? taxAmountPreRebateInUTM * periodIndicator.utm : 0;
+    const rebateAmount = periodIndicator?.utm ? rebateAmountInUTM * periodIndicator.utm : 0;
         
     const iutFactorDisplay = payroll.iutFactor ? (payroll.iutFactor * 100).toFixed(1) + '%' : '0%';
 
@@ -220,8 +219,8 @@ export function PayrollDetailDialog({ isOpen, onClose, data }: PayrollDetailDial
                                                 <TableRow><TableCell>Cotización Salud ({employee.healthSystem})</TableCell><TableCell className="text-right">{formatCurrency(payroll.healthDiscount)}</TableCell></TableRow>
                                                 
                                                 <TableRow><TableCell className="pl-6 text-gray-500">Impuesto según tramo ({iutFactorDisplay})</TableCell><TableCell className="text-right text-gray-500">{formatCurrency(taxAmountPreRebate)}</TableCell></TableRow>
-                                                <TableRow><TableCell className="pl-6 text-gray-500">Rebaja por tramo</TableCell><TableCell className="text-right text-gray-500 text-green-600">{formatCurrency(rebateAmount)}</TableCell></TableRow>
-                                                <TableRow><TableCell className="font-medium">Impuesto Único a Pagar</TableCell><TableCell className="text-right font-medium">{formatCurrency(payroll.iut || 0)}</TableCell></TableRow>
+                                                <TableRow><TableCell className="pl-6 text-gray-500">(-) Rebaja por tramo</TableCell><TableCell className="text-right text-gray-500">{formatCurrency(rebateAmount)}</TableCell></TableRow>
+                                                <TableRow className="font-medium"><TableCell>Impuesto Único a Pagar</TableCell><TableCell className="text-right font-medium">{formatCurrency(payroll.iut || 0)}</TableCell></TableRow>
                                             </TableBody>
                                             <TableFooter>
                                                 <TableRow className="bg-gray-100 font-bold text-base">

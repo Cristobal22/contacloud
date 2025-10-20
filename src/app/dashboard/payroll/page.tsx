@@ -172,10 +172,10 @@ export default function PayrollPage() {
             let iutFactor = 0;
             let iutRebajaInUTM = 0;
             if (taxBracket) {
-                const taxInUTM = (taxableIncomeInUTM * taxBracket.factor) - taxBracket.rebaja;
-                iut = taxInUTM > 0 ? taxInUTM * periodIndicator.utm! : 0;
                 iutFactor = taxBracket.factor;
                 iutRebajaInUTM = taxBracket.rebaja;
+                const taxInUTM = (taxableIncomeInUTM * iutFactor) - iutRebajaInUTM;
+                iut = taxInUTM > 0 ? taxInUTM * periodIndicator.utm! : 0;
             }
 
             const totalDiscounts = afpDiscount + healthDiscount + iut;
