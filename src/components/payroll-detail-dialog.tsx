@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import {
@@ -122,18 +123,9 @@ export function PayrollDetailDialog({ isOpen, onClose, data }: PayrollDetailDial
     const { payroll, employee } = data;
     
     // --- IUT Calculation Details ---
-    const periodIndicator = economicIndicators?.find(ind => ind.year === payroll.year && ind.month === payroll.month);
-    const taxableBaseInUTM = periodIndicator?.utm ? payroll.taxableEarnings / periodIndicator.utm : 0;
-    
-    const taxBracket = taxParameters?.find(t => taxableBaseInUTM > t.desde && taxableBaseInUTM <= t.hasta);
-
-    const taxAmountPreRebateInUTM = taxableBaseInUTM * (payroll.iutFactor || 0);
-    const rebateAmountInUTM = payroll.iutRebajaInUTM || 0;
-    const finalTaxInUTM = taxAmountPreRebateInUTM - rebateAmountInUTM;
-
-    const taxAmountPreRebate = periodIndicator?.utm ? taxAmountPreRebateInUTM * periodIndicator.utm : 0;
-    const rebateAmount = periodIndicator?.utm ? rebateAmountInUTM * periodIndicator.utm : 0;
-        
+    const taxBase = payroll.taxableEarnings - payroll.afpDiscount - payroll.healthDiscount;
+    const taxAmountPreRebate = taxBase * (payroll.iutFactor || 0);
+    const rebateAmount = payroll.iutRebajaInCLP || 0;
     const iutFactorDisplay = payroll.iutFactor ? (payroll.iutFactor * 100).toFixed(1) + '%' : '0%';
 
     return (

@@ -167,16 +167,16 @@ export default function PayrollPage() {
             
             // --- Correct IUT Calculation ---
             const taxBase = taxableEarnings - afpDiscount - healthDiscount;
-            const taxableIncomeInUTM = taxBase / periodIndicator.utm!;
-            const taxBracket = taxParameters.find(t => taxableIncomeInUTM > t.desde && taxableIncomeInUTM <= t.hasta);
+            const taxBracket = taxParameters.find(t => taxBase > t.desde && taxBase <= t.hasta);
+
             let iut = 0;
             let iutFactor = 0;
-            let iutRebajaInUTM = 0;
+            let iutRebajaInCLP = 0; // The rebate is in CLP, not UTM
             if (taxBracket) {
                 iutFactor = taxBracket.factor;
-                iutRebajaInUTM = taxBracket.rebaja;
-                const taxInUTM = (taxableIncomeInUTM * iutFactor) - iutRebajaInUTM;
-                iut = taxInUTM > 0 ? taxInUTM * periodIndicator.utm! : 0;
+                iutRebajaInCLP = taxBracket.rebaja;
+                iut = (taxBase * iutFactor) - iutRebajaInCLP;
+                if (iut < 0) iut = 0;
             }
             // --- End of Correction ---
 
@@ -199,7 +199,7 @@ export default function PayrollPage() {
                 healthDiscount: healthDiscount,
                 iut: iut,
                 iutFactor: iutFactor,
-                iutRebajaInUTM: iutRebajaInUTM,
+                iutRebajaInCLP: iutRebajaInCLP,
                 otherDiscounts: 0,
                 totalDiscounts: totalDiscounts,
                 netSalary: netSalary,
