@@ -158,9 +158,10 @@ export type Purchase = {
   netAmount: number;
   taxAmount: number;
   total: number;
-  status: 'Pendiente' | 'Contabilizado' | 'Anulado';
+  status: 'Pendiente' | 'Contabilizado' | 'Pagado';
   assignedAccount?: string; // Cuenta de gasto/activo asignada
   voucherId?: string; // ID del comprobante de centralización
+  paymentVoucherId?: string; // ID del comprobante de pago
   companyId: string;
 };
 
@@ -171,9 +172,10 @@ export type Sale = {
   documentNumber: string;
   customer: string;
   total: number;
-  status: 'Pendiente' | 'Contabilizado' | 'Vencida';
+  status: 'Pendiente' | 'Contabilizado' | 'Cobrado';
   companyId: string;
   voucherId?: string;
+  collectionVoucherId?: string;
 };
 
 export type Fee = {

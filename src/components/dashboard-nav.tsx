@@ -35,6 +35,7 @@ import {
   Wallet,
   SlidersHorizontal,
   UserCog,
+  DollarSign,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './ui/collapsible';
@@ -53,6 +54,7 @@ const accountantNavSections = [
                 icon: Banknote,
                 links: [
                     { href: '/dashboard/vouchers', label: 'Comprobantes', icon: FileText },
+                    { href: '/dashboard/treasury', label: 'Tesorería', icon: DollarSign },
                     { href: '/dashboard/bank-reconciliation', label: 'Conciliación Bancaria', icon: Scale },
                 ]
             }
