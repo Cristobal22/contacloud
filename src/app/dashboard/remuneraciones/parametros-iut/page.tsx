@@ -41,11 +41,11 @@ export default function ParametrosIUTPage() {
     const currentYear = new Date().getFullYear();
     const currentMonth = new Date().getMonth() + 1;
 
-    const [year, setYear] = React.useState(currentYear);
-    const [month, setMonth] = React.useState(currentMonth);
+    const [year, setYear] = React.useState(2025);
+    const [month, setMonth] = React.useState(1);
 
-    const [displayYear, setDisplayYear] = React.useState(currentYear);
-    const [displayMonth, setDisplayMonth] = React.useState(currentMonth);
+    const [displayYear, setDisplayYear] = React.useState(year);
+    const [displayMonth, setDisplayMonth] = React.useState(month);
 
     const [isSubmitting, setIsSubmitting] = React.useState(false);
     const [isDialogOpen, setIsDialogOpen] = React.useState<{type: 'load' | 'delete', open: boolean}>({type: 'load', open: false});
@@ -79,13 +79,22 @@ export default function ParametrosIUTPage() {
 
         setIsSubmitting(true);
         
-        const paramsForPeriod = initialTaxParameters.filter(p => p.year === year && p.month === month);
+        // Try to find params for the selected period
+        let paramsForPeriod = initialTaxParameters.filter(p => p.year === year && p.month === month);
+
+        // If not found, fall back to the most recent available year (2024 in this case) for that month
+        if (paramsForPeriod.length === 0) {
+            const fallbackYear = 2024;
+            paramsForPeriod = initialTaxParameters
+                .filter(p => p.year === fallbackYear && p.month === month)
+                .map(p => ({ ...p, year: year })); // Remap the year to the selected year
+        }
 
         if (paramsForPeriod.length === 0) {
             toast({
                 variant: "destructive",
                 title: "Sin Datos",
-                description: `No hay parámetros predefinidos en el código para ${month}/${year}.`,
+                description: `No hay parámetros predefinidos en el código para el mes seleccionado en ningún año.`,
             });
             setIsSubmitting(false);
             setIsDialogOpen({type: 'load', open: false});
@@ -209,8 +218,8 @@ export default function ParametrosIUTPage() {
                                 </SelectTrigger>
                                 <SelectContent>
                                     {Array.from({ length: 10 }, (_, i) => (
-                                        <SelectItem key={currentYear-i} value={(currentYear-i).toString()}>
-                                            {currentYear-i}
+                                        <SelectItem key={currentYear + 5 - i} value={(currentYear + 5 - i).toString()}>
+                                            {currentYear + 5 - i}
                                         </SelectItem>
                                     ))}
                                 </SelectContent>
