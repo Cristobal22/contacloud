@@ -63,23 +63,19 @@ Contador Cloud es una moderna aplicación de contabilidad multi-tenant diseñada
 
 ### IMPORTANTE: Flujo de Usuarios y Empresas
 
-Para que la aplicación funcione y sea segura, es crucial entender el flujo de trabajo de roles y creación de datos.
-
 #### 1. Creación del Primer Usuario Administrador (Proceso Único)
 
-El primer usuario `Admin` **debe crearse y configurarse manualmente**. Este paso es **indispensable** para poder acceder al panel de gestión de usuarios y empezar a crear las cuentas de los contadores.
-
-Sigue estos pasos **dentro de este entorno de desarrollo en la nube**:
+El primer usuario `Admin` es indispensable para empezar a crear las cuentas de los contadores. El proceso es sencillo y se realiza con un script.
 
 1.  **Regístrate en la aplicación**: Usa la página de login para crear tu primera cuenta (con Google o Email/Contraseña). Por defecto, se creará con el rol `Accountant`.
 
-2.  **Modifica el Rol en Firestore**:
-    - Ve a tu **Firebase Console** y selecciona tu proyecto.
-    - Navega a **Build > Firestore Database**.
-    - Busca la colección `users` y localiza el documento del usuario que acabas de crear (el ID del documento es el UID del usuario).
-    - Haz clic en el documento, busca el campo `role`, cambia su valor de `"Accountant"` a `"Admin"` y haz clic en **Actualizar**.
+2.  **Ejecuta el Script de Admin**: Abre una terminal en la raíz del proyecto y ejecuta el siguiente comando:
+    ```bash
+    npm run init-admin
+    ```
+3.  El script te pedirá el email del usuario que acabas de registrar. Ingrésalo y el script lo promoverá a `Admin`.
 
-3.  **Cierra y vuelve a iniciar sesión**: ¡Este paso es esencial! Cierra sesión en la aplicación y vuelve a iniciarla para que tus nuevos permisos de administrador surtan efecto.
+4.  **Cierra y vuelve a iniciar sesión**: ¡Este paso es esencial! Cierra sesión en la aplicación y vuelve a iniciarla para que tus nuevos permisos de administrador surtan efecto.
 
 ¡Listo! Ahora tendrás privilegios de `Admin`, podrás ver la sección "Gestión de Usuarios" en el dashboard y empezar a crear las cuentas para los contadores.
 
@@ -131,3 +127,4 @@ La aplicación estará disponible en `http://localhost:9002` (o el puerto que ha
 - `src/ai/`: Contiene los flujos de Genkit para las funcionalidades de IA.
 - `docs/`: Contiene la definición del esquema de datos del backend (`backend.json`).
 - `firestore.rules`: Contiene las reglas de seguridad para la base de datos Firestore.
+
