@@ -1,4 +1,3 @@
-
 'use client';
 import {
     Card,
@@ -14,12 +13,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { SelectedCompanyContext } from "../../layout";
 import { useCollection, useFirestore } from "@/firebase";
-import { AfpEntity, Company, Employee, HealthEntity, type Account } from "@/lib/types";
-import { addDoc, collection } from "firebase/firestore";
-import { centralizeRemunerations } from "@/ai/flows/centralize-remunerations-flow";
+import { AfpEntity, Company, Employee, HealthEntity, type Account, type Payroll, type VoucherEntry } from "@/lib/types";
+import { addDoc, collection, Timestamp } from "firebase/firestore";
 import { errorEmitter } from "@/firebase/error-emitter";
 import { FirestorePermissionError } from "@/firebase/errors";
 import { useRouter } from 'next/navigation';
+import { es } from 'date-fns/locale';
+import { format, lastDayOfMonth } from 'date-fns';
 
 export default function CentralizationRemunerationsPage() {
     const currentYear = new Date().getFullYear();
@@ -40,21 +40,19 @@ export default function CentralizationRemunerationsPage() {
     const { data: employees, loading: employeesLoading } = useCollection<Employee>({
         path: selectedCompany ? `companies/${selectedCompany.id}/employees` : undefined,
     });
-    const { data: afpEntities, loading: afpLoading } = useCollection<AfpEntity>({ 
-        path: 'afp-entities'
-    });
-    const { data: healthEntities, loading: healthLoading } = useCollection<HealthEntity>({ 
-        path: 'health-entities'
+     const { data: payrolls, loading: payrollsLoading } = useCollection<Payroll>({ 
+      path: selectedCompany ? `companies/${selectedCompany.id}/payrolls` : undefined,
+      companyId: selectedCompany?.id 
     });
     
-    const loading = accountsLoading || employeesLoading || afpLoading || healthLoading;
+    const loading = accountsLoading || employeesLoading || payrollsLoading;
 
     const handleCentralize = async () => {
-        if (!selectedCompany || !employees || !accounts || !afpEntities || !healthEntities) {
+        if (!selectedCompany || !payrolls || !accounts) {
             toast({
                 variant: "destructive",
                 title: "Faltan datos",
-                description: "No se puede procesar sin una empresa, empleados o cuentas.",
+                description: "No se puede procesar sin una empresa, liquidaciones o plan de cuentas.",
             });
             return;
         }
@@ -62,72 +60,109 @@ export default function CentralizationRemunerationsPage() {
         setIsCentralizing(true);
         
         try {
-            const afpMap = new Map(afpEntities.map(afp => [afp.name, afp.mandatoryContribution]));
-            const healthMap = new Map(healthEntities.map(h => [h.name, h.mandatoryContribution]));
+            const periodPayrolls = payrolls.filter(p => p.year === parseInt(year) && p.month === parseInt(month));
 
-            const activeEmployees = employees.filter(emp => emp.status === 'Active' && emp.baseSalary);
-            
-            let totalBaseSalary = 0;
-            let totalAfpDiscount = 0;
-            let totalHealthDiscount = 0;
-            let totalUnemploymentInsuranceDiscount = 0;
-            let totalNetSalary = 0;
-
-            activeEmployees.forEach(emp => {
-                const baseSalary = emp.baseSalary || 0;
-                totalBaseSalary += baseSalary;
-
-                const afpPercentage = emp.afp ? (afpMap.get(emp.afp) || 10) / 100 : 0;
-                const healthPercentage = (emp.healthSystem === 'Fonasa' ? 7 : (healthMap.get(emp.healthSystem || '') || 7)) / 100;
-                
-                const afpDiscount = baseSalary * afpPercentage;
-                const healthDiscount = baseSalary * healthPercentage;
-                
-                let unemploymentInsuranceDiscount = 0;
-                if (emp.hasUnemploymentInsurance && emp.unemploymentInsuranceType === 'Indefinido') {
-                    unemploymentInsuranceDiscount = baseSalary * 0.006;
-                }
-
-                const net = baseSalary - afpDiscount - healthDiscount - unemploymentInsuranceDiscount;
-
-                totalAfpDiscount += afpDiscount;
-                totalHealthDiscount += healthDiscount;
-                totalUnemploymentInsuranceDiscount += unemploymentInsuranceDiscount;
-                totalNetSalary += net;
-            });
-            
-            if (totalBaseSalary === 0) {
-                 toast({
+            if (periodPayrolls.length === 0) {
+                toast({
                     variant: "destructive",
                     title: "Sin Datos",
-                    description: "No hay empleados activos con sueldo para procesar en este período.",
+                    description: "No hay liquidaciones procesadas para el período seleccionado.",
                 });
                 setIsCentralizing(false);
                 return;
             }
 
-            const companyConfig: Partial<Company> = {
-                id: selectedCompany.id,
-                name: selectedCompany.name,
-                remunerationExpenseAccount: selectedCompany.remunerationExpenseAccount,
-                salariesPayableAccount: selectedCompany.salariesPayableAccount,
-                afpPayableAccount: selectedCompany.afpPayableAccount,
-                healthPayableAccount: selectedCompany.healthPayableAccount,
-                unemploymentInsurancePayableAccount: selectedCompany.unemploymentInsurancePayableAccount,
-            };
+            const totalBaseSalary = periodPayrolls.reduce((sum, p) => sum + p.baseSalary, 0);
+            const totalTaxable = periodPayrolls.reduce((sum, p) => sum + p.taxableEarnings, 0);
+            const totalAfpDiscount = periodPayrolls.reduce((sum, p) => sum + p.afpDiscount, 0);
+            const totalHealthDiscount = periodPayrolls.reduce((sum, p) => sum + p.healthDiscount, 0);
+            const totalUnemploymentInsuranceDiscount = periodPayrolls.reduce((sum, p) => sum + p.unemploymentInsuranceDiscount, 0);
+            const totalNetSalary = periodPayrolls.reduce((sum, p) => sum + p.netSalary, 0);
 
-            const voucher = await centralizeRemunerations({
-                payrollSummary: {
-                    totalBaseSalary: Math.round(totalBaseSalary),
-                    totalAfpDiscount: Math.round(totalAfpDiscount),
-                    totalHealthDiscount: Math.round(totalHealthDiscount),
-                    totalUnemploymentInsuranceDiscount: Math.round(totalUnemploymentInsuranceDiscount),
-                    totalNetSalary: Math.round(totalNetSalary),
-                },
-                accounts,
-                companyConfig,
-                period: { month: parseInt(month), year: parseInt(year) },
-            });
+            // Gasto = Total Haberes Imponibles
+            const totalExpense = totalTaxable;
+
+            const entries: VoucherEntry[] = [];
+            
+            // DEBE
+            if (selectedCompany.remunerationExpenseAccount) {
+                 entries.push({
+                    id: `entry-${Date.now()}-1`,
+                    account: selectedCompany.remunerationExpenseAccount,
+                    description: 'Gasto por Remuneraciones',
+                    debit: Math.round(totalExpense),
+                    credit: 0
+                });
+            } else {
+                throw new Error("La cuenta de gasto para remuneraciones no está configurada.");
+            }
+
+            // HABER
+            if(selectedCompany.salariesPayableAccount) {
+                 entries.push({
+                    id: `entry-${Date.now()}-2`,
+                    account: selectedCompany.salariesPayableAccount,
+                    description: 'Sueldos por Pagar',
+                    debit: 0,
+                    credit: Math.round(totalNetSalary)
+                });
+            } else {
+                 throw new Error("La cuenta de sueldos por pagar no está configurada.");
+            }
+             if(selectedCompany.afpPayableAccount && totalAfpDiscount > 0) {
+                 entries.push({
+                    id: `entry-${Date.now()}-3`,
+                    account: selectedCompany.afpPayableAccount,
+                    description: 'Leyes Sociales por Pagar (AFP)',
+                    debit: 0,
+                    credit: Math.round(totalAfpDiscount)
+                });
+            }
+             if(selectedCompany.healthPayableAccount && totalHealthDiscount > 0) {
+                 entries.push({
+                    id: `entry-${Date.now()}-4`,
+                    account: selectedCompany.healthPayableAccount,
+                    description: 'Leyes Sociales por Pagar (Salud)',
+                    debit: 0,
+                    credit: Math.round(totalHealthDiscount)
+                });
+            }
+            if(selectedCompany.unemploymentInsurancePayableAccount && totalUnemploymentInsuranceDiscount > 0) {
+                 entries.push({
+                    id: `entry-${Date.now()}-5`,
+                    account: selectedCompany.unemploymentInsurancePayableAccount,
+                    description: 'Leyes Sociales por Pagar (Seguro Cesantía)',
+                    debit: 0,
+                    credit: Math.round(totalUnemploymentInsuranceDiscount)
+                });
+            }
+
+            const totalDebit = entries.reduce((sum, e) => sum + e.debit, 0);
+            const totalCredit = entries.reduce((sum, e) => sum + e.credit, 0);
+
+            // Balanceo
+            if (Math.round(totalDebit) !== Math.round(totalCredit)) {
+                 const difference = totalDebit - totalCredit;
+                 // Asume que el gasto es la diferencia. Esto puede ajustarse.
+                 const expenseAccount = entries.find(e => e.account === selectedCompany.remunerationExpenseAccount);
+                 if (expenseAccount) {
+                     expenseAccount.debit -= difference;
+                 }
+            }
+            
+            const periodDate = new Date(parseInt(year), parseInt(month) - 1);
+            const lastDay = lastDayOfMonth(periodDate);
+            const monthName = format(periodDate, 'MMMM', { locale: es });
+
+            const voucher = {
+                date: format(lastDay, 'yyyy-MM-dd'),
+                description: `Centralización Remuneraciones ${monthName} ${year}`,
+                companyId: selectedCompany.id,
+                status: 'Borrador' as const,
+                type: 'Traspaso' as const,
+                total: entries.reduce((sum, e) => sum + e.debit, 0),
+                entries: entries
+            };
             
              if (firestore) {
                 const collectionPath = `companies/${selectedCompany.id}/vouchers`;
@@ -143,8 +178,8 @@ export default function CentralizationRemunerationsPage() {
             console.error("Error during centralization:", error);
             toast({
                 variant: "destructive",
-                title: "Error de IA",
-                description: "El asistente de IA no pudo generar el comprobante: " + error.message,
+                title: "Error en Centralización",
+                description: "No se pudo generar el comprobante: " + error.message,
             });
         } finally {
             setIsCentralizing(false);
