@@ -20,7 +20,7 @@ import { Button } from "@/components/ui/button"
 import { MoreHorizontal, PlusCircle } from "lucide-react"
 import { useCollection, useFirestore, useUser } from "@/firebase"
 import type { AccountGroup } from "@/lib/types"
-import { collection, addDoc, setDoc, doc, deleteDoc, writeBatch } from "firebase/firestore";
+import { collection, addDoc, setDoc, doc, deleteDoc, writeBatch, getDocs } from "firebase/firestore";
 import {
     Dialog,
     DialogContent,
@@ -46,6 +46,7 @@ import {
     AlertDialogFooter,
     AlertDialogHeader,
     AlertDialogTitle,
+    AlertDialogTrigger,
   } from "@/components/ui/alert-dialog"
   import { Input } from "@/components/ui/input"
   import { Label } from "@/components/ui/label"
@@ -94,28 +95,41 @@ export default function AccountGroupsPage() {
         setIsDeleteDialogOpen(true);
     };
 
-    const handleSeedData = async () => {
+    const handleUpdateParameters = async () => {
         if (!firestore || !user) return;
         const collectionPath = `users/${user.uid}/account-groups`;
+        const collectionRef = collection(firestore, collectionPath);
         const batch = writeBatch(firestore);
         
-        initialAccountGroups.forEach(groupData => {
-            const docRef = doc(collection(firestore, collectionPath));
-            batch.set(docRef, groupData);
-        });
-
         try {
+            // 1. Delete existing documents
+            const querySnapshot = await getDocs(collectionRef);
+            querySnapshot.forEach(doc => {
+                batch.delete(doc.ref);
+            });
+            
+            // 2. Add new documents
+            initialAccountGroups.forEach(groupData => {
+                const docRef = doc(collection(firestore, collectionPath));
+                batch.set(docRef, groupData);
+            });
+
             await batch.commit();
             toast({
-                title: "Datos Cargados",
+                title: "Parámetros Actualizados",
                 description: "Los grupos de cuentas han sido poblados exitosamente.",
             });
         } catch (error) {
-            console.error("Error seeding account groups: ", error);
+            console.error("Error updating account groups: ", error);
              errorEmitter.emit('permission-error', new FirestorePermissionError({
                 path: collectionPath,
                 operation: 'create',
             }));
+            toast({
+                variant: 'destructive',
+                title: "Error al actualizar",
+                description: "No se pudieron actualizar los parámetros. Revisa los permisos de la base de datos.",
+            });
         }
     };
     
@@ -177,11 +191,25 @@ export default function AccountGroupsPage() {
                             <CardDescription>Los grupos principales que clasifican el plan de cuentas.</CardDescription>
                         </div>
                         <div className="flex gap-2">
-                             {accountGroups?.length === 0 && !loading && (
-                                <Button size="sm" className="gap-1" onClick={handleSeedData}>
-                                    Poblar Datos Iniciales
-                                </Button>
-                            )}
+                             <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                    <Button size="sm" className="gap-1">
+                                        Actualizar Parámetros
+                                    </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                        <AlertDialogTitle>¿Confirmas la actualización?</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                            Esta acción borrará los grupos de cuentas existentes y los reemplazará con los valores predeterminados de la aplicación.
+                                        </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                        <AlertDialogAction onClick={handleUpdateParameters}>Sí, actualizar</AlertDialogAction>
+                                    </AlertDialogFooter>
+                                </AlertDialogContent>
+                            </AlertDialog>
                             <Button size="sm" className="gap-1" onClick={handleCreateNew}>
                                 <PlusCircle className="h-4 w-4" />
                                 Agregar Grupo
@@ -230,7 +258,7 @@ export default function AccountGroupsPage() {
                             {!loading && accountGroups?.length === 0 && (
                                 <TableRow>
                                     <TableCell colSpan={3} className="text-center">
-                                        No se encontraron grupos de cuentas. Puedes poblarlos con datos iniciales.
+                                        No se encontraron grupos de cuentas. Puedes poblarlos con el botón "Actualizar Parámetros".
                                     </TableCell>
                                 </TableRow>
                             )}
