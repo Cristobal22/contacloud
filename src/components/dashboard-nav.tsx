@@ -157,7 +157,26 @@ const adminNavSections = [
             { href: '/dashboard', label: 'Gestión de Usuarios', icon: Users },
         ]
     }
-]
+];
+
+// Define sections visible to Admins
+const adminPayrollSections = payrollSections.map(section => {
+    // Admins only see "Maestros"
+    if(section.title === 'Maestros') {
+        return section;
+    }
+    return null;
+}).filter(Boolean) as typeof payrollSections;
+
+const adminConfigurationSections = configurationSections.map(section => {
+    // Admins only see global parameters, not company management
+    const filteredLinks = section.links.filter(link => link.href !== '/dashboard/companies');
+    if (filteredLinks.length > 0) {
+        return { ...section, links: filteredLinks };
+    }
+    return null;
+}).filter(Boolean) as typeof configurationSections;
+
 
 const bottomNavItems = [
     { href: '/dashboard/settings', label: 'Settings', icon: Settings },
@@ -243,6 +262,8 @@ export function DashboardNav({ role }: DashboardNavProps) {
       subSections: { title: string, icon: React.ElementType, links: { href: string, label: string, icon: React.ElementType }[] }[],
       defaultOpen = true
     ) => {
+        if (!subSections || subSections.length === 0) return null;
+
         return (
         <Collapsible open={openSections[parentTitle] ?? defaultOpen} onOpenChange={() => toggleSection(parentTitle)}>
             <CollapsibleTrigger className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-muted-foreground hover:text-primary">
@@ -274,6 +295,8 @@ export function DashboardNav({ role }: DashboardNavProps) {
     const navContent = role === 'Admin' ? (
         <>
             {adminNavSections.map(renderSection)}
+            {renderNestedSection('Remuneraciones', Users, adminPayrollSections)}
+            {renderNestedSection('Configuración', SlidersHorizontal, adminConfigurationSections, false)}
         </>
     ) : (
         <>
