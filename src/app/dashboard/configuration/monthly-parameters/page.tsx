@@ -14,28 +14,16 @@ import {
   import React from "react";
   import { useCollection, useFirestore, useDoc, useUser } from "@/firebase";
   import type { EconomicIndicator } from "@/lib/types";
-  import { doc, setDoc, writeBatch, collection, getDocs } from "firebase/firestore";
+  import { doc, setDoc } from "firebase/firestore";
   import { useToast } from "@/hooks/use-toast";
   import { errorEmitter } from "@/firebase/error-emitter";
   import { FirestorePermissionError } from "@/firebase/errors";
   import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
   import { SelectedCompanyContext } from "../../layout";
   import { cn } from "@/lib/utils";
-  import { initialEconomicIndicators } from "@/lib/seed-data";
   import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
   import { ChevronDown } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import {
-    AlertDialog,
-    AlertDialogAction,
-    AlertDialogCancel,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
-    AlertDialogTrigger,
-} from "@/components/ui/alert-dialog"
 
   export default function MonthlyParametersPage() {
     const { selectedCompany } = React.useContext(SelectedCompanyContext) || {};
@@ -136,44 +124,13 @@ import {
     const handleFieldChange = (field: keyof EconomicIndicator, value: string) => {
         setIndicator(prev => ({ ...prev, [field]: value }));
     };
-
-    const handleUpdateParameters = async () => {
-        if (!firestore) return;
-        const collectionPath = `economic-indicators`;
-        const collectionRef = collection(firestore, collectionPath);
-        const batch = writeBatch(firestore);
-        
-        try {
-            // 1. Delete existing documents
-            const querySnapshot = await getDocs(collectionRef);
-            querySnapshot.forEach(doc => {
-                batch.delete(doc.ref);
-            });
-
-            // 2. Add new documents
-            initialEconomicIndicators.forEach(indicatorData => {
-                const id = `${indicatorData.year}-${indicatorData.month.toString().padStart(2, '0')}`;
-                const docRef = doc(firestore, collectionPath, id);
-                batch.set(docRef, { ...indicatorData, id });
-            });
-
-            await batch.commit();
-            toast({
-                title: "Parámetros Actualizados",
-                description: "Los indicadores económicos han sido poblados exitosamente.",
-            });
-        } catch (error) {
-            console.error("Error updating economic indicators: ", error);
-             errorEmitter.emit('permission-error', new FirestorePermissionError({
-                path: collectionPath,
-                operation: 'create',
-            }));
-            toast({
-                variant: 'destructive',
-                title: "Error al actualizar",
-                description: "No se pudieron actualizar los parámetros. Revisa los permisos de la base de datos.",
-            });
-        }
+    
+    const handleUpdateParameters = () => {
+        toast({
+            title: "Actualización de Parámetros",
+            description: "Para actualizar estos valores, modifica el archivo 'src/lib/seed-data.ts' en el código fuente.",
+            duration: 5000,
+        });
     };
 
     return (
@@ -270,23 +227,7 @@ import {
             <CardHeader>
                 <div className="flex items-center justify-between">
                     <CardTitle>Historial Global</CardTitle>
-                     <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                            <Button size="sm">Actualizar Parámetros</Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                            <AlertDialogHeader>
-                                <AlertDialogTitle>¿Confirmas la actualización?</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                    Esta acción borrará los indicadores económicos existentes y los reemplazará con los valores predeterminados de la aplicación.
-                                </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                <AlertDialogAction onClick={handleUpdateParameters}>Sí, actualizar</AlertDialogAction>
-                            </AlertDialogFooter>
-                        </AlertDialogContent>
-                    </AlertDialog>
+                    <Button size="sm" onClick={handleUpdateParameters}>Actualizar Parámetros</Button>
                 </div>
                  <CardDescription>Valores de referencia para todos los usuarios.</CardDescription>
             </CardHeader>
