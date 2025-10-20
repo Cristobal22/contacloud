@@ -31,7 +31,7 @@ import { useToast } from "@/hooks/use-toast";
 import { initialTaxParameters } from "@/lib/seed-data";
 import { errorEmitter } from "@/firebase/error-emitter";
 import { FirestorePermissionError } from "@/firebase/errors";
-import { Trash2, UploadCloud } from "lucide-react";
+import { Trash2, UploadCloud, Eye } from "lucide-react";
 
 export default function ParametrosIUTPage() {
     const firestore = useFirestore();
@@ -43,6 +43,10 @@ export default function ParametrosIUTPage() {
 
     const [year, setYear] = React.useState(currentYear);
     const [month, setMonth] = React.useState(currentMonth);
+
+    const [displayYear, setDisplayYear] = React.useState(currentYear);
+    const [displayMonth, setDisplayMonth] = React.useState(currentMonth);
+
     const [isSubmitting, setIsSubmitting] = React.useState(false);
     const [isDialogOpen, setIsDialogOpen] = React.useState<{type: 'load' | 'delete', open: boolean}>({type: 'load', open: false});
     
@@ -50,15 +54,19 @@ export default function ParametrosIUTPage() {
         if (!firestore) return null;
         return query(
             collection(firestore, 'tax-parameters'),
-            where('year', '==', year),
-            where('month', '==', month)
+            where('year', '==', displayYear),
+            where('month', '==', displayMonth)
         );
-    }, [firestore, year, month]);
+    }, [firestore, displayYear, displayMonth]);
 
     const { data: tablaIUT, loading } = useCollection<TaxParameter>({ 
       query: taxParamsQuery,
-      disabled: !taxParamsQuery
     });
+
+    const handleViewPeriod = () => {
+        setDisplayYear(year);
+        setDisplayMonth(month);
+    };
 
     const calculateEffectiveRate = (desde: number, hasta: number, factor: number, rebaja: number) => {
         if (hasta === Infinity || hasta === 0 || factor === 0) return 'Exento';
@@ -104,6 +112,8 @@ export default function ParametrosIUTPage() {
                 title: "Parámetros Cargados",
                 description: `Se han cargado los parámetros para el período ${month}/${year}.`,
             });
+            // Refresh view
+            handleViewPeriod();
         } catch (error) {
             console.error("Error loading tax parameters:", error);
             errorEmitter.emit('permission-error', new FirestorePermissionError({
@@ -141,7 +151,8 @@ export default function ParametrosIUTPage() {
                 description: `Se han eliminado los parámetros para el período ${month}/${year}.`,
                 variant: 'destructive'
             });
-
+             // Refresh view
+            handleViewPeriod();
         } catch (error) {
             console.error("Error deleting tax parameters:", error);
             errorEmitter.emit('permission-error', new FirestorePermissionError({
@@ -205,6 +216,7 @@ export default function ParametrosIUTPage() {
                                 </SelectContent>
                             </Select>
                         </div>
+                        <Button onClick={handleViewPeriod}><Eye className="mr-2 h-4 w-4" /> Ver Período</Button>
                     </div>
                 </CardHeader>
                 <CardContent>
