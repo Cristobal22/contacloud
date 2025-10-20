@@ -243,15 +243,16 @@ export const initialFamilyAllowanceParameters: Omit<FamilyAllowanceParameter, 'i
 ];
 
 export const initialTaxParameters: Omit<TaxParameter, 'id'>[] = [
-    { id: '1', tramo: "Exento", desde: 0, hasta: 935077.50, factor: 0, rebaja: 0 },
-    { id: '2', tramo: "Tramo 1", desde: 935077.51, hasta: 2077950.00, factor: 0.04, rebaja: 37403.10 },
-    { id: '3', tramo: "Tramo 2", desde: 2077950.01, hasta: 3463250.00, factor: 0.08, rebaja: 120521.10 },
-    { id: '4', tramo: "Tramo 3", desde: 3463250.01, hasta: 4848550.00, factor: 0.135, rebaja: 310999.85 },
-    { id: '5', tramo: "Tramo 4", desde: 4848550.01, hasta: 6233850.00, factor: 0.23, rebaja: 771612.10 },
-    { id: '6', tramo: "Tramo 5", desde: 6233850.01, hasta: 8311800.00, factor: 0.304, rebaja: 1232917.00 },
-    { id: '7', tramo: "Tramo 6", desde: 8311800.01, hasta: 21472150.00, factor: 0.35, rebaja: 1615259.80 },
-    { id: '8', tramo: "Tramo 7", desde: 21472150.01, hasta: Infinity, factor: 0.4, rebaja: 2688867.30 }
+    { id: '1', tramo: "Exento", desde: 0, hasta: 13.5, factor: 0, rebaja: 0 },
+    { id: '2', tramo: "Tramo 1", desde: 13.5, hasta: 30, factor: 0.04, rebaja: 0.54 },
+    { id: '3', tramo: "Tramo 2", desde: 30, hasta: 50, factor: 0.08, rebaja: 1.74 },
+    { id: '4', tramo: "Tramo 3", desde: 50, hasta: 70, factor: 0.135, rebaja: 4.49 },
+    { id: '5', tramo: "Tramo 4", desde: 70, hasta: 90, factor: 0.23, rebaja: 11.14 },
+    { id: '6', tramo: "Tramo 5", desde: 90, hasta: 120, factor: 0.304, rebaja: 17.8 },
+    { id: '7', tramo: "Tramo 6", desde: 120, hasta: 310, factor: 0.35, rebaja: 23.32 },
+    { id: '8', tramo: "Tramo 7", desde: 310, hasta: Infinity, factor: 0.4, rebaja: 38.82 }
 ];
+
 
 // Historical data for UF, UTM, and Minimum Wage in Chile, with projection to Sep 2025.
 export const initialEconomicIndicators: Omit<EconomicIndicator, 'id'>[] = [
