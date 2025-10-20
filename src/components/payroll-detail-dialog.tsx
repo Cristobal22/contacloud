@@ -21,6 +21,8 @@ import { cn } from "@/lib/utils";
 import { Logo } from "./logo";
 import { SelectedCompanyContext } from "@/app/dashboard/layout";
 import { ScrollArea } from "./ui/scroll-area";
+import { useCollection, useFirestore } from "@/firebase";
+import { EconomicIndicator, TaxParameter } from "@/lib/types";
 
 interface PayrollDetailDialogProps {
     isOpen: boolean;
@@ -41,6 +43,11 @@ export function PayrollDetailDialog({ isOpen, onClose, data }: PayrollDetailDial
 
     const [pdfInstance, setPdfInstance] = React.useState<jsPDF | null>(null);
     const [isPreview, setIsPreview] = React.useState(false);
+    
+    const firestore = useFirestore();
+    const { data: taxParameters, loading: taxLoading } = useCollection<TaxParameter>({ path: 'tax-parameters' });
+    const { data: economicIndicators, loading: indicatorsLoading } = useCollection<EconomicIndicator>({ path: companyId ? `companies/${companyId}/economic-indicators` : 'economic-indicators'});
+    const companyId = selectedCompany?.id;
 
     const handleClose = () => {
         setPdfInstance(null);
@@ -114,6 +121,22 @@ export function PayrollDetailDialog({ isOpen, onClose, data }: PayrollDetailDial
     if (!data) return null;
 
     const { payroll, employee } = data;
+    
+    // --- IUT Calculation Details ---
+    const periodIndicator = economicIndicators?.find(ind => ind.year === payroll.year && ind.month === payroll.month);
+    const taxableBaseInUTM = periodIndicator?.utm ? payroll.taxableEarnings / periodIndicator.utm : 0;
+    
+    const taxBracket = taxParameters?.find(t => taxableBaseInUTM > t.desde && taxableBaseInUTM <= t.hasta);
+
+    const taxAmountPreRebate = taxBracket && periodIndicator?.utm 
+        ? taxableBaseInUTM * taxBracket.factor * periodIndicator.utm 
+        : 0;
+
+    const rebateAmount = taxBracket && periodIndicator?.utm
+        ? taxBracket.rebaja * periodIndicator.utm
+        : 0;
+        
+    const iutFactorDisplay = payroll.iutFactor ? (payroll.iutFactor * 100).toFixed(1) + '%' : '0%';
 
     return (
         <Dialog open={isOpen} onOpenChange={handleClose}>
@@ -195,7 +218,10 @@ export function PayrollDetailDialog({ isOpen, onClose, data }: PayrollDetailDial
                                             <TableBody>
                                                 <TableRow><TableCell>Cotización AFP ({employee.afp})</TableCell><TableCell className="text-right">{formatCurrency(payroll.afpDiscount)}</TableCell></TableRow>
                                                 <TableRow><TableCell>Cotización Salud ({employee.healthSystem})</TableCell><TableCell className="text-right">{formatCurrency(payroll.healthDiscount)}</TableCell></TableRow>
-                                                <TableRow><TableCell>Impuesto Único</TableCell><TableCell className="text-right">{formatCurrency(payroll.iut || 0)}</TableCell></TableRow>
+                                                
+                                                <TableRow><TableCell className="pl-6 text-gray-500">Impuesto según tramo ({iutFactorDisplay})</TableCell><TableCell className="text-right text-gray-500">{formatCurrency(taxAmountPreRebate)}</TableCell></TableRow>
+                                                <TableRow><TableCell className="pl-6 text-gray-500">Rebaja por tramo</TableCell><TableCell className="text-right text-gray-500 text-green-600">{formatCurrency(rebateAmount)}</TableCell></TableRow>
+                                                <TableRow><TableCell className="font-medium">Impuesto Único a Pagar</TableCell><TableCell className="text-right font-medium">{formatCurrency(payroll.iut || 0)}</TableCell></TableRow>
                                             </TableBody>
                                             <TableFooter>
                                                 <TableRow className="bg-gray-100 font-bold text-base">

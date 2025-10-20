@@ -169,9 +169,13 @@ export default function PayrollPage() {
             const taxableIncomeInUTM = taxableEarnings / periodIndicator.utm!;
             const taxBracket = taxParameters.find(t => taxableIncomeInUTM > t.desde && taxableIncomeInUTM <= t.hasta);
             let iut = 0;
+            let iutFactor = 0;
+            let iutRebajaInUTM = 0;
             if (taxBracket) {
                 const taxInUTM = (taxableIncomeInUTM * taxBracket.factor) - taxBracket.rebaja;
                 iut = taxInUTM > 0 ? taxInUTM * periodIndicator.utm! : 0;
+                iutFactor = taxBracket.factor;
+                iutRebajaInUTM = taxBracket.rebaja;
             }
 
             const totalDiscounts = afpDiscount + healthDiscount + iut;
@@ -192,6 +196,8 @@ export default function PayrollPage() {
                 afpDiscount: afpDiscount,
                 healthDiscount: healthDiscount,
                 iut: iut,
+                iutFactor: iutFactor,
+                iutRebajaInUTM: iutRebajaInUTM,
                 otherDiscounts: 0,
                 totalDiscounts: totalDiscounts,
                 netSalary: netSalary,

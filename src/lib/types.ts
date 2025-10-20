@@ -206,6 +206,8 @@ export type Payroll = {
   totalDiscounts: number;
   netSalary: number;
   companyId: string;
+  iutFactor?: number;
+  iutRebajaInUTM?: number;
 };
 
 
