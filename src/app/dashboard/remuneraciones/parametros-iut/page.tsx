@@ -1,3 +1,4 @@
+
 'use client';
 
 import {
@@ -15,21 +16,17 @@ import {
     CardHeader,
     CardTitle,
 } from "@/components/ui/card"
-import { useUser } from "@/firebase"
 import type { TaxParameter } from "@/lib/types"
 import React from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import { useUserProfile } from "@/firebase/auth/use-user-profile";
 import { Button } from "@/components/ui/button";
 import { Eye } from "lucide-react";
 import { initialTaxParameters } from "@/lib/seed-data";
 
 export default function ParametrosIUTPage() {
-    const { user } = useUser();
-    const { userProfile } = useUserProfile(user?.uid);
     const currentYear = new Date().getFullYear();
     const currentMonth = new Date().getMonth() + 1;
 
