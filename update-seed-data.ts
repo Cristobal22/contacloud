@@ -58,12 +58,28 @@ async function seedCollection(collectionPath: string, data: any[]) {
     const batch = db.batch();
     
     data.forEach(item => {
-        // Use a combination of fields for a more unique ID, or just let Firestore generate one
-        const docId = item.id || (item.year && item.month ? `${item.year}-${String(item.month).padStart(2, '0')}` : undefined);
-        const docRef = docId ? collectionRef.doc(docId) : collectionRef.doc();
+        // Let Firestore generate a unique ID for each parameter entry.
+        const docRef = collectionRef.doc();
         batch.set(docRef, item);
     });
 
+    await batch.commit();
+    console.log(`Colección ${collectionPath} poblada con ${data.length} documentos.`);
+}
+
+async function seedEconomicIndicators(collectionPath: string, data: any[]) {
+    if (data.length === 0) {
+        console.log(`No hay datos para poblar la colección ${collectionPath}.`);
+        return;
+    }
+    const collectionRef = db.collection(collectionPath);
+    const batch = db.batch();
+    data.forEach(item => {
+        // For economic indicators, the ID is 'YYYY-MM'
+        const docId = `${item.year}-${String(item.month).padStart(2, '0')}`;
+        const docRef = collectionRef.doc(docId);
+        batch.set(docRef, item);
+    });
     await batch.commit();
     console.log(`Colección ${collectionPath} poblada con ${data.length} documentos.`);
 }
@@ -85,7 +101,7 @@ async function main() {
         await seedCollection('tax-parameters', initialTaxParameters);
         
         await clearCollection('economic-indicators');
-        await seedCollection('economic-indicators', initialEconomicIndicators);
+        await seedEconomicIndicators('economic-indicators', initialEconomicIndicators);
 
         await clearCollection('institutions');
         await seedCollection('institutions', initialInstitutions);
