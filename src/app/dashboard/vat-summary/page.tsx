@@ -1,4 +1,3 @@
-
 'use client';
 import React from 'react';
 import {
@@ -14,9 +13,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter as TableFooterOriginal } from '@/components/ui/table';
 import { useCollection } from '@/firebase';
 import type { Purchase, Sale } from '@/lib/types';
-import { startOfMonth, endOfMonth, parseISO } from 'date-fns';
+import { startOfMonth, endOfMonth, parseISO, format } from 'date-fns';
 import { SelectedCompanyContext } from '../layout';
-import { format, es } from 'date-fns/locale';
+import { es } from 'date-fns/locale';
   
 export default function VatSummaryPage() {
     const { selectedCompany } = React.useContext(SelectedCompanyContext) || {};
@@ -61,8 +60,11 @@ export default function VatSummaryPage() {
         }) || [];
 
         const vatDebit = relevantSales.reduce((sum, s) => {
-            const documentSign = s.documentNumber.includes('61') ? -1 : 1; // Handle Credit Notes
-            return sum + (s.total - s.netAmount - s.exemptAmount) * documentSign;
+             // Handle Credit Notes (assuming type '61' is a credit note)
+            const documentSign = s.documentNumber.includes('61') ? -1 : 1;
+            const netAmount = s.netAmount || (s.total / 1.19);
+            const taxAmount = (s.total - s.exemptAmount) - netAmount;
+            return sum + (taxAmount * documentSign);
         }, 0);
 
         const vatCredit = relevantPurchases.reduce((sum, p) => sum + p.taxAmount, 0);
