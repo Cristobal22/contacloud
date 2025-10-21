@@ -1,3 +1,4 @@
+
 'use client';
 import {
     Card,
@@ -13,7 +14,7 @@ import {
   import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
   import React from "react";
   import { useCollection, useFirestore, useUser, useDoc } from "@/firebase";
-  import type { EconomicIndicator, TaxableCap } from "@/lib/types";
+  import type { EconomicIndicator } from "@/lib/types";
   import { doc, setDoc, writeBatch, collection } from "firebase/firestore";
   import { useToast } from "@/hooks/use-toast";
   import { errorEmitter } from "@/firebase/error-emitter";
@@ -23,7 +24,7 @@ import {
   import { cn } from "@/lib/utils";
   import { ScrollArea } from "@/components/ui/scroll-area";
 import { useUserProfile } from "@/firebase/auth/use-user-profile";
-import { initialEconomicIndicators, initialTaxableCaps } from "@/lib/seed-data";
+import { initialEconomicIndicators } from "@/lib/seed-data";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 
@@ -82,38 +83,36 @@ import { es } from "date-fns/locale";
         if (!firestore || !userProfile || userProfile.role !== 'Admin') return;
         setIsLoading(true);
 
-        const batch = writeBatch(firestore);
+        const indicatorData = initialEconomicIndicators.find(i => i.year === year && i.month === month);
+
+        if (!indicatorData) {
+            toast({
+                variant: 'destructive',
+                title: 'Sin Datos',
+                description: `No hay indicadores predeterminados para ${month}/${year}.`
+            });
+            setIsLoading(false);
+            return;
+        }
+
+        const id = `${indicatorData.year}-${indicatorData.month.toString().padStart(2, '0')}`;
+        const uta = (indicatorData.utm || 0) * 12;
+        const gratificationCap = indicatorData.minWage ? Math.round((4.75 * indicatorData.minWage) / 12) : 0;
+        const docRef = doc(firestore, 'economic-indicators', id);
         
-        // Load Economic Indicators
-        const indicatorsCollectionRef = collection(firestore, 'economic-indicators');
-        initialEconomicIndicators.forEach(indicatorData => {
-            const id = `${indicatorData.year}-${indicatorData.month.toString().padStart(2, '0')}`;
-            const uta = (indicatorData.utm || 0) * 12;
-            const gratificationCap = indicatorData.minWage ? Math.round((4.75 * indicatorData.minWage)/12) : 0;
-            const docRef = doc(indicatorsCollectionRef, id);
-            batch.set(docRef, { ...indicatorData, id, uta, gratificationCap }, { merge: true });
-        });
-
-        // Load Taxable Caps
-        const capsCollectionRef = collection(firestore, 'taxable-caps');
-        initialTaxableCaps.forEach(capData => {
-            const id = capData.year.toString();
-            const docRef = doc(capsCollectionRef, id);
-            batch.set(docRef, { ...capData, id }, { merge: true });
-        });
-
         try {
-            await batch.commit();
-            toast({ title: 'Datos Cargados', description: 'El historial de indicadores económicos y topes imponibles ha sido cargado/actualizado.'});
+            await setDoc(docRef, { ...indicatorData, id, uta, gratificationCap }, { merge: true });
+            toast({ title: 'Datos Cargados', description: `Los indicadores para ${month}/${year} han sido cargados/actualizados.`});
         } catch (error) {
              errorEmitter.emit('permission-error', new FirestorePermissionError({
-                path: 'economic-indicators or taxable-caps',
+                path: 'economic-indicators',
                 operation: 'create',
             }));
         } finally {
             setIsLoading(false);
         }
     };
+
 
     const handleSaveCompanySpecific = async () => {
         if (!firestore || !user || !indicator.id || !companyId) return;
@@ -165,7 +164,7 @@ import { es } from "date-fns/locale";
                         </div>
                          {userProfile?.role === 'Admin' && (
                             <Button onClick={handleLoadDefaults} disabled={isLoading}>
-                                {isLoading ? 'Cargando...' : 'Cargar Todos los Indicadores Predeterminados'}
+                                {isLoading ? 'Cargando...' : `Cargar Predeterminados para ${month}/${year}`}
                             </Button>
                         )}
                     </div>
@@ -274,3 +273,6 @@ import { es } from "date-fns/locale";
             </Card>
         </div>
   )
+}
+
+    

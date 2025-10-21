@@ -1,3 +1,4 @@
+
 'use client';
 
 import Link from 'next/link';
@@ -130,6 +131,7 @@ const payrollSections = [
             { href: '/dashboard/remuneraciones/afp', label: 'Entidades AFP', icon: Wallet },
             { href: '/dashboard/remuneraciones/parametros-asig-familiar', label: 'Asignación Familiar', icon: Book },
             { href: '/dashboard/remuneraciones/parametros-iut', label: 'Impuesto Único (IUT)', icon: Book },
+            { href: '/dashboard/remuneraciones/parametros/topes-imponibles', label: 'Topes Imponibles', icon: Shield },
         ]
     }
 ];
@@ -331,3 +333,5 @@ export function DashboardNav({ role }: DashboardNavProps) {
     </div>
   );
 }
+
+    
