@@ -1,3 +1,4 @@
+
 'use client';
 
 import React from "react";
@@ -86,6 +87,8 @@ export default function SalesPage() {
                         date: parseDate(columns[6]?.trim() || ''),
                         documentNumber: columns[5]?.trim() || '',
                         customer: columns[4]?.trim() || '',
+                        exemptAmount: parseFloat(columns[9]) || 0,
+                        netAmount: parseFloat(columns[10]) || 0,
                         total: parseFloat(columns[13]) || 0,
                         status: 'Pendiente',
                         companyId: companyId
@@ -202,13 +205,15 @@ export default function SalesPage() {
                                 <TableHead>Fecha</TableHead>
                                 <TableHead>Nº Documento</TableHead>
                                 <TableHead>Cliente</TableHead>
+                                <TableHead className="text-right">Exento</TableHead>
+                                <TableHead className="text-right">Neto</TableHead>
                                 <TableHead className="text-right">Total</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
                             {loading && (
                                 <TableRow>
-                                    <TableCell colSpan={4} className="text-center">Cargando...</TableCell>
+                                    <TableCell colSpan={6} className="text-center">Cargando...</TableCell>
                                 </TableRow>
                             )}
                             {!loading && pendingSales.map((sale) => (
@@ -216,12 +221,14 @@ export default function SalesPage() {
                                     <TableCell>{new Date(sale.date).toLocaleDateString('es-CL', { timeZone: 'UTC' })}</TableCell>
                                     <TableCell className="font-medium">{sale.documentNumber}</TableCell>
                                     <TableCell>{sale.customer}</TableCell>
+                                    <TableCell className="text-right">${sale.exemptAmount.toLocaleString('es-CL')}</TableCell>
+                                    <TableCell className="text-right">${sale.netAmount.toLocaleString('es-CL')}</TableCell>
                                     <TableCell className="text-right font-bold">${sale.total.toLocaleString('es-CL')}</TableCell>
                                 </TableRow>
                             ))}
                             {!loading && pendingSales.length === 0 && (
                                 <TableRow>
-                                    <TableCell colSpan={4} className="text-center h-24">
+                                    <TableCell colSpan={6} className="text-center h-24">
                                         {!companyId ? "Selecciona una empresa para empezar." : "No hay documentos de venta pendientes. ¡Importa un archivo!"}
                                     </TableCell>
                                 </TableRow>

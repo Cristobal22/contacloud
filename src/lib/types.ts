@@ -155,6 +155,7 @@ export type Purchase = {
   documentNumber: string;
   supplierRut: string;
   supplier: string;
+  exemptAmount: number;
   netAmount: number;
   taxAmount: number;
   total: number;
@@ -171,6 +172,8 @@ export type Sale = {
   date: string;
   documentNumber: string;
   customer: string;
+  exemptAmount: number;
+  netAmount: number;
   total: number;
   status: 'Pendiente' | 'Contabilizado' | 'Cobrado';
   companyId: string;

@@ -1,3 +1,4 @@
+
 'use client';
 
 import React from "react";
@@ -107,6 +108,7 @@ export default function PurchasesPage() {
                         supplierRut: columns[3]?.trim() || '',
                         supplier: columns[4]?.trim() || '',
                         date: parseDate(columns[6]?.trim() || ''),
+                        exemptAmount: parseFloat(columns[9]) || 0,
                         netAmount: parseFloat(columns[10]) || 0,
                         taxAmount: parseFloat(columns[11]) || 0,
                         total: parseFloat(columns[14]) || 0,
@@ -226,6 +228,7 @@ export default function PurchasesPage() {
                                 <TableHead>Documento</TableHead>
                                 <TableHead>Proveedor</TableHead>
                                 <TableHead className="w-[300px]">Cuenta de Gasto/Activo</TableHead>
+                                <TableHead className="text-right">Exento</TableHead>
                                 <TableHead className="text-right">Neto</TableHead>
                                 <TableHead className="text-right">IVA</TableHead>
                                 <TableHead className="text-right">Total</TableHead>
@@ -234,7 +237,7 @@ export default function PurchasesPage() {
                         <TableBody>
                             {loading && (
                                 <TableRow>
-                                    <TableCell colSpan={7} className="text-center">Cargando...</TableCell>
+                                    <TableCell colSpan={8} className="text-center">Cargando...</TableCell>
                                 </TableRow>
                             )}
                             {!loading && pendingPurchases.map((purchase) => (
@@ -254,6 +257,7 @@ export default function PurchasesPage() {
                                             label=""
                                         />
                                     </TableCell>
+                                    <TableCell className="text-right">${purchase.exemptAmount.toLocaleString('es-CL')}</TableCell>
                                     <TableCell className="text-right">${purchase.netAmount.toLocaleString('es-CL')}</TableCell>
                                     <TableCell className="text-right">${purchase.taxAmount.toLocaleString('es-CL')}</TableCell>
                                     <TableCell className="text-right font-bold">${purchase.total.toLocaleString('es-CL')}</TableCell>
@@ -261,7 +265,7 @@ export default function PurchasesPage() {
                             ))}
                             {!loading && pendingPurchases.length === 0 && (
                                 <TableRow>
-                                    <TableCell colSpan={7} className="text-center h-24">
+                                    <TableCell colSpan={8} className="text-center h-24">
                                         {!companyId ? "Selecciona una empresa para empezar." : "No hay documentos de compra pendientes. ¡Importa un archivo!"}
                                     </TableCell>
                                 </TableRow>

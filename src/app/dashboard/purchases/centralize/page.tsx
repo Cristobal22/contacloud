@@ -96,7 +96,7 @@ export default function CentralizePurchasesPage() {
 
             // Handle credit notes (type 61) by inverting amounts
             const sign = p.documentType.includes('61') ? -1 : 1;
-            const netAmount = p.netAmount * sign;
+            const netAmount = (p.netAmount + p.exemptAmount) * sign;
             const taxAmount = p.taxAmount * sign;
             const totalAmount = p.total * sign;
 
