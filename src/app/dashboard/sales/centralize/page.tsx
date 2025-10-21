@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { useCollection, useFirestore } from "@/firebase"
-import { collection, addDoc, writeBatch, doc, Timestamp } from "firebase/firestore"
+import { collection, addDoc, writeBatch, doc, Timestamp, query, where } from "firebase/firestore"
 import type { Sale, VoucherEntry } from "@/lib/types";
 import { errorEmitter } from '@/firebase/error-emitter'
 import { FirestorePermissionError } from '@/firebase/errors'
@@ -31,10 +31,13 @@ export default function CentralizeSalesPage() {
     const { toast } = useToast();
     const router = useRouter();
 
+    const salesQuery = React.useMemo(() => {
+        if (!firestore || !companyId) return null;
+        return query(collection(firestore, `companies/${companyId}/sales`), where('status', '==', 'Pendiente'));
+    }, [firestore, companyId]);
+
     const { data: allSales, loading: salesLoading } = useCollection<Sale>({
-        path: companyId ? `companies/${companyId}/sales` : undefined,
-        companyId: companyId,
-        query: companyId ? (c, q, w) => q(c, w('status', '==', 'Pendiente')) : undefined,
+        query: salesQuery,
     });
 
     const [isProcessing, setIsProcessing] = React.useState(false);

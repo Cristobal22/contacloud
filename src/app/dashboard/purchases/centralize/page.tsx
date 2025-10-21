@@ -37,12 +37,16 @@ export default function CentralizePurchasesPage() {
     const firestore = useFirestore();
     const { toast } = useToast();
     const router = useRouter();
+    
+    const purchasesQuery = React.useMemo(() => {
+        if (!firestore || !companyId) return null;
+        return query(collection(firestore, `companies/${companyId}/purchases`), where('status', '==', 'Pendiente'));
+    }, [firestore, companyId]);
 
     const { data: allPurchases, loading: purchasesLoading } = useCollection<Purchase>({
-        path: companyId ? `companies/${companyId}/purchases` : undefined,
-        companyId: companyId,
-        query: companyId ? (c, q, w) => q(c, w('status', '==', 'Pendiente')) : undefined,
+        query: purchasesQuery,
     });
+    
     const { data: accounts, loading: accountsLoading } = useCollection<Account>({
         path: companyId ? `companies/${companyId}/accounts` : undefined,
     });
