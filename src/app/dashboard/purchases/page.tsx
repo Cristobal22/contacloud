@@ -49,6 +49,7 @@ export default function PurchasesPage() {
     const { toast } = useToast();
     const router = useRouter();
     const fileInputRef = React.useRef<HTMLInputElement>(null);
+    const [fileName, setFileName] = React.useState<string | null>(null);
 
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false);
 
@@ -80,6 +81,7 @@ export default function PurchasesPage() {
         if (!event.target.files || !firestore || !companyId || !selectedCompany) return;
         const file = event.target.files[0];
         if (file) {
+            setFileName(file.name);
             const reader = new FileReader();
             reader.onload = async (e) => {
                 const text = e.target?.result as string;
@@ -173,6 +175,7 @@ export default function PurchasesPage() {
             };
             reader.readAsText(file, 'ISO-8859-1'); // Use ISO-8859-1 for latin characters
         }
+        // Do not clear file name, but clear input value to allow re-uploading
         if (fileInputRef.current) fileInputRef.current.value = '';
     };
 
@@ -224,12 +227,15 @@ export default function PurchasesPage() {
                             <CardTitle>Centralización de Compras</CardTitle>
                             <CardDescription>Paso 1: Importa documentos y asigna las cuentas de gasto/activo.</CardDescription>
                         </div>
-                        <div className="flex gap-2">
-                            <input type="file" ref={fileInputRef} className="hidden" accept=".csv" onChange={handleFileImport} />
-                            <Button size="sm" className="gap-1" onClick={() => fileInputRef.current?.click()} disabled={!companyId}>
-                                <Upload className="h-4 w-4" />
-                                Importar Compras (CSV)
-                            </Button>
+                        <div className="flex items-center gap-4">
+                            <div className="flex items-center gap-2">
+                                <input type="file" ref={fileInputRef} className="hidden" accept=".csv" onChange={handleFileImport} />
+                                <Button size="sm" className="gap-1" onClick={() => fileInputRef.current?.click()} disabled={!companyId}>
+                                    <Upload className="h-4 w-4" />
+                                    Importar Compras (CSV)
+                                </Button>
+                                {fileName && <span className="text-xs text-muted-foreground">{fileName}</span>}
+                            </div>
                             {pendingPurchases.length > 0 && (
                                 <>
                                     <Button 

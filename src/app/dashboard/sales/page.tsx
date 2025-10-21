@@ -47,6 +47,7 @@ export default function SalesPage() {
     const { toast } = useToast();
     const router = useRouter();
     const fileInputRef = React.useRef<HTMLInputElement>(null);
+    const [fileName, setFileName] = React.useState<string | null>(null);
 
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false);
 
@@ -61,6 +62,7 @@ export default function SalesPage() {
         if (!event.target.files || !firestore || !companyId || !selectedCompany) return;
         const file = event.target.files[0];
         if (file) {
+            setFileName(file.name);
             const reader = new FileReader();
             reader.onload = async (e) => {
                 const text = e.target?.result as string;
@@ -188,12 +190,15 @@ export default function SalesPage() {
                             <CardTitle>Centralización de Ventas</CardTitle>
                             <CardDescription>Paso 1: Importa los documentos de venta desde el archivo del SII.</CardDescription>
                         </div>
-                        <div className="flex gap-2">
-                            <input type="file" ref={fileInputRef} className="hidden" accept=".csv" onChange={handleFileImport} />
-                            <Button size="sm" className="gap-1" onClick={() => fileInputRef.current?.click()} disabled={!companyId}>
-                                <Upload className="h-4 w-4" />
-                                Importar Ventas (CSV)
-                            </Button>
+                        <div className="flex items-center gap-4">
+                             <div className="flex items-center gap-2">
+                                <input type="file" ref={fileInputRef} className="hidden" accept=".csv" onChange={handleFileImport} />
+                                <Button size="sm" className="gap-1" onClick={() => fileInputRef.current?.click()} disabled={!companyId}>
+                                    <Upload className="h-4 w-4" />
+                                    Importar Ventas (CSV)
+                                </Button>
+                                {fileName && <span className="text-xs text-muted-foreground">{fileName}</span>}
+                            </div>
                             {pendingSales.length > 0 && (
                                 <>
                                     <Button 
