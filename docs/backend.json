@@ -71,7 +71,8 @@
                 "salariesPayableAccount": { "type": "string" },
                 "afpPayableAccount": { "type": "string" },
                 "healthPayableAccount": { "type": "string" },
-                "unemploymentInsurancePayableAccount": { "type": "string" }
+                "unemploymentInsurancePayableAccount": { "type": "string" },
+                "employerAfpContributionPayableAccount": { "type": "string", "description": "Cuenta para el aporte patronal de AFP (1%)." }
             },
             "required": ["id", "name", "rut", "address", "giro", "active"]
         },
@@ -210,6 +211,7 @@
                 "afpDiscount": { "type": "number" },
                 "healthDiscount": { "type": "number" },
                 "unemploymentInsuranceDiscount": { "type": "number" },
+                "employerAfpContribution": { "type": "number", "description": "Aporte patronal de AFP (1%)." },
                 "iut": { "type": "number", "description": "Impuesto Único a los Trabajadores" },
                 "iutFactor": { "type": "number" },
                 "iutRebajaInCLP": { "type": "number" },
@@ -286,6 +288,7 @@
                 "month": { "type": "number" },
                 "name": { "type": "string" },
                 "mandatoryContribution": { "type": "number" },
+                "employerContribution": { "type": "number", "description": "Employer's contribution percentage for pension reform (e.g., 1.0 for 1%)." },
                 "previredCode": { "type": "string" },
                 "provisionalRegime": { "type": "string" },
                 "dtCode": { "type": "string" }
@@ -460,5 +463,6 @@
         "providers": ["google.com", "password"]
     }
 }
+    
 
     

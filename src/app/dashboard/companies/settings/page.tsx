@@ -34,6 +34,7 @@ const defaultAccountMappings: { [key in keyof Partial<Company>]: string } = {
     afpPayableAccount: '2010225', // IMPOSICIONES POR PAGAR
     healthPayableAccount: '2010225', // IMPOSICIONES POR PAGAR (using the same for simplicity)
     unemploymentInsurancePayableAccount: '2010225', // IMPOSICIONES POR PAGAR (using the same)
+    employerAfpContributionPayableAccount: '2010226' // APORTE PATRONAL AFP POR PAGAR
 };
 
 
@@ -378,6 +379,13 @@ export default function CompanySettingsPage() {
                         onValueChange={(value) => handleInputChange('afpPayableAccount', value)}
                     />
                     <AccountSearchInput 
+                        label="Aporte Patronal AFP por Pagar (1%)" 
+                        value={company.employerAfpContributionPayableAccount || ''} 
+                        accounts={accounts || []} 
+                        loading={accountsLoading}
+                        onValueChange={(value) => handleInputChange('employerAfpContributionPayableAccount', value)}
+                    />
+                    <AccountSearchInput 
                         label="Leyes Sociales por Pagar (Salud)" 
                         value={company.healthPayableAccount || ''} 
                         accounts={accounts || []} 
@@ -401,3 +409,5 @@ export default function CompanySettingsPage() {
         </Card>
     )
 }
+
+    

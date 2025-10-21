@@ -103,6 +103,7 @@ export const initialChartOfAccounts: Omit<Account, 'id' | 'companyId' | 'balance
     { code: "2010215", name: "SUELDOS POR PAGAR", type: "Pasivo" },
     { code: "2010220", name: "HONORARIOS POR PAGAR", type: "Pasivo" },
     { code: "2010225", name: "IMPOSICIONES POR PAGAR", type: "Pasivo" },
+    { code: "2010226", name: "APORTE PATRONAL AFP POR PAGAR", type: "Pasivo" },
     { code: "20104", name: "CXP ENTIDAD RELACIONADA CORR.", type: "Pasivo" },
     { code: "2010401", name: "CXP ENTIDAD RELACIONada CORR.", type: "Pasivo" },
     { code: "20105", name: "OTRAS PROVISIONES A C.P.", type: "Pasivo" },
@@ -169,6 +170,7 @@ export const initialChartOfAccounts: Omit<Account, 'id' | 'companyId' | 'balance
     { code: "4010701", name: "MOVILIZACION", type: "Resultado" },
     { code: "40108", name: "GASTOS DE ADMINISTRACION", type: "Resultado" },
     { code: "4010810", name: "GASTOS DE SUELDOS Y SALARIOS", type: "Resultado" },
+    { code: "4010811", name: "GASTO APORTE PATRONAL AFP", type: "Resultado" },
     { code: "4010812", name: "GASTOS DE FONASA E ISAPRE", type: "Resultado" },
     { code: "4010813", name: "GASTOS DE AFC EMPLEADOR", type: "Resultado" },
     { code: "4010814", name: "GASTOS DE SEGURO DE INVALIDEZ", type: "Resultado" },
@@ -226,13 +228,13 @@ const healthData2024 = [
 ];
 
 const afpData2025 = [
-    { name: "CAPITAL", mandatoryContribution: 11.44, previredCode: "33", provisionalRegime: "DL 3.500", dtCode: "02" },
-    { name: "CUPRUM", mandatoryContribution: 11.44, previredCode: "03", provisionalRegime: "DL 3.500", dtCode: "03" },
-    { name: "HABITAT", mandatoryContribution: 11.27, previredCode: "05", provisionalRegime: "DL 3.500", dtCode: "04" },
-    { name: "MODELO", mandatoryContribution: 10.58, previredCode: "34", provisionalRegime: "DL 3.500", dtCode: "08" },
-    { name: "PLANVITAL", mandatoryContribution: 11.16, previredCode: "08", provisionalRegime: "DL 3.500", dtCode: "05" },
-    { name: "PROVIDA", mandatoryContribution: 11.45, previredCode: "09", provisionalRegime: "DL 3.500", dtCode: "06" },
-    { name: "UNO", mandatoryContribution: 10.69, previredCode: "35", provisionalRegime: "DL 3.500", dtCode: "09" }
+    { name: "CAPITAL", mandatoryContribution: 11.44, employerContribution: 1.0, previredCode: "33", provisionalRegime: "DL 3.500", dtCode: "02" },
+    { name: "CUPRUM", mandatoryContribution: 11.44, employerContribution: 1.0, previredCode: "03", provisionalRegime: "DL 3.500", dtCode: "03" },
+    { name: "HABITAT", mandatoryContribution: 11.27, employerContribution: 1.0, previredCode: "05", provisionalRegime: "DL 3.500", dtCode: "04" },
+    { name: "MODELO", mandatoryContribution: 10.58, employerContribution: 1.0, previredCode: "34", provisionalRegime: "DL 3.500", dtCode: "08" },
+    { name: "PLANVITAL", mandatoryContribution: 11.16, employerContribution: 1.0, previredCode: "08", provisionalRegime: "DL 3.500", dtCode: "05" },
+    { name: "PROVIDA", mandatoryContribution: 11.45, employerContribution: 1.0, previredCode: "09", provisionalRegime: "DL 3.500", dtCode: "06" },
+    { name: "UNO", mandatoryContribution: 10.69, employerContribution: 1.0, previredCode: "35", provisionalRegime: "DL 3.500", dtCode: "09" }
 ];
 const healthData2025 = [
     { name: "FONASA", mandatoryContribution: 7.00, previredCode: "01", dtCode: "01" },
@@ -382,5 +384,7 @@ export const initialTaxableCaps: Omit<TaxableCap, 'id'>[] = [
     { year: 2025, afpCap: 87.8, afcCap: 131.8 },
 ];
 
+
+    
 
     

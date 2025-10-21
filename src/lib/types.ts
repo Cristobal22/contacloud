@@ -58,6 +58,7 @@ export type Company = {
   afpPayableAccount?: string;
   healthPayableAccount?: string;
   unemploymentInsurancePayableAccount?: string;
+  employerAfpContributionPayableAccount?: string;
 };
 
 export type Account = {
@@ -207,6 +208,7 @@ export type Payroll = {
   afpDiscount: number;
   healthDiscount: number;
   unemploymentInsuranceDiscount: number;
+  employerAfpContribution?: number;
   iut?: number; // Impuesto Único a los Trabajadores
   otherDiscounts: number;
   totalDiscounts: number;
@@ -252,6 +254,7 @@ export type AfpEntity = {
     month: number;
     name: string;
     mandatoryContribution: number;
+    employerContribution?: number;
     previredCode: string;
     provisionalRegime: string;
     dtCode: string;
@@ -280,5 +283,7 @@ export type SelectedCompanyContextType = {
     selectedCompany: Company | null;
     setSelectedCompany: (company: Company | null) => void;
 };
+
+    
 
     
