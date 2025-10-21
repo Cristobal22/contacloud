@@ -5,7 +5,10 @@ import { Button } from '@/components/ui/button';
 import { Header } from '@/components/header';
 import { Footer } from '@/components/footer';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { plans } from '@/lib/plans';
+import { Check } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 export default function Home() {
   const heroImage = PlaceHolderImages.find(p => p.id === 'hero-image');
@@ -104,7 +107,50 @@ export default function Home() {
           </div>
         </section>
 
-        <section className="py-20 md:py-24">
+        <section id="pricing" className="py-20 md:py-24">
+            <div className="container">
+                <div className="mx-auto max-w-2xl text-center">
+                <h2 className="font-headline text-3xl font-bold tracking-tight sm:text-4xl">
+                    Planes a tu Medida
+                </h2>
+                <p className="mt-4 text-lg text-muted-foreground">
+                    Elige el plan que mejor se adapte al tamaño y las necesidades de tu práctica contable.
+                </p>
+                </div>
+                 <div className="mt-16 grid md:grid-cols-3 gap-6">
+                    {plans.map((plan, index) => (
+                        <Card key={plan.name} className={cn(index === 1 && "border-primary")}>
+                            <CardHeader>
+                            <CardTitle>{plan.name}</CardTitle>
+                            <CardDescription>{plan.description}</CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                            <div className="flex items-baseline">
+                                <span className="text-4xl font-bold">{plan.price}</span>
+                                {plan.priceSuffix && <span className="ml-1 text-muted-foreground">{plan.priceSuffix}</span>}
+                            </div>
+                            <ul className="space-y-2 text-sm text-muted-foreground">
+                                {plan.features.map(feature => (
+                                <li key={feature} className="flex items-center gap-2">
+                                    <Check className="h-4 w-4 text-primary" />
+                                    {feature}
+                                </li>
+                                ))}
+                            </ul>
+                            </CardContent>
+                            <CardFooter>
+                                <Button className="w-full" asChild variant={index === 1 ? "default" : "outline"}>
+                                    <Link href="/login">Seleccionar Plan</Link>
+                                </Button>
+                            </CardFooter>
+                        </Card>
+                    ))}
+                 </div>
+            </div>
+        </section>
+
+
+        <section className="py-20 md:py-24 bg-muted/50">
           <div className="container text-center">
             <div className="mx-auto max-w-3xl">
               <h2 className="font-headline text-3xl font-bold tracking-tight sm:text-4xl">
