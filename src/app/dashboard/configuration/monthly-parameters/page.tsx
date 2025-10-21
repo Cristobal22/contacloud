@@ -1,5 +1,3 @@
-
-
 'use client';
 import {
     Card,
@@ -15,7 +13,7 @@ import {
   import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
   import React from "react";
   import { useCollection, useFirestore, useUser, useDoc } from "@/firebase";
-  import type { EconomicIndicator } from "@/lib/types";
+  import type { EconomicIndicator, TaxableCap } from "@/lib/types";
   import { doc, setDoc, writeBatch, collection } from "firebase/firestore";
   import { useToast } from "@/hooks/use-toast";
   import { errorEmitter } from "@/firebase/error-emitter";
@@ -25,7 +23,7 @@ import {
   import { cn } from "@/lib/utils";
   import { ScrollArea } from "@/components/ui/scroll-area";
 import { useUserProfile } from "@/firebase/auth/use-user-profile";
-import { initialEconomicIndicators } from "@/lib/seed-data";
+import { initialEconomicIndicators, initialTaxableCaps } from "@/lib/seed-data";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 
@@ -85,22 +83,31 @@ import { es } from "date-fns/locale";
         setIsLoading(true);
 
         const batch = writeBatch(firestore);
-        const collectionRef = collection(firestore, 'economic-indicators');
         
+        // Load Economic Indicators
+        const indicatorsCollectionRef = collection(firestore, 'economic-indicators');
         initialEconomicIndicators.forEach(indicatorData => {
             const id = `${indicatorData.year}-${indicatorData.month.toString().padStart(2, '0')}`;
             const uta = (indicatorData.utm || 0) * 12;
             const gratificationCap = indicatorData.minWage ? Math.round((4.75 * indicatorData.minWage)/12) : 0;
-            const docRef = doc(collectionRef, id);
+            const docRef = doc(indicatorsCollectionRef, id);
             batch.set(docRef, { ...indicatorData, id, uta, gratificationCap }, { merge: true });
+        });
+
+        // Load Taxable Caps
+        const capsCollectionRef = collection(firestore, 'taxable-caps');
+        initialTaxableCaps.forEach(capData => {
+            const id = capData.year.toString();
+            const docRef = doc(capsCollectionRef, id);
+            batch.set(docRef, { ...capData, id }, { merge: true });
         });
 
         try {
             await batch.commit();
-            toast({ title: 'Datos Cargados', description: 'El historial de indicadores económicos ha sido cargado.'});
+            toast({ title: 'Datos Cargados', description: 'El historial de indicadores económicos y topes imponibles ha sido cargado/actualizado.'});
         } catch (error) {
              errorEmitter.emit('permission-error', new FirestorePermissionError({
-                path: 'economic-indicators',
+                path: 'economic-indicators or taxable-caps',
                 operation: 'create',
             }));
         } finally {
@@ -267,4 +274,3 @@ import { es } from "date-fns/locale";
             </Card>
         </div>
   )
-}
