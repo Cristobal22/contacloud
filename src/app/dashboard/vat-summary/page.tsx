@@ -14,8 +14,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter as TableFooterOriginal } from '@/components/ui/table';
 import { useCollection } from '@/firebase';
 import type { Purchase, Sale } from '@/lib/types';
-import { startOfMonth, endOfMonth } from 'date-fns';
+import { startOfMonth, endOfMonth, parseISO } from 'date-fns';
 import { SelectedCompanyContext } from '../layout';
+import { format, es } from 'date-fns/locale';
   
 export default function VatSummaryPage() {
     const { selectedCompany } = React.useContext(SelectedCompanyContext) || {};
@@ -45,23 +46,27 @@ export default function VatSummaryPage() {
 
         const relevantSales = sales?.filter(s => {
             const saleDate = new Date(s.date);
-            // Adjust for timezone issues if dates are stored as YYYY-MM-DD
             const saleUTCDate = new Date(saleDate.getUTCFullYear(), saleDate.getUTCMonth(), saleDate.getUTCDate());
-            return saleUTCDate >= startDate && saleUTCDate <= endDate;
+            const isWithinPeriod = saleUTCDate >= startDate && saleUTCDate <= endDate;
+            // Only include sales that have been processed
+            return isWithinPeriod && (s.status === 'Contabilizado' || s.status === 'Cobrado');
         }) || [];
 
         const relevantPurchases = purchases?.filter(p => {
             const purchaseDate = new Date(p.date);
             const purchaseUTCDate = new Date(purchaseDate.getUTCFullYear(), purchaseDate.getUTCMonth(), purchaseDate.getUTCDate());
-            return purchaseUTCDate >= startDate && purchaseUTCDate <= endDate;
+            const isWithinPeriod = purchaseUTCDate >= startDate && purchaseUTCDate <= endDate;
+            // Only include purchases that have been processed
+            return isWithinPeriod && (p.status === 'Contabilizado' || p.status === 'Pagado');
         }) || [];
 
-        const totalSales = relevantSales.reduce((sum, s) => sum + s.total, 0);
-        const totalPurchases = relevantPurchases.reduce((sum, p) => sum + p.total, 0);
+        const vatDebit = relevantSales.reduce((sum, s) => {
+            const documentSign = s.documentNumber.includes('61') ? -1 : 1; // Handle Credit Notes
+            return sum + (s.total - s.netAmount - s.exemptAmount) * documentSign;
+        }, 0);
 
-        // Standard VAT rate in Chile is 19%
-        const vatDebit = totalSales * 0.19;
-        const vatCredit = totalPurchases * 0.19;
+        const vatCredit = relevantPurchases.reduce((sum, p) => sum + p.taxAmount, 0);
+
 
         setSummary({
             debit: vatDebit,
@@ -89,7 +94,7 @@ export default function VatSummaryPage() {
                             <SelectContent>
                                 {Array.from({ length: 12 }, (_, i) => (
                                     <SelectItem key={i} value={i.toString()}>
-                                        {new Date(0, i).toLocaleString('es-CL', { month: 'long' })}
+                                        {format(new Date(0, i), 'MMMM', { locale: es })}
                                     </SelectItem>
                                 ))}
                             </SelectContent>
@@ -121,7 +126,7 @@ export default function VatSummaryPage() {
             <CardHeader>
                 <CardTitle>Resumen de IVA</CardTitle>
                  <CardDescription>
-                    {summary ? `Resumen para ${new Date(year, month).toLocaleString('es-CL', { month: 'long', year: 'numeric' })}` 
+                    {summary ? `Resumen para ${format(new Date(year, month), 'MMMM yyyy', { locale: es })}` 
                     : !companyId ? "Por favor, selecciona una empresa." : "Aún no se ha generado ningún resumen."}
                  </CardDescription>
             </CardHeader>
