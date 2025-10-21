@@ -251,7 +251,7 @@ export const initialAfpEntities: Omit<AfpEntity, 'id'>[] = [
         afpData2024.map(afp => ({ ...afp, year: 2024, month }))
     ),
     // 2025
-    ...Array.from({ length: 11 }, (_, i) => i + 1).flatMap(month => 
+    ...Array.from({ length: 12 }, (_, i) => i + 1).flatMap(month => 
         afpData2025.map(afp => ({ ...afp, year: 2025, month }))
     ),
 ];
@@ -262,7 +262,7 @@ export const initialHealthEntities: Omit<HealthEntity, 'id'>[] = [
         healthData2024.map(health => ({ ...health, year: 2024, month }))
     ),
     // 2025
-    ...Array.from({ length: 11 }, (_, i) => i + 1).flatMap(month => 
+    ...Array.from({ length: 12 }, (_, i) => i + 1).flatMap(month => 
         healthData2025.map(health => ({ ...health, year: 2025, month }))
     ),
 ];
@@ -279,32 +279,47 @@ const familyAllowanceMayToAug2023 = [
     { tramo: "C", desde: 627914, hasta: 979330, monto: 3942 },
     { tramo: "D", desde: 979331, hasta: Infinity, monto: 0 }
 ];
-const familyAllowanceSep2023 onwards = [
+const familyAllowanceSep2023onwards = [
     { tramo: "A", desde: 0, hasta: 515879, monto: 20328 },
     { tramo: "B", desde: 515880, hasta: 753496, monto: 12475 },
     { tramo: "C", desde: 753497, hasta: 1175096, monto: 3942 },
     { tramo: "D", desde: 1175097, hasta: Infinity, monto: 0 }
 ];
 
+const familyAllowance2024 = [
+    { tramo: "A", desde: 0, hasta: 539699, monto: 20328 },
+    { tramo: "B", desde: 539700, hasta: 788249, monto: 12475 },
+    { tramo: "C", desde: 788250, hasta: 1228614, monto: 3942 },
+    { tramo: "D", desde: 1228615, hasta: Infinity, monto: 0 }
+];
+
+const familyAllowance2025 = [
+    { tramo: "A", desde: 0, hasta: 551239, monto: 20328 },
+    { tramo: "B", desde: 551240, hasta: 804962, monto: 12475 },
+    { tramo: "C", desde: 804963, hasta: 1255478, monto: 3942 },
+    { tramo: "D", desde: 1255479, hasta: Infinity, monto: 0 }
+];
+
 
 export const initialFamilyAllowanceParameters: Omit<FamilyAllowanceParameter, 'id'>[] = [
-    // Enero a Abril 2023
+    // 2023
     ...Array.from({ length: 4 }, (_, i) => i + 1).flatMap(month => 
         familyAllowanceJanToApr2023.map(param => ({ ...param, year: 2023, month }))
     ),
-     // Mayo a Agosto 2023
     ...Array.from({ length: 4 }, (_, i) => i + 5).flatMap(month => 
         familyAllowanceMayToAug2023.map(param => ({ ...param, year: 2023, month }))
     ),
-    // Septiembre a Diciembre 2023
     ...Array.from({ length: 4 }, (_, i) => i + 9).flatMap(month => 
         familyAllowanceSep2023onwards.map(param => ({ ...param, year: 2023, month }))
     ),
     // 2024
-    { year: 2024, month: 7, tramo: "A", desde: 0, hasta: 539699, monto: 20328 },
-    { year: 2024, month: 7, tramo: "B", desde: 539700, hasta: 788249, monto: 12475 },
-    { year: 2024, month: 7, tramo: "C", desde: 788250, hasta: 1228614, monto: 3942 },
-    { year: 2024, month: 7, tramo: "D", desde: 1228615, hasta: Infinity, monto: 0 }
+    ...Array.from({ length: 12 }, (_, i) => i + 1).flatMap(month => 
+        familyAllowance2024.map(param => ({ ...param, year: 2024, month }))
+    ),
+    // 2025
+    ...Array.from({ length: 12 }, (_, i) => i + 1).flatMap(month => 
+        familyAllowance2025.map(param => ({ ...param, year: 2025, month }))
+    ),
 ];
 
 export const initialTaxParameters: Omit<TaxParameter, 'id'>[] = [
