@@ -1,3 +1,4 @@
+
 'use client';
 import React from "react";
 import {
@@ -62,10 +63,12 @@ export default function CentralizePurchasesPage() {
         unassignedDocs,
         closedPeriodDocs,
         purchasesToProcess,
-        isValid
+        isValid,
+        totalIvaCredit,
+        totalPayable
     } = React.useMemo(() => {
         if (!allPurchases || !accounts || !selectedCompany) {
-            return { summary: [], totalDebit: 0, totalCredit: 0, unassignedDocs: [], closedPeriodDocs: [], purchasesToProcess: [], isValid: false };
+            return { summary: [], totalDebit: 0, totalCredit: 0, unassignedDocs: [], closedPeriodDocs: [], purchasesToProcess: [], isValid: false, totalIvaCredit: 0, totalPayable: 0 };
         }
         
         const lastClosed = selectedCompany.lastClosedDate ? parseISO(selectedCompany.lastClosedDate) : null;
