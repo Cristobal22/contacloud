@@ -14,7 +14,7 @@ import {
   import { Button } from "@/components/ui/button"
   import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
   import React from "react";
-  import { useCollection, useFirestore, useUser } from "@/firebase";
+  import { useCollection, useFirestore, useUser, useDoc } from "@/firebase";
   import type { EconomicIndicator } from "@/lib/types";
   import { doc, setDoc, writeBatch, collection } from "firebase/firestore";
   import { useToast } from "@/hooks/use-toast";
