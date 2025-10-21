@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -12,7 +13,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import Link from 'next/link';
-import { CreditCard, LogOut, Settings, User } from 'lucide-react';
+import { CreditCard, LogOut, Settings } from 'lucide-react';
 import { useAuth, useUser } from '@/firebase';
 import { signOut } from 'firebase/auth';
 import { useRouter } from 'next/navigation';
@@ -57,28 +58,22 @@ export function UserNav() {
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
           <DropdownMenuItem asChild>
-            <Link href="/dashboard/settings">
-              <User className="mr-2 h-4 w-4" />
-              <span>Profile</span>
-            </Link>
+             <Link href="/dashboard/settings">
+                <Settings className="mr-2 h-4 w-4" />
+                <span>Configuración</span>
+             </Link>
           </DropdownMenuItem>
           <DropdownMenuItem asChild>
             <Link href="/dashboard/billing">
               <CreditCard className="mr-2 h-4 w-4" />
-              <span>Billing</span>
+              <span>Facturación</span>
             </Link>
-          </DropdownMenuItem>
-          <DropdownMenuItem asChild>
-             <Link href="/dashboard/settings">
-                <Settings className="mr-2 h-4 w-4" />
-                <span>Settings</span>
-             </Link>
           </DropdownMenuItem>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={handleSignOut}>
             <LogOut className="mr-2 h-4 w-4" />
-            <span>Logout</span>
+            <span>Cerrar Sesión</span>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
