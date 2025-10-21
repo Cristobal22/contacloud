@@ -88,15 +88,15 @@ export default function CentralizePurchasesPage() {
         const unassigned = processableDocs.filter(p => !p.assignedAccount);
 
         const netSummary = new Map<string, { name: string, total: number, count: number }>();
-        let totalIvaCredit = 0;
-        let totalPayable = 0;
+        let currentTotalIvaCredit = 0;
+        let currentTotalPayable = 0;
 
         processableDocs.forEach(p => {
             if (!p.assignedAccount) return;
 
             // Handle credit notes (type 61) by inverting amounts
             const sign = p.documentType.includes('61') ? -1 : 1;
-            const netAmount = (p.netAmount + p.exemptAmount) * sign;
+            const netAmount = (p.netAmount + (p.exemptAmount || 0)) * sign;
             const taxAmount = p.taxAmount * sign;
             const totalAmount = p.total * sign;
 
@@ -105,8 +105,8 @@ export default function CentralizePurchasesPage() {
             current.count++;
             netSummary.set(p.assignedAccount, current);
             
-            totalIvaCredit += taxAmount;
-            totalPayable += totalAmount;
+            currentTotalIvaCredit += taxAmount;
+            currentTotalPayable += totalAmount;
         });
 
         const summaryRows: SummaryRow[] = Array.from(netSummary.entries()).map(([code, data]) => ({
@@ -116,16 +116,16 @@ export default function CentralizePurchasesPage() {
             docCount: data.count,
         }));
         
-        const debit = summaryRows.reduce((sum, row) => sum + row.totalNet, 0) + totalIvaCredit;
+        const debit = summaryRows.reduce((sum, row) => sum + row.totalNet, 0) + currentTotalIvaCredit;
         
-        const isBalanced = Math.round(debit) === Math.round(totalPayable);
+        const isBalanced = Math.round(debit) === Math.round(currentTotalPayable);
         
         return {
             summary: summaryRows,
-            totalIvaCredit,
-            totalPayable,
+            totalIvaCredit: currentTotalIvaCredit,
+            totalPayable: currentTotalPayable,
             totalDebit: debit,
-            totalCredit: totalPayable,
+            totalCredit: currentTotalPayable,
             unassignedDocs: unassigned,
             closedPeriodDocs: rejectedDocs,
             purchasesToProcess: processableDocs,

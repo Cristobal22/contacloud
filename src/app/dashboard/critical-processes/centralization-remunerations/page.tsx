@@ -1,3 +1,4 @@
+
 'use client';
 import {
     Card,
@@ -76,7 +77,7 @@ export default function CentralizationRemunerationsPage() {
             const totalTaxable = periodPayrolls.reduce((sum, p) => sum + p.taxableEarnings, 0);
             const totalAfpDiscount = periodPayrolls.reduce((sum, p) => sum + p.afpDiscount, 0);
             const totalHealthDiscount = periodPayrolls.reduce((sum, p) => sum + p.healthDiscount, 0);
-            const totalUnemploymentInsuranceDiscount = periodPayrolls.reduce((sum, p) => sum + p.unemploymentInsuranceDiscount, 0);
+            const totalUnemploymentInsuranceDiscount = periodPayrolls.reduce((sum, p) => sum + (p.unemploymentInsuranceDiscount || 0), 0);
             const totalNetSalary = periodPayrolls.reduce((sum, p) => sum + p.netSalary, 0);
 
             // Gasto = Total Haberes Imponibles

@@ -1,3 +1,4 @@
+
 'use client';
 
 import React from 'react';
@@ -31,7 +32,7 @@ import { useToast } from '@/hooks/use-toast';
 import { addDoc, collection, doc, writeBatch, query, where } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
-import { format, lastDayOfMonth } from 'date-fns';
+import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { useRouter } from 'next/navigation';
 import { AccountSearchInput } from '@/components/account-search-input';
@@ -116,7 +117,7 @@ export default function TreasuryPage() {
 
         // Create Egreso Voucher
         const voucherData = {
-            date: new Date().toISOString().substring(0, 10),
+            date: format(new Date(), 'yyyy-MM-dd'),
             type: 'Egreso' as const,
             description: `Pago de ${purchasesToPay.length} factura(s) de compra`,
             status: 'Contabilizado' as const,
@@ -160,7 +161,7 @@ export default function TreasuryPage() {
         const totalToCollect = salesToCollect.reduce((sum, s) => sum + s.total, 0);
 
         const voucherData = {
-            date: new Date().toISOString().substring(0, 10),
+            date: format(new Date(), 'yyyy-MM-dd'),
             type: 'Ingreso' as const,
             description: `Cobro de ${salesToCollect.length} factura(s) de venta`,
             status: 'Contabilizado' as const,

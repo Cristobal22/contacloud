@@ -73,7 +73,7 @@ export default function CentralizeSalesPage() {
         
         const VAT_RATE = 0.19;
         const total = processableDocs.reduce((sum, doc) => sum + doc.total, 0);
-        const totalExempt = processableDocs.reduce((sum, doc) => sum + doc.exemptAmount, 0);
+        const totalExempt = processableDocs.reduce((sum, doc) => sum + (doc.exemptAmount || 0), 0);
         const totalTaxable = total - totalExempt;
         const net = totalTaxable / (1 + VAT_RATE);
         const iva = totalTaxable - net;
