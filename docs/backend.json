@@ -364,6 +364,18 @@
                 "gratificationCap": { "type": "number", "description": "Legal gratification cap for the month." }
             },
             "required": ["id", "year", "month"]
+        },
+        "TaxableCap": {
+            "title": "TaxableCap",
+            "description": "Stores annual taxable caps for social security contributions.",
+            "type": "object",
+            "properties": {
+                "id": { "type": "string", "description": "Unique ID, typically the year 'YYYY'." },
+                "year": { "type": "number" },
+                "afpCap": { "type": "number", "description": "Taxable cap for AFP, Health, and SIS in UF." },
+                "afcCap": { "type": "number", "description": "Taxable cap for Unemployment Insurance in UF." }
+            },
+            "required": ["id", "year", "afpCap", "afcCap"]
         }
     },
     "firestore": {
@@ -438,6 +450,10 @@
         "/tax-parameters/{paramId}": {
             "schema": { "$ref": "#/entities/TaxParameter" },
             "description": "Global collection of tax parameters for IUT."
+        },
+        "/taxable-caps/{capId}": {
+            "schema": { "$ref": "#/entities/TaxableCap" },
+            "description": "Global collection of annual taxable caps."
         }
     },
     "auth": {

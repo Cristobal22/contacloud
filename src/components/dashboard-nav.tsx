@@ -39,6 +39,7 @@ import {
   ShoppingCart,
   Receipt,
   FileDown,
+  Shield,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './ui/collapsible';
@@ -122,14 +123,14 @@ const payrollSections = [
         ]
     },
     {
-        title: 'Maestros',
+        title: 'Parámetros',
         icon: Briefcase,
         links: [
-            { href: '/dashboard/remuneraciones/instituciones', label: 'Instituciones', icon: Library },
             { href: '/dashboard/remuneraciones/entidades-salud', label: 'Entidades de Salud', icon: HeartPulse },
             { href: '/dashboard/remuneraciones/afp', label: 'Entidades AFP', icon: Wallet },
-            { href: '/dashboard/remuneraciones/parametros-asig-familiar', label: 'Parámetros Asig. Familiar', icon: Book },
-            { href: '/dashboard/remuneraciones/parametros-iut', label: 'Parámetros IUT', icon: Book },
+            { href: '/dashboard/remuneraciones/parametros-asig-familiar', label: 'Asignación Familiar', icon: Book },
+            { href: '/dashboard/remuneraciones/parametros-iut', label: 'Impuesto Único (IUT)', icon: Book },
+            { href: '/dashboard/remuneraciones/parametros/topes-imponibles', label: 'Topes Imponibles', icon: Shield },
         ]
     }
 ];
@@ -173,17 +174,15 @@ const adminNavSections = [
     }
 ];
 
-// Define sections visible to Admins
 const adminPayrollSections = payrollSections.map(section => {
-    // Admins only see "Maestros"
-    if(section.title === 'Maestros') {
+    if (section.title === 'Parámetros') {
         return section;
     }
     return null;
 }).filter(Boolean) as typeof payrollSections;
 
+
 const adminConfigurationSections = configurationSections.map(section => {
-    // Admins only see global parameters, not company management
     const filteredLinks = section.links.filter(link => link.href !== '/dashboard/companies');
     if (filteredLinks.length > 0) {
         return { ...section, links: filteredLinks };
@@ -212,7 +211,7 @@ export function DashboardNav({ role }: DashboardNavProps) {
     'Movimientos_sub': true,
     'Procesos_sub': true,
     'Informes_sub': true,
-    'Maestros_sub': true,
+    'Parámetros_sub': true,
     'Procesos Críticos': false,
     'Centralización_sub': true,
     'Cierres_sub': true,

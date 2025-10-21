@@ -270,6 +270,13 @@ export type EconomicIndicator = {
     gratificationCap?: number;
 };
 
+export type TaxableCap = {
+    id: string; // YYYY
+    year: number;
+    afpCap: number; // Tope para AFP, Salud y SIS en UF
+    afcCap: number; // Tope para Seguro de Cesantía en UF
+};
+
 
 export type SelectedCompanyContextType = {
     selectedCompany: Company | null;

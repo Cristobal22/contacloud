@@ -1,6 +1,6 @@
 
 
-import type { Account, AfpEntity, EconomicIndicator, FamilyAllowanceParameter, HealthEntity, TaxParameter } from "./types";
+import type { Account, AfpEntity, EconomicIndicator, FamilyAllowanceParameter, HealthEntity, TaxableCap, TaxParameter } from "./types";
 
 export const initialChartOfAccounts: Omit<Account, 'id' | 'companyId' | 'balance'>[] = [
     // --- 1. ACTIVOS ---
@@ -408,3 +408,9 @@ export const initialEconomicIndicators: Omit<EconomicIndicator, 'id'>[] = [
     uta: item.utm * 12,
     gratificationCap: Math.round((4.75 * item.minWage) / 12)
 }));
+
+export const initialTaxableCaps: Omit<TaxableCap, 'id'>[] = [
+    { year: 2023, afpCap: 81.6, afcCap: 122.6 },
+    { year: 2024, afpCap: 84.3, afcCap: 126.6 },
+    { year: 2025, afpCap: 87.8, afcCap: 131.8 },
+];
