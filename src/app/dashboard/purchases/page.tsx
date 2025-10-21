@@ -139,9 +139,13 @@ export default function PurchasesPage() {
                         total: parseFloat(columns[14]) || 0,
                         status: 'Pendiente',
                         companyId: companyId,
-                        // Pre-assign account if supplier is known
-                        assignedAccount: supplierAccountMap.get(supplierRut) || undefined,
                     };
+
+                    // Pre-assign account if supplier is known
+                    const assignedAccount = supplierAccountMap.get(supplierRut);
+                    if (assignedAccount) {
+                        newPurchase.assignedAccount = assignedAccount;
+                    }
 
                     if (newPurchase.documentNumber && newPurchase.supplier) {
                         const docRef = doc(collectionRef);
