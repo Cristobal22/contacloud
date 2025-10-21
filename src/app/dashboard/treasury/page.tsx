@@ -36,6 +36,8 @@ import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { useRouter } from 'next/navigation';
 import { AccountSearchInput } from '@/components/account-search-input';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 export default function TreasuryPage() {
     const { selectedCompany } = React.useContext(SelectedCompanyContext) || {};
@@ -47,6 +49,7 @@ export default function TreasuryPage() {
     const [selectedPurchases, setSelectedPurchases] = React.useState<string[]>([]);
     const [selectedSales, setSelectedSales] = React.useState<string[]>([]);
     const [paymentAccount, setPaymentAccount] = React.useState<string>('1010102'); // Default to 'BANCOS'
+    const [paymentDate, setPaymentDate] = React.useState<string>(format(new Date(), 'yyyy-MM-dd'));
     const [isProcessing, setIsProcessing] = React.useState(false);
 
     const purchasesQuery = React.useMemo(() => {
@@ -80,7 +83,7 @@ export default function TreasuryPage() {
 
     const handleSelectAllPurchases = (checked: boolean) => {
         if (checked) {
-            const allPurchaseIds = purchases?.map(p => p.id) || [];
+            const allPurchaseIds = purchases?.filter(p => p.status === 'Contabilizado').map(p => p.id) || [];
             setSelectedPurchases(allPurchaseIds);
         } else {
             setSelectedPurchases([]);
@@ -89,7 +92,7 @@ export default function TreasuryPage() {
     
     const handleSelectAllSales = (checked: boolean) => {
         if (checked) {
-            const allSaleIds = sales?.map(s => s.id) || [];
+            const allSaleIds = sales?.filter(s => s.status === 'Contabilizado').map(s => s.id) || [];
             setSelectedSales(allSaleIds);
         } else {
             setSelectedSales([]);
@@ -117,7 +120,7 @@ export default function TreasuryPage() {
 
         // Create Egreso Voucher
         const voucherData = {
-            date: format(new Date(), 'yyyy-MM-dd'),
+            date: paymentDate,
             type: 'Egreso' as const,
             description: `Pago de ${purchasesToPay.length} factura(s) de compra`,
             status: 'Contabilizado' as const,
@@ -161,7 +164,7 @@ export default function TreasuryPage() {
         const totalToCollect = salesToCollect.reduce((sum, s) => sum + s.total, 0);
 
         const voucherData = {
-            date: format(new Date(), 'yyyy-MM-dd'),
+            date: paymentDate,
             type: 'Ingreso' as const,
             description: `Cobro de ${salesToCollect.length} factura(s) de venta`,
             status: 'Contabilizado' as const,
@@ -192,11 +195,14 @@ export default function TreasuryPage() {
         }
     };
     
-    const allPurchasesSelected = purchases ? selectedPurchases.length === purchases.length && purchases.length > 0 : false;
-    const somePurchasesSelected = purchases ? selectedPurchases.length > 0 && selectedPurchases.length < purchases.length : false;
+    const pendingPurchases = purchases?.filter(p => p.status === 'Contabilizado');
+    const pendingSales = sales?.filter(s => s.status === 'Contabilizado');
+
+    const allPurchasesSelected = pendingPurchases ? selectedPurchases.length === pendingPurchases.length && pendingPurchases.length > 0 : false;
+    const somePurchasesSelected = pendingPurchases ? selectedPurchases.length > 0 && selectedPurchases.length < pendingPurchases.length : false;
     
-    const allSalesSelected = sales ? selectedSales.length === sales.length && sales.length > 0 : false;
-    const someSalesSelected = sales ? selectedSales.length > 0 && selectedSales.length < sales.length : false;
+    const allSalesSelected = pendingSales ? selectedSales.length === pendingSales.length && pendingSales.length > 0 : false;
+    const someSalesSelected = pendingSales ? selectedSales.length > 0 && selectedSales.length < pendingSales.length : false;
 
 
     return (
@@ -220,6 +226,15 @@ export default function TreasuryPage() {
                                         <CardDescription>Selecciona las facturas que deseas pagar.</CardDescription>
                                     </div>
                                     <div className="flex items-center gap-4">
+                                        <div className="space-y-1">
+                                            <Label htmlFor="payment-date-purchase" className="text-xs">Fecha de Pago</Label>
+                                            <Input 
+                                                id="payment-date-purchase"
+                                                type="date"
+                                                value={paymentDate}
+                                                onChange={(e) => setPaymentDate(e.target.value)}
+                                            />
+                                        </div>
                                         <AccountSearchInput 
                                             label="Pagar desde:"
                                             value={paymentAccount}
@@ -244,7 +259,7 @@ export default function TreasuryPage() {
                                     </TableHead><TableHead>Proveedor</TableHead><TableHead>Documento</TableHead><TableHead className="text-right">Monto</TableHead></TableRow></TableHeader>
                                     <TableBody>
                                         {loading && <TableRow><TableCell colSpan={4} className="text-center">Cargando...</TableCell></TableRow>}
-                                        {!loading && purchases?.map(p => (
+                                        {!loading && pendingPurchases?.map(p => (
                                             <TableRow key={p.id} data-state={selectedPurchases.includes(p.id) && "selected"}>
                                                 <TableCell><Checkbox checked={selectedPurchases.includes(p.id)} onCheckedChange={(checked) => handleSelectPurchase(p.id, checked as boolean)} /></TableCell>
                                                 <TableCell>{p.supplier}</TableCell>
@@ -252,7 +267,7 @@ export default function TreasuryPage() {
                                                 <TableCell className="text-right font-bold">${p.total.toLocaleString('es-CL')}</TableCell>
                                             </TableRow>
                                         ))}
-                                        {!loading && purchases?.length === 0 && <TableRow><TableCell colSpan={4} className="text-center h-24">No hay facturas de compra pendientes de pago.</TableCell></TableRow>}
+                                        {!loading && (!pendingPurchases || pendingPurchases.length === 0) && <TableRow><TableCell colSpan={4} className="text-center h-24">No hay facturas de compra pendientes de pago.</TableCell></TableRow>}
                                     </TableBody>
                                 </Table>
                             </CardContent>
@@ -267,6 +282,15 @@ export default function TreasuryPage() {
                                         <CardDescription>Selecciona las facturas que deseas marcar como cobradas.</CardDescription>
                                     </div>
                                     <div className="flex items-center gap-4">
+                                        <div className="space-y-1">
+                                            <Label htmlFor="payment-date-sale" className="text-xs">Fecha de Cobro</Label>
+                                            <Input 
+                                                id="payment-date-sale"
+                                                type="date"
+                                                value={paymentDate}
+                                                onChange={(e) => setPaymentDate(e.target.value)}
+                                            />
+                                        </div>
                                         <AccountSearchInput 
                                             label="Ingresar a:"
                                             value={paymentAccount}
@@ -291,7 +315,7 @@ export default function TreasuryPage() {
                                     </TableHead><TableHead>Cliente</TableHead><TableHead>Documento</TableHead><TableHead className="text-right">Monto</TableHead></TableRow></TableHeader>
                                     <TableBody>
                                         {loading && <TableRow><TableCell colSpan={4} className="text-center">Cargando...</TableCell></TableRow>}
-                                        {!loading && sales?.map(s => (
+                                        {!loading && pendingSales?.map(s => (
                                             <TableRow key={s.id} data-state={selectedSales.includes(s.id) && "selected"}>
                                                 <TableCell><Checkbox checked={selectedSales.includes(s.id)} onCheckedChange={(checked) => handleSelectSale(s.id, checked as boolean)} /></TableCell>
                                                 <TableCell>{s.customer}</TableCell>
@@ -299,7 +323,7 @@ export default function TreasuryPage() {
                                                 <TableCell className="text-right font-bold">${s.total.toLocaleString('es-CL')}</TableCell>
                                             </TableRow>
                                         ))}
-                                        {!loading && sales?.length === 0 && <TableRow><TableCell colSpan={4} className="text-center h-24">No hay facturas de venta pendientes de cobro.</TableCell></TableRow>}
+                                        {!loading && (!pendingSales || pendingSales.length === 0) && <TableRow><TableCell colSpan={4} className="text-center h-24">No hay facturas de venta pendientes de cobro.</TableCell></TableRow>}
                                     </TableBody>
                                 </Table>
                             </CardContent>
