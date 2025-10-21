@@ -1,3 +1,4 @@
+
 'use client';
 
 import React from "react";
@@ -24,26 +25,27 @@ const plans = [
     id: "Individual",
     name: "Contador Individual",
     price: "$19",
-    priceSuffix: "/mes",
+    priceSuffix: "/mes + IVA",
     description: "Ideal para freelancers y contadores independientes.",
     features: [
       "Gestiona hasta 5 empresas",
-      "5GB de almacenamiento",
+      "Módulos de Contabilidad y Remuneraciones",
+      "Centralización del RCV (Compras y Ventas)",
       "Soporte por correo electrónico",
-      "Acceso a todos los módulos contables",
     ],
   },
   {
     id: "Team",
     name: "Equipo Contable",
     price: "$49",
-    priceSuffix: "/mes",
+    priceSuffix: "/mes + IVA",
     description: "Perfecto para pequeños equipos y estudios contables.",
     features: [
       "Gestiona hasta 25 empresas",
-      "25GB de almacenamiento",
-      "Soporte prioritario",
+      "Módulos de Contabilidad y Remuneraciones",
+      "Centralización del RCV (Compras y Ventas)",
       "Roles de usuario y permisos",
+      "Soporte prioritario",
     ],
   },
   {
@@ -54,7 +56,8 @@ const plans = [
     description: "Para grandes firmas con necesidades específicas.",
     features: [
       "Empresas ilimitadas",
-      "Almacenamiento ilimitado",
+      "Módulos de Contabilidad y Remuneraciones",
+      "Centralización del RCV (Compras y Ventas)",
       "Soporte dedicado 24/7",
       "Integraciones personalizadas (API)",
     ],
