@@ -69,6 +69,7 @@ const accountantNavSections = [
             { href: '/dashboard/balances', label: 'Balances', icon: Scale },
             { href: '/dashboard/general-balance', label: 'Balance General', icon: Scale },
             { href: '/dashboard/vat-summary', label: 'Resumen Mensual IVA', icon: FileText },
+            { href: '/dashboard/cash-flow', label: 'Flujo de Caja', icon: DollarSign },
         ]
     },
     {
