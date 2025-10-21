@@ -32,6 +32,7 @@ import type { Company, SelectedCompanyContextType } from "@/lib/types"
 import { useUser, useFirestore, useCollection } from "@/firebase"
 import { useUserProfile } from "@/firebase/auth/use-user-profile"
 import { useToast } from "@/hooks/use-toast"
+import { CommandMenu } from "@/components/command-menu"
 
 export const SelectedCompanyContext = React.createContext<SelectedCompanyContextType | null>(null);
 
@@ -127,6 +128,7 @@ function AccountantDashboardLayout({ children }: { children: React.ReactNode }) 
 
     return (
         <SelectedCompanyContext.Provider value={{ selectedCompany, setSelectedCompany: handleCompanyChange }}>
+            <CommandMenu />
             <div className="flex min-h-screen w-full flex-col bg-muted/40">
                 <aside className="fixed inset-y-0 left-0 z-10 hidden w-64 flex-col border-r bg-background sm:flex">
                     <div className="flex h-16 items-center border-b px-6">
@@ -238,6 +240,7 @@ function AdminDashboardLayout({ children }: { children: React.ReactNode }) {
 
             <div className="flex flex-col sm:pl-64">
                 <header className="sticky top-0 z-30 flex h-16 items-center justify-end gap-4 border-b bg-background px-4 sm:px-6">
+                    <CommandMenu />
                     <UserNav />
                 </header>
                 <main className="flex-1 p-4 sm:p-6">
