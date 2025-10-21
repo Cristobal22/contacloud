@@ -40,6 +40,7 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { parseISO } from "date-fns";
 
 export default function PurchasesPage() {
     const { selectedCompany } = React.useContext(SelectedCompanyContext) || {};
@@ -76,7 +77,7 @@ export default function PurchasesPage() {
     };
 
     const handleFileImport = (event: React.ChangeEvent<HTMLInputElement>) => {
-        if (!event.target.files || !firestore || !companyId) return;
+        if (!event.target.files || !firestore || !companyId || !selectedCompany) return;
         const file = event.target.files[0];
         if (file) {
             const reader = new FileReader();
@@ -101,6 +102,10 @@ export default function PurchasesPage() {
                 const batch = writeBatch(firestore);
                 const collectionRef = collection(firestore, `companies/${companyId}/purchases`);
                 let count = 0;
+                let hasDateMismatch = false;
+                const workingPeriodMonth = selectedCompany.periodStartDate ? parseISO(selectedCompany.periodStartDate).getMonth() : -1;
+                const workingPeriodYear = selectedCompany.periodStartDate ? parseISO(selectedCompany.periodStartDate).getFullYear() : -1;
+
 
                 lines.forEach(line => {
                     const columns = line.split(';');
@@ -113,13 +118,19 @@ export default function PurchasesPage() {
                     };
                     
                     const supplierRut = columns[3]?.trim() || '';
+                    const documentDateStr = parseDate(columns[6]?.trim() || '');
+                    const documentDate = parseISO(documentDateStr);
+
+                    if (workingPeriodMonth !== -1 && (documentDate.getMonth() !== workingPeriodMonth || documentDate.getFullYear() !== workingPeriodYear)) {
+                        hasDateMismatch = true;
+                    }
 
                     const newPurchase: Omit<Purchase, 'id'> = {
                         documentType: columns[1]?.trim() || '',
                         documentNumber: columns[5]?.trim() || '',
                         supplierRut: supplierRut,
                         supplier: columns[4]?.trim() || '',
-                        date: parseDate(columns[6]?.trim() || ''),
+                        date: documentDateStr,
                         exemptAmount: parseFloat(columns[9]) || 0,
                         netAmount: parseFloat(columns[10]) || 0,
                         taxAmount: parseFloat(columns[11]) || 0,
@@ -145,6 +156,14 @@ export default function PurchasesPage() {
                 try {
                     await batch.commit();
                     toast({ title: 'Importación Exitosa', description: `Se importaron ${count} documentos de compra.` });
+                    if (hasDateMismatch) {
+                        toast({
+                            variant: 'destructive',
+                            title: 'Advertencia de Fechas',
+                            description: 'Algunos documentos importados no corresponden al período de trabajo actual. Revísalos antes de centralizar.',
+                            duration: 8000,
+                        });
+                    }
                 } catch (error) {
                     errorEmitter.emit('permission-error', new FirestorePermissionError({
                         path: `companies/${companyId}/purchases`,

@@ -38,6 +38,7 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { parseISO } from "date-fns";
 
 export default function SalesPage() {
     const { selectedCompany } = React.useContext(SelectedCompanyContext) || {};
@@ -57,7 +58,7 @@ export default function SalesPage() {
     const loading = salesLoading;
 
     const handleFileImport = (event: React.ChangeEvent<HTMLInputElement>) => {
-        if (!event.target.files || !firestore || !companyId) return;
+        if (!event.target.files || !firestore || !companyId || !selectedCompany) return;
         const file = event.target.files[0];
         if (file) {
             const reader = new FileReader();
@@ -72,6 +73,9 @@ export default function SalesPage() {
                 const batch = writeBatch(firestore);
                 const collectionRef = collection(firestore, `companies/${companyId}/sales`);
                 let count = 0;
+                let hasDateMismatch = false;
+                const workingPeriodMonth = selectedCompany.periodStartDate ? parseISO(selectedCompany.periodStartDate).getMonth() : -1;
+                const workingPeriodYear = selectedCompany.periodStartDate ? parseISO(selectedCompany.periodStartDate).getFullYear() : -1;
 
                 lines.forEach(line => {
                     const columns = line.split(';');
@@ -83,8 +87,15 @@ export default function SalesPage() {
                         return new Date(`${year}-${month}-${day}`).toISOString().substring(0,10);
                     };
                     
+                    const documentDateStr = parseDate(columns[6]?.trim() || '');
+                    const documentDate = parseISO(documentDateStr);
+
+                    if (workingPeriodMonth !== -1 && (documentDate.getMonth() !== workingPeriodMonth || documentDate.getFullYear() !== workingPeriodYear)) {
+                        hasDateMismatch = true;
+                    }
+
                     const newSale: Omit<Sale, 'id'> = {
-                        date: parseDate(columns[6]?.trim() || ''),
+                        date: documentDateStr,
                         documentNumber: columns[5]?.trim() || '',
                         customer: columns[4]?.trim() || '',
                         exemptAmount: parseFloat(columns[9]) || 0,
@@ -109,6 +120,14 @@ export default function SalesPage() {
                 try {
                     await batch.commit();
                     toast({ title: 'Importación Exitosa', description: `Se importaron ${count} documentos de venta.` });
+                    if (hasDateMismatch) {
+                        toast({
+                            variant: 'destructive',
+                            title: 'Advertencia de Fechas',
+                            description: 'Algunos documentos importados no corresponden al período de trabajo actual. Revísalos antes de centralizar.',
+                            duration: 8000,
+                        });
+                    }
                 } catch (error) {
                     errorEmitter.emit('permission-error', new FirestorePermissionError({
                         path: `companies/${companyId}/sales`,
