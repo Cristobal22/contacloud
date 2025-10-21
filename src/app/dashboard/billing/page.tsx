@@ -24,7 +24,7 @@ const plans = [
   {
     id: "Individual",
     name: "Contador Individual",
-    price: "$19",
+    price: "$20.000",
     priceSuffix: "/mes + IVA",
     description: "Ideal para freelancers y contadores independientes.",
     features: [
@@ -37,29 +37,29 @@ const plans = [
   {
     id: "Team",
     name: "Equipo Contable",
-    price: "$49",
+    price: "$30.000",
     priceSuffix: "/mes + IVA",
     description: "Perfecto para pequeños equipos y estudios contables.",
     features: [
       "Gestiona hasta 25 empresas",
       "Módulos de Contabilidad y Remuneraciones",
       "Centralización del RCV (Compras y Ventas)",
-      "Roles de usuario y permisos",
-      "Soporte prioritario",
+      "Soporte vía WhatsApp",
+      "Acceso prioritario a nuevas funciones",
     ],
   },
   {
     id: "Enterprise",
     name: "Empresarial",
-    price: "Custom",
-    priceSuffix: "",
+    price: "$50.000",
+    priceSuffix: "/mes + IVA",
     description: "Para grandes firmas con necesidades específicas.",
     features: [
       "Empresas ilimitadas",
       "Módulos de Contabilidad y Remuneraciones",
       "Centralización del RCV (Compras y Ventas)",
-      "Soporte dedicado 24/7",
-      "Integraciones personalizadas (API)",
+      "Soporte vía WhatsApp",
+      "Acceso prioritario a nuevas funciones",
     ],
   }
 ];
