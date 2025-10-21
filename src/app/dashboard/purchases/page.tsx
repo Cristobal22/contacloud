@@ -88,6 +88,16 @@ export default function PurchasesPage() {
                     return;
                 }
 
+                // Build a map of existing supplier RUTs to their last used account
+                const supplierAccountMap = new Map<string, string>();
+                if (purchases) {
+                    purchases.forEach(p => {
+                        if (p.supplierRut && p.assignedAccount) {
+                            supplierAccountMap.set(p.supplierRut, p.assignedAccount);
+                        }
+                    });
+                }
+
                 const batch = writeBatch(firestore);
                 const collectionRef = collection(firestore, `companies/${companyId}/purchases`);
                 let count = 0;
@@ -102,10 +112,12 @@ export default function PurchasesPage() {
                         return new Date(`${year}-${month}-${day}`).toISOString().substring(0,10);
                     };
                     
+                    const supplierRut = columns[3]?.trim() || '';
+
                     const newPurchase: Omit<Purchase, 'id'> = {
                         documentType: columns[1]?.trim() || '',
                         documentNumber: columns[5]?.trim() || '',
-                        supplierRut: columns[3]?.trim() || '',
+                        supplierRut: supplierRut,
                         supplier: columns[4]?.trim() || '',
                         date: parseDate(columns[6]?.trim() || ''),
                         exemptAmount: parseFloat(columns[9]) || 0,
@@ -114,6 +126,8 @@ export default function PurchasesPage() {
                         total: parseFloat(columns[14]) || 0,
                         status: 'Pendiente',
                         companyId: companyId,
+                        // Pre-assign account if supplier is known
+                        assignedAccount: supplierAccountMap.get(supplierRut) || undefined,
                     };
 
                     if (newPurchase.documentNumber && newPurchase.supplier) {
