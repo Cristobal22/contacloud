@@ -1,4 +1,3 @@
-
 'use client';
 
 import Link from 'next/link';
@@ -148,6 +147,7 @@ const criticalProcessesSections = [
         icon: Lock,
         links: [
             { href: '/dashboard/critical-processes/monthly-closing', label: 'Cierre Mensual', icon: FileText },
+            { href: '/dashboard/critical-processes/annual-closing', label: 'Cierre Anual', icon: BookOpen },
         ]
     }
 ];
