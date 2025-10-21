@@ -66,8 +66,11 @@ function AccountantDashboardContent({ companyId }: { companyId: string }) {
                 accountMovements.set(entry.account, current);
             });
         });
+        
+        const finalBalances = new Map<string, number>();
 
-        return accounts.map(account => {
+        // 1. Initialize with opening balances and add period movements
+        accounts.forEach(account => {
             const movements = accountMovements.get(account.code);
             let finalBalance = account.balance || 0;
             if (movements) {
@@ -77,25 +80,43 @@ function AccountantDashboardContent({ companyId }: { companyId: string }) {
                      finalBalance += (movements.credit - movements.debit);
                  }
             }
-            return {
-                ...account,
-                balance: finalBalance,
-            };
+            finalBalances.set(account.code, finalBalance);
         });
+
+        // 2. Aggregate balances up the hierarchy
+        const sortedCodes = accounts.map(a => a.code).sort((a,b) => b.length - a.length);
+
+        sortedCodes.forEach(code => {
+            let parentCode = '';
+            if (code.length > 1) { // It has a parent
+                 if (code.length > 5) parentCode = code.substring(0, 5);
+                 else if (code.length === 5) parentCode = code.substring(0, 3);
+                 else if (code.length === 3) parentCode = code.substring(0, 1);
+            }
+            if (parentCode && finalBalances.has(parentCode)) {
+                const childBalance = finalBalances.get(code) || 0;
+                const parentBalance = finalBalances.get(parentCode) || 0;
+                finalBalances.set(parentCode, parentBalance + childBalance);
+            }
+        });
+
+        // 3. Map final calculated balances back to accounts
+        return accounts.map(account => ({
+            ...account,
+            balance: finalBalances.get(account.code) || 0,
+        }));
+
 
     }, [accounts, contabilizadosVouchers]);
 
     const totalActives = calculatedBalances
-        ?.filter(acc => acc.type === 'Activo')
-        .reduce((sum, acc) => sum + acc.balance, 0) || 0;
+        ?.find(acc => acc.code === '1')?.balance || 0;
 
     const totalLiabilities = calculatedBalances
-        ?.filter(acc => acc.type === 'Pasivo')
-        .reduce((sum, acc) => sum + acc.balance, 0) || 0;
+        ?.find(acc => acc.code === '2')?.balance || 0;
     
     const totalEquity = calculatedBalances
-        ?.filter(acc => acc.type === 'Patrimonio')
-        .reduce((sum, acc) => sum + acc.balance, 0) || 0;
+        ?.find(acc => acc.code === '3')?.balance || 0;
 
     const resultAccounts = React.useMemo(() => {
         const income = calculatedBalances.filter(acc => acc.code.startsWith('4')).reduce((sum, acc) => sum + acc.balance, 0);
