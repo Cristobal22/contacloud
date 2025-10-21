@@ -375,8 +375,7 @@ export const initialTaxParameters: Omit<TaxParameter, 'id'>[] = [
 ];
 
 
-// Historical data for UF, UTM, and Minimum Wage in Chile, with projection to Sep 2025.
-export const initialEconomicIndicators: Omit<EconomicIndicator, 'id'>[] = [
+export const initialEconomicIndicators: Omit<EconomicIndicator, 'id' | 'uta' | 'gratificationCap'>[] = [
     // 2023
     { year: 2023, month: 1, uf: 35284.1, utm: 61769, minWage: 410000 },
     { year: 2023, month: 2, uf: 35384.81, utm: 61954, minWage: 410000 },
@@ -403,11 +402,20 @@ export const initialEconomicIndicators: Omit<EconomicIndicator, 'id'>[] = [
     { year: 2024, month: 10, uf: 37600.0, utm: 67142, minWage: 500000 },
     { year: 2024, month: 11, uf: 37630.0, utm: 67355, minWage: 500000 },
     { year: 2024, month: 12, uf: 37660.0, utm: 67500, minWage: 500000 },
-].map(item => ({
-    ...item,
-    uta: item.utm * 12,
-    gratificationCap: Math.round((4.75 * item.minWage) / 12)
-}));
+    // 2025
+    { year: 2025, month: 1, uf: 37690.0, utm: 67650, minWage: 500000 },
+    { year: 2025, month: 2, uf: 37720.0, utm: 67800, minWage: 500000 },
+    { year: 2025, month: 3, uf: 37750.0, utm: 67950, minWage: 500000 },
+    { year: 2025, month: 4, uf: 37780.0, utm: 68100, minWage: 500000 },
+    { year: 2025, month: 5, uf: 37810.0, utm: 68250, minWage: 500000 },
+    { year: 2025, month: 6, uf: 37840.0, utm: 68400, minWage: 500000 },
+    { year: 2025, month: 7, uf: 37870.0, utm: 68550, minWage: 500000 },
+    { year: 2025, month: 8, uf: 37900.0, utm: 68700, minWage: 500000 },
+    { year: 2025, month: 9, uf: 37930.0, utm: 68850, minWage: 500000 },
+    { year: 2025, month: 10, uf: 37960.0, utm: 69000, minWage: 500000 },
+    { year: 2025, month: 11, uf: 37990.0, utm: 69150, minWage: 500000 },
+    { year: 2025, month: 12, uf: 38020.0, utm: 69300, minWage: 500000 },
+];
 
 export const initialTaxableCaps: Omit<TaxableCap, 'id'>[] = [
     { year: 2023, afpCap: 81.6, afcCap: 122.6 },

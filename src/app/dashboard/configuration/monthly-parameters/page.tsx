@@ -1,4 +1,5 @@
 
+
 'use client';
 import {
     Card,
@@ -6,15 +7,16 @@ import {
     CardDescription,
     CardHeader,
     CardTitle,
+    CardFooter,
   } from "@/components/ui/card"
   import { Input } from "@/components/ui/input"
   import { Label } from "@/components/ui/label"
   import { Button } from "@/components/ui/button"
   import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
   import React from "react";
-  import { useCollection, useFirestore, useUser, useDoc } from "@/firebase";
+  import { useCollection, useFirestore, useUser } from "@/firebase";
   import type { EconomicIndicator } from "@/lib/types";
-  import { doc, setDoc } from "firebase/firestore";
+  import { doc, setDoc, writeBatch, collection } from "firebase/firestore";
   import { useToast } from "@/hooks/use-toast";
   import { errorEmitter } from "@/firebase/error-emitter";
   import { FirestorePermissionError } from "@/firebase/errors";
@@ -23,6 +25,9 @@ import {
   import { cn } from "@/lib/utils";
   import { ScrollArea } from "@/components/ui/scroll-area";
 import { useUserProfile } from "@/firebase/auth/use-user-profile";
+import { initialEconomicIndicators } from "@/lib/seed-data";
+import { format } from "date-fns";
+import { es } from "date-fns/locale";
 
   export default function MonthlyParametersPage() {
     const { selectedCompany } = React.useContext(SelectedCompanyContext) || {};
@@ -51,9 +56,8 @@ import { useUserProfile } from "@/firebase/auth/use-user-profile";
     [firestore, companyId, indicatorId]);
     const { data: companyIndicator, loading: companyLoading } = useDoc<EconomicIndicator>(companyIndicatorRef as any);
 
-
     React.useEffect(() => {
-      const loading = allGlobalsLoading || companyLoading;
+      const loading = allGlobalsLoading || (companyId ? companyLoading : false);
       setIsLoading(loading);
       if (loading) return;
       
@@ -74,22 +78,41 @@ import { useUserProfile } from "@/firebase/auth/use-user-profile";
           setIndicator({ id: indicatorId, year, month });
           setIsCompanySpecific(false);
       }
-    }, [year, month, allGlobalIndicators, companyIndicator, indicatorId, allGlobalsLoading, companyLoading]);
+    }, [year, month, allGlobalIndicators, companyIndicator, indicatorId, allGlobalsLoading, companyLoading, companyId]);
 
+    const handleLoadDefaults = async () => {
+        if (!firestore || !userProfile || userProfile.role !== 'Admin') return;
+        setIsLoading(true);
 
-    const handleSave = async (scope: 'company' | 'global') => {
-        if (!firestore || !user || !indicator.id) return;
-        if (scope === 'company' && !companyId) {
-            toast({ variant: 'destructive', title: 'Error', description: 'Selecciona una empresa para guardar parámetros específicos.'});
-            return;
+        const batch = writeBatch(firestore);
+        const collectionRef = collection(firestore, 'economic-indicators');
+        
+        initialEconomicIndicators.forEach(indicatorData => {
+            const id = `${indicatorData.year}-${indicatorData.month.toString().padStart(2, '0')}`;
+            const uta = (indicatorData.utm || 0) * 12;
+            const gratificationCap = indicatorData.minWage ? Math.round((4.75 * indicatorData.minWage)/12) : 0;
+            const docRef = doc(collectionRef, id);
+            batch.set(docRef, { ...indicatorData, id, uta, gratificationCap }, { merge: true });
+        });
+
+        try {
+            await batch.commit();
+            toast({ title: 'Datos Cargados', description: 'El historial de indicadores económicos ha sido cargado.'});
+        } catch (error) {
+             errorEmitter.emit('permission-error', new FirestorePermissionError({
+                path: 'economic-indicators',
+                operation: 'create',
+            }));
+        } finally {
+            setIsLoading(false);
         }
+    };
+
+    const handleSaveCompanySpecific = async () => {
+        if (!firestore || !user || !indicator.id || !companyId) return;
         
         setIsLoading(true);
-        
-        const path = scope === 'company'
-            ? `companies/${companyId}/economic-indicators`
-            : 'economic-indicators';
-        
+        const path = `companies/${companyId}/economic-indicators`;
         const docRef = doc(firestore, path, indicator.id);
         
         const dataToSave: Partial<EconomicIndicator> = {
@@ -98,17 +121,14 @@ import { useUserProfile } from "@/firebase/auth/use-user-profile";
             month: Number(month),
             uf: Number(indicator.uf) || 0,
             utm: Number(indicator.utm) || 0,
-            uta: indicator.utm ? Number(indicator.utm) * 12 : 0,
-            minWage: Number(indicator.minWage) || 0,
         };
+        dataToSave.uta = dataToSave.utm ? Number(dataToSave.utm) * 12 : 0;
+        dataToSave.minWage = Number(indicator.minWage) || 0;
         dataToSave.gratificationCap = dataToSave.minWage ? Math.round((4.75 * dataToSave.minWage)/12) : 0;
 
         try {
             await setDoc(docRef, dataToSave, { merge: true });
-            const description = scope === 'company'
-                ? `Los valores personalizados para ${selectedCompany?.name} han sido guardados.`
-                : 'Los valores globales han sido actualizados.';
-            toast({ title: 'Parámetros Guardados', description });
+            toast({ title: 'Parámetros Guardados', description: `Los valores personalizados para ${selectedCompany?.name} han sido guardados.` });
         } catch (error) {
             console.error("Error saving indicators:", error);
             errorEmitter.emit('permission-error', new FirestorePermissionError({
@@ -126,24 +146,68 @@ import { useUserProfile } from "@/firebase/auth/use-user-profile";
     };
     
     return (
-      <>
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2">
-                <Card>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <Card className="lg:col-span-3">
                 <CardHeader>
-                    <div className="flex items-center justify-between">
-                    <div>
-                        <CardTitle>Parámetros Económicos Mensuales</CardTitle>
-                        <CardDescription>
-                            Gestiona los parámetros para los cálculos.
-                        </CardDescription>
-                    </div>
+                    <div className="flex flex-col sm:flex-row items-start justify-between gap-4">
+                        <div>
+                            <CardTitle>Indicadores Económicos Históricos</CardTitle>
+                            <CardDescription>
+                                Consulta los valores globales de UF, UTM y Sueldo Mínimo para cualquier período.
+                            </CardDescription>
+                        </div>
+                         {userProfile?.role === 'Admin' && (
+                            <Button onClick={handleLoadDefaults} disabled={isLoading}>
+                                {isLoading ? 'Cargando...' : 'Cargar Todos los Indicadores Predeterminados'}
+                            </Button>
+                        )}
                     </div>
                 </CardHeader>
                 <CardContent>
-                    <form className="grid gap-6">
+                    <ScrollArea className="h-[60vh] w-full">
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Período</TableHead>
+                                    <TableHead className="text-right">UF</TableHead>
+                                    <TableHead className="text-right">UTM</TableHead>
+                                    <TableHead className="text-right">Sueldo Mínimo</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {allGlobalsLoading ? (
+                                    <TableRow><TableCell colSpan={4} className="text-center">Cargando historial...</TableCell></TableRow>
+                                ) : allGlobalIndicators && allGlobalIndicators.length > 0 ? (
+                                allGlobalIndicators.sort((a,b) => b.id.localeCompare(a.id)).map(ind => (
+                                    <TableRow key={ind.id} className={cn(ind.year === year && ind.month === month && "bg-muted font-bold")}>
+                                        <TableCell>
+                                            {format(new Date(ind.year, ind.month - 1), 'MMMM yyyy', { locale: es })}
+                                        </TableCell>
+                                        <TableCell className="text-right">${ind.uf?.toLocaleString('es-CL')}</TableCell>
+                                        <TableCell className="text-right">${ind.utm?.toLocaleString('es-CL')}</TableCell>
+                                        <TableCell className="text-right">${ind.minWage?.toLocaleString('es-CL')}</TableCell>
+                                    </TableRow>
+                                ))
+                                ) : (
+                                    <TableRow><TableCell colSpan={4} className="text-center">No hay valores globales cargados.</TableCell></TableRow>
+                                )}
+                            </TableBody>
+                        </Table>
+                    </ScrollArea>
+                </CardContent>
+            </Card>
+
+            <Card className="lg:col-span-3">
+                <CardHeader>
+                    <CardTitle>Valores Específicos por Empresa</CardTitle>
+                    <CardDescription>
+                        Opcionalmente, puedes definir valores específicos para una empresa en un período determinado. Esto sobreescribirá el valor global para los cálculos de esa empresa.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <div className="grid gap-6">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div className="space-y-2">
+                             <div className="space-y-2">
                                 <Label htmlFor="month">Mes</Label>
                                 <Select value={month.toString()} onValueChange={val => setMonth(Number(val))}>
                                     <SelectTrigger id="month">
@@ -152,7 +216,7 @@ import { useUserProfile } from "@/firebase/auth/use-user-profile";
                                     <SelectContent>
                                         {Array.from({ length: 12 }, (_, i) => (
                                             <SelectItem key={i+1} value={(i+1).toString()}>
-                                                {new Date(0, i).toLocaleString('es-CL', { month: 'long' })}
+                                                {format(new Date(0, i), 'MMMM', { locale: es })}
                                             </SelectItem>
                                         ))}
                                     </SelectContent>
@@ -174,75 +238,33 @@ import { useUserProfile } from "@/firebase/auth/use-user-profile";
                                 </Select>
                             </div>
                         </div>
-                        <div className={cn("rounded-md border p-4", isCompanySpecific ? "border-blue-500 bg-blue-50 dark:bg-blue-900/10" : "border-transparent")}>
+                        <div className={cn("rounded-md border p-4", isCompanySpecific ? "border-blue-500 bg-blue-50 dark:bg-blue-900/10" : "border-dashed")}>
                             <div className="grid gap-6 md:grid-cols-3">
                                 <div className="space-y-2">
-                                    <Label htmlFor="uf">Valor UF (último día del mes)</Label>
-                                    <Input id="uf" type="number" placeholder="Ingresa el valor de la UF" value={indicator.uf || ''} onChange={e => handleFieldChange('uf', e.target.value)} disabled={!user || isLoading} />
+                                    <Label htmlFor="uf">Valor UF (Personalizado)</Label>
+                                    <Input id="uf" type="number" placeholder="Ingresa el valor de la UF" value={indicator.uf || ''} onChange={e => handleFieldChange('uf', e.target.value)} disabled={!companyId || isLoading} />
                                 </div>
                                 <div className="space-y-2">
-                                    <Label htmlFor="utm">Valor UTM</Label>
-                                    <Input id="utm" type="number" placeholder="Ingresa el valor de la UTM" value={indicator.utm || ''} onChange={e => handleFieldChange('utm', e.target.value)} disabled={!user || isLoading} />
+                                    <Label htmlFor="utm">Valor UTM (Personalizado)</Label>
+                                    <Input id="utm" type="number" placeholder="Ingresa el valor de la UTM" value={indicator.utm || ''} onChange={e => handleFieldChange('utm', e.target.value)} disabled={!companyId || isLoading} />
                                 </div>
                                 <div className="space-y-2">
-                                    <Label htmlFor="sueldo-minimo">Sueldo Mínimo</Label>
-                                    <Input id="sueldo-minimo" type="number" placeholder="Ingresa el sueldo mínimo" value={indicator.minWage || ''} onChange={e => handleFieldChange('minWage', e.target.value)} disabled={!user || isLoading} />
+                                    <Label htmlFor="sueldo-minimo">Sueldo Mínimo (Personalizado)</Label>
+                                    <Input id="sueldo-minimo" type="number" placeholder="Ingresa el sueldo mínimo" value={indicator.minWage || ''} onChange={e => handleFieldChange('minWage', e.target.value)} disabled={!companyId || isLoading} />
                                 </div>
                             </div>
                              {isCompanySpecific && (
                                 <p className="text-sm text-blue-600 mt-3">Estás viendo valores personalizados para <span className="font-bold">{selectedCompany?.name}</span>.</p>
                             )}
                         </div>
-                        <div className="flex justify-end pt-4">
-                            <Button disabled={isLoading || !user || !companyId} onClick={() => handleSave('company')} className="gap-1">
-                                <span>Guardar para {selectedCompany?.name || '...'}</span>
-                            </Button>
-                        </div>
-                    </form>
-                </CardContent>
-                </Card>
-            </div>
-
-            <Card className="lg:col-span-1">
-                <CardHeader>
-                    <div className="flex items-center justify-between">
-                        <CardTitle>Historial Global</CardTitle>
                     </div>
-                     <CardDescription>Valores de referencia para todos los usuarios.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <ScrollArea className="h-[450px]">
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead>Período</TableHead>
-                                    <TableHead className="text-right">UTM</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {allGlobalsLoading ? (
-                                    <TableRow><TableCell colSpan={2} className="text-center">Cargando historial...</TableCell></TableRow>
-                                ) : allGlobalIndicators && allGlobalIndicators.length > 0 ? (
-                                allGlobalIndicators.sort((a,b) => b.id.localeCompare(a.id)).map(ind => (
-                                    <TableRow key={ind.id} className={cn(ind.id === indicatorId && "bg-muted font-bold")}>
-                                        <TableCell>
-                                            {ind.year}-{ind.month.toString().padStart(2, '0')}
-                                            {isCompanySpecific && ind.id === indicatorId && 
-                                                <span className="ml-2 text-xs text-blue-600">(Personalizado)</span>
-                                            }
-                                        </TableCell>
-                                        <TableCell className="text-right">${ind.utm?.toLocaleString('es-CL')}</TableCell>
-                                    </TableRow>
-                                ))
-                                ) : (
-                                    <TableRow><TableCell colSpan={2} className="text-center">No hay valores globales.</TableCell></TableRow>
-                                )}
-                            </TableBody>
-                        </Table>
-                    </ScrollArea>
                 </CardContent>
+                 <CardFooter className="flex justify-end pt-4">
+                    <Button disabled={isLoading || !companyId} onClick={handleSaveCompanySpecific}>
+                        Guardar para {selectedCompany?.name || '...'}
+                    </Button>
+                </CardFooter>
             </Card>
         </div>
-    </>
   )
 }
