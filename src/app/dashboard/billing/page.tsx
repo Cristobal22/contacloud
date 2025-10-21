@@ -46,6 +46,7 @@ const plans = [
       "Centralización del RCV (Compras y Ventas)",
       "Soporte vía WhatsApp",
       "Acceso prioritario a nuevas funciones",
+      "Planillas de contratos, documentos legales y más",
     ],
   },
   {
@@ -60,6 +61,7 @@ const plans = [
       "Centralización del RCV (Compras y Ventas)",
       "Soporte vía WhatsApp",
       "Acceso prioritario a nuevas funciones",
+      "Planillas de contratos, documentos legales y más",
     ],
   }
 ];
