@@ -1,32 +1,3 @@
-/**
- * @fileoverview Firestore Security Rules for the accounting platform.
- *
- * Core Philosophy:
- * This ruleset enforces a multi-tenant security model. Users can only access data
- * related to their own user profile, or data associated with companies they
- * are authorized to access. Some collections are globally available,
- * such as economic indicators and tax parameters.
- *
- * Data Structure:
- * - /users/{userId}: User profiles, accessible only by the user themselves.
- * - /companies/{companyId}: Companies, owned by a specific user.
- * - /companies/{companyId}/*: Subcollections related to companies (accounts, vouchers, etc.),
- *   accessible only by users associated with that company.
- * - /economic-indicators/{indicatorId}: Globally available economic indicators.
- * - /health-entities/{entityId}: Globally available health entities.
- * - /afp-entities/{entityId}: Globally available AFP entities.
- * - /family-allowance-parameters/{paramId}: Globally available family allowance parameters.
- * - /tax-parameters/{paramId}: Globally available tax parameters.
- *
- * Key Security Decisions:
- * - Users can only read and write their own profile data.
- * - Company data can only be accessed by users associated with the company (via `companyIds` in the user profile).
- * - Global collections (economic indicators, tax parameters) are publicly readable.
- * - User listing is disallowed.
- *
- * Denormalization for Authorization:
- * - User's `companyIds` are used to quickly authorize access to company-related data.
- */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -39,343 +10,381 @@ service cloud.firestore {
     }
 
     /**
-     * @description Checks if the authenticated user's ID matches the provided user ID.
+     * @description Checks if the user's UID matches the provided userId.
      */
     function isOwner(userId) {
       return request.auth.uid == userId;
     }
 
-    /**
-     * @description Checks if the authenticated user is associated with the provided company ID.
+     /**
+     * @description Checks if the user has the 'Admin' role.
      */
-    function isCompanyUser(companyId) {
-      return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyIds.hasAny([companyId]);
+    function isAdmin() {
+      return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Admin';
     }
 
     /**
-     * @description Checks if the authenticated user is associated with the provided company ID and the document exists
+     * @description Checks if the user has the 'Accountant' role.
      */
-    function isExistingCompanyUser(companyId) {
-        return isCompanyUser(companyId) && resource != null;
+    function isAccountant() {
+        return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Accountant';
     }
 
     /**
-     * @description Rules for user profiles.
+     * @description Checks if the user is an existing owner (isSignedIn, isOwner and the document exists).
+     */
+    function isExistingOwner(userId) {
+      return isSignedIn() && isOwner(userId) && exists(/databases/$(database)/documents/users/$(userId));
+    }
+
+
+    /**
+     * @description Security rules for user profiles.
      * @path /users/{userId}
-     * @allow (create) User 'user123' can create their own profile if the UID matches.
-     * @allow (get) User 'user123' can read their own profile.
-     * @allow (update) User 'user123' can update their own profile.
-     * @allow (delete) User 'user123' can delete their own profile.
-     * @deny (create) User 'user456' cannot create a profile for user 'user123'.
-     * @deny (get) User 'user456' cannot read user 'user123's profile.
-     * @principle Enforces user-ownership for profile data.
+     * @allow (get) User can read their own profile.
+     * @allow (create) User can create their own profile.
+     * @allow (update) User can update their own profile.
+     * @deny (list) User cannot list all profiles.
+     * @deny (create) User cannot create another user's profile.
+     * @deny (update) User cannot update another user's profile.
+     * @principle Enforces document ownership and restricts access to user's own data.
      */
     match /users/{userId} {
-      allow create: if isSignedIn() && isOwner(userId) && request.resource.data.uid == request.auth.uid;
-      allow get: if isSignedIn() && isOwner(userId);
-      allow update: if isSignedIn() && isOwner(userId) && request.resource.data.uid == resource.data.uid;
-      allow delete: if isSignedIn() && isOwner(userId) && resource != null;
+      allow get: if isOwner(userId) || isAdmin();
       allow list: if false;
+      allow create: if isOwner(userId) && request.auth.uid == userId;
+      allow update: if isOwner(userId) || isAdmin();
+      allow delete: if false;
     }
 
     /**
-     * @description Rules for companies.
+     * @description Security rules for companies.
      * @path /companies/{companyId}
-     * @allow (create) A user associated with the company can create the company.
-     * @allow (get) A user associated with the company can read the company data.
-     * @allow (update) A user associated with the company can update the company data.
-     * @allow (delete) A user associated with the company can delete the company data.
-     * @deny (create) A user not associated with the company cannot create it.
-     * @deny (get) A user not associated with the company cannot read the company data.
-     * @principle Enforces company-level access control.
+     * @allow (get) Owner or Admin can read company data.
+     * @allow (create) Owner can create company data.
+     * @allow (update) Owner or Admin can update company data.
+     * @allow (delete) Owner or Admin can delete company data.
+     * @deny (create) Non-owner cannot create company data.
+     * @deny (update) Non-owner cannot update company data.
+     * @principle Enforces document ownership for company data.
      */
     match /companies/{companyId} {
-      allow create: if isSignedIn() && isCompanyUser(companyId);
-      allow get: if isSignedIn() && isCompanyUser(companyId);
-      allow update: if isSignedIn() && isExistingCompanyUser(companyId);
-      allow delete: if isSignedIn() && isExistingCompanyUser(companyId);
+      allow get: if isAdmin() || resource.data.ownerId == request.auth.uid;
       allow list: if false;
+      allow create: if isAdmin() || (isSignedIn() && request.resource.data.ownerId == request.auth.uid);
+      allow update: if isAdmin() || (isSignedIn() && resource.data.ownerId == request.auth.uid);
+      allow delete: if isAdmin() || (isSignedIn() && resource.data.ownerId == request.auth.uid);
     }
 
     /**
-     * @description Rules for accounts within a company.
+     * @description Security rules for accounts under a company.
      * @path /companies/{companyId}/accounts/{accountId}
-     * @allow (create) A user associated with the company can create accounts.
-     * @allow (get) A user associated with the company can read accounts.
-     * @allow (update) A user associated with the company can update accounts.
-     * @allow (delete) A user associated with the company can delete accounts.
-     * @deny (create) A user not associated with the company cannot create accounts.
-     * @deny (get) A user not associated with the company cannot read accounts.
-     * @principle Enforces company-level access control for accounts.
+     * @allow (get) Owner or Admin can read account data.
+     * @allow (create) Owner or Admin can create account data.
+     * @allow (update) Owner or Admin can update account data.
+     * @allow (delete) Owner or Admin can delete account data.
+     * @deny (create) Non-owner cannot create account data.
+     * @deny (update) Non-owner cannot update account data.
+     * @principle Enforces document ownership for accounts.
      */
     match /companies/{companyId}/accounts/{accountId} {
-      allow create: if isSignedIn() && isCompanyUser(companyId);
-      allow get: if isSignedIn() && isCompanyUser(companyId);
-      allow update: if isSignedIn() && isExistingCompanyUser(companyId);
-      allow delete: if isSignedIn() && isExistingCompanyUser(companyId);
-      allow list: if isSignedIn() && isCompanyUser(companyId);
+      allow get: if isAdmin() || get(/databases/$(database)/documents/companies/$(companyId)).data.ownerId == request.auth.uid;
+      allow list: if false;
+      allow create: if isAdmin() || get(/databases/$(database)/documents/companies/$(companyId)).data.ownerId == request.auth.uid;
+      allow update: if isAdmin() || get(/databases/$(database)/documents/companies/$(companyId)).data.ownerId == request.auth.uid;
+      allow delete: if isAdmin() || get(/databases/$(database)/documents/companies/$(companyId)).data.ownerId == request.auth.uid;
     }
 
     /**
-     * @description Rules for vouchers within a company.
+     * @description Security rules for vouchers under a company.
      * @path /companies/{companyId}/vouchers/{voucherId}
-     * @allow (create) A user associated with the company can create vouchers.
-     * @allow (get) A user associated with the company can read vouchers.
-     * @allow (update) A user associated with the company can update vouchers.
-     * @allow (delete) A user associated with the company can delete vouchers.
-     * @deny (create) A user not associated with the company cannot create vouchers.
-     * @deny (get) A user not associated with the company cannot read vouchers.
-     * @principle Enforces company-level access control for vouchers.
+     * @allow (get) Owner or Admin can read voucher data.
+     * @allow (create) Owner or Admin can create voucher data.
+     * @allow (update) Owner or Admin can update voucher data.
+     * @allow (delete) Owner or Admin can delete voucher data.
+     * @deny (create) Non-owner cannot create voucher data.
+     * @deny (update) Non-owner cannot update voucher data.
+     * @principle Enforces document ownership for vouchers.
      */
     match /companies/{companyId}/vouchers/{voucherId} {
-      allow create: if isSignedIn() && isCompanyUser(companyId);
-      allow get: if isSignedIn() && isCompanyUser(companyId);
-      allow update: if isSignedIn() && isExistingCompanyUser(companyId);
-      allow delete: if isSignedIn() && isExistingCompanyUser(companyId);
-      allow list: if isSignedIn() && isCompanyUser(companyId);
+      allow get: if isAdmin() || get(/databases/$(database)/documents/companies/$(companyId)).data.ownerId == request.auth.uid;
+      allow list: if false;
+      allow create: if isAdmin() || get(/databases/$(database)/documents/companies/$(companyId)).data.ownerId == request.auth.uid;
+      allow update: if isAdmin() || get(/databases/$(database)/documents/companies/$(companyId)).data.ownerId == request.auth.uid;
+      allow delete: if isAdmin() || get(/databases/$(database)/documents/companies/$(companyId)).data.ownerId == request.auth.uid;
     }
 
     /**
-     * @description Rules for subjects within a company.
+     * @description Security rules for subjects under a company.
      * @path /companies/{companyId}/subjects/{subjectId}
-     * @allow (create) A user associated with the company can create subjects.
-     * @allow (get) A user associated with the company can read subjects.
-     * @allow (update) A user associated with the company can update subjects.
-     * @allow (delete) A user associated with the company can delete subjects.
-     * @deny (create) A user not associated with the company cannot create subjects.
-     * @deny (get) A user not associated with the company cannot read subjects.
-     * @principle Enforces company-level access control for subjects.
+     * @allow (get) Owner or Admin can read subject data.
+     * @allow (create) Owner or Admin can create subject data.
+     * @allow (update) Owner or Admin can update subject data.
+     * @allow (delete) Owner or Admin can delete subject data.
+     * @deny (create) Non-owner cannot create subject data.
+     * @deny (update) Non-owner cannot update subject data.
+     * @principle Enforces document ownership for subjects.
      */
     match /companies/{companyId}/subjects/{subjectId} {
-      allow create: if isSignedIn() && isCompanyUser(companyId);
-      allow get: if isSignedIn() && isCompanyUser(companyId);
-      allow update: if isSignedIn() && isExistingCompanyUser(companyId);
-      allow delete: if isSignedIn() && isExistingCompanyUser(companyId);
-      allow list: if isSignedIn() && isCompanyUser(companyId);
+      allow get: if isAdmin() || get(/databases/$(database)/documents/companies/$(companyId)).data.ownerId == request.auth.uid;
+      allow list: if false;
+      allow create: if isAdmin() || get(/databases/$(database)/documents/companies/$(companyId)).data.ownerId == request.auth.uid;
+      allow update: if isAdmin() || get(/databases/$(database)/documents/companies/$(companyId)).data.ownerId == request.auth.uid;
+      allow delete: if isAdmin() || get(/databases/$(database)/documents/companies/$(companyId)).data.ownerId == request.auth.uid;
     }
 
     /**
-     * @description Rules for cost centers within a company.
+     * @description Security rules for cost centers under a company.
      * @path /companies/{companyId}/cost-centers/{costCenterId}
-     * @allow (create) A user associated with the company can create cost centers.
-     * @allow (get) A user associated with the company can read cost centers.
-     * @allow (update) A user associated with the company can update cost centers.
-     * @allow (delete) A user associated with the company can delete cost centers.
-     * @deny (create) A user not associated with the company cannot create cost centers.
-     * @deny (get) A user not associated with the company cannot read cost centers.
-     * @principle Enforces company-level access control for cost centers.
+     * @allow (get) Owner or Admin can read cost center data.
+     * @allow (create) Owner or Admin can create cost center data.
+     * @allow (update) Owner or Admin can update cost center data.
+     * @allow (delete) Owner or Admin can delete cost center data.
+     * @deny (create) Non-owner cannot create cost center data.
+     * @deny (update) Non-owner cannot update cost center data.
+     * @principle Enforces document ownership for cost centers.
      */
     match /companies/{companyId}/cost-centers/{costCenterId} {
-      allow create: if isSignedIn() && isCompanyUser(companyId);
-      allow get: if isSignedIn() && isCompanyUser(companyId);
-      allow update: if isSignedIn() && isExistingCompanyUser(companyId);
-      allow delete: if isSignedIn() && isExistingCompanyUser(companyId);
-      allow list: if isSignedIn() && isCompanyUser(companyId);
+      allow get: if isAdmin() || get(/databases/$(database)/documents/companies/$(companyId)).data.ownerId == request.auth.uid;
+      allow list: if false;
+      allow create: if isAdmin() || get(/databases/$(database)/documents/companies/$(companyId)).data.ownerId == request.auth.uid;
+      allow update: if isAdmin() || get(/databases/$(database)/documents/companies/$(companyId)).data.ownerId == request.auth.uid;
+      allow delete: if isAdmin() || get(/databases/$(database)/documents/companies/$(companyId)).data.ownerId == request.auth.uid;
     }
 
     /**
-     * @description Rules for employees within a company.
+     * @description Security rules for employees under a company.
      * @path /companies/{companyId}/employees/{employeeId}
-     * @allow (create) A user associated with the company can create employees.
-     * @allow (get) A user associated with the company can read employees.
-     * @allow (update) A user associated with the company can update employees.
-     * @allow (delete) A user associated with the company can delete employees.
-     * @deny (create) A user not associated with the company cannot create employees.
-     * @deny (get) A user not associated with the company cannot read employees.
-     * @principle Enforces company-level access control for employees.
+     * @allow (get) Owner or Admin can read employee data.
+     * @allow (create) Owner or Admin can create employee data.
+     * @allow (update) Owner or Admin can update employee data.
+     * @allow (delete) Owner or Admin can delete employee data.
+     * @deny (create) Non-owner cannot create employee data.
+     * @deny (update) Non-owner cannot update employee data.
+     * @principle Enforces document ownership for employees.
      */
     match /companies/{companyId}/employees/{employeeId} {
-      allow create: if isSignedIn() && isCompanyUser(companyId);
-      allow get: if isSignedIn() && isCompanyUser(companyId);
-      allow update: if isSignedIn() && isExistingCompanyUser(companyId);
-      allow delete: if isSignedIn() && isExistingCompanyUser(companyId);
-      allow list: if isSignedIn() && isCompanyUser(companyId);
+      allow get: if isAdmin() || get(/databases/$(database)/documents/companies/$(companyId)).data.ownerId == request.auth.uid;
+      allow list: if false;
+      allow create: if isAdmin() || get(/databases/$(database)/documents/companies/$(companyId)).data.ownerId == request.auth.uid;
+      allow update: if isAdmin() || get(/databases/$(database)/documents/companies/$(companyId)).data.ownerId == request.auth.uid;
+      allow delete: if isAdmin() || get(/databases/$(database)/documents/companies/$(companyId)).data.ownerId == request.auth.uid;
     }
 
     /**
-     * @description Rules for payrolls within a company.
+     * @description Security rules for payrolls under a company.
      * @path /companies/{companyId}/payrolls/{payrollId}
-     * @allow (create) A user associated with the company can create payrolls.
-     * @allow (get) A user associated with the company can read payrolls.
-     * @allow (update) A user associated with the company can update payrolls.
-     * @allow (delete) A user associated with the company can delete payrolls.
-     * @deny (create) A user not associated with the company cannot create payrolls.
-     * @deny (get) A user not associated with the company cannot read payrolls.
-     * @principle Enforces company-level access control for payrolls.
+     * @allow (get) Owner or Admin can read payroll data.
+     * @allow (create) Owner or Admin can create payroll data.
+     * @allow (update) Owner or Admin can update payroll data.
+     * @allow (delete) Owner or Admin can delete payroll data.
+     * @deny (create) Non-owner cannot create payroll data.
+     * @deny (update) Non-owner cannot update payroll data.
+     * @principle Enforces document ownership for payrolls.
      */
     match /companies/{companyId}/payrolls/{payrollId} {
-      allow create: if isSignedIn() && isCompanyUser(companyId);
-      allow get: if isSignedIn() && isCompanyUser(companyId);
-      allow update: if isSignedIn() && isExistingCompanyUser(companyId);
-      allow delete: if isSignedIn() && isExistingCompanyUser(companyId);
-      allow list: if isSignedIn() && isCompanyUser(companyId);
+      allow get: if isAdmin() || get(/databases/$(database)/documents/companies/$(companyId)).data.ownerId == request.auth.uid;
+      allow list: if false;
+      allow create: if isAdmin() || get(/databases/$(database)/documents/companies/$(companyId)).data.ownerId == request.auth.uid;
+      allow update: if isAdmin() || get(/databases/$(database)/documents/companies/$(companyId)).data.ownerId == request.auth.uid;
+      allow delete: if isAdmin() || get(/databases/$(database)/documents/companies/$(companyId)).data.ownerId == request.auth.uid;
     }
 
      /**
-      * @description Rules for purchases within a company.
-      * @path /companies/{companyId}/purchases/{purchaseId}
-      * @allow (create) A user associated with the company can create purchases.
-      * @allow (get) A user associated with the company can read purchases.
-      * @allow (update) A user associated with the company can update purchases.
-      * @allow (delete) A user associated with the company can delete purchases.
-      * @deny (create) A user not associated with the company cannot create purchases.
-      * @deny (get) A user not associated with the company cannot read purchases.
-      * @principle Enforces company-level access control for purchases.
-      */
+     * @description Security rules for purchases under a company.
+     * @path /companies/{companyId}/purchases/{purchaseId}
+     * @allow (get) Owner or Admin can read purchase data.
+     * @allow (create) Owner or Admin can create purchase data.
+     * @allow (update) Owner or Admin can update purchase data.
+     * @allow (delete) Owner or Admin can delete purchase data.
+     * @deny (create) Non-owner cannot create purchase data.
+     * @deny (update) Non-owner cannot update purchase data.
+     * @principle Enforces document ownership for purchases.
+     */
     match /companies/{companyId}/purchases/{purchaseId} {
-      allow create: if isSignedIn() && isCompanyUser(companyId);
-      allow get: if isSignedIn() && isCompanyUser(companyId);
-      allow update: if isSignedIn() && isExistingCompanyUser(companyId);
-      allow delete: if isSignedIn() && isExistingCompanyUser(companyId);
-      allow list: if isSignedIn() && isCompanyUser(companyId);
+      allow get: if isAdmin() || get(/databases/$(database)/documents/companies/$(companyId)).data.ownerId == request.auth.uid;
+      allow list: if false;
+      allow create: if isAdmin() || get(/databases/$(database)/documents/companies/$(companyId)).data.ownerId == request.auth.uid;
+      allow update: if isAdmin() || get(/databases/$(database)/documents/companies/$(companyId)).data.ownerId == request.auth.uid;
+      allow delete: if isAdmin() || get(/databases/$(database)/documents/companies/$(companyId)).data.ownerId == request.auth.uid;
     }
 
     /**
-     * @description Rules for sales within a company.
+     * @description Security rules for sales under a company.
      * @path /companies/{companyId}/sales/{saleId}
-     * @allow (create) A user associated with the company can create sales.
-     * @allow (get) A user associated with the company can read sales.
-     * @allow (update) A user associated with the company can update sales.
-     * @allow (delete) A user associated with the company can delete sales.
-     * @deny (create) A user not associated with the company cannot create sales.
-     * @deny (get) A user not associated with the company cannot read sales.
-     * @principle Enforces company-level access control for sales.
+     * @allow (get) Owner or Admin can read sale data.
+     * @allow (create) Owner or Admin can create sale data.
+     * @allow (update) Owner or Admin can update sale data.
+     * @allow (delete) Owner or Admin can delete sale data.
+     * @deny (create) Non-owner cannot create sale data.
+     * @deny (update) Non-owner cannot update sale data.
+     * @principle Enforces document ownership for sales.
      */
     match /companies/{companyId}/sales/{saleId} {
-      allow create: if isSignedIn() && isCompanyUser(companyId);
-      allow get: if isSignedIn() && isCompanyUser(companyId);
-      allow update: if isSignedIn() && isExistingCompanyUser(companyId);
-      allow delete: if isSignedIn() && isExistingCompanyUser(companyId);
-      allow list: if isSignedIn() && isCompanyUser(companyId);
+      allow get: if isAdmin() || get(/databases/$(database)/documents/companies/$(companyId)).data.ownerId == request.auth.uid;
+      allow list: if false;
+      allow create: if isAdmin() || get(/databases/$(database)/documents/companies/$(companyId)).data.ownerId == request.auth.uid;
+      allow update: if isAdmin() || get(/databases/$(database)/documents/companies/$(companyId)).data.ownerId == request.auth.uid;
+      allow delete: if isAdmin() || get(/databases/$(database)/documents/companies/$(companyId)).data.ownerId == request.auth.uid;
     }
 
     /**
-     * @description Rules for fees within a company.
+     * @description Security rules for fees under a company.
      * @path /companies/{companyId}/fees/{feeId}
-     * @allow (create) A user associated with the company can create fees.
-     * @allow (get) A user associated with the company can read fees.
-     * @allow (update) A user associated with the company can update fees.
-     * @allow (delete) A user associated with the company can delete fees.
-     * @deny (create) A user not associated with the company cannot create fees.
-     * @deny (get) A user not associated with the company cannot read fees.
-     * @principle Enforces company-level access control for fees.
+     * @allow (get) Owner or Admin can read fee data.
+     * @allow (create) Owner or Admin can create fee data.
+     * @allow (update) Owner or Admin can update fee data.
+     * @allow (delete) Owner or Admin can delete fee data.
+     * @deny (create) Non-owner cannot create fee data.
+     * @deny (update) Non-owner cannot update fee data.
+     * @principle Enforces document ownership for fees.
      */
     match /companies/{companyId}/fees/{feeId} {
-      allow create: if isSignedIn() && isCompanyUser(companyId);
-      allow get: if isSignedIn() && isCompanyUser(companyId);
-      allow update: if isSignedIn() && isExistingCompanyUser(companyId);
-      allow delete: if isSignedIn() && isExistingCompanyUser(companyId);
-      allow list: if isSignedIn() && isCompanyUser(companyId);
+      allow get: if isAdmin() || get(/databases/$(database)/documents/companies/$(companyId)).data.ownerId == request.auth.uid;
+      allow list: if false;
+      allow create: if isAdmin() || get(/databases/$(database)/documents/companies/$(companyId)).data.ownerId == request.auth.uid;
+      allow update: if isAdmin() || get(/databases/$(database)/documents/companies/$(companyId)).data.ownerId == request.auth.uid;
+      allow delete: if isAdmin() || get(/databases/$(database)/documents/companies/$(companyId)).data.ownerId == request.auth.uid;
     }
 
     /**
-     * @description Rules for company-specific economic indicators.
+     * @description Security rules for company-specific economic indicators.
      * @path /companies/{companyId}/economic-indicators/{indicatorId}
-     * @allow (create) A user associated with the company can create company-specific economic indicators.
-     * @allow (get) A user associated with the company can read company-specific economic indicators.
-     * @allow (update) A user associated with the company can update company-specific economic indicators.
-     * @allow (delete) A user associated with the company can delete company-specific economic indicators.
-     * @deny (create) A user not associated with the company cannot create company-specific economic indicators.
-     * @deny (get) A user not associated with the company cannot read company-specific economic indicators.
-     * @principle Enforces company-level access control for economic indicators.
+     * @allow (get) Owner or Admin can read economic indicator data.
+     * @allow (create) Owner or Admin can create economic indicator data.
+     * @allow (update) Owner or Admin can update economic indicator data.
+     * @allow (delete) Owner or Admin can delete economic indicator data.
+     * @deny (create) Non-owner cannot create economic indicator data.
+     * @deny (update) Non-owner cannot update economic indicator data.
+     * @principle Enforces document ownership for economic indicators within a company.
      */
     match /companies/{companyId}/economic-indicators/{indicatorId} {
-      allow create: if isSignedIn() && isCompanyUser(companyId);
-      allow get: if isSignedIn() && isCompanyUser(companyId);
-      allow update: if isSignedIn() && isExistingCompanyUser(companyId);
-      allow delete: if isSignedIn() && isExistingCompanyUser(companyId);
-      allow list: if isSignedIn() && isCompanyUser(companyId);
+      allow get: if isAdmin() || get(/databases/$(database)/documents/companies/$(companyId)).data.ownerId == request.auth.uid;
+      allow list: if false;
+      allow create: if isAdmin() || get(/databases/$(database)/documents/companies/$(companyId)).data.ownerId == request.auth.uid;
+      allow update: if isAdmin() || get(/databases/$(database)/documents/companies/$(companyId)).data.ownerId == request.auth.uid;
+      allow delete: if isAdmin() || get(/databases/$(database)/documents/companies/$(companyId)).data.ownerId == request.auth.uid;
     }
 
-    /**
-     * @description Rules for user-specific account groups.
+     /**
+     * @description Security rules for account groups under a user.
      * @path /users/{userId}/account-groups/{groupId}
-     * @allow (create) The owner can create account groups.
-     * @allow (get) The owner can read account groups.
-     * @allow (update) The owner can update account groups.
-     * @allow (delete) The owner can delete account groups.
-     * @deny (create) Other users cannot create account groups for this user.
-     * @deny (get) Other users cannot read account groups for this user.
-     * @principle Enforces user-ownership for account groups.
+     * @allow (get) Owner can read account group data.
+     * @allow (create) Owner can create account group data.
+     * @allow (update) Owner can update account group data.
+     * @allow (delete) Owner can delete account group data.
+     * @deny (create) Non-owner cannot create account group data.
+     * @deny (update) Non-owner cannot update account group data.
+     * @principle Enforces document ownership for account groups.
      */
     match /users/{userId}/account-groups/{groupId} {
-      allow create: if isSignedIn() && isOwner(userId);
-      allow get: if isSignedIn() && isOwner(userId);
-      allow update: if isSignedIn() && isOwner(userId) && resource != null;
-      allow delete: if isSignedIn() && isOwner(userId) && resource != null;
-      allow list: if isSignedIn() && isOwner(userId);
+      allow get: if isOwner(userId);
+      allow list: if isOwner(userId);
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId);
+      allow delete: if isOwner(userId);
     }
 
     /**
-     * @description Rules for global economic indicators.
+     * @description Security rules for global economic indicators.
      * @path /economic-indicators/{indicatorId}
-     * @allow (get) Anyone can read economic indicators.
-     * @allow (list) Anyone can list economic indicators.
-     * // TODO: Add owner validation once the schema is updated with an ownership field.
+     * @allow (get) Public read access for all users.
+     * @allow (create) Admin-only access for creation.
+     * @allow (update) Admin-only access for updates.
+     * @allow (delete) Admin-only access for deletion.
+     * @principle Public read, admin-only write for global parameters.
      */
     match /economic-indicators/{indicatorId} {
-      allow get, list: if true;
-      allow create, update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow get: if true;
+      allow list: if true;
+      allow create: if isAdmin();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
     }
 
     /**
-     * @description Rules for global health entities.
+     * @description Security rules for global health entities.
      * @path /health-entities/{entityId}
-     * @allow (get) Anyone can read health entities.
-     * @allow (list) Anyone can list health entities.
-     * // TODO: Add owner validation once the schema is updated with an ownership field.
+     * @allow (get) Public read access for all users.
+     * @allow (create) Admin-only access for creation.
+     * @allow (update) Admin-only access for updates.
+     * @allow (delete) Admin-only access for deletion.
+     * @principle Public read, admin-only write for global parameters.
      */
     match /health-entities/{entityId} {
-      allow get, list: if true;
-      allow create, update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow get: if true;
+      allow list: if true;
+      allow create: if isAdmin();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
     }
 
     /**
-     * @description Rules for global AFP entities.
+     * @description Security rules for global AFP entities.
      * @path /afp-entities/{entityId}
-     * @allow (get) Anyone can read AFP entities.
-     * @allow (list) Anyone can list AFP entities.
-     * // TODO: Add owner validation once the schema is updated with an ownership field.
+     * @allow (get) Public read access for all users.
+     * @allow (create) Admin-only access for creation.
+     * @allow (update) Admin-only access for updates.
+     * @allow (delete) Admin-only access for deletion.
+     * @principle Public read, admin-only write for global parameters.
      */
     match /afp-entities/{entityId} {
-      allow get, list: if true;
-       allow create, update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow get: if true;
+      allow list: if true;
+      allow create: if isAdmin();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
     }
 
     /**
-     * @description Rules for global family allowance parameters.
+     * @description Security rules for global family allowance parameters.
      * @path /family-allowance-parameters/{paramId}
-     * @allow (get) Anyone can read family allowance parameters.
-     * @allow (list) Anyone can list family allowance parameters.
-     * // TODO: Add owner validation once the schema is updated with an ownership field.
+     * @allow (get) Public read access for all users.
+     * @allow (create) Admin-only access for creation.
+     * @allow (update) Admin-only access for updates.
+     * @allow (delete) Admin-only access for deletion.
+     * @principle Public read, admin-only write for global parameters.
      */
     match /family-allowance-parameters/{paramId} {
-      allow get, list: if true;
-      allow create, update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow get: if true;
+      allow list: if true;
+      allow create: if isAdmin();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
     }
 
     /**
-     * @description Rules for global tax parameters.
+     * @description Security rules for global tax parameters.
      * @path /tax-parameters/{paramId}
-     * @allow (get) Anyone can read tax parameters.
-     * @allow (list) Anyone can list tax parameters.
-     * // TODO: Add owner validation once the schema is updated with an ownership field.
+     * @allow (get) Public read access for all users.
+     * @allow (create) Admin-only access for creation.
+     * @allow (update) Admin-only access for updates.
+     * @allow (delete) Admin-only access for deletion.
+     * @principle Public read, admin-only write for global parameters.
      */
     match /tax-parameters/{paramId} {
-      allow get, list: if true;
-       allow create, update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow get: if true;
+      allow list: if true;
+      allow create: if isAdmin();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
     }
 
-    /**
-     * @description Rules for global taxable caps.
+      /**
+     * @description Security rules for global taxable caps.
      * @path /taxable-caps/{capId}
-     * @allow (get) Anyone can read taxable caps.
-     * @allow (list) Anyone can list taxable caps.
-     * // TODO: Add owner validation once the schema is updated with an ownership field.
+     * @allow (get) Public read access for all users.
+     * @allow (create) Admin-only access for creation.
+     * @allow (update) Admin-only access for updates.
+     * @allow (delete) Admin-only access for deletion.
+     * @principle Public read, admin-only write for global parameters.
      */
     match /taxable-caps/{capId} {
-      allow get, list: if true;
-      allow create, update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow get: if true;
+      allow list: if true;
+      allow create: if isAdmin();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
     }
   }
 }
