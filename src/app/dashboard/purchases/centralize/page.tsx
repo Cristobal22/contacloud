@@ -12,7 +12,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { useCollection, useFirestore } from "@/firebase"
 import { collection, addDoc, writeBatch, doc, Timestamp, getDocs, query, where } from "firebase/firestore"
-import type { Purchase, Account, VoucherEntry } from "@/lib/types";
+import type { Purchase, Account, VoucherEntry, Subject } from "@/lib/types";
 import { errorEmitter } from '@/firebase/error-emitter'
 import { FirestorePermissionError } from '@/firebase/errors'
 import { SelectedCompanyContext } from "../../layout";
@@ -52,9 +52,13 @@ export default function CentralizePurchasesPage() {
         path: companyId ? `companies/${companyId}/accounts` : undefined,
     });
 
+    const { data: existingSubjects, loading: subjectsLoading } = useCollection<Subject>({
+        path: companyId ? `companies/${companyId}/subjects` : undefined,
+    });
+
     const [isProcessing, setIsProcessing] = React.useState(false);
 
-    const loading = purchasesLoading || accountsLoading;
+    const loading = purchasesLoading || accountsLoading || subjectsLoading;
     
     const {
         summary,
@@ -134,13 +138,39 @@ export default function CentralizePurchasesPage() {
     }, [allPurchases, accounts, selectedCompany]);
 
     const handleCentralize = async () => {
-        if (!firestore || !companyId || !selectedCompany || !purchasesToProcess || !isValid) {
+        if (!firestore || !companyId || !selectedCompany || !purchasesToProcess || !isValid || !existingSubjects) {
             toast({ variant: 'destructive', title: 'Error de validación', description: 'No se puede centralizar. Revisa que todo esté correcto.' });
             return;
         }
 
         setIsProcessing(true);
 
+        const batch = writeBatch(firestore);
+
+        // --- 1. Auto-create Subjects ---
+        const existingSubjectRuts = new Set(existingSubjects.map(s => s.rut));
+        const newSuppliers = new Map<string, { rut: string; name: string }>();
+        purchasesToProcess.forEach(p => {
+            if (p.supplierRut && !existingSubjectRuts.has(p.supplierRut) && !newSuppliers.has(p.supplierRut)) {
+                newSuppliers.set(p.supplierRut, { rut: p.supplierRut, name: p.supplier });
+            }
+        });
+
+        if (newSuppliers.size > 0) {
+            const subjectsCollectionRef = collection(firestore, `companies/${companyId}/subjects`);
+            newSuppliers.forEach(supplier => {
+                const newSubjectRef = doc(subjectsCollectionRef);
+                batch.set(newSubjectRef, {
+                    name: supplier.name,
+                    rut: supplier.rut,
+                    type: 'Proveedor',
+                    status: 'Active',
+                    companyId: companyId,
+                });
+            });
+        }
+        
+        // --- 2. Create Voucher ---
         const periodDate = selectedCompany.periodStartDate ? parseISO(selectedCompany.periodStartDate) : new Date();
         const lastDay = lastDayOfMonth(periodDate);
         const monthName = format(periodDate, 'MMMM', { locale: es });
@@ -211,10 +241,10 @@ export default function CentralizePurchasesPage() {
             createdAt: Timestamp.now(),
         };
 
-        const batch = writeBatch(firestore);
         const newVoucherRef = doc(collection(firestore, `companies/${companyId}/vouchers`));
         batch.set(newVoucherRef, voucherData);
 
+        // --- 3. Update Purchases ---
         purchasesToProcess.forEach(purchase => {
             const purchaseRef = doc(firestore, `companies/${companyId}/purchases`, purchase.id);
             batch.update(purchaseRef, { status: 'Contabilizado', voucherId: newVoucherRef.id });
@@ -222,9 +252,14 @@ export default function CentralizePurchasesPage() {
         
         try {
             await batch.commit();
+            let toastDescription = 'El comprobante ha sido generado y las compras actualizadas.';
+            if (newSuppliers.size > 0) {
+                toastDescription += ` Se crearon ${newSuppliers.size} nuevos proveedores.`;
+            }
+
             toast({
                 title: 'Centralización Exitosa',
-                description: 'El comprobante ha sido generado y las compras actualizadas.'
+                description: toastDescription,
             });
             router.push('/dashboard/vouchers');
         } catch (error) {
