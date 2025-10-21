@@ -377,26 +377,26 @@ export const initialTaxParameters: Omit<TaxParameter, 'id'>[] = [
 
 export const initialEconomicIndicators: Omit<EconomicIndicator, 'id' | 'uta' | 'gratificationCap'>[] = [
     // 2023
-    { year: 2023, month: 1, uf: 35111.96, utm: 62450, minWage: 410000 },
-    { year: 2023, month: 2, uf: 35454.99, utm: 62746, minWage: 410000 },
-    { year: 2023, month: 3, uf: 35892.75, utm: 63197, minWage: 410000 },
-    { year: 2023, month: 4, uf: 36096.48, utm: 63565, minWage: 410000 },
-    { year: 2023, month: 5, uf: 36198.63, utm: 63791, minWage: 440000 },
-    { year: 2023, month: 6, uf: 36377.21, utm: 64179, minWage: 440000 },
-    { year: 2023, month: 7, uf: 36579.90, utm: 64664, minWage: 440000 },
-    { year: 2023, month: 8, uf: 36786.91, utm: 64793, minWage: 440000 },
-    { year: 2023, month: 9, uf: 36883.82, utm: 64793, minWage: 460000 },
-    { year: 2023, month: 10, uf: 36890.73, utm: 65048, minWage: 460000 },
-    { year: 2023, month: 11, uf: 36940.93, utm: 65454, minWage: 460000 },
-    { year: 2023, month: 12, uf: 37009.47, utm: 65918, minWage: 460000 },
+    { year: 2023, month: 1, uf: 35111.96, utm: 61769, minWage: 410000 },
+    { year: 2023, month: 2, uf: 35277.83, utm: 61955, minWage: 410000 },
+    { year: 2023, month: 3, uf: 35499.78, utm: 62450, minWage: 410000 },
+    { year: 2023, month: 4, uf: 35688.19, utm: 62746, minWage: 410000 },
+    { year: 2023, month: 5, uf: 35836.56, utm: 63059, minWage: 440000 },
+    { year: 2023, month: 6, uf: 35948.30, utm: 63199, minWage: 440000 },
+    { year: 2023, month: 7, uf: 36041.51, utm: 63263, minWage: 440000 },
+    { year: 2023, month: 8, uf: 36173.23, utm: 63452, minWage: 440000 },
+    { year: 2023, month: 9, uf: 36294.13, utm: 63515, minWage: 460000 },
+    { year: 2023, month: 10, uf: 36471.60, utm: 63960, minWage: 460000 },
+    { year: 2023, month: 11, uf: 36622.18, utm: 64115, minWage: 460000 },
+    { year: 2023, month: 12, uf: 36768.91, utm: 64343, minWage: 460000 },
     // 2024
-    { year: 2024, month: 1, uf: 37033.48, utm: 64666, minWage: 460000 },
-    { year: 2024, month: 2, uf: 37072.1, utm: 64793, minWage: 460000 },
-    { year: 2024, month: 3, uf: 37248.06, utm: 65182, minWage: 460000 },
-    { year: 2024, month: 4, uf: 37338.45, utm: 65443, minWage: 460000 },
-    { year: 2024, month: 5, uf: 37476.53, utm: 65770, minWage: 460000 },
+    { year: 2024, month: 1, uf: 36904.91, utm: 64666, minWage: 460000 },
+    { year: 2024, month: 2, uf: 37042.82, utm: 64793, minWage: 460000 },
+    { year: 2024, month: 3, uf: 37166.90, utm: 65182, minWage: 460000 },
+    { year: 2024, month: 4, uf: 37302.35, utm: 65443, minWage: 460000 },
+    { year: 2024, month: 5, uf: 37402.04, utm: 65770, minWage: 460000 },
     { year: 2024, month: 6, uf: 37482.52, utm: 65770, minWage: 460000 },
-    { year: 2024, month: 7, uf: 37510.99, utm: 66395, minWage: 500000 },
+    { year: 2024, month: 7, uf: 37470.61, utm: 66395, minWage: 500000 },
     { year: 2024, month: 8, uf: 37540.0, utm: 66900, minWage: 500000 },
     { year: 2024, month: 9, uf: 37570.0, utm: 67142, minWage: 500000 },
     { year: 2024, month: 10, uf: 37600.0, utm: 67142, minWage: 500000 },
@@ -422,3 +422,6 @@ export const initialTaxableCaps: Omit<TaxableCap, 'id'>[] = [
     { year: 2024, afpCap: 84.3, afcCap: 126.6 },
     { year: 2025, afpCap: 87.8, afcCap: 131.8 },
 ];
+
+
+    
