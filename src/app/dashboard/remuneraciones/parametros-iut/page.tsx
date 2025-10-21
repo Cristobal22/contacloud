@@ -1,6 +1,7 @@
 
 'use client';
 
+import React from 'react';
 import {
     Table,
     TableBody,
@@ -17,7 +18,6 @@ import {
     CardTitle,
 } from "@/components/ui/card"
 import type { TaxParameter } from "@/lib/types"
-import React from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { format } from "date-fns";
@@ -25,29 +25,67 @@ import { es } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import { Eye } from "lucide-react";
 import { initialTaxParameters } from "@/lib/seed-data";
+import { useCollection, useFirestore, useUser } from '@/firebase';
+import { useUserProfile } from '@/firebase/auth/use-user-profile';
+import { useToast } from '@/hooks/use-toast';
+import { writeBatch, doc, collection } from 'firebase/firestore';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 
 export default function ParametrosIUTPage() {
+    const { data: taxParameters, loading } = useCollection<TaxParameter>({ path: 'tax-parameters' });
+    const { user } = useUser();
+    const { userProfile } = useUserProfile(user?.uid);
+    const firestore = useFirestore();
+    const { toast } = useToast();
     const currentYear = new Date().getFullYear();
     const currentMonth = new Date().getMonth() + 1;
 
     const [year, setYear] = React.useState(currentYear);
     const [month, setMonth] = React.useState(currentMonth);
+    const [isProcessing, setIsProcessing] = React.useState(false);
+    
+    const tablaIUT = React.useMemo(() => {
+        return taxParameters?.filter(p => p.year === year && p.month === month) || [];
+    }, [taxParameters, year, month]);
 
-    const [tablaIUT, setTablaIUT] = React.useState<TaxParameter[]>([]);
-    const [loading, setLoading] = React.useState(false);
+    const handleLoadDefaults = async () => {
+        if (!firestore || !userProfile || userProfile.role !== 'Admin') {
+            toast({ variant: 'destructive', title: 'Permiso denegado' });
+            return;
+        }
 
-    const handleViewPeriod = () => {
-        setLoading(true);
-        const filteredData = initialTaxParameters.filter(p => p.year === year && p.month === month) as TaxParameter[];
-        setTablaIUT(filteredData);
-        setLoading(false);
+        setIsProcessing(true);
+        const batch = writeBatch(firestore);
+        const collectionRef = collection(firestore, 'tax-parameters');
+        
+        const paramsToLoad = initialTaxParameters.filter(p => p.year === year && p.month === month);
+
+        if (paramsToLoad.length === 0) {
+            toast({ variant: 'destructive', title: 'Sin Datos', description: 'No hay parámetros predeterminados para este período.' });
+            setIsProcessing(false);
+            return;
+        }
+
+        paramsToLoad.forEach(paramData => {
+            const id = `${paramData.year}-${paramData.month}-${paramData.desde}`;
+            const docRef = doc(collectionRef, id);
+            batch.set(docRef, { ...paramData, id }, { merge: true });
+        });
+
+        try {
+            await batch.commit();
+            toast({ title: 'Parámetros Cargados', description: `Se cargaron ${paramsToLoad.length} tramos de IUT para ${month}/${year}.`});
+        } catch (error) {
+             errorEmitter.emit('permission-error', new FirestorePermissionError({
+                path: 'tax-parameters',
+                operation: 'create',
+            }));
+        } finally {
+            setIsProcessing(false);
+        }
     };
 
-    // Load initial data on first render
-    React.useEffect(() => {
-        handleViewPeriod();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
 
     const calculateEffectiveRate = (desde: number, hasta: number, factor: number, rebaja: number) => {
         if (hasta === Infinity || hasta === 0 || factor === 0) return 'Exento';
@@ -57,7 +95,6 @@ export default function ParametrosIUTPage() {
     
     const availableYears = React.useMemo(() => {
         const yearsFromData = [...new Set(initialTaxParameters.map(p => p.year))];
-        // Add a few future years for selection flexibility
         const futureYears = Array.from({length: 3}, (_, i) => currentYear + 1 + i);
         return [...new Set([...yearsFromData, ...futureYears])].sort((a,b) => b - a);
     }, [currentYear]);
@@ -69,8 +106,13 @@ export default function ParametrosIUTPage() {
                     <div className="flex flex-col sm:flex-row items-start justify-between gap-4">
                         <div>
                             <CardTitle>Parámetros del Impuesto Único de Segunda Categoría (IUT)</CardTitle>
-                            <CardDescription>Tabla para el cálculo del impuesto único al trabajo dependiente. Estos valores son globales y fijos.</CardDescription>
+                            <CardDescription>Tabla para el cálculo del impuesto único al trabajo dependiente.</CardDescription>
                         </div>
+                        {userProfile?.role === 'Admin' && (
+                            <Button onClick={handleLoadDefaults} disabled={isProcessing}>
+                                {isProcessing ? 'Cargando...' : 'Cargar Parámetros Predeterminados'}
+                            </Button>
+                        )}
                     </div>
                     <div className="flex items-end gap-4 pt-4">
                         <div className="space-y-2">
@@ -103,7 +145,6 @@ export default function ParametrosIUTPage() {
                                 </SelectContent>
                             </Select>
                         </div>
-                        <Button onClick={handleViewPeriod}><Eye className="mr-2 h-4 w-4" /> Ver Período</Button>
                     </div>
                 </CardHeader>
                 <CardContent>

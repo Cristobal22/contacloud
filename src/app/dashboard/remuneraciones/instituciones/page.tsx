@@ -16,14 +16,16 @@ import {
     CardHeader,
     CardTitle,
 } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { PlusCircle } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { useCollection } from "@/firebase"
-import type { Institution } from "@/lib/types"
+import type { AfpEntity, HealthEntity } from "@/lib/types"
 
 export default function InstitucionesPage() {
-    const { data: institutions, loading } = useCollection<Institution>({ path: 'institutions' });
+    const { data: afpEntities, loading: afpLoading } = useCollection<AfpEntity>({ path: 'afp-entities' });
+    const { data: healthEntities, loading: healthLoading } = useCollection<HealthEntity>({ path: 'health-entities' });
+
+    const loading = afpLoading || healthLoading;
+    const institutions = [...(afpEntities || []), ...(healthEntities || [])];
 
     return (
         <>
@@ -32,7 +34,7 @@ export default function InstitucionesPage() {
                     <div className="flex items-center justify-between">
                         <div>
                             <CardTitle>Instituciones Previsionales y de Salud</CardTitle>
-                            <CardDescription>Gestiona las instituciones para el cálculo de remuneraciones.</CardDescription>
+                            <CardDescription>Visualiza las instituciones cargadas en el sistema.</CardDescription>
                         </div>
                     </div>
                 </CardHeader>
@@ -42,23 +44,25 @@ export default function InstitucionesPage() {
                             <TableRow>
                                 <TableHead>Nombre</TableHead>
                                 <TableHead>Tipo</TableHead>
+                                <TableHead>Período</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
                             {loading && (
                                 <TableRow>
-                                    <TableCell colSpan={2} className="text-center">Cargando...</TableCell>
+                                    <TableCell colSpan={3} className="text-center">Cargando...</TableCell>
                                 </TableRow>
                             )}
                             {!loading && institutions?.map((inst) => (
                                 <TableRow key={inst.id}>
                                     <TableCell className="font-medium">{inst.name}</TableCell>
-                                    <TableCell><Badge variant="secondary">{inst.type}</Badge></TableCell>
+                                    <TableCell><Badge variant="secondary">{'mandatoryContribution' in inst ? (inst.name === 'FONASA' ? 'Salud' : 'AFP') : 'Salud'}</Badge></TableCell>
+                                    <TableCell>{inst.year}-{inst.month}</TableCell>
                                 </TableRow>
                             ))}
                              {!loading && institutions?.length === 0 && (
                                 <TableRow>
-                                    <TableCell colSpan={2} className="text-center">
+                                    <TableCell colSpan={3} className="text-center">
                                         No se encontraron instituciones. Un administrador debe poblarlas.
                                     </TableCell>
                                 </TableRow>

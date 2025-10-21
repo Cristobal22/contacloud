@@ -217,14 +217,10 @@ export type Payroll = {
 };
 
 
-export type Institution = {
-    id: string;
-    name: string;
-    type: 'AFP' | 'Salud' | 'Mutual' | 'Caja de Compensación';
-};
-
 export type FamilyAllowanceParameter = {
     id: string;
+    year: number;
+    month: number;
     tramo: string;
     desde: number;
     hasta: number;
@@ -244,7 +240,8 @@ export type TaxParameter = {
 
 export type HealthEntity = {
     id: string;
-    code: string;
+    year: number;
+    month: number;
     name: string;
     mandatoryContribution: number;
     previredCode: string;
@@ -253,7 +250,8 @@ export type HealthEntity = {
 
 export type AfpEntity = {
     id: string;
-    code: string;
+    year: number;
+    month: number;
     name: string;
     mandatoryContribution: number;
     previredCode: string;

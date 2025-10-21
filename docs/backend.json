@@ -209,7 +209,10 @@
                 "totalEarnings": { "type": "number" },
                 "afpDiscount": { "type": "number" },
                 "healthDiscount": { "type": "number" },
+                "unemploymentInsuranceDiscount": { "type": "number" },
                 "iut": { "type": "number", "description": "Impuesto Único a los Trabajadores" },
+                "iutFactor": { "type": "number" },
+                "iutRebajaInCLP": { "type": "number" },
                 "otherDiscounts": { "type": "number" },
                 "totalDiscounts": { "type": "number" },
                 "netSalary": { "type": "number" },
@@ -227,29 +230,20 @@
             },
             "required": ["id", "name"]
         },
-        "Institution": {
-            "title": "Institution",
-            "description": "Represents pension and health institutions for payroll calculations.",
-            "type": "object",
-            "properties": {
-                "id": { "type": "string" },
-                "name": { "type": "string" },
-                "type": { "type": "string", "enum": ["AFP", "Salud", "Mutual", "Caja de Compensación"] }
-            },
-            "required": ["id", "name", "type"]
-        },
         "FamilyAllowanceParameter": {
             "title": "FamilyAllowanceParameter",
             "description": "Parameters for calculating family allowance.",
             "type": "object",
             "properties": {
                 "id": { "type": "string" },
+                "year": { "type": "number" },
+                "month": { "type": "number" },
                 "tramo": { "type": "string" },
                 "desde": { "type": "number" },
                 "hasta": { "type": "number" },
                 "monto": { "type": "number" }
             },
-            "required": ["id", "tramo", "desde", "hasta", "monto"]
+            "required": ["id", "tramo", "desde", "hasta", "monto", "year", "month"]
         },
         "TaxParameter": {
             "title": "TaxParameter",
@@ -273,13 +267,14 @@
             "type": "object",
             "properties": {
                 "id": { "type": "string" },
-                "code": { "type": "string" },
+                "year": { "type": "number" },
+                "month": { "type": "number" },
                 "name": { "type": "string" },
                 "mandatoryContribution": { "type": "number" },
                 "previredCode": { "type": "string" },
                 "dtCode": { "type": "string" }
             },
-            "required": ["id", "code", "name", "mandatoryContribution", "previredCode", "dtCode"]
+            "required": ["id", "name", "mandatoryContribution", "previredCode", "dtCode", "year", "month"]
         },
         "AfpEntity": {
             "title": "AfpEntity",
@@ -287,14 +282,15 @@
             "type": "object",
             "properties": {
                 "id": { "type": "string" },
-                "code": { "type": "string" },
+                "year": { "type": "number" },
+                "month": { "type": "number" },
                 "name": { "type": "string" },
                 "mandatoryContribution": { "type": "number" },
                 "previredCode": { "type": "string" },
                 "provisionalRegime": { "type": "string" },
                 "dtCode": { "type": "string" }
             },
-            "required": ["id", "code", "name", "mandatoryContribution", "previredCode", "provisionalRegime", "dtCode"]
+            "required": ["id", "name", "mandatoryContribution", "previredCode", "provisionalRegime", "dtCode", "year", "month"]
         },
         "Purchase": {
             "title": "Purchase",
@@ -307,12 +303,14 @@
                 "documentNumber": { "type": "string" },
                 "supplierRut": { "type": "string" },
                 "supplier": { "type": "string" },
+                "exemptAmount": { "type": "number" },
                 "netAmount": { "type": "number" },
                 "taxAmount": { "type": "number" },
                 "total": { "type": "number" },
-                "status": { "type": "string", "enum": ["Pendiente", "Contabilizado", "Anulado"] },
+                "status": { "type": "string", "enum": ["Pendiente", "Contabilizado", "Pagado"] },
                 "assignedAccount": { "type": "string", "description": "Cuenta de gasto/activo asignada para el neto." },
                 "voucherId": { "type": "string", "description": "ID del comprobante de centralización." },
+                "paymentVoucherId": { "type": "string", "description": "ID del comprobante de pago." },
                 "companyId": { "type": "string" }
             },
             "required": ["id", "date", "documentNumber", "supplier", "total", "status", "companyId"]
@@ -326,9 +324,13 @@
                 "date": { "type": "string", "format": "date" },
                 "documentNumber": { "type": "string" },
                 "customer": { "type": "string" },
+                "exemptAmount": { "type": "number" },
+                "netAmount": { "type": "number" },
                 "total": { "type": "number" },
-                "status": { "type": "string", "enum": ["Pendiente", "Pagada", "Vencida"] },
-                "companyId": { "type": "string" }
+                "status": { "type": "string", "enum": ["Pendiente", "Contabilizado", "Cobrado"] },
+                "companyId": { "type": "string" },
+                "voucherId": { "type": "string" },
+                "collectionVoucherId": { "type": "string" }
             },
             "required": ["id", "date", "documentNumber", "customer", "total", "status", "companyId"]
         },
@@ -436,10 +438,6 @@
         "/tax-parameters/{paramId}": {
             "schema": { "$ref": "#/entities/TaxParameter" },
             "description": "Global collection of tax parameters for IUT."
-        },
-        "/institutions/{institutionId}": {
-            "schema": { "$ref": "#/entities/Institution" },
-            "description": "Global collection of pension and health institutions."
         }
     },
     "auth": {
