@@ -22,7 +22,7 @@ import {
   import { Button, buttonVariants } from "@/components/ui/button"
   import { Eye, MoreHorizontal, Trash2 } from "lucide-react"
   import { useCollection, useFirestore, useUser } from '@/firebase';
-  import type { Employee, AfpEntity, HealthEntity, Payroll, EconomicIndicator, TaxParameter } from '@/lib/types';
+  import type { Employee, AfpEntity, HealthEntity, Payroll, EconomicIndicator, TaxParameter, TaxableCap } from '@/lib/types';
 import { SelectedCompanyContext } from '../layout';
 import { PayrollDetailDialog } from '@/components/payroll-detail-dialog';
 import { Label } from '@/components/ui/label';
@@ -50,6 +50,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { es } from 'date-fns/locale';
 import { format, parseISO } from 'date-fns';
+import { initialTaxParameters } from '@/lib/seed-data';
 
 export default function PayrollPage() {
     const { selectedCompany } = React.useContext(SelectedCompanyContext) || {};
@@ -94,12 +95,12 @@ export default function PayrollPage() {
 
     const { data: globalIndicators, loading: globalIndicatorsLoading } = useCollection<EconomicIndicator>({ path: 'economic-indicators' });
     const { data: companyIndicators, loading: companyIndicatorsLoading } = useCollection<EconomicIndicator>({ path: companyId ? `companies/${companyId}/economic-indicators` : undefined });
-    const { data: taxParameters, loading: taxParametersLoading } = useCollection<TaxParameter>({ path: 'tax-parameters' });
+    const { data: taxableCaps, loading: capsLoading } = useCollection<TaxableCap>({ path: 'taxable-caps' });
 
-    const loading = employeesLoading || afpLoading || healthLoading || payrollsLoading || globalIndicatorsLoading || companyIndicatorsLoading || taxParametersLoading;
+    const loading = employeesLoading || afpLoading || healthLoading || payrollsLoading || globalIndicatorsLoading || companyIndicatorsLoading || capsLoading;
     
     const handleProcessPayrolls = async () => {
-        if (!employees || !afpEntities || !healthEntities || !companyId || !firestore || !selectedCompany || !taxParameters) {
+        if (!employees || !afpEntities || !healthEntities || !companyId || !firestore || !selectedCompany || !taxableCaps) {
             toast({ variant: 'destructive', title: 'Faltan datos', description: 'No se pueden procesar las liquidaciones sin empleados o parámetros económicos/tributarios.'});
             return;
         }
@@ -122,15 +123,23 @@ export default function PayrollPage() {
         const globalIndicator = globalIndicators?.find(i => i.id === periodIndicatorId);
         const periodIndicator = companyIndicator || globalIndicator;
         
-        if (!periodIndicator?.minWage || !periodIndicator?.utm) {
-            toast({ variant: 'destructive', title: 'Faltan Parámetros', description: `No se encontraron los parámetros económicos (sueldo mínimo, UTM) para ${month}/${year}.`});
+        if (!periodIndicator?.minWage || !periodIndicator?.utm || !periodIndicator?.uf) {
+            toast({ variant: 'destructive', title: 'Faltan Parámetros', description: `No se encontraron los parámetros económicos (sueldo mínimo, UTM, UF) para ${month}/${year}.`});
+            setIsProcessing(false);
+            return;
+        }
+
+        const currentTaxableCaps = taxableCaps.find(c => c.year === year);
+        if (!currentTaxableCaps) {
+             toast({ variant: 'destructive', title: 'Faltan Topes Imponibles', description: `No se encontraron los topes imponibles para el año ${year}.`});
             setIsProcessing(false);
             return;
         }
         
         const GRATIFICATION_CAP_MONTHLY = Math.round((4.75 * periodIndicator.minWage) / 12);
         const period = format(new Date(year, month - 1), 'MMMM yyyy', { locale: es });
-        const afpMap = new Map(afpEntities.map(afp => [afp.name, afp.mandatoryContribution]));
+        const afpMap = new Map(afpEntities.filter(e => e.year === year && e.month === month).map(afp => [afp.name, afp.mandatoryContribution]));
+        const utmValue = periodIndicator.utm;
 
         const batch = writeBatch(firestore);
 
@@ -149,6 +158,9 @@ export default function PayrollPage() {
                 gratification = Math.min(calculatedGratification, GRATIFICATION_CAP_MONTHLY);
             }
 
+            const taxableIncomeAFP = Math.min(baseSalary + gratification, currentTaxableCaps.afpCap * periodIndicator.uf!);
+            const taxableIncomeAFC = Math.min(baseSalary + gratification, currentTaxableCaps.afcCap * periodIndicator.uf!);
+
             const taxableEarnings = baseSalary + gratification;
             const nonTaxableEarnings = (emp.mobilization || 0) + (emp.collation || 0);
             const totalEarnings = taxableEarnings + nonTaxableEarnings;
@@ -156,30 +168,32 @@ export default function PayrollPage() {
             const afpPercentage = emp.afp ? (afpMap.get(emp.afp) || 10) / 100 : 0;
             let healthDiscount = 0;
             if (emp.healthSystem === 'Fonasa') {
-                healthDiscount = taxableEarnings * 0.07;
+                healthDiscount = taxableIncomeAFP * 0.07;
             } else if (emp.healthContributionType === 'Porcentaje') {
-                healthDiscount = taxableEarnings * ((emp.healthContributionValue || 7) / 100);
+                healthDiscount = taxableIncomeAFP * ((emp.healthContributionValue || 7) / 100);
             } else { 
                 healthDiscount = (emp.healthContributionValue || 0) * (periodIndicator.uf || 37000); 
             }
             
-            const afpDiscount = taxableEarnings * afpPercentage;
+            const afpDiscount = taxableIncomeAFP * afpPercentage;
 
             let unemploymentInsuranceDiscount = 0;
             if (emp.hasUnemploymentInsurance && emp.unemploymentInsuranceType === 'Indefinido') {
-                unemploymentInsuranceDiscount = taxableEarnings * 0.006;
+                unemploymentInsuranceDiscount = taxableIncomeAFC * 0.006;
             }
             
-            const taxBase = taxableEarnings - afpDiscount - healthDiscount - unemploymentInsuranceDiscount;
-            const taxBracket = taxParameters.find(t => taxBase > t.desde && taxBase <= t.hasta && t.year === year && t.month === month);
+            const taxBaseCLP = taxableEarnings - afpDiscount - healthDiscount - unemploymentInsuranceDiscount;
+            const taxBaseUTM = taxBaseCLP / utmValue;
+            
+            const taxBracket = initialTaxParameters.find(t => taxBaseUTM > t.desdeUTM && taxBaseUTM <= t.hastaUTM);
 
             let iut = 0;
             let iutFactor = 0;
             let iutRebajaInCLP = 0;
             if (taxBracket) {
                 iutFactor = taxBracket.factor;
-                iutRebajaInCLP = taxBracket.rebaja;
-                iut = (taxBase * iutFactor) - iutRebajaInCLP;
+                iutRebajaInCLP = taxBracket.rebajaUTM * utmValue;
+                iut = (taxBaseCLP * iutFactor) - iutRebajaInCLP;
                 if (iut < 0) iut = 0;
             }
 
