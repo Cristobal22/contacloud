@@ -1,333 +1,381 @@
 /**
- * @file Firestore Security Rules
- * @description This ruleset enforces a hybrid security model:
- *   - User profiles are private and only accessible to the owning user.
- *   - Company data and associated subcollections are secured to users who are associated with that company via the user's `companyIds` array.
- *   - Global parameter collections (economic indicators, tax parameters, etc.) are publicly readable but only writable by an 'Admin' role (not yet implemented).
- *   - Data shape validation is relaxed to allow for rapid prototyping, focusing on authorization.
+ * @fileoverview Firestore Security Rules for the accounting platform.
+ *
+ * Core Philosophy:
+ * This ruleset enforces a multi-tenant security model. Users can only access data
+ * related to their own user profile, or data associated with companies they
+ * are authorized to access. Some collections are globally available,
+ * such as economic indicators and tax parameters.
  *
  * Data Structure:
- *   - /users/{userId}: User profile data, owned by the user with matching UID.
- *   - /companies/{companyId}: Company data. Access is granted to users who have the companyId in their user profile's `companyIds` array.
- *   - /companies/{companyId}/*: Subcollections of companies are secured by checking the parent company's access.
- *   - /economic-indicators/{indicatorId}, /tax-parameters/{paramId}, etc.: Global, publicly readable parameter data.
+ * - /users/{userId}: User profiles, accessible only by the user themselves.
+ * - /companies/{companyId}: Companies, owned by a specific user.
+ * - /companies/{companyId}/*: Subcollections related to companies (accounts, vouchers, etc.),
+ *   accessible only by users associated with that company.
+ * - /economic-indicators/{indicatorId}: Globally available economic indicators.
+ * - /health-entities/{entityId}: Globally available health entities.
+ * - /afp-entities/{entityId}: Globally available AFP entities.
+ * - /family-allowance-parameters/{paramId}: Globally available family allowance parameters.
+ * - /tax-parameters/{paramId}: Globally available tax parameters.
  *
  * Key Security Decisions:
- *   - User listing is disallowed.
- *   - Parameter data is publicly readable to facilitate client-side calculations.
- *   - Default security posture: Strict access control. Explicitly allow what is needed, deny everything else.
+ * - Users can only read and write their own profile data.
+ * - Company data can only be accessed by users associated with the company (via `companyIds` in the user profile).
+ * - Global collections (economic indicators, tax parameters) are publicly readable.
+ * - User listing is disallowed.
  *
  * Denormalization for Authorization:
- *   - User profiles contain a `companyIds` array, which is used to quickly determine which companies a user has access to. This avoids the need for complex queries or additional reads.
+ * - User's `companyIds` are used to quickly authorize access to company-related data.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Checks if the request is authenticated.
+     * @description Checks if the user is signed in.
      */
     function isSignedIn() {
       return request.auth != null;
     }
 
     /**
-     * @description Checks if the authenticated user's UID matches the provided userId.
-     * @param {string} userId - The user ID to compare against the authenticated user's UID.
-     * @returns {boolean} True if the UIDs match, false otherwise.
+     * @description Checks if the authenticated user's ID matches the provided user ID.
      */
     function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
+      return request.auth.uid == userId;
     }
 
     /**
-     * @description Checks if the authenticated user has access to the company id passed in as an argument, based on their user profile.
-     * @param {string} companyId - The company ID to check access against.
-     * @returns {boolean} True if the user has access, false otherwise.
+     * @description Checks if the authenticated user is associated with the provided company ID.
      */
-    function hasCompanyAccess(companyId) {
-        return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyIds.hasAny([companyId]);
+    function isCompanyUser(companyId) {
+      return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyIds.hasAny([companyId]);
     }
 
     /**
-     * @description Checks if the authenticated user is the owner of the existing document.
-     * @param {string} userId - The user ID to compare against the 'id' field in the document.
-     * @returns {boolean} True if the UIDs match and the document exists, false otherwise.
+     * @description Checks if the authenticated user is associated with the provided company ID and the document exists
      */
-    function isExistingOwner(userId) {
-      return isOwner(userId) && resource != null;
+    function isExistingCompanyUser(companyId) {
+        return isCompanyUser(companyId) && resource != null;
     }
 
-
     /**
-     * @description Rule for securing the /users/{userId} collection.
+     * @description Rules for user profiles.
      * @path /users/{userId}
-     * @allow (create) - Allow user to create their profile if their UID matches the userId.
-     * @allow (get, update, delete) - Allow access only to the user with a matching UID.
-     * @deny (list) - Prevent listing all users.
-     * @deny (create) - Prevent creating a user with a mismatched UID.
-     * @deny (update, delete) - Prevent non-owners from updating or deleting the profile.
+     * @allow (create) User 'user123' can create their own profile if the UID matches.
+     * @allow (get) User 'user123' can read their own profile.
+     * @allow (update) User 'user123' can update their own profile.
+     * @allow (delete) User 'user123' can delete their own profile.
+     * @deny (create) User 'user456' cannot create a profile for user 'user123'.
+     * @deny (get) User 'user456' cannot read user 'user123's profile.
      * @principle Enforces user-ownership for profile data.
      */
     match /users/{userId} {
-      // Only allow a user to create their own profile.
-      allow create: if isOwner(userId) && request.resource.data.uid == userId;
-      // Only allow a user to read, update, or delete their own profile.
-      allow get, update, delete: if isExistingOwner(userId);
-      // Prevent listing all users.
+      allow create: if isSignedIn() && isOwner(userId) && request.resource.data.uid == request.auth.uid;
+      allow get: if isSignedIn() && isOwner(userId);
+      allow update: if isSignedIn() && isOwner(userId) && request.resource.data.uid == resource.data.uid;
+      allow delete: if isSignedIn() && isOwner(userId) && resource != null;
       allow list: if false;
     }
 
     /**
-     * @description Rule for securing the /companies/{companyId} collection.
+     * @description Rules for companies.
      * @path /companies/{companyId}
-     * @allow (get, list) - Allow users to read company data if they are associated with the company.
-     * @allow (create) - Only allow creating a company if the user's UID matches the ownerId and has access to the company id
-     * @allow (update, delete) - Only allow updating/deleting a company if the user's UID matches the ownerId and they have access to the company id.
-     * @deny (create) - Prevent creating a company with a mismatched ownerId.
-     * @deny (update, delete) - Prevent non-owners from updating/deleting the company.
-     * @principle Enforces company-level access control based on user association.
+     * @allow (create) A user associated with the company can create the company.
+     * @allow (get) A user associated with the company can read the company data.
+     * @allow (update) A user associated with the company can update the company data.
+     * @allow (delete) A user associated with the company can delete the company data.
+     * @deny (create) A user not associated with the company cannot create it.
+     * @deny (get) A user not associated with the company cannot read the company data.
+     * @principle Enforces company-level access control.
      */
     match /companies/{companyId} {
-      allow get, list: if hasCompanyAccess(companyId);
-      allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid && hasCompanyAccess(companyId);
-      allow update, delete: if isSignedIn() && resource.data.ownerId == request.auth.uid && hasCompanyAccess(companyId) && resource != null;
+      allow create: if isSignedIn() && isCompanyUser(companyId);
+      allow get: if isSignedIn() && isCompanyUser(companyId);
+      allow update: if isSignedIn() && isExistingCompanyUser(companyId);
+      allow delete: if isSignedIn() && isExistingCompanyUser(companyId);
+      allow list: if false;
     }
 
     /**
-     * @description Rule for securing the /companies/{companyId}/accounts subcollection.
-     * @path /companies/{companyId}/accounts
-     * @allow (get, list) - Allow users to read accounts if they are associated with the parent company.
-     * @allow (create) - Allow creating accounts if the user is associated with the parent company and the companyId matches the path.
-     * @allow (update, delete) - Allow updating/deleting accounts if the user is associated with the parent company.
-     * @deny (create) - Prevent creating an account with a mismatched companyId.
+     * @description Rules for accounts within a company.
+     * @path /companies/{companyId}/accounts/{accountId}
+     * @allow (create) A user associated with the company can create accounts.
+     * @allow (get) A user associated with the company can read accounts.
+     * @allow (update) A user associated with the company can update accounts.
+     * @allow (delete) A user associated with the company can delete accounts.
+     * @deny (create) A user not associated with the company cannot create accounts.
+     * @deny (get) A user not associated with the company cannot read accounts.
      * @principle Enforces company-level access control for accounts.
      */
     match /companies/{companyId}/accounts/{accountId} {
-      allow get, list: if hasCompanyAccess(companyId);
-      allow create: if isSignedIn() && hasCompanyAccess(companyId) && request.resource.data.companyId == companyId;
-      allow update, delete: if isSignedIn() && hasCompanyAccess(companyId) && resource != null;
+      allow create: if isSignedIn() && isCompanyUser(companyId);
+      allow get: if isSignedIn() && isCompanyUser(companyId);
+      allow update: if isSignedIn() && isExistingCompanyUser(companyId);
+      allow delete: if isSignedIn() && isExistingCompanyUser(companyId);
+      allow list: if isSignedIn() && isCompanyUser(companyId);
     }
 
     /**
-     * @description Rule for securing the /companies/{companyId}/vouchers subcollection.
-     * @path /companies/{companyId}/vouchers
-     * @allow (get, list) - Allow users to read vouchers if they are associated with the parent company.
-     * @allow (create) - Allow creating vouchers if the user is associated with the parent company and the companyId matches the path.
-     * @allow (update, delete) - Allow updating/deleting vouchers if the user is associated with the parent company.
-     * @deny (create) - Prevent creating a voucher with a mismatched companyId.
+     * @description Rules for vouchers within a company.
+     * @path /companies/{companyId}/vouchers/{voucherId}
+     * @allow (create) A user associated with the company can create vouchers.
+     * @allow (get) A user associated with the company can read vouchers.
+     * @allow (update) A user associated with the company can update vouchers.
+     * @allow (delete) A user associated with the company can delete vouchers.
+     * @deny (create) A user not associated with the company cannot create vouchers.
+     * @deny (get) A user not associated with the company cannot read vouchers.
      * @principle Enforces company-level access control for vouchers.
      */
     match /companies/{companyId}/vouchers/{voucherId} {
-      allow get, list: if hasCompanyAccess(companyId);
-      allow create: if isSignedIn() && hasCompanyAccess(companyId) && request.resource.data.companyId == companyId;
-      allow update, delete: if isSignedIn() && hasCompanyAccess(companyId) && resource != null;
+      allow create: if isSignedIn() && isCompanyUser(companyId);
+      allow get: if isSignedIn() && isCompanyUser(companyId);
+      allow update: if isSignedIn() && isExistingCompanyUser(companyId);
+      allow delete: if isSignedIn() && isExistingCompanyUser(companyId);
+      allow list: if isSignedIn() && isCompanyUser(companyId);
     }
 
     /**
-     * @description Rule for securing the /companies/{companyId}/subjects subcollection.
-     * @path /companies/{companyId}/subjects
-     * @allow (get, list) - Allow users to read subjects if they are associated with the parent company.
-     * @allow (create) - Allow creating subjects if the user is associated with the parent company and the companyId matches the path.
-     * @allow (update, delete) - Allow updating/deleting subjects if the user is associated with the parent company.
-     * @deny (create) - Prevent creating a subject with a mismatched companyId.
+     * @description Rules for subjects within a company.
+     * @path /companies/{companyId}/subjects/{subjectId}
+     * @allow (create) A user associated with the company can create subjects.
+     * @allow (get) A user associated with the company can read subjects.
+     * @allow (update) A user associated with the company can update subjects.
+     * @allow (delete) A user associated with the company can delete subjects.
+     * @deny (create) A user not associated with the company cannot create subjects.
+     * @deny (get) A user not associated with the company cannot read subjects.
      * @principle Enforces company-level access control for subjects.
      */
     match /companies/{companyId}/subjects/{subjectId} {
-      allow get, list: if hasCompanyAccess(companyId);
-      allow create: if isSignedIn() && hasCompanyAccess(companyId) && request.resource.data.companyId == companyId;
-      allow update, delete: if isSignedIn() && hasCompanyAccess(companyId) && resource != null;
+      allow create: if isSignedIn() && isCompanyUser(companyId);
+      allow get: if isSignedIn() && isCompanyUser(companyId);
+      allow update: if isSignedIn() && isExistingCompanyUser(companyId);
+      allow delete: if isSignedIn() && isExistingCompanyUser(companyId);
+      allow list: if isSignedIn() && isCompanyUser(companyId);
     }
 
     /**
-     * @description Rule for securing the /companies/{companyId}/cost-centers subcollection.
-     * @path /companies/{companyId}/cost-centers
-     * @allow (get, list) - Allow users to read cost centers if they are associated with the parent company.
-     * @allow (create) - Allow creating cost centers if the user is associated with the parent company and the companyId matches the path.
-     * @allow (update, delete) - Allow updating/deleting cost centers if the user is associated with the parent company.
-     * @deny (create) - Prevent creating a cost center with a mismatched companyId.
+     * @description Rules for cost centers within a company.
+     * @path /companies/{companyId}/cost-centers/{costCenterId}
+     * @allow (create) A user associated with the company can create cost centers.
+     * @allow (get) A user associated with the company can read cost centers.
+     * @allow (update) A user associated with the company can update cost centers.
+     * @allow (delete) A user associated with the company can delete cost centers.
+     * @deny (create) A user not associated with the company cannot create cost centers.
+     * @deny (get) A user not associated with the company cannot read cost centers.
      * @principle Enforces company-level access control for cost centers.
      */
     match /companies/{companyId}/cost-centers/{costCenterId} {
-      allow get, list: if hasCompanyAccess(companyId);
-      allow create: if isSignedIn() && hasCompanyAccess(companyId) && request.resource.data.companyId == companyId;
-      allow update, delete: if isSignedIn() && hasCompanyAccess(companyId) && resource != null;
+      allow create: if isSignedIn() && isCompanyUser(companyId);
+      allow get: if isSignedIn() && isCompanyUser(companyId);
+      allow update: if isSignedIn() && isExistingCompanyUser(companyId);
+      allow delete: if isSignedIn() && isExistingCompanyUser(companyId);
+      allow list: if isSignedIn() && isCompanyUser(companyId);
     }
 
     /**
-     * @description Rule for securing the /companies/{companyId}/employees subcollection.
-     * @path /companies/{companyId}/employees
-     * @allow (get, list) - Allow users to read employees if they are associated with the parent company.
-     * @allow (create) - Allow creating employees if the user is associated with the parent company and the companyId matches the path.
-     * @allow (update, delete) - Allow updating/deleting employees if the user is associated with the parent company.
-     * @deny (create) - Prevent creating an employee with a mismatched companyId.
+     * @description Rules for employees within a company.
+     * @path /companies/{companyId}/employees/{employeeId}
+     * @allow (create) A user associated with the company can create employees.
+     * @allow (get) A user associated with the company can read employees.
+     * @allow (update) A user associated with the company can update employees.
+     * @allow (delete) A user associated with the company can delete employees.
+     * @deny (create) A user not associated with the company cannot create employees.
+     * @deny (get) A user not associated with the company cannot read employees.
      * @principle Enforces company-level access control for employees.
      */
     match /companies/{companyId}/employees/{employeeId} {
-      allow get, list: if hasCompanyAccess(companyId);
-      allow create: if isSignedIn() && hasCompanyAccess(companyId) && request.resource.data.companyId == companyId;
-      allow update, delete: if isSignedIn() && hasCompanyAccess(companyId) && resource != null;
+      allow create: if isSignedIn() && isCompanyUser(companyId);
+      allow get: if isSignedIn() && isCompanyUser(companyId);
+      allow update: if isSignedIn() && isExistingCompanyUser(companyId);
+      allow delete: if isSignedIn() && isExistingCompanyUser(companyId);
+      allow list: if isSignedIn() && isCompanyUser(companyId);
     }
 
     /**
-     * @description Rule for securing the /companies/{companyId}/payrolls subcollection.
-     * @path /companies/{companyId}/payrolls
-     * @allow (get, list) - Allow users to read payrolls if they are associated with the parent company.
-     * @allow (create) - Allow creating payrolls if the user is associated with the parent company and the companyId matches the path.
-     * @allow (update, delete) - Allow updating/deleting payrolls if the user is associated with the parent company.
-     * @deny (create) - Prevent creating a payroll with a mismatched companyId.
+     * @description Rules for payrolls within a company.
+     * @path /companies/{companyId}/payrolls/{payrollId}
+     * @allow (create) A user associated with the company can create payrolls.
+     * @allow (get) A user associated with the company can read payrolls.
+     * @allow (update) A user associated with the company can update payrolls.
+     * @allow (delete) A user associated with the company can delete payrolls.
+     * @deny (create) A user not associated with the company cannot create payrolls.
+     * @deny (get) A user not associated with the company cannot read payrolls.
      * @principle Enforces company-level access control for payrolls.
      */
     match /companies/{companyId}/payrolls/{payrollId} {
-      allow get, list: if hasCompanyAccess(companyId);
-      allow create: if isSignedIn() && hasCompanyAccess(companyId) && request.resource.data.companyId == companyId;
-      allow update, delete: if isSignedIn() && hasCompanyAccess(companyId) && resource != null;
-    }
-   /**
-     * @description Rule for securing the /companies/{companyId}/purchases subcollection.
-     * @path /companies/{companyId}/purchases
-     * @allow (get, list) - Allow users to read purchases if they are associated with the parent company.
-     * @allow (create) - Allow creating purchases if the user is associated with the parent company and the companyId matches the path.
-     * @allow (update, delete) - Allow updating/deleting purchases if the user is associated with the parent company.
-     * @deny (create) - Prevent creating a purchase with a mismatched companyId.
-     * @principle Enforces company-level access control for purchases.
-     */
-    match /companies/{companyId}/purchases/{purchaseId} {
-      allow get, list: if hasCompanyAccess(companyId);
-      allow create: if isSignedIn() && hasCompanyAccess(companyId) && request.resource.data.companyId == companyId;
-      allow update, delete: if isSignedIn() && hasCompanyAccess(companyId) && resource != null;
-    }
-
-    /**
-     * @description Rule for securing the /companies/{companyId}/sales subcollection.
-     * @path /companies/{companyId}/sales
-     * @allow (get, list) - Allow users to read sales if they are associated with the parent company.
-     * @allow (create) - Allow creating sales if the user is associated with the parent company and the companyId matches the path.
-     * @allow (update, delete) - Allow updating/deleting sales if the user is associated with the parent company.
-     * @deny (create) - Prevent creating a sale with a mismatched companyId.
-     * @principle Enforces company-level access control for sales.
-     */
-    match /companies/{companyId}/sales/{saleId} {
-      allow get, list: if hasCompanyAccess(companyId);
-      allow create: if isSignedIn() && hasCompanyAccess(companyId) && request.resource.data.companyId == companyId;
-      allow update, delete: if isSignedIn() && hasCompanyAccess(companyId) && resource != null;
+      allow create: if isSignedIn() && isCompanyUser(companyId);
+      allow get: if isSignedIn() && isCompanyUser(companyId);
+      allow update: if isSignedIn() && isExistingCompanyUser(companyId);
+      allow delete: if isSignedIn() && isExistingCompanyUser(companyId);
+      allow list: if isSignedIn() && isCompanyUser(companyId);
     }
 
      /**
-     * @description Rule for securing the /companies/{companyId}/fees subcollection.
-     * @path /companies/{companyId}/fees
-     * @allow (get, list) - Allow users to read fees if they are associated with the parent company.
-     * @allow (create) - Allow creating fees if the user is associated with the parent company and the companyId matches the path.
-     * @allow (update, delete) - Allow updating/deleting fees if the user is associated with the parent company.
-     * @deny (create) - Prevent creating a fee with a mismatched companyId.
+      * @description Rules for purchases within a company.
+      * @path /companies/{companyId}/purchases/{purchaseId}
+      * @allow (create) A user associated with the company can create purchases.
+      * @allow (get) A user associated with the company can read purchases.
+      * @allow (update) A user associated with the company can update purchases.
+      * @allow (delete) A user associated with the company can delete purchases.
+      * @deny (create) A user not associated with the company cannot create purchases.
+      * @deny (get) A user not associated with the company cannot read purchases.
+      * @principle Enforces company-level access control for purchases.
+      */
+    match /companies/{companyId}/purchases/{purchaseId} {
+      allow create: if isSignedIn() && isCompanyUser(companyId);
+      allow get: if isSignedIn() && isCompanyUser(companyId);
+      allow update: if isSignedIn() && isExistingCompanyUser(companyId);
+      allow delete: if isSignedIn() && isExistingCompanyUser(companyId);
+      allow list: if isSignedIn() && isCompanyUser(companyId);
+    }
+
+    /**
+     * @description Rules for sales within a company.
+     * @path /companies/{companyId}/sales/{saleId}
+     * @allow (create) A user associated with the company can create sales.
+     * @allow (get) A user associated with the company can read sales.
+     * @allow (update) A user associated with the company can update sales.
+     * @allow (delete) A user associated with the company can delete sales.
+     * @deny (create) A user not associated with the company cannot create sales.
+     * @deny (get) A user not associated with the company cannot read sales.
+     * @principle Enforces company-level access control for sales.
+     */
+    match /companies/{companyId}/sales/{saleId} {
+      allow create: if isSignedIn() && isCompanyUser(companyId);
+      allow get: if isSignedIn() && isCompanyUser(companyId);
+      allow update: if isSignedIn() && isExistingCompanyUser(companyId);
+      allow delete: if isSignedIn() && isExistingCompanyUser(companyId);
+      allow list: if isSignedIn() && isCompanyUser(companyId);
+    }
+
+    /**
+     * @description Rules for fees within a company.
+     * @path /companies/{companyId}/fees/{feeId}
+     * @allow (create) A user associated with the company can create fees.
+     * @allow (get) A user associated with the company can read fees.
+     * @allow (update) A user associated with the company can update fees.
+     * @allow (delete) A user associated with the company can delete fees.
+     * @deny (create) A user not associated with the company cannot create fees.
+     * @deny (get) A user not associated with the company cannot read fees.
      * @principle Enforces company-level access control for fees.
      */
     match /companies/{companyId}/fees/{feeId} {
-      allow get, list: if hasCompanyAccess(companyId);
-      allow create: if isSignedIn() && hasCompanyAccess(companyId) && request.resource.data.companyId == companyId;
-      allow update, delete: if isSignedIn() && hasCompanyAccess(companyId) && resource != null;
+      allow create: if isSignedIn() && isCompanyUser(companyId);
+      allow get: if isSignedIn() && isCompanyUser(companyId);
+      allow update: if isSignedIn() && isExistingCompanyUser(companyId);
+      allow delete: if isSignedIn() && isExistingCompanyUser(companyId);
+      allow list: if isSignedIn() && isCompanyUser(companyId);
     }
 
     /**
-     * @description Rule for securing the /companies/{companyId}/economic-indicators/{indicatorId} document.
+     * @description Rules for company-specific economic indicators.
      * @path /companies/{companyId}/economic-indicators/{indicatorId}
-     * @allow (get, list) - Allow users to read economic indicators if they are associated with the parent company.
-     * @allow (create) - Allow creating economic indicators if the user is associated with the parent company and the companyId matches the path.
-     * @allow (update, delete) - Allow updating/deleting economic indicators if the user is associated with the parent company.
-     * @deny (create) - Prevent creating an economic indicator with a mismatched companyId.
+     * @allow (create) A user associated with the company can create company-specific economic indicators.
+     * @allow (get) A user associated with the company can read company-specific economic indicators.
+     * @allow (update) A user associated with the company can update company-specific economic indicators.
+     * @allow (delete) A user associated with the company can delete company-specific economic indicators.
+     * @deny (create) A user not associated with the company cannot create company-specific economic indicators.
+     * @deny (get) A user not associated with the company cannot read company-specific economic indicators.
      * @principle Enforces company-level access control for economic indicators.
      */
     match /companies/{companyId}/economic-indicators/{indicatorId} {
-      allow get: if hasCompanyAccess(companyId);
-      allow list: if hasCompanyAccess(companyId);
-      allow create: if isSignedIn() && hasCompanyAccess(companyId);
-      allow update, delete: if isSignedIn() && hasCompanyAccess(companyId) && resource != null;
+      allow create: if isSignedIn() && isCompanyUser(companyId);
+      allow get: if isSignedIn() && isCompanyUser(companyId);
+      allow update: if isSignedIn() && isExistingCompanyUser(companyId);
+      allow delete: if isSignedIn() && isExistingCompanyUser(companyId);
+      allow list: if isSignedIn() && isCompanyUser(companyId);
     }
 
     /**
-     * @description Rule for securing the /users/{userId}/account-groups subcollection.
-     * @path /users/{userId}/account-groups
-     * @allow (get, list) - Allow the user to read their own account groups.
-     * @allow (create) - Allow the user to create account groups.
-     * @allow (update, delete) - Allow the user to update or delete their own account groups.
-     * @deny (create) - Prevent creating an account group with a mismatched user ID.
+     * @description Rules for user-specific account groups.
+     * @path /users/{userId}/account-groups/{groupId}
+     * @allow (create) The owner can create account groups.
+     * @allow (get) The owner can read account groups.
+     * @allow (update) The owner can update account groups.
+     * @allow (delete) The owner can delete account groups.
+     * @deny (create) Other users cannot create account groups for this user.
+     * @deny (get) Other users cannot read account groups for this user.
      * @principle Enforces user-ownership for account groups.
      */
-    match /users/{userId}/account-groups/{accountGroupId} {
-      allow get, list: if isOwner(userId);
-      allow create: if isOwner(userId);
-      allow update, delete: if isExistingOwner(userId);
+    match /users/{userId}/account-groups/{groupId} {
+      allow create: if isSignedIn() && isOwner(userId);
+      allow get: if isSignedIn() && isOwner(userId);
+      allow update: if isSignedIn() && isOwner(userId) && resource != null;
+      allow delete: if isSignedIn() && isOwner(userId) && resource != null;
+      allow list: if isSignedIn() && isOwner(userId);
     }
 
     /**
-     * @description Rule for securing the /economic-indicators collection.
+     * @description Rules for global economic indicators.
      * @path /economic-indicators/{indicatorId}
-     * @allow (get, list) - Allow anyone to read economic indicators.
-     * @allow (create, update, delete) - Only allow admins to create, update, or delete.
-     * @principle Allows public read access to global economic indicators.
+     * @allow (get) Anyone can read economic indicators.
+     * @allow (list) Anyone can list economic indicators.
+     * // TODO: Add owner validation once the schema is updated with an ownership field.
      */
     match /economic-indicators/{indicatorId} {
       allow get, list: if true;
-      allow create, update, delete: if false; // TODO: Implement admin-only writes
+      allow create, update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
     }
 
     /**
-     * @description Rule for securing the /health-entities collection.
+     * @description Rules for global health entities.
      * @path /health-entities/{entityId}
-     * @allow (get, list) - Allow anyone to read health entities.
-     * @allow (create, update, delete) - Only allow admins to create, update, or delete.
-     * @principle Allows public read access to global health entities.
+     * @allow (get) Anyone can read health entities.
+     * @allow (list) Anyone can list health entities.
+     * // TODO: Add owner validation once the schema is updated with an ownership field.
      */
     match /health-entities/{entityId} {
       allow get, list: if true;
-      allow create, update, delete: if false; // TODO: Implement admin-only writes
+      allow create, update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
     }
 
     /**
-     * @description Rule for securing the /afp-entities collection.
+     * @description Rules for global AFP entities.
      * @path /afp-entities/{entityId}
-     * @allow (get, list) - Allow anyone to read AFP entities.
-     * @allow (create, update, delete) - Only allow admins to create, update, or delete.
-     * @principle Allows public read access to global AFP entities.
+     * @allow (get) Anyone can read AFP entities.
+     * @allow (list) Anyone can list AFP entities.
+     * // TODO: Add owner validation once the schema is updated with an ownership field.
      */
     match /afp-entities/{entityId} {
       allow get, list: if true;
-      allow create, update, delete: if false; // TODO: Implement admin-only writes
+       allow create, update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
     }
 
     /**
-     * @description Rule for securing the /family-allowance-parameters collection.
+     * @description Rules for global family allowance parameters.
      * @path /family-allowance-parameters/{paramId}
-     * @allow (get, list) - Allow anyone to read family allowance parameters.
-     * @allow (create, update, delete) - Only allow admins to create, update, or delete.
-     * @principle Allows public read access to global family allowance parameters.
+     * @allow (get) Anyone can read family allowance parameters.
+     * @allow (list) Anyone can list family allowance parameters.
+     * // TODO: Add owner validation once the schema is updated with an ownership field.
      */
     match /family-allowance-parameters/{paramId} {
       allow get, list: if true;
-      allow create, update, delete: if false; // TODO: Implement admin-only writes
+      allow create, update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
     }
 
     /**
-     * @description Rule for securing the /tax-parameters collection.
+     * @description Rules for global tax parameters.
      * @path /tax-parameters/{paramId}
-     * @allow (get, list) - Allow anyone to read tax parameters.
-     * @allow (create, update, delete) - Only allow admins to create, update, or delete.
-     * @principle Allows public read access to global tax parameters.
+     * @allow (get) Anyone can read tax parameters.
+     * @allow (list) Anyone can list tax parameters.
+     * // TODO: Add owner validation once the schema is updated with an ownership field.
      */
     match /tax-parameters/{paramId} {
       allow get, list: if true;
-      allow create, update, delete: if false; // TODO: Implement admin-only writes
+       allow create, update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
     }
+
     /**
-     * @description Rule for securing the /taxable-caps collection.
+     * @description Rules for global taxable caps.
      * @path /taxable-caps/{capId}
-     * @allow (get, list) - Allow anyone to read taxable caps.
-     * @allow (create, update, delete) - Only allow admins to create, update, or delete.
-     * @principle Allows public read access to global taxable caps.
+     * @allow (get) Anyone can read taxable caps.
+     * @allow (list) Anyone can list taxable caps.
+     * // TODO: Add owner validation once the schema is updated with an ownership field.
      */
     match /taxable-caps/{capId} {
       allow get, list: if true;
-      allow create, update, delete: if false; // TODO: Implement admin-only writes
+      allow create, update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
     }
   }
 }
