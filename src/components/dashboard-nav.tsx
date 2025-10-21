@@ -1,3 +1,4 @@
+
 'use client';
 
 import Link from 'next/link';
@@ -36,6 +37,9 @@ import {
   SlidersHorizontal,
   UserCog,
   DollarSign,
+  ShoppingCart,
+  Receipt,
+  FileDown,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './ui/collapsible';
@@ -58,6 +62,15 @@ const accountantNavSections = [
                     { href: '/dashboard/bank-reconciliation', label: 'Conciliación Bancaria', icon: Scale },
                 ]
             }
+        ]
+    },
+    {
+        title: 'Documentos',
+        icon: FileDown,
+        links: [
+            { href: '/dashboard/purchases', label: 'Compras', icon: ShoppingCart },
+            { href: '/dashboard/sales', label: 'Ventas', icon: Receipt },
+            { href: '/dashboard/fees', label: 'Honorarios', icon: FileText },
         ]
     },
     {
@@ -128,8 +141,6 @@ const criticalProcessesSections = [
         icon: RefreshCw,
         links: [
             { href: '/dashboard/critical-processes/centralization-remunerations', label: 'Centralización Remuneraciones', icon: FileText },
-            { href: '/dashboard/purchases', label: 'Centralización Compras', icon: FileText },
-            { href: '/dashboard/sales', label: 'Centralización Ventas', icon: FileText },
         ]
     },
     {
@@ -194,6 +205,7 @@ export function DashboardNav({ role }: DashboardNavProps) {
   const [openSections, setOpenSections] = React.useState<Record<string, boolean>>({
     'Contabilidad': true,
     'Movimientos': true,
+    'Documentos': true,
     'Informes': true,
     'Maestros': true,
     'Remuneraciones': true,
