@@ -81,7 +81,8 @@ function AccountantDashboardContent({ companyId }: { companyId: string }) {
             }
             finalBalances.set(account.code, finalBalance);
         });
-
+        
+        // Aggregate balances up the hierarchy after calculating individual final balances
         const sortedCodes = accounts.map(a => a.code).sort((a,b) => b.length - a.length);
 
         sortedCodes.forEach(code => {
@@ -93,10 +94,15 @@ function AccountantDashboardContent({ companyId }: { companyId: string }) {
             }
             if (parentCode && finalBalances.has(parentCode)) {
                 const childBalance = finalBalances.get(code) || 0;
-                const parentBalance = finalBalances.get(parentCode) || 0;
-                finalBalances.set(parentCode, parentBalance + childBalance);
+                // Only add children to parents, don't double add from initial balance
+                const parentAccount = accounts.find(a => a.code === parentCode);
+                const childAccount = accounts.find(a => a.code === code);
+                if (parentAccount && childAccount) {
+                    finalBalances.set(parentCode, (finalBalances.get(parentCode) || 0) + childBalance);
+                }
             }
         });
+
 
         return accounts.map(account => ({
             ...account,
@@ -116,6 +122,7 @@ function AccountantDashboardContent({ companyId }: { companyId: string }) {
         ?.find(acc => acc.code === '3')?.balance || 0;
 
     const resultAccounts = React.useMemo(() => {
+        if (!calculatedBalances) return [];
         const income = calculatedBalances.filter(acc => acc.code.startsWith('4')).reduce((sum, acc) => sum + acc.balance, 0);
         const expenses = calculatedBalances.filter(acc => acc.code.startsWith('5') || acc.code.startsWith('6')).reduce((sum, acc) => sum + acc.balance, 0);
         return [
@@ -142,7 +149,7 @@ function AccountantDashboardContent({ companyId }: { companyId: string }) {
           <Card>
             <CardHeader className="pb-2">
               <CardDescription>Total Activos</CardDescription>
-              <CardTitle className="text-4xl">${Math.round(totalActives).toLocaleString('es-CL')}</CardTitle>
+              <CardTitle className="text-3xl">${Math.round(totalActives).toLocaleString('es-CL')}</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-xs text-muted-foreground">
@@ -153,7 +160,7 @@ function AccountantDashboardContent({ companyId }: { companyId: string }) {
           <Card>
             <CardHeader className="pb-2">
               <CardDescription>Total Pasivos</CardDescription>
-              <CardTitle className="text-4xl">${Math.round(totalLiabilities).toLocaleString('es-CL')}</CardTitle>
+              <CardTitle className="text-3xl">${Math.round(totalLiabilities).toLocaleString('es-CL')}</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-xs text-muted-foreground">
@@ -164,7 +171,7 @@ function AccountantDashboardContent({ companyId }: { companyId: string }) {
           <Card>
             <CardHeader className="pb-2">
               <CardDescription>Total Patrimonio</CardDescription>
-              <CardTitle className="text-4xl">${Math.round(totalEquity).toLocaleString('es-CL')}</CardTitle>
+              <CardTitle className="text-3xl">${Math.round(totalEquity).toLocaleString('es-CL')}</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-xs text-muted-foreground">
@@ -175,7 +182,7 @@ function AccountantDashboardContent({ companyId }: { companyId: string }) {
            <Card>
             <CardHeader className="pb-2">
               <CardDescription>Comprobantes</CardDescription>
-              <CardTitle className="text-4xl">{vouchers?.length || 0}</CardTitle>
+              <CardTitle className="text-3xl">{vouchers?.length || 0}</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-xs text-muted-foreground">
