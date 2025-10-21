@@ -77,6 +77,24 @@ export default function TreasuryPage() {
 
     const loading = purchasesLoading || salesLoading || accountsLoading;
 
+    const handleSelectAllPurchases = (checked: boolean) => {
+        if (checked) {
+            const allPurchaseIds = purchases?.map(p => p.id) || [];
+            setSelectedPurchases(allPurchaseIds);
+        } else {
+            setSelectedPurchases([]);
+        }
+    };
+    
+    const handleSelectAllSales = (checked: boolean) => {
+        if (checked) {
+            const allSaleIds = sales?.map(s => s.id) || [];
+            setSelectedSales(allSaleIds);
+        } else {
+            setSelectedSales([]);
+        }
+    };
+
     const handleSelectPurchase = (id: string, checked: boolean) => {
         setSelectedPurchases(prev => checked ? [...prev, id] : prev.filter(pId => pId !== id));
     };
@@ -172,6 +190,13 @@ export default function TreasuryPage() {
             setIsProcessing(false);
         }
     };
+    
+    const allPurchasesSelected = purchases ? selectedPurchases.length === purchases.length && purchases.length > 0 : false;
+    const somePurchasesSelected = purchases ? selectedPurchases.length > 0 && selectedPurchases.length < purchases.length : false;
+    
+    const allSalesSelected = sales ? selectedSales.length === sales.length && sales.length > 0 : false;
+    const someSalesSelected = sales ? selectedSales.length > 0 && selectedSales.length < sales.length : false;
+
 
     return (
         <Card>
@@ -209,11 +234,22 @@ export default function TreasuryPage() {
                             </CardHeader>
                             <CardContent>
                                 <Table>
-                                    <TableHeader><TableRow><TableHead className="w-[50px]">Sel.</TableHead><TableHead>Proveedor</TableHead><TableHead>Documento</TableHead><TableHead className="text-right">Monto</TableHead></TableRow></TableHeader>
+                                    <TableHeader><TableRow><TableHead className="w-[50px]">
+                                        <Checkbox
+                                            checked={allPurchasesSelected ? true : (somePurchasesSelected ? 'indeterminate' : false)}
+                                            onCheckedChange={(checked) => handleSelectAllPurchases(checked as boolean)}
+                                            aria-label="Seleccionar todo"
+                                        />
+                                    </TableHead><TableHead>Proveedor</TableHead><TableHead>Documento</TableHead><TableHead className="text-right">Monto</TableHead></TableRow></TableHeader>
                                     <TableBody>
                                         {loading && <TableRow><TableCell colSpan={4} className="text-center">Cargando...</TableCell></TableRow>}
                                         {!loading && purchases?.map(p => (
-                                            <TableRow key={p.id}><TableCell><Checkbox onCheckedChange={(checked) => handleSelectPurchase(p.id, checked as boolean)} /></TableCell><TableCell>{p.supplier}</TableCell><TableCell>{p.documentType} {p.documentNumber}</TableCell><TableCell className="text-right font-bold">${p.total.toLocaleString('es-CL')}</TableCell></TableRow>
+                                            <TableRow key={p.id} data-state={selectedPurchases.includes(p.id) && "selected"}>
+                                                <TableCell><Checkbox checked={selectedPurchases.includes(p.id)} onCheckedChange={(checked) => handleSelectPurchase(p.id, checked as boolean)} /></TableCell>
+                                                <TableCell>{p.supplier}</TableCell>
+                                                <TableCell>{p.documentType} {p.documentNumber}</TableCell>
+                                                <TableCell className="text-right font-bold">${p.total.toLocaleString('es-CL')}</TableCell>
+                                            </TableRow>
                                         ))}
                                         {!loading && purchases?.length === 0 && <TableRow><TableCell colSpan={4} className="text-center h-24">No hay facturas de compra pendientes de pago.</TableCell></TableRow>}
                                     </TableBody>
@@ -245,11 +281,22 @@ export default function TreasuryPage() {
                             </CardHeader>
                             <CardContent>
                                <Table>
-                                    <TableHeader><TableRow><TableHead className="w-[50px]">Sel.</TableHead><TableHead>Cliente</TableHead><TableHead>Documento</TableHead><TableHead className="text-right">Monto</TableHead></TableRow></TableHeader>
+                                    <TableHeader><TableRow><TableHead className="w-[50px]">
+                                        <Checkbox
+                                            checked={allSalesSelected ? true : (someSalesSelected ? 'indeterminate' : false)}
+                                            onCheckedChange={(checked) => handleSelectAllSales(checked as boolean)}
+                                            aria-label="Seleccionar todo"
+                                        />
+                                    </TableHead><TableHead>Cliente</TableHead><TableHead>Documento</TableHead><TableHead className="text-right">Monto</TableHead></TableRow></TableHeader>
                                     <TableBody>
                                         {loading && <TableRow><TableCell colSpan={4} className="text-center">Cargando...</TableCell></TableRow>}
                                         {!loading && sales?.map(s => (
-                                            <TableRow key={s.id}><TableCell><Checkbox onCheckedChange={(checked) => handleSelectSale(s.id, checked as boolean)} /></TableCell><TableCell>{s.customer}</TableCell><TableCell>{s.documentNumber}</TableCell><TableCell className="text-right font-bold">${s.total.toLocaleString('es-CL')}</TableCell></TableRow>
+                                            <TableRow key={s.id} data-state={selectedSales.includes(s.id) && "selected"}>
+                                                <TableCell><Checkbox checked={selectedSales.includes(s.id)} onCheckedChange={(checked) => handleSelectSale(s.id, checked as boolean)} /></TableCell>
+                                                <TableCell>{s.customer}</TableCell>
+                                                <TableCell>{s.documentNumber}</TableCell>
+                                                <TableCell className="text-right font-bold">${s.total.toLocaleString('es-CL')}</TableCell>
+                                            </TableRow>
                                         ))}
                                         {!loading && sales?.length === 0 && <TableRow><TableCell colSpan={4} className="text-center h-24">No hay facturas de venta pendientes de cobro.</TableCell></TableRow>}
                                     </TableBody>
