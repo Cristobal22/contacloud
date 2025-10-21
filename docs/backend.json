@@ -12,6 +12,7 @@
                 "photoURL": { "type": "string", "description": "URL of the user's profile picture." },
                 "role": { "type": "string", "enum": ["Admin", "Accountant"], "description": "The role of the user within the application." },
                 "plan": { "type": "string", "description": "The subscription plan of the user." },
+                "subscriptionEndDate": { "type": "string", "format": "date", "description": "The date until which the user's subscription is active." },
                 "password": { "type": "string", "description": "The user's password, only used for creation." },
                 "companyIds": {
                     "type": "array",

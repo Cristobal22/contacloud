@@ -9,6 +9,7 @@ export const UserProfileSchema = z.object({
   photoURL: z.string().optional().nullable(),
   role: z.enum(['Admin', 'Accountant']),
   plan: z.string().optional(), // "Individual", "Team", "Enterprise"
+  subscriptionEndDate: z.string().optional(), // The date until which the user's subscription is active.
   companyIds: z.array(z.string()).optional(),
   createdBy: z.string().optional(), // Added to track who created the user
 });

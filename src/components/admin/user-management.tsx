@@ -168,6 +168,7 @@ export default function UserManagement() {
             await updateDoc(userRef, {
                 displayName: selectedUser.displayName,
                 plan: selectedUser.plan,
+                subscriptionEndDate: selectedUser.subscriptionEndDate,
             });
             toast({ title: "Usuario actualizado", description: "Los cambios han sido guardados." });
             setIsEditFormOpen(false);
@@ -350,7 +351,7 @@ export default function UserManagement() {
                     <DialogHeader>
                         <DialogTitle>Editar Usuario</DialogTitle>
                         <DialogDescription>
-                            Modifica el nombre y el plan del usuario.
+                            Modifica el nombre, el plan y la fecha de vencimiento de la suscripción del usuario.
                         </DialogDescription>
                     </DialogHeader>
                     {selectedUser && (
@@ -371,6 +372,16 @@ export default function UserManagement() {
                                         <SelectItem value="Enterprise">Empresarial</SelectItem>
                                     </SelectContent>
                                 </Select>
+                            </div>
+                            <div className="grid grid-cols-4 items-center gap-4">
+                                <Label htmlFor="edit-subscription-date" className="text-right">Fin Suscripción</Label>
+                                <Input
+                                    id="edit-subscription-date"
+                                    type="date"
+                                    value={selectedUser.subscriptionEndDate || ''}
+                                    onChange={(e) => handleSelectedUserFieldChange('subscriptionEndDate', e.target.value)}
+                                    className="col-span-3"
+                                />
                             </div>
                         </div>
                     )}

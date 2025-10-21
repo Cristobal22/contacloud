@@ -2,6 +2,7 @@
 
 import React from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import {
   ChevronDown,
   Home,
@@ -9,7 +10,7 @@ import {
   Calendar as CalendarIcon,
 } from "lucide-react"
 import { collection, query, where, documentId, doc, updateDoc } from "firebase/firestore"
-import { format, startOfMonth, endOfMonth, parseISO } from 'date-fns';
+import { format, startOfMonth, endOfMonth, parseISO, isAfter } from 'date-fns';
 import { es } from 'date-fns/locale';
 
 import { Button } from "@/components/ui/button"
@@ -41,6 +42,7 @@ function AccountantDashboardLayout({ children }: { children: React.ReactNode }) 
     const { user, loading: userLoading } = useUser();
     const { userProfile, loading: profileLoading } = useUserProfile(user?.uid);
     const { toast } = useToast();
+    const router = useRouter();
     
     const [selectedCompany, setSelectedCompany] = React.useState<Company | null>(null);
     const [isLoadingCompany, setIsLoadingCompany] = React.useState(true);
@@ -76,6 +78,25 @@ function AccountantDashboardLayout({ children }: { children: React.ReactNode }) 
         setIsLoadingCompany(false);
 
     }, [companies, companiesLoading, profileLoading, userLoading]);
+
+    // Check for expired subscription
+    React.useEffect(() => {
+      if (userProfile?.role === 'Accountant' && userProfile.subscriptionEndDate) {
+          const today = new Date();
+          today.setHours(0, 0, 0, 0); // Normalize today to the start of the day
+          const endDate = parseISO(userProfile.subscriptionEndDate);
+
+          if (isAfter(today, endDate)) {
+              toast({
+                  variant: "destructive",
+                  title: "Suscripción Expirada",
+                  description: "Tu acceso ha expirado. Por favor, renueva tu plan para continuar.",
+                  duration: 8000,
+              });
+              router.push('/dashboard/billing');
+          }
+      }
+    }, [userProfile, router, toast]);
 
     const handleCompanyChange = (company: Company) => {
         setSelectedCompany(company);
