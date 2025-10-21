@@ -76,14 +76,13 @@ export default function GeneralBalancePage() {
             return voucherDate >= startDate && voucherDate <= endDate;
         });
 
-        const balanceMap = new Map<string, { initialBalance: number; debit: number; credit: number; finalBalance: number }>();
+        const balanceMap = new Map<string, { initialBalance: number; debit: number; credit: number; }>();
         
         accounts.forEach(acc => {
             balanceMap.set(acc.code, {
                 initialBalance: acc.balance || 0,
                 debit: 0,
-                credit: 0,
-                finalBalance: acc.balance || 0
+                credit: 0
             });
         });
 
@@ -96,51 +95,60 @@ export default function GeneralBalancePage() {
                 }
             });
         });
-
-        balanceMap.forEach((mov, code) => {
-            const accountInfo = accounts.find(a => a.code === code);
-            if (accountInfo?.type === 'Activo' || accountInfo?.type === 'Resultado') {
-                mov.finalBalance = mov.initialBalance + mov.debit - mov.credit;
-            } else { 
-                mov.finalBalance = mov.initialBalance + mov.credit - mov.debit;
-            }
-        });
         
-        const sortedCodes = Array.from(balanceMap.keys()).sort((a,b) => a.localeCompare(b, undefined, { numeric: true }));
+        const accountsWithBalance: AccountWithBalance[] = accounts.map(acc => {
+            const mov = balanceMap.get(acc.code)!;
+            let finalBalance = mov.initialBalance;
 
-        // Aggregate balances up the hierarchy for parent accounts
-        for (let i = sortedCodes.length - 1; i >= 0; i--) {
-            const code = sortedCodes[i];
+            if (acc.type === 'Activo' || (acc.type === 'Resultado' && mov.debit > mov.credit)) {
+                finalBalance += (mov.debit - mov.credit);
+            } else {
+                finalBalance += (mov.credit - mov.debit);
+            }
+            
+            return {
+                ...acc,
+                finalBalance
+            };
+        });
+
+        // Hierarchy aggregation
+        const finalBalanceMap = new Map(accountsWithBalance.map(acc => [acc.code, acc.finalBalance]));
+        const sortedCodes = Array.from(finalBalanceMap.keys()).sort((a,b) => b.length - a.length);
+
+        sortedCodes.forEach(code => {
             let parentCode = '';
             if (code.length > 1) { // It has a parent
                  if (code.length > 5) parentCode = code.substring(0, 5);
                  else if (code.length === 5) parentCode = code.substring(0, 3);
                  else if (code.length === 3) parentCode = code.substring(0, 1);
             }
-            if (parentCode && balanceMap.has(parentCode)) {
-                balanceMap.get(parentCode)!.finalBalance += balanceMap.get(code)!.finalBalance;
+            if (parentCode && finalBalanceMap.has(parentCode)) {
+                const currentParentBalance = finalBalanceMap.get(parentCode)!;
+                finalBalanceMap.set(parentCode, currentParentBalance + finalBalanceMap.get(code)!);
             }
-        }
-        
-        const accountsWithBalance: AccountWithBalance[] = sortedCodes.map(code => ({
-            ...accounts.find(a => a.code === code)!,
-            finalBalance: balanceMap.get(code)!.finalBalance
+        });
+
+        const finalAccountsWithBalance = accountsWithBalance.map(acc => ({
+            ...acc,
+            finalBalance: finalBalanceMap.get(acc.code)!
         }));
 
-        const assets = accountsWithBalance.filter(a => a.code.startsWith('1') && a.finalBalance !== 0);
-        const liabilities = accountsWithBalance.filter(a => a.code.startsWith('2') && a.finalBalance !== 0);
-        const equity = accountsWithBalance.filter(a => a.code.startsWith('3') && a.finalBalance !== 0);
 
-        const incomeAccounts = accountsWithBalance.filter(a => a.code.startsWith('4'));
-        const expenseAccounts = accountsWithBalance.filter(a => a.code.startsWith('5') || a.code.startsWith('6'));
+        const assets = finalAccountsWithBalance.filter(a => a.code.startsWith('1') && a.finalBalance !== 0);
+        const liabilities = finalAccountsWithBalance.filter(a => a.code.startsWith('2') && a.finalBalance !== 0);
+        const equity = finalAccountsWithBalance.filter(a => a.code.startsWith('3') && a.finalBalance !== 0);
+
+        const incomeAccounts = finalAccountsWithBalance.filter(a => a.code.startsWith('4'));
+        const expenseAccounts = finalAccountsWithBalance.filter(a => a.code.startsWith('5') || a.code.startsWith('6'));
 
         const totalIncome = incomeAccounts.reduce((sum, acc) => sum + acc.finalBalance, 0);
         const totalExpenses = expenseAccounts.reduce((sum, acc) => sum + acc.finalBalance, 0);
         const periodResult = totalIncome - totalExpenses;
         
-        const totalAssets = accountsWithBalance.find(a => a.code === '1')?.finalBalance || 0;
-        const totalLiabilities = accountsWithBalance.find(a => a.code === '2')?.finalBalance || 0;
-        const totalEquityFromAccounts = accountsWithBalance.find(a => a.code === '3')?.finalBalance || 0;
+        const totalAssets = finalAccountsWithBalance.find(a => a.code === '1')?.finalBalance || 0;
+        const totalLiabilities = finalAccountsWithBalance.find(a => a.code === '2')?.finalBalance || 0;
+        const totalEquityFromAccounts = finalAccountsWithBalance.find(a => a.code === '3')?.finalBalance || 0;
         const totalLiabilitiesAndEquity = totalLiabilities + totalEquityFromAccounts + periodResult;
 
 
