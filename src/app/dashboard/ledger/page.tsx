@@ -82,15 +82,14 @@ import { collection, query, where } from 'firebase/firestore';
         // Aggregate balances up the hierarchy
         for (let i = sortedCodes.length - 1; i >= 0; i--) {
             const code = sortedCodes[i];
-            const parts = code.split('.');
-            if (parts.length > 1) {
-                const parentCode = parts.slice(0, -1).join('.');
-                if (balanceMap.has(parentCode)) {
-                    const child = balanceMap.get(code)!;
-                    const parent = balanceMap.get(parentCode)!;
-                    // For ledger, we just aggregate the final balance, not movements
-                    parent.finalBalance += child.finalBalance;
-                }
+             let parentCode = '';
+            if (code.length > 1) { // It has a parent
+                 if (code.length > 5) parentCode = code.substring(0, 5);
+                 else if (code.length === 5) parentCode = code.substring(0, 3);
+                 else if (code.length === 3) parentCode = code.substring(0, 1);
+            }
+            if (parentCode && balanceMap.has(parentCode)) {
+                balanceMap.get(parentCode)!.finalBalance += balanceMap.get(code)!.finalBalance;
             }
         }
 
@@ -101,7 +100,7 @@ import { collection, query, where } from 'firebase/firestore';
                 ...account,
                 finalBalance: balance.finalBalance
             };
-        });
+        }).filter(account => account.finalBalance !== 0);
 
     }, [accounts, vouchers]);
 
@@ -142,7 +141,7 @@ import { collection, query, where } from 'firebase/firestore';
                     {!loading && ledgerBalances.length === 0 && (
                         <TableRow>
                             <TableCell colSpan={4} className="text-center">
-                                {!companyId ? "Selecciona una empresa para ver el libro mayor." : "No hay cuentas para mostrar en el libro mayor."}
+                                {!companyId ? "Selecciona una empresa para ver el libro mayor." : "No hay cuentas con saldo para mostrar en el libro mayor."}
                             </TableCell>
                         </TableRow>
                     )}

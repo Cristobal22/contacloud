@@ -108,14 +108,17 @@ export default function GeneralBalancePage() {
         
         const sortedCodes = Array.from(balanceMap.keys()).sort((a,b) => a.localeCompare(b, undefined, { numeric: true }));
 
+        // Aggregate balances up the hierarchy for parent accounts
         for (let i = sortedCodes.length - 1; i >= 0; i--) {
             const code = sortedCodes[i];
-            const parts = code.split('.');
-            if (parts.length > 1) {
-                const parentCode = parts.slice(0, -1).join('.');
-                if (balanceMap.has(parentCode)) {
-                    balanceMap.get(parentCode)!.finalBalance += balanceMap.get(code)!.finalBalance;
-                }
+            let parentCode = '';
+            if (code.length > 1) { // It has a parent
+                 if (code.length > 5) parentCode = code.substring(0, 5);
+                 else if (code.length === 5) parentCode = code.substring(0, 3);
+                 else if (code.length === 3) parentCode = code.substring(0, 1);
+            }
+            if (parentCode && balanceMap.has(parentCode)) {
+                balanceMap.get(parentCode)!.finalBalance += balanceMap.get(code)!.finalBalance;
             }
         }
         
@@ -128,10 +131,12 @@ export default function GeneralBalancePage() {
         const liabilities = accountsWithBalance.filter(a => a.code.startsWith('2') && a.finalBalance !== 0);
         const equity = accountsWithBalance.filter(a => a.code.startsWith('3') && a.finalBalance !== 0);
 
-        const income = accountsWithBalance.find(a => a.code === '4')?.finalBalance || 0;
-        const costs = accountsWithBalance.find(a => a.code === '5')?.finalBalance || 0;
-        const expenses = accountsWithBalance.find(a => a.code === '6')?.finalBalance || 0;
-        const periodResult = income - costs - expenses;
+        const incomeAccounts = accountsWithBalance.filter(a => a.code.startsWith('4'));
+        const expenseAccounts = accountsWithBalance.filter(a => a.code.startsWith('5') || a.code.startsWith('6'));
+
+        const totalIncome = incomeAccounts.reduce((sum, acc) => sum + acc.finalBalance, 0);
+        const totalExpenses = expenseAccounts.reduce((sum, acc) => sum + acc.finalBalance, 0);
+        const periodResult = totalIncome - totalExpenses;
         
         const totalAssets = accountsWithBalance.find(a => a.code === '1')?.finalBalance || 0;
         const totalLiabilities = accountsWithBalance.find(a => a.code === '2')?.finalBalance || 0;

@@ -76,7 +76,6 @@ export default function BalancesPage() {
 
         const balanceMap = new Map<string, BalanceRow>();
         
-        // Initialize all accounts from the chart of accounts
         accounts.forEach(acc => {
             balanceMap.set(acc.code, {
                 code: acc.code,
@@ -84,11 +83,10 @@ export default function BalancesPage() {
                 initialBalance: acc.balance || 0,
                 debit: 0,
                 credit: 0,
-                finalBalance: 0, // Will be calculated later
+                finalBalance: 0,
             });
         });
 
-        // Apply movements to detail accounts
         filteredVouchers.forEach(voucher => {
             voucher.entries.forEach(entry => {
                 if (balanceMap.has(entry.account)) {
@@ -101,7 +99,6 @@ export default function BalancesPage() {
 
         const sortedCodes = Array.from(balanceMap.keys()).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
         
-        // Calculate final balance for all accounts based on movements
         sortedCodes.forEach(code => {
             const acc = balanceMap.get(code)!;
             const accountInfo = accounts.find(a => a.code === code);
@@ -112,32 +109,26 @@ export default function BalancesPage() {
             }
         });
 
-
-        // Aggregate balances up the hierarchy
         for (let i = sortedCodes.length - 1; i >= 0; i--) {
             const code = sortedCodes[i];
             
             let parentCode = '';
-            if (code.length > 1) { // Cuenta -> Subgrupo, Grupo, Clase
-                parentCode = code.substring(0, code.length - 2);
-                 if (code.length > 5) parentCode = code.substring(0, 5);
-                 if (code.length === 5) parentCode = code.substring(0, 3);
-                 if (code.length === 3) parentCode = code.substring(0, 1);
+            if (code.length > 1) { 
+                if (code.length > 5) parentCode = code.substring(0, 5);
+                else if (code.length === 5) parentCode = code.substring(0, 3);
+                else if (code.length === 3) parentCode = code.substring(0, 1);
             }
            
-
             if (parentCode && balanceMap.has(parentCode)) {
                 const child = balanceMap.get(code)!;
                 const parent = balanceMap.get(parentCode)!;
                 parent.debit += child.debit;
                 parent.credit += child.credit;
-                // Don't aggregate final balances, as they are calculated from movements.
             }
         }
         
-        // Recalculate final balance for parent accounts after aggregation
          sortedCodes.forEach(code => {
-            if (code.length < 6) { // Only for group accounts
+            if (code.length < 6) { 
                 const acc = balanceMap.get(code)!;
                 const accountInfo = accounts.find(a => a.code === code);
                  if (accountInfo?.type === 'Activo' || accountInfo?.type === 'Resultado') {
@@ -148,9 +139,14 @@ export default function BalancesPage() {
             }
         });
 
-        
         const balanceData = sortedCodes.map(code => balanceMap.get(code)!);
-        setGeneratedBalance(balanceData);
+        
+        // Filter out rows where all monetary values are zero
+        const filteredBalanceData = balanceData.filter(
+            row => row.initialBalance !== 0 || row.debit !== 0 || row.credit !== 0 || row.finalBalance !== 0
+        );
+
+        setGeneratedBalance(filteredBalanceData);
     }
 
     const totals = React.useMemo(() => {
