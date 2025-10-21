@@ -1,4 +1,3 @@
-
 'use client'
 
 import React from "react"
@@ -72,9 +71,9 @@ function AccountantDashboardContent({ companyId }: { companyId: string }) {
             const movements = accountMovements.get(account.code);
             let finalBalance = account.balance || 0;
             if (movements) {
-                 if (account.type === 'Activo' || account.type === 'Resultado') { // Para resultado, el saldo deudor es gasto, acreedor es ganancia
+                 if (account.type === 'Activo' || (account.type === 'Resultado' && movements.debit > movements.credit)) {
                      finalBalance += (movements.debit - movements.credit);
-                 } else { // Pasivo y Patrimonio
+                 } else { // Pasivo, Patrimonio y Resultado (Ingresos)
                      finalBalance += (movements.credit - movements.debit);
                  }
             }
@@ -99,7 +98,7 @@ function AccountantDashboardContent({ companyId }: { companyId: string }) {
         .reduce((sum, acc) => sum + acc.balance, 0) || 0;
 
     const resultAccounts = React.useMemo(() => {
-        const income = calculatedBalances.filter(acc => acc.code.startsWith('4')).reduce((sum, acc) => sum - acc.balance, 0); // Income has credit balance (negative in our logic)
+        const income = calculatedBalances.filter(acc => acc.code.startsWith('4')).reduce((sum, acc) => sum + acc.balance, 0);
         const expenses = calculatedBalances.filter(acc => acc.code.startsWith('5') || acc.code.startsWith('6')).reduce((sum, acc) => sum + acc.balance, 0);
         return [
             { name: 'Ingresos', total: income },
