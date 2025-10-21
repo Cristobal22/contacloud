@@ -98,10 +98,10 @@ import { SelectedCompanyContext } from '../layout';
                         <TableCell>{entry.accountCode} - {entry.accountName}</TableCell>
                         <TableCell>{entry.description}</TableCell>
                         <TableCell className="text-right">
-                            {entry.debit > 0 ? `$${entry.debit.toLocaleString('es-CL')}` : '$0'}
+                            {entry.debit > 0 ? `$${Math.round(entry.debit).toLocaleString('es-CL')}` : '$0'}
                         </TableCell>
                         <TableCell className="text-right">
-                            {entry.credit > 0 ? `$${entry.credit.toLocaleString('es-CL')}` : '$0'}
+                            {entry.credit > 0 ? `$${Math.round(entry.credit).toLocaleString('es-CL')}` : '$0'}
                         </TableCell>
                     </TableRow>
                 ))}

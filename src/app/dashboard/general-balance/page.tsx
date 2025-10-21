@@ -112,13 +112,12 @@ export default function GeneralBalancePage() {
             };
         });
 
-        // Hierarchy aggregation
         const finalBalanceMap = new Map(accountsWithBalance.map(acc => [acc.code, acc.finalBalance]));
         const sortedCodes = Array.from(finalBalanceMap.keys()).sort((a,b) => b.length - a.length);
 
         sortedCodes.forEach(code => {
             let parentCode = '';
-            if (code.length > 1) { // It has a parent
+            if (code.length > 1) { 
                  if (code.length > 5) parentCode = code.substring(0, 5);
                  else if (code.length === 5) parentCode = code.substring(0, 3);
                  else if (code.length === 3) parentCode = code.substring(0, 1);
@@ -197,11 +196,11 @@ export default function GeneralBalancePage() {
                             <TableHeader><TableRow><TableHead>Cuenta</TableHead><TableHead className="text-right">Saldo</TableHead></TableRow></TableHeader>
                             <TableBody>
                                 {generatedBalance.assets.map(acc => (
-                                    <TableRow key={acc.id}><TableCell>{acc.code} - {acc.name}</TableCell><TableCell className="text-right">${acc.finalBalance.toLocaleString('es-CL')}</TableCell></TableRow>
+                                    <TableRow key={acc.id}><TableCell>{acc.code} - {acc.name}</TableCell><TableCell className="text-right">${Math.round(acc.finalBalance).toLocaleString('es-CL')}</TableCell></TableRow>
                                 ))}
                             </TableBody>
                             <TableFooterOriginal>
-                                <TableRow className="font-bold text-base"><TableCell>Total Activos</TableCell><TableCell className="text-right">${generatedBalance.totalAssets.toLocaleString('es-CL')}</TableCell></TableRow>
+                                <TableRow className="font-bold text-base"><TableCell>Total Activos</TableCell><TableCell className="text-right">${Math.round(generatedBalance.totalAssets).toLocaleString('es-CL')}</TableCell></TableRow>
                             </TableFooterOriginal>
                         </Table>
                     </div>
@@ -214,7 +213,7 @@ export default function GeneralBalancePage() {
                                 <TableHeader><TableRow><TableHead>Cuenta</TableHead><TableHead className="text-right">Saldo</TableHead></TableRow></TableHeader>
                                 <TableBody>
                                     {generatedBalance.liabilities.map(acc => (
-                                        <TableRow key={acc.id}><TableCell>{acc.code} - {acc.name}</TableCell><TableCell className="text-right">${acc.finalBalance.toLocaleString('es-CL')}</TableCell></TableRow>
+                                        <TableRow key={acc.id}><TableCell>{acc.code} - {acc.name}</TableCell><TableCell className="text-right">${Math.round(acc.finalBalance).toLocaleString('es-CL')}</TableCell></TableRow>
                                     ))}
                                 </TableBody>
                             </Table>
@@ -225,15 +224,15 @@ export default function GeneralBalancePage() {
                                 <TableHeader><TableRow><TableHead>Cuenta</TableHead><TableHead className="text-right">Saldo</TableHead></TableRow></TableHeader>
                                 <TableBody>
                                     {generatedBalance.equity.map(acc => (
-                                        <TableRow key={acc.id}><TableCell>{acc.code} - {acc.name}</TableCell><TableCell className="text-right">${acc.finalBalance.toLocaleString('es-CL')}</TableCell></TableRow>
+                                        <TableRow key={acc.id}><TableCell>{acc.code} - {acc.name}</TableCell><TableCell className="text-right">${Math.round(acc.finalBalance).toLocaleString('es-CL')}</TableCell></TableRow>
                                     ))}
-                                    <TableRow><TableCell>Resultado del Período</TableCell><TableCell className="text-right">${generatedBalance.periodResult.toLocaleString('es-CL')}</TableCell></TableRow>
+                                    <TableRow><TableCell>Resultado del Período</TableCell><TableCell className="text-right">${Math.round(generatedBalance.periodResult).toLocaleString('es-CL')}</TableCell></TableRow>
                                 </TableBody>
                             </Table>
                         </div>
                          <Table>
                              <TableFooterOriginal>
-                                <TableRow className="font-bold text-base bg-muted"><TableCell>Total Pasivo y Patrimonio</TableCell><TableCell className="text-right">${(generatedBalance.totalLiabilitiesAndEquity).toLocaleString('es-CL')}</TableCell></TableRow>
+                                <TableRow className="font-bold text-base bg-muted"><TableCell>Total Pasivo y Patrimonio</TableCell><TableCell className="text-right">${Math.round(generatedBalance.totalLiabilitiesAndEquity).toLocaleString('es-CL')}</TableCell></TableRow>
                             </TableFooterOriginal>
                          </Table>
                     </div>

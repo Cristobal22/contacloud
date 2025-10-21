@@ -140,10 +140,10 @@ export default function CashFlowPage() {
                                             {entry.description}
                                         </TableCell>
                                         <TableCell className="text-right text-green-600 font-medium">
-                                            {entry.type === 'Ingreso' ? `$${entry.total.toLocaleString('es-CL')}` : ''}
+                                            {entry.type === 'Ingreso' ? `$${Math.round(entry.total).toLocaleString('es-CL')}` : ''}
                                         </TableCell>
                                         <TableCell className="text-right text-red-600 font-medium">
-                                            {entry.type === 'Egreso' ? `$${entry.total.toLocaleString('es-CL')}` : ''}
+                                            {entry.type === 'Egreso' ? `$${Math.round(entry.total).toLocaleString('es-CL')}` : ''}
                                         </TableCell>
                                     </TableRow>
                                 ))}
@@ -151,8 +151,8 @@ export default function CashFlowPage() {
                             <TableFooterOriginal>
                                 <TableRow className="text-base">
                                     <TableCell colSpan={2} className="font-bold">Totales</TableCell>
-                                    <TableCell className="text-right font-bold text-green-600">${generatedReport.totals.income.toLocaleString('es-CL')}</TableCell>
-                                    <TableCell className="text-right font-bold text-red-600">${generatedReport.totals.outcome.toLocaleString('es-CL')}</TableCell>
+                                    <TableCell className="text-right font-bold text-green-600">${Math.round(generatedReport.totals.income).toLocaleString('es-CL')}</TableCell>
+                                    <TableCell className="text-right font-bold text-red-600">${Math.round(generatedReport.totals.outcome).toLocaleString('es-CL')}</TableCell>
                                 </TableRow>
                             </TableFooterOriginal>
                         </Table>
@@ -161,7 +161,7 @@ export default function CashFlowPage() {
                         <div className="text-right p-4 rounded-lg bg-muted">
                             <p className="text-sm text-muted-foreground">Flujo de Caja Neto del Período</p>
                             <p className={`text-2xl font-bold ${generatedReport.totals.net >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                ${generatedReport.totals.net.toLocaleString('es-CL')}
+                                ${Math.round(generatedReport.totals.net).toLocaleString('es-CL')}
                             </p>
                         </div>
                     </CardFooter>

@@ -213,7 +213,7 @@ import { useToast } from "@/hooks/use-toast"
                             {voucher.status}
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-right">${voucher.total.toLocaleString('es-CL')}</TableCell>
+                        <TableCell className="text-right">${Math.round(voucher.total).toLocaleString('es-CL')}</TableCell>
                         <TableCell>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>

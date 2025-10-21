@@ -205,7 +205,7 @@ import { SelectedCompanyContext } from "../layout";
                             {fee.status}
                         </Badge>
                     </TableCell>
-                    <TableCell className="text-right">${fee.total.toLocaleString('es-CL')}</TableCell>
+                    <TableCell className="text-right">${Math.round(fee.total).toLocaleString('es-CL')}</TableCell>
                     <TableCell>
                         <DropdownMenu>
                         <DropdownMenuTrigger asChild>

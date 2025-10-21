@@ -91,7 +91,6 @@ export default function PurchasesPage() {
                     return;
                 }
 
-                // Build a map of existing supplier RUTs to their last used account
                 const supplierAccountMap = new Map<string, string>();
                 if (purchases) {
                     purchases.forEach(p => {
@@ -141,7 +140,6 @@ export default function PurchasesPage() {
                         companyId: companyId,
                     };
 
-                    // Pre-assign account if supplier is known
                     const assignedAccount = supplierAccountMap.get(supplierRut);
                     if (assignedAccount) {
                         newPurchase.assignedAccount = assignedAccount;
@@ -179,7 +177,6 @@ export default function PurchasesPage() {
             };
             reader.readAsText(file, 'ISO-8859-1'); // Use ISO-8859-1 for latin characters
         }
-        // Do not clear file name, but clear input value to allow re-uploading
         if (fileInputRef.current) fileInputRef.current.value = '';
     };
 
@@ -300,10 +297,10 @@ export default function PurchasesPage() {
                                             label=""
                                         />
                                     </TableCell>
-                                    <TableCell className="text-right">${purchase.exemptAmount.toLocaleString('es-CL')}</TableCell>
-                                    <TableCell className="text-right">${purchase.netAmount.toLocaleString('es-CL')}</TableCell>
-                                    <TableCell className="text-right">${purchase.taxAmount.toLocaleString('es-CL')}</TableCell>
-                                    <TableCell className="text-right font-bold">${purchase.total.toLocaleString('es-CL')}</TableCell>
+                                    <TableCell className="text-right">${Math.round(purchase.exemptAmount).toLocaleString('es-CL')}</TableCell>
+                                    <TableCell className="text-right">${Math.round(purchase.netAmount).toLocaleString('es-CL')}</TableCell>
+                                    <TableCell className="text-right">${Math.round(purchase.taxAmount).toLocaleString('es-CL')}</TableCell>
+                                    <TableCell className="text-right font-bold">${Math.round(purchase.total).toLocaleString('es-CL')}</TableCell>
                                 </TableRow>
                             ))}
                             {!loading && pendingPurchases.length === 0 && (

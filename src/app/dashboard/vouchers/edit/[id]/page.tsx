@@ -409,8 +409,8 @@ export default function VoucherEditPage() {
                                         Agregar Línea
                                     </Button>
                                 </TableCell>
-                                <TableCell className="text-right font-bold text-lg">${totalDebit.toLocaleString('es-CL')}</TableCell>
-                                <TableCell className="text-right font-bold text-lg">${totalCredit.toLocaleString('es-CL')}</TableCell>
+                                <TableCell className="text-right font-bold text-lg">${Math.round(totalDebit).toLocaleString('es-CL')}</TableCell>
+                                <TableCell className="text-right font-bold text-lg">${Math.round(totalCredit).toLocaleString('es-CL')}</TableCell>
                                 <TableCell></TableCell>
                             </TableRow>
                              <TableRow>

@@ -44,31 +44,23 @@ export default function VatSummaryPage() {
         const endDate = endOfMonth(new Date(year, month));
 
         const relevantSales = sales?.filter(s => {
-            const saleDate = new Date(s.date);
-            const saleUTCDate = new Date(saleDate.getUTCFullYear(), saleDate.getUTCMonth(), saleDate.getUTCDate());
-            const isWithinPeriod = saleUTCDate >= startDate && saleUTCDate <= endDate;
-            // Only include sales that have been processed
+            const saleDate = parseISO(s.date);
+            const isWithinPeriod = saleDate >= startDate && saleDate <= endDate;
             return isWithinPeriod && (s.status === 'Contabilizado' || s.status === 'Cobrado');
         }) || [];
 
         const relevantPurchases = purchases?.filter(p => {
-            const purchaseDate = new Date(p.date);
-            const purchaseUTCDate = new Date(purchaseDate.getUTCFullYear(), purchaseDate.getUTCMonth(), purchaseDate.getUTCDate());
-            const isWithinPeriod = purchaseUTCDate >= startDate && purchaseUTCDate <= endDate;
-            // Only include purchases that have been processed
+            const purchaseDate = parseISO(p.date);
+            const isWithinPeriod = purchaseDate >= startDate && purchaseDate <= endDate;
             return isWithinPeriod && (p.status === 'Contabilizado' || p.status === 'Pagado');
         }) || [];
-
+        
         const vatDebit = relevantSales.reduce((sum, s) => {
-             // Handle Credit Notes (assuming type '61' is a credit note)
-            const documentSign = s.documentNumber.includes('61') ? -1 : 1;
-            const netAmount = s.netAmount || (s.total / 1.19);
-            const taxAmount = (s.total - s.exemptAmount) - netAmount;
-            return sum + (taxAmount * documentSign);
+            const taxAmount = s.total - s.netAmount - s.exemptAmount;
+            return sum + taxAmount;
         }, 0);
 
         const vatCredit = relevantPurchases.reduce((sum, p) => sum + p.taxAmount, 0);
-
 
         setSummary({
             debit: vatDebit,

@@ -60,7 +60,6 @@ export function PayrollDetailDialog({ isOpen, onClose, data }: PayrollDetailDial
         if (!input) return null;
     
         try {
-            // Ensure the content is visible for capture
             input.style.opacity = '1';
             const canvas = await html2canvas(input, {
                 scale: 2,
@@ -122,7 +121,6 @@ export function PayrollDetailDialog({ isOpen, onClose, data }: PayrollDetailDial
 
     const { payroll, employee } = data;
     
-    // --- IUT Calculation Details ---
     const taxBase = payroll.taxableEarnings - payroll.afpDiscount - payroll.healthDiscount;
     const taxAmountPreRebate = taxBase * (payroll.iutFactor || 0);
     const rebateAmount = payroll.iutRebajaInCLP || 0;
@@ -148,7 +146,6 @@ export function PayrollDetailDialog({ isOpen, onClose, data }: PayrollDetailDial
                             ref={payrollContentRef}
                         >
                         <div className="p-8">
-                                {/* Header */}
                                 <div className="flex justify-between items-start mb-6">
                                     <div>
                                         <h1 className="text-2xl font-bold text-gray-800">Liquidación de Sueldo</h1>
@@ -161,7 +158,6 @@ export function PayrollDetailDialog({ isOpen, onClose, data }: PayrollDetailDial
                                     </div>
                                 </div>
                                 
-                                {/* Employee Details */}
                                 <div className="border-t border-b border-gray-200 py-3 mb-6">
                                     <h3 className="text-base font-semibold mb-2 text-gray-700">Información del Trabajador</h3>
                                     <div className="grid grid-cols-2 gap-x-8 gap-y-1 text-sm">
@@ -171,7 +167,6 @@ export function PayrollDetailDialog({ isOpen, onClose, data }: PayrollDetailDial
                                     </div>
                                 </div>
 
-                                {/* Main Table */}
                                 <div className="grid grid-cols-2 gap-8">
                                     <div>
                                         <h3 className="text-base font-semibold mb-2 text-gray-700">Haberes</h3>
@@ -225,7 +220,6 @@ export function PayrollDetailDialog({ isOpen, onClose, data }: PayrollDetailDial
                                 </div>
 
 
-                                {/* Grand Total */}
                                 <div className="flex justify-end mt-8">
                                     <div className="w-full max-w-sm space-y-2 p-4 bg-gray-100 rounded-lg">
                                         <div className="flex justify-between text-lg font-bold text-gray-800">
@@ -238,7 +232,6 @@ export function PayrollDetailDialog({ isOpen, onClose, data }: PayrollDetailDial
                         </div>
                     </div>
                     
-                    {/* PDF Preview Iframe */}
                     {isPreview && (
                         <div className="absolute top-[80px] left-6 right-6 bottom-[80px] bg-white">
                              <div className="h-full border rounded-md">

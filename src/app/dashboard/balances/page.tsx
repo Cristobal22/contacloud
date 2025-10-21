@@ -141,7 +141,6 @@ export default function BalancesPage() {
 
         const balanceData = sortedCodes.map(code => balanceMap.get(code)!);
         
-        // Filter out rows where all monetary values are zero
         const filteredBalanceData = balanceData.filter(
             row => row.initialBalance !== 0 || row.debit !== 0 || row.credit !== 0 || row.finalBalance !== 0
         );
@@ -151,9 +150,8 @@ export default function BalancesPage() {
 
     const totals = React.useMemo(() => {
         if (!generatedBalance) return { debit: 0, credit: 0 };
-        // The total is the sum of the top-level accounts (e.g., '1', '2', '3', etc.)
         return generatedBalance
-            .filter(row => row.code.length === 1) // Only sum top-level classes
+            .filter(row => row.code.length === 1) 
             .reduce((acc, row) => ({
                 debit: acc.debit + row.debit,
                 credit: acc.credit + row.credit,
@@ -209,10 +207,10 @@ export default function BalancesPage() {
                                     <TableRow key={row.code}>
                                         <TableCell>{row.code}</TableCell>
                                         <TableCell>{row.name}</TableCell>
-                                        <TableCell className="text-right">${row.debit.toLocaleString('es-CL')}</TableCell>
-                                        <TableCell className="text-right">${row.credit.toLocaleString('es-CL')}</TableCell>
+                                        <TableCell className="text-right">${Math.round(row.debit).toLocaleString('es-CL')}</TableCell>
+                                        <TableCell className="text-right">${Math.round(row.credit).toLocaleString('es-CL')}</TableCell>
                                         <TableCell className={`text-right font-bold ${row.finalBalance < 0 ? 'text-destructive' : ''}`}>
-                                            ${row.finalBalance.toLocaleString('es-CL')}
+                                            ${Math.round(row.finalBalance).toLocaleString('es-CL')}
                                         </TableCell>
                                     </TableRow>
                                 ))}
@@ -220,8 +218,8 @@ export default function BalancesPage() {
                             <TableFooter>
                                 <TableRow className="text-base">
                                     <TableCell colSpan={2} className="font-bold">Totales</TableCell>
-                                    <TableCell className="text-right font-bold">${totals.debit.toLocaleString('es-CL')}</TableCell>
-                                    <TableCell className="text-right font-bold">${totals.credit.toLocaleString('es-CL')}</TableCell>
+                                    <TableCell className="text-right font-bold">${Math.round(totals.debit).toLocaleString('es-CL')}</TableCell>
+                                    <TableCell className="text-right font-bold">${Math.round(totals.credit).toLocaleString('es-CL')}</TableCell>
                                     <TableCell></TableCell>
                                 </TableRow>
                             </TableFooter>

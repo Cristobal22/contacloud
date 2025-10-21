@@ -134,7 +134,7 @@ import { collection, query, where } from 'firebase/firestore';
                             <TableCell>{account.name}</TableCell>
                             <TableCell>{account.type}</TableCell>
                             <TableCell className="text-right font-medium">
-                                ${account.finalBalance.toLocaleString('es-CL')}
+                                ${Math.round(account.finalBalance).toLocaleString('es-CL')}
                             </TableCell>
                         </TableRow>
                     ))}

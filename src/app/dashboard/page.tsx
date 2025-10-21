@@ -69,7 +69,6 @@ function AccountantDashboardContent({ companyId }: { companyId: string }) {
         
         const finalBalances = new Map<string, number>();
 
-        // 1. Initialize with opening balances and add period movements
         accounts.forEach(account => {
             const movements = accountMovements.get(account.code);
             let finalBalance = account.balance || 0;
@@ -83,12 +82,11 @@ function AccountantDashboardContent({ companyId }: { companyId: string }) {
             finalBalances.set(account.code, finalBalance);
         });
 
-        // 2. Aggregate balances up the hierarchy
         const sortedCodes = accounts.map(a => a.code).sort((a,b) => b.length - a.length);
 
         sortedCodes.forEach(code => {
             let parentCode = '';
-            if (code.length > 1) { // It has a parent
+            if (code.length > 1) {
                  if (code.length > 5) parentCode = code.substring(0, 5);
                  else if (code.length === 5) parentCode = code.substring(0, 3);
                  else if (code.length === 3) parentCode = code.substring(0, 1);
@@ -100,7 +98,6 @@ function AccountantDashboardContent({ companyId }: { companyId: string }) {
             }
         });
 
-        // 3. Map final calculated balances back to accounts
         return accounts.map(account => ({
             ...account,
             balance: finalBalances.get(account.code) || 0,
@@ -145,7 +142,7 @@ function AccountantDashboardContent({ companyId }: { companyId: string }) {
           <Card>
             <CardHeader className="pb-2">
               <CardDescription>Total Activos</CardDescription>
-              <CardTitle className="text-4xl">${totalActives.toLocaleString('es-CL')}</CardTitle>
+              <CardTitle className="text-4xl">${Math.round(totalActives).toLocaleString('es-CL')}</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-xs text-muted-foreground">
@@ -156,7 +153,7 @@ function AccountantDashboardContent({ companyId }: { companyId: string }) {
           <Card>
             <CardHeader className="pb-2">
               <CardDescription>Total Pasivos</CardDescription>
-              <CardTitle className="text-4xl">${totalLiabilities.toLocaleString('es-CL')}</CardTitle>
+              <CardTitle className="text-4xl">${Math.round(totalLiabilities).toLocaleString('es-CL')}</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-xs text-muted-foreground">
@@ -167,7 +164,7 @@ function AccountantDashboardContent({ companyId }: { companyId: string }) {
           <Card>
             <CardHeader className="pb-2">
               <CardDescription>Total Patrimonio</CardDescription>
-              <CardTitle className="text-4xl">${totalEquity.toLocaleString('es-CL')}</CardTitle>
+              <CardTitle className="text-4xl">${Math.round(totalEquity).toLocaleString('es-CL')}</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-xs text-muted-foreground">
@@ -208,7 +205,7 @@ function AccountantDashboardContent({ companyId }: { companyId: string }) {
                             fontSize={12}
                             tickLine={false}
                             axisLine={false}
-                            tickFormatter={(value) => `$${Number(value).toLocaleString('es-CL')}`}
+                            tickFormatter={(value) => `$${Number(value).toLocaleString('es-CL', { maximumFractionDigits: 0 })}`}
                             />
                              <Tooltip
                                 cursor={{ fill: 'hsl(var(--muted))' }}
@@ -222,7 +219,7 @@ function AccountantDashboardContent({ companyId }: { companyId: string }) {
                                             {payload[0].payload.name}
                                             </span>
                                             <span className="font-bold text-muted-foreground">
-                                             ${Number(payload[0].value).toLocaleString('es-CL')}
+                                             ${Number(payload[0].value).toLocaleString('es-CL', { maximumFractionDigits: 0 })}
                                             </span>
                                         </div>
                                         </div>
@@ -263,7 +260,7 @@ function AccountantDashboardContent({ companyId }: { companyId: string }) {
                       </div>
                     </TableCell>
                     <TableCell className="text-right">
-                      ${voucher.total.toLocaleString('es-CL')}
+                      ${Math.round(voucher.total).toLocaleString('es-CL')}
                     </TableCell>
                     <TableCell>
                       <Badge variant={voucher.status === 'Contabilizado' ? 'outline' : 'secondary'} className="text-xs" >

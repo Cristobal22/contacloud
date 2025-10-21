@@ -264,7 +264,7 @@ export default function TreasuryPage() {
                                                 <TableCell><Checkbox checked={selectedPurchases.includes(p.id)} onCheckedChange={(checked) => handleSelectPurchase(p.id, checked as boolean)} /></TableCell>
                                                 <TableCell>{p.supplier}</TableCell>
                                                 <TableCell>{p.documentType} {p.documentNumber}</TableCell>
-                                                <TableCell className="text-right font-bold">${p.total.toLocaleString('es-CL')}</TableCell>
+                                                <TableCell className="text-right font-bold">${Math.round(p.total).toLocaleString('es-CL')}</TableCell>
                                             </TableRow>
                                         ))}
                                         {!loading && (!pendingPurchases || pendingPurchases.length === 0) && <TableRow><TableCell colSpan={4} className="text-center h-24">No hay facturas de compra pendientes de pago.</TableCell></TableRow>}
@@ -320,7 +320,7 @@ export default function TreasuryPage() {
                                                 <TableCell><Checkbox checked={selectedSales.includes(s.id)} onCheckedChange={(checked) => handleSelectSale(s.id, checked as boolean)} /></TableCell>
                                                 <TableCell>{s.customer}</TableCell>
                                                 <TableCell>{s.documentNumber}</TableCell>
-                                                <TableCell className="text-right font-bold">${s.total.toLocaleString('es-CL')}</TableCell>
+                                                <TableCell className="text-right font-bold">${Math.round(s.total).toLocaleString('es-CL')}</TableCell>
                                             </TableRow>
                                         ))}
                                         {!loading && (!pendingSales || pendingSales.length === 0) && <TableRow><TableCell colSpan={4} className="text-center h-24">No hay facturas de venta pendientes de cobro.</TableCell></TableRow>}

@@ -245,9 +245,9 @@ export default function SalesPage() {
                                     <TableCell>{new Date(sale.date).toLocaleDateString('es-CL', { timeZone: 'UTC' })}</TableCell>
                                     <TableCell className="font-medium">{sale.documentNumber}</TableCell>
                                     <TableCell>{sale.customer}</TableCell>
-                                    <TableCell className="text-right">${sale.exemptAmount.toLocaleString('es-CL')}</TableCell>
-                                    <TableCell className="text-right">${sale.netAmount.toLocaleString('es-CL')}</TableCell>
-                                    <TableCell className="text-right font-bold">${sale.total.toLocaleString('es-CL')}</TableCell>
+                                    <TableCell className="text-right">${Math.round(sale.exemptAmount).toLocaleString('es-CL')}</TableCell>
+                                    <TableCell className="text-right">${Math.round(sale.netAmount).toLocaleString('es-CL')}</TableCell>
+                                    <TableCell className="text-right font-bold">${Math.round(sale.total).toLocaleString('es-CL')}</TableCell>
                                 </TableRow>
                             ))}
                             {!loading && pendingSales.length === 0 && (

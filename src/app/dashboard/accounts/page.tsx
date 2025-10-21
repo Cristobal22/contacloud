@@ -274,7 +274,6 @@ import {
             };
             reader.readAsText(file);
         }
-         // Reset file input to allow re-uploading the same file
         if (fileInputRef.current) {
             fileInputRef.current.value = '';
         }
@@ -406,7 +405,7 @@ import {
                                     <Badge variant="secondary">{account.type}</Badge>
                                 </TableCell>
                                 <TableCell>{getClassification(account.code)}</TableCell>
-                                <TableCell className="text-right">${account.balance.toLocaleString('es-CL', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</TableCell>
+                                <TableCell className="text-right">${Math.round(account.balance).toLocaleString('es-CL')}</TableCell>
                                 <TableCell>
                                     <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
@@ -524,5 +523,3 @@ import {
     </>
   )
 }
-
-    
