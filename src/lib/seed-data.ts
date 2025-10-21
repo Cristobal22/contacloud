@@ -206,25 +206,65 @@ export const initialChartOfAccounts: Omit<Account, 'id' | 'companyId' | 'balance
     { code: "40199", name: "UTILIDAD CONSOLIDADA", type: "Resultado" },
 ];
 
+const afpData2024 = [
+    { name: "CAPITAL", mandatoryContribution: 11.44, previredCode: "33", provisionalRegime: "DL 3.500", dtCode: "02" },
+    { name: "CUPRUM", mandatoryContribution: 11.44, previredCode: "03", provisionalRegime: "DL 3.500", dtCode: "03" },
+    { name: "HABITAT", mandatoryContribution: 11.27, previredCode: "05", provisionalRegime: "DL 3.500", dtCode: "04" },
+    { name: "MODELO", mandatoryContribution: 10.58, previredCode: "34", provisionalRegime: "DL 3.500", dtCode: "08" },
+    { name: "PLANVITAL", mandatoryContribution: 11.16, previredCode: "08", provisionalRegime: "DL 3.500", dtCode: "05" },
+    { name: "PROVIDA", mandatoryContribution: 11.45, previredCode: "09", provisionalRegime: "DL 3.500", dtCode: "06" },
+    { name: "UNO", mandatoryContribution: 10.69, previredCode: "35", provisionalRegime: "DL 3.500", dtCode: "09" }
+];
+const healthData2024 = [
+    { name: "FONASA", mandatoryContribution: 7.00, previredCode: "01", dtCode: "01" },
+    { name: "CONSALUD", mandatoryContribution: 7.00, previredCode: "18", dtCode: "02" },
+    { name: "CRUZBLANCA", mandatoryContribution: 7.00, previredCode: "07", dtCode: "03" },
+    { name: "NUEVA MASVIDA", mandatoryContribution: 7.00, previredCode: "31", dtCode: "04" },
+    { name: "BANMEDICA", mandatoryContribution: 7.00, previredCode: "04", dtCode: "05" },
+    { name: "VIDA TRES", mandatoryContribution: 7.00, previredCode: "17", dtCode: "06" },
+    { name: "COLMENA", mandatoryContribution: 7.00, previredCode: "02", dtCode: "07" },
+];
+
+const afpData2025 = [
+    { name: "CAPITAL", mandatoryContribution: 11.44, previredCode: "33", provisionalRegime: "DL 3.500", dtCode: "02" },
+    { name: "CUPRUM", mandatoryContribution: 11.44, previredCode: "03", provisionalRegime: "DL 3.500", dtCode: "03" },
+    { name: "HABITAT", mandatoryContribution: 11.27, previredCode: "05", provisionalRegime: "DL 3.500", dtCode: "04" },
+    { name: "MODELO", mandatoryContribution: 10.58, previredCode: "34", provisionalRegime: "DL 3.500", dtCode: "08" },
+    { name: "PLANVITAL", mandatoryContribution: 11.16, previredCode: "08", provisionalRegime: "DL 3.500", dtCode: "05" },
+    { name: "PROVIDA", mandatoryContribution: 11.45, previredCode: "09", provisionalRegime: "DL 3.500", dtCode: "06" },
+    { name: "UNO", mandatoryContribution: 10.69, previredCode: "35", provisionalRegime: "DL 3.500", dtCode: "09" }
+];
+const healthData2025 = [
+    { name: "FONASA", mandatoryContribution: 7.00, previredCode: "01", dtCode: "01" },
+    { name: "CONSALUD", mandatoryContribution: 7.00, previredCode: "18", dtCode: "02" },
+    { name: "CRUZBLANCA", mandatoryContribution: 7.00, previredCode: "07", dtCode: "03" },
+    { name: "NUEVA MASVIDA", mandatoryContribution: 7.00, previredCode: "31", dtCode: "04" },
+    { name: "BANMEDICA", mandatoryContribution: 7.00, previredCode: "04", dtCode: "05" },
+    { name: "VIDA TRES", mandatoryContribution: 7.00, previredCode: "17", dtCode: "06" },
+    { name: "COLMENA", mandatoryContribution: 7.00, previredCode: "02", dtCode: "07" },
+];
+
 
 export const initialAfpEntities: Omit<AfpEntity, 'id'>[] = [
-    { year: 2024, month: 7, name: "CAPITAL", mandatoryContribution: 11.44, previredCode: "33", provisionalRegime: "DL 3.500", dtCode: "02" },
-    { year: 2024, month: 7, name: "CUPRUM", mandatoryContribution: 11.44, previredCode: "03", provisionalRegime: "DL 3.500", dtCode: "03" },
-    { year: 2024, month: 7, name: "HABITAT", mandatoryContribution: 11.27, previredCode: "05", provisionalRegime: "DL 3.500", dtCode: "04" },
-    { year: 2024, month: 7, name: "MODELO", mandatoryContribution: 10.58, previredCode: "34", provisionalRegime: "DL 3.500", dtCode: "08" },
-    { year: 2024, month: 7, name: "PLANVITAL", mandatoryContribution: 11.16, previredCode: "08", provisionalRegime: "DL 3.500", dtCode: "05" },
-    { year: 2024, month: 7, name: "PROVIDA", mandatoryContribution: 11.45, previredCode: "09", provisionalRegime: "DL 3.500", dtCode: "06" },
-    { year: 2024, month: 7, name: "UNO", mandatoryContribution: 10.49, previredCode: "35", provisionalRegime: "DL 3.500", dtCode: "09" }
+    // 2024
+    ...Array.from({ length: 12 }, (_, i) => i + 1).flatMap(month => 
+        afpData2024.map(afp => ({ ...afp, year: 2024, month }))
+    ),
+    // 2025
+    ...Array.from({ length: 12 }, (_, i) => i + 1).flatMap(month => 
+        afpData2025.map(afp => ({ ...afp, year: 2025, month }))
+    ),
 ];
 
 export const initialHealthEntities: Omit<HealthEntity, 'id'>[] = [
-    { year: 2024, month: 7, name: "FONASA", mandatoryContribution: 7.00, previredCode: "01", dtCode: "01" },
-    { year: 2024, month: 7, name: "CONSALUD", mandatoryContribution: 7.00, previredCode: "18", dtCode: "02" },
-    { year: 2024, month: 7, name: "CRUZBLANCA", mandatoryContribution: 7.00, previredCode: "07", dtCode: "03" },
-    { year: 2024, month: 7, name: "NUEVA MASVIDA", mandatoryContribution: 7.00, previredCode: "31", dtCode: "04" },
-    { year: 2024, month: 7, name: "BANMEDICA", mandatoryContribution: 7.00, previredCode: "04", dtCode: "05" },
-    { year: 2024, month: 7, name: "VIDA TRES", mandatoryContribution: 7.00, previredCode: "17", dtCode: "06" },
-    { year: 2024, month: 7, name: "COLMENA", mandatoryContribution: 7.00, previredCode: "02", dtCode: "07" },
+    // 2024
+    ...Array.from({ length: 12 }, (_, i) => i + 1).flatMap(month => 
+        healthData2024.map(health => ({ ...health, year: 2024, month }))
+    ),
+    // 2025
+    ...Array.from({ length: 12 }, (_, i) => i + 1).flatMap(month => 
+        healthData2025.map(health => ({ ...health, year: 2025, month }))
+    ),
 ];
 
 export const initialFamilyAllowanceParameters: Omit<FamilyAllowanceParameter, 'id'>[] = [
