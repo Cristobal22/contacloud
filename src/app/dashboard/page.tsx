@@ -18,7 +18,7 @@ import {
     TableRow,
   } from "@/components/ui/table"
   import { Badge } from "@/components/ui/badge"
-  import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis } from "recharts"
+  import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip } from "recharts"
   import { useCollection, useFirestore } from "@/firebase"
   import type { Account, Company, Voucher } from "@/lib/types"
   import { useUser } from "@/firebase"
@@ -72,10 +72,10 @@ function AccountantDashboardContent({ companyId }: { companyId: string }) {
             const movements = accountMovements.get(account.code);
             let finalBalance = account.balance || 0;
             if (movements) {
-                 if (account.type === 'Activo' || (account.type === 'Resultado' && movements.debit > movements.credit)) {
-                     finalBalance += movements.debit - movements.credit;
-                 } else { 
-                     finalBalance += movements.credit - movements.debit;
+                 if (account.type === 'Activo' || account.type === 'Resultado') { // Para resultado, el saldo deudor es gasto, acreedor es ganancia
+                     finalBalance += (movements.debit - movements.credit);
+                 } else { // Pasivo y Patrimonio
+                     finalBalance += (movements.credit - movements.debit);
                  }
             }
             return {
@@ -86,13 +86,27 @@ function AccountantDashboardContent({ companyId }: { companyId: string }) {
 
     }, [accounts, contabilizadosVouchers]);
 
-    const totalBalance = calculatedBalances
+    const totalActives = calculatedBalances
         ?.filter(acc => acc.type === 'Activo')
         .reduce((sum, acc) => sum + acc.balance, 0) || 0;
 
     const totalLiabilities = calculatedBalances
         ?.filter(acc => acc.type === 'Pasivo')
         .reduce((sum, acc) => sum + acc.balance, 0) || 0;
+    
+    const totalEquity = calculatedBalances
+        ?.filter(acc => acc.type === 'Patrimonio')
+        .reduce((sum, acc) => sum + acc.balance, 0) || 0;
+
+    const resultAccounts = React.useMemo(() => {
+        const income = calculatedBalances.filter(acc => acc.code.startsWith('4')).reduce((sum, acc) => sum - acc.balance, 0); // Income has credit balance (negative in our logic)
+        const expenses = calculatedBalances.filter(acc => acc.code.startsWith('5') || acc.code.startsWith('6')).reduce((sum, acc) => sum + acc.balance, 0);
+        return [
+            { name: 'Ingresos', total: income },
+            { name: 'Gastos', total: expenses },
+        ];
+    }, [calculatedBalances]);
+
 
     const recentVouchers = vouchers?.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 5) || [];
 
@@ -111,11 +125,11 @@ function AccountantDashboardContent({ companyId }: { companyId: string }) {
           <Card>
             <CardHeader className="pb-2">
               <CardDescription>Total Activos</CardDescription>
-              <CardTitle className="text-4xl">${totalBalance.toLocaleString('es-CL')}</CardTitle>
+              <CardTitle className="text-4xl">${totalActives.toLocaleString('es-CL')}</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-xs text-muted-foreground">
-                Calculado desde las cuentas de la empresa.
+                Suma de saldos de cuentas de activo.
               </div>
             </CardContent>
           </Card>
@@ -126,22 +140,22 @@ function AccountantDashboardContent({ companyId }: { companyId: string }) {
             </CardHeader>
             <CardContent>
               <div className="text-xs text-muted-foreground">
-                Calculado desde las cuentas de la empresa.
+                Suma de saldos de cuentas de pasivo.
               </div>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="pb-2">
-              <CardDescription>Empresas</CardDescription>
-              <CardTitle className="text-4xl">{companies?.length || 0}</CardTitle>
+              <CardDescription>Total Patrimonio</CardDescription>
+              <CardTitle className="text-4xl">${totalEquity.toLocaleString('es-CL')}</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-xs text-muted-foreground">
-                Total de empresas gestionadas.
+                Suma de saldos de cuentas de patrimonio.
               </div>
             </CardContent>
           </Card>
-          <Card>
+           <Card>
             <CardHeader className="pb-2">
               <CardDescription>Comprobantes</CardDescription>
               <CardTitle className="text-4xl">{vouchers?.length || 0}</CardTitle>
@@ -156,12 +170,12 @@ function AccountantDashboardContent({ companyId }: { companyId: string }) {
         <div className="grid gap-4 md:grid-cols-2">
             <Card>
                 <CardHeader>
-                    <CardTitle>Saldos de Cuentas</CardTitle>
-                    <CardDescription>Un resumen de los saldos entre tipos de cuenta.</CardDescription>
+                    <CardTitle>Resultados del Período</CardTitle>
+                    <CardDescription>Comparación entre ingresos y gastos del período.</CardDescription>
                 </CardHeader>
                 <CardContent>
                     <ResponsiveContainer width="100%" height={300}>
-                        <BarChart data={calculatedBalances.filter(a => a.balance > 0 && (a.type === 'Activo' || a.type === 'Pasivo'))}>
+                        <BarChart data={resultAccounts}>
                             <XAxis
                             dataKey="name"
                             stroke="#888888"
@@ -176,7 +190,29 @@ function AccountantDashboardContent({ companyId }: { companyId: string }) {
                             axisLine={false}
                             tickFormatter={(value) => `$${Number(value).toLocaleString('es-CL')}`}
                             />
-                            <Bar dataKey="balance" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                             <Tooltip
+                                cursor={{ fill: 'hsl(var(--muted))' }}
+                                content={({ active, payload }) => {
+                                if (active && payload && payload.length) {
+                                    return (
+                                    <div className="rounded-lg border bg-background p-2 shadow-sm">
+                                        <div className="grid grid-cols-2 gap-2">
+                                        <div className="flex flex-col">
+                                            <span className="text-[0.70rem] uppercase text-muted-foreground">
+                                            {payload[0].payload.name}
+                                            </span>
+                                            <span className="font-bold text-muted-foreground">
+                                             ${Number(payload[0].value).toLocaleString('es-CL')}
+                                            </span>
+                                        </div>
+                                        </div>
+                                    </div>
+                                    )
+                                }
+                                return null
+                                }}
+                            />
+                            <Bar dataKey="total" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
                         </BarChart>
                     </ResponsiveContainer>
                 </CardContent>
