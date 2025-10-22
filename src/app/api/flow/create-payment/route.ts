@@ -74,12 +74,16 @@ export async function POST(request: Request) {
     // Añadir la firma a los parámetros
     paymentParams.s = await sign(paymentParams, FLOW_SECRET_KEY);
 
+    const bodyString = Object.keys(paymentParams)
+        .map(key => `${encodeURIComponent(key)}=${encodeURIComponent(paymentParams[key])}`)
+        .join('&');
+    
     const response = await fetch(`${FLOW_API_URL}/payment/create`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/x-www-form-urlencoded',
         },
-        body: new URLSearchParams(paymentParams),
+        body: bodyString,
     });
     
     const result = await response.json();

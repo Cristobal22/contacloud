@@ -41,8 +41,10 @@ export async function POST(request: Request) {
           token: token,
         };
         const signature = await sign(params, FLOW_SECRET_KEY);
+        
+        const queryString = `apiKey=${FLOW_API_KEY}&token=${token}&s=${signature}`;
 
-        const response = await fetch(`${FLOW_API_URL}/payment/getStatus?apiKey=${FLOW_API_KEY}&token=${token}&s=${signature}`);
+        const response = await fetch(`${FLOW_API_URL}/payment/getStatus?${queryString}`);
         const paymentStatus = await response.json();
 
 
