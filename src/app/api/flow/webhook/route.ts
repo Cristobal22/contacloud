@@ -21,10 +21,13 @@ export async function POST(request: Request) {
         };
         const signature = await sign(params, FLOW_SECRET_KEY);
         
-        const searchParams = new URLSearchParams({
+        const finalParams = {
             ...params,
             s: signature,
-        });
+        };
+
+        const orderedKeys = Object.keys(finalParams).sort();
+        const searchParams = orderedKeys.map(key => `${key}=${encodeURIComponent(finalParams[key])}`).join('&');
 
         const response = await fetch(`${FLOW_API_URL}/payment/getStatus?${searchParams.toString()}`);
         
@@ -82,4 +85,3 @@ export async function POST(request: Request) {
         return NextResponse.json({ status: 'error', message: 'Error interno del servidor.', details: error.message }, { status: 500 });
     }
 }
-
