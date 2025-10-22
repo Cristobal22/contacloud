@@ -58,6 +58,12 @@ export async function POST(request: Request) {
              return NextResponse.json({ status: 'error', message: 'Formato de orden inválido.' }, { status: 400 });
         }
 
+        // Si es un pago de prueba, no actualizamos la base de datos, solo confirmamos que el flujo funcionó.
+        if (planId === 'test-payment') {
+            console.log(`Pago de prueba exitoso para el usuario ${userId}. No se actualiza la suscripción.`);
+            return NextResponse.json({ status: 'ok', message: 'Pago de prueba procesado correctamente.' });
+        }
+
         const userRef = adminFirestore.collection('users').doc(userId);
         const userDoc = await userRef.get();
 
