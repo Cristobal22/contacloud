@@ -43,7 +43,7 @@ export async function POST(request: Request) {
     }
 
     // Extraer el monto numérico del precio. Ejemplo: "$20.000" -> 20000
-    const amount = parseInt(plan.price.replace(/[$.]/g, ''), 10);
+    const amount = parseInt(plan.price.replace(/\D/g, ''), 10);
     if (isNaN(amount)) {
         return NextResponse.json({ error: 'El precio del plan no es válido.' }, { status: 400 });
     }
