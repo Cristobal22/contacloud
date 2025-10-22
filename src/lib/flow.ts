@@ -21,9 +21,9 @@ export const FLOW_API_URL = IS_PRODUCTION
 export async function sign(params: Record<string, any>, secret: string): Promise<string> {
   const crypto = (await import('crypto')).default;
   // 1. Ordenar los parámetros alfabéticamente por nombre de clave.
-  const sortedParams = Object.keys(params).sort();
-  // 2. Concatenar los pares clave-valor en una sola cadena.
-  const toSign = sortedParams.map(key => `${key}${params[key]}`).join('');
+  const sortedKeys = Object.keys(params).sort();
+  // 2. Concatenar los pares clave-valor en una sola cadena en el orden correcto.
+  const toSign = sortedKeys.map(key => `${key}${params[key]}`).join('');
   // 3. Generar el hash HMAC-SHA256.
   return crypto.createHmac('sha256', secret).update(toSign).digest('hex');
 }
