@@ -168,6 +168,7 @@ function AccountantDashboardLayout({ children }: { children: React.ReactNode }) 
                      <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-4 border-b bg-background px-4 sm:px-6">
                         <div className="flex items-center gap-2">
                              <SidebarTrigger className="sm:hidden"/>
+                             <SidebarTrigger className="hidden sm:flex"/>
                              <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
                                     <Button variant="outline" className="flex items-center gap-2" disabled={isLoading}>
@@ -230,7 +231,6 @@ function AccountantDashboardLayout({ children }: { children: React.ReactNode }) 
                             </DropdownMenu>
                         </div>
                         <div className="flex items-center gap-2">
-                             <SidebarTrigger className="hidden sm:flex"/>
                             <UserNav />
                         </div>
                     </header>
@@ -257,10 +257,14 @@ function AdminDashboardLayout({ children }: { children: React.ReactNode }) {
                 </SidebarContent>
             </Sidebar>
              <SidebarInset>
-                <header className="sticky top-0 z-30 flex h-16 items-center justify-end gap-4 border-b bg-background px-4 sm:px-6">
-                    <CommandMenu />
-                     <SidebarTrigger className="hidden sm:flex"/>
-                    <UserNav />
+                <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-4 border-b bg-background px-4 sm:px-6">
+                    <div className="flex items-center gap-2">
+                         <SidebarTrigger />
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <CommandMenu />
+                        <UserNav />
+                    </div>
                 </header>
                 <main className="flex-1 p-4 sm:p-6">
                     {children}
