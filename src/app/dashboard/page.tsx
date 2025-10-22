@@ -309,7 +309,7 @@ function AccountantDashboard() {
         return (
             <Card>
                 <CardHeader>
-                    <CardTitle>Bienvenido a Guardián del Tesoro</CardTitle>
+                    <CardTitle>Bienvenido a BaseImponible.cl</CardTitle>
                     <CardDescription>Por favor, selecciona una empresa desde el menú superior para empezar a trabajar.</CardDescription>
                 </CardHeader>
                 <CardContent>

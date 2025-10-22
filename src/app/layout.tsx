@@ -5,8 +5,8 @@ import { FirebaseClientProvider } from '@/firebase';
 import { ThemeProvider } from '@/components/theme-provider';
 
 export const metadata: Metadata = {
-  title: 'Guardián del Tesoro',
-  description: 'Una aplicación de contabilidad multi-tenant.',
+  title: 'BaseImponible.cl',
+  description: 'La plataforma de contabilidad para contadores modernos.',
 };
 
 export default function RootLayout({
