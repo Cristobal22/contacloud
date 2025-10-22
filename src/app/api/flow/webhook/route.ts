@@ -1,7 +1,8 @@
-
 import { NextResponse } from 'next/server';
 import { adminFirestore } from '@/firebase/admin';
 import { add, format } from 'date-fns';
+
+export const runtime = 'nodejs';
 
 // --- CONFIGURACIÓN DE FLOW ---
 // <-- REEMPLAZA CON TU API KEY REAL

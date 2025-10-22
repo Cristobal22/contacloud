@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { plans } from '@/lib/plans';
 import { adminAuth } from '@/firebase/admin';
 
+export const runtime = 'nodejs';
+
 // --- CONFIGURACIÓN DE FLOW ---
 // <-- REEMPLAZA CON TU API KEY REAL
 const FLOW_API_KEY = '7DED014F-BB5E-4362-A08B-1L9BBD532D53'; 
