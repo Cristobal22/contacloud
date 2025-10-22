@@ -1,4 +1,3 @@
-
 'use client';
 
 import React from 'react';
@@ -413,17 +412,7 @@ export default function UserManagement() {
                             </div>
                             <div className="grid grid-cols-4 items-center gap-4">
                                 <Label htmlFor="edit-plan" className="text-right">Plan</Label>
-                                <Select value={selectedUser.plan || 'Individual'} onValueChange={(value) => handleSelectedUserFieldChange('plan', value)}>
-                                    <SelectTrigger id="edit-plan" className="col-span-3">
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="Demo">Demo</SelectItem>
-                                        <SelectItem value="Individual">Individual</SelectItem>
-                                        <SelectItem value="Team">Equipo</SelectItem>
-                                        <SelectItem value="Enterprise">Empresarial</SelectItem>
-                                    </SelectContent>
-                                </Select>
+                                <p className="col-span-3 text-sm font-medium p-2 rounded-md bg-muted">{selectedUser.plan || 'No asignado'}</p>
                             </div>
                             <div className="grid grid-cols-4 items-center gap-4">
                                 <Label htmlFor="edit-subscription-date" className="text-right">Fin Suscripción</Label>
@@ -435,6 +424,7 @@ export default function UserManagement() {
                                     className="col-span-3"
                                 />
                             </div>
+                            <p className="text-xs text-muted-foreground col-span-4 text-center">Nota: El cambio de plan debe ser gestionado por el usuario a través de la página de facturación.</p>
                         </div>
                     )}
                     <DialogFooter>

@@ -1,4 +1,3 @@
-
 'use client';
 
 import React from "react";
@@ -13,42 +12,43 @@ import {
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator";
 import { Check } from "lucide-react";
-import { useUser, useFirestore } from "@/firebase";
+import { useUser } from "@/firebase";
 import { useUserProfile } from "@/firebase/auth/use-user-profile";
-import { doc, updateDoc } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { plans } from "@/lib/plans";
+import { format, parseISO } from "date-fns";
+import { es } from "date-fns/locale";
 
 export default function BillingPage() {
     const { user, loading: userLoading } = useUser();
     const { userProfile, loading: profileLoading } = useUserProfile(user?.uid);
-    const firestore = useFirestore();
     const { toast } = useToast();
     const [isProcessing, setIsProcessing] = React.useState(false);
 
-    const handleSelectPlan = async (planId: string) => {
-        if (!firestore || !user) {
-            toast({ variant: 'destructive', title: 'Error', description: 'No se pudo seleccionar el plan.'});
-            return;
-        }
-        
+    const handlePayment = async (planId: string) => {
         setIsProcessing(true);
-        const userRef = doc(firestore, 'users', user.uid);
-        try {
-            await updateDoc(userRef, { plan: planId });
-            toast({ title: 'Plan Actualizado', description: `Tu plan ha sido cambiado a ${planId}.`});
-        } catch (error) {
-            console.error('Error updating plan:', error);
-            toast({ variant: 'destructive', title: 'Error', description: 'No se pudo actualizar tu plan.'});
-        } finally {
+        toast({
+            title: 'Redirigiendo a la pasarela de pago...',
+            description: `Estás a punto de pagar por el plan ${planId}.`,
+        });
+
+        // Simulación de redirección a Flow.cl
+        // En una implementación real, aquí se generaría la URL de pago
+        // y se redirigiría al usuario: router.push(paymentUrl);
+        setTimeout(() => {
+            toast({
+                title: 'Esperando confirmación de pago',
+                description: 'Una vez que el pago se confirme, tu suscripción se actualizará automáticamente.',
+            });
             setIsProcessing(false);
-        }
+        }, 3000);
     };
 
     const loading = userLoading || profileLoading;
     const currentPlanId = userProfile?.plan || 'Individual';
+    const subscriptionEndDate = userProfile?.subscriptionEndDate;
 
     return (
         <div className="grid gap-6">
@@ -58,6 +58,14 @@ export default function BillingPage() {
                     <CardDescription>Gestiona tu plan y revisa tu historial de pagos.</CardDescription>
                 </CardHeader>
                 <CardContent>
+                     {subscriptionEndDate && (
+                        <div className="mb-8 rounded-lg border bg-card p-4">
+                            <h3 className="text-lg font-semibold">Tu Plan Actual: <span className="text-primary">{plans.find(p => p.id === currentPlanId)?.name}</span></h3>
+                            <p className="text-muted-foreground">
+                                Tu suscripción es válida hasta el: <span className="font-bold">{format(parseISO(subscriptionEndDate), "dd 'de' MMMM 'de' yyyy", { locale: es })}</span>.
+                            </p>
+                        </div>
+                    )}
                     <section>
                       <h2 className="text-xl font-semibold mb-4">Planes de Suscripción</h2>
                       <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -85,7 +93,7 @@ export default function BillingPage() {
                         plans.map(plan => {
                           const isCurrent = plan.id === currentPlanId;
                           return (
-                          <Card key={plan.name} className={cn(isCurrent && "border-primary")}>
+                          <Card key={plan.name} className={cn(isCurrent && "border-primary ring-1 ring-primary")}>
                             <CardHeader>
                               <CardTitle>{plan.name}</CardTitle>
                               <CardDescription>{plan.description}</CardDescription>
@@ -108,9 +116,9 @@ export default function BillingPage() {
                                 <Button 
                                     className="w-full"
                                     disabled={isCurrent || isProcessing}
-                                    onClick={() => handleSelectPlan(plan.id)}
+                                    onClick={() => handlePayment(plan.id)}
                                 >
-                                    {isProcessing ? "Procesando..." : (isCurrent ? "Plan Actual" : "Seleccionar Plan")}
+                                    {isProcessing ? "Procesando..." : (isCurrent ? "Plan Actual" : "Pagar con Flow")}
                                 </Button>
                             </CardFooter>
                           </Card>
