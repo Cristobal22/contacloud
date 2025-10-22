@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -142,10 +143,6 @@ export function CommandMenu() {
           <CommandItem onSelect={() => runCommand(() => router.push('/dashboard/settings'))}>
             <Settings className="mr-2 h-4 w-4" />
             <span>Settings</span>
-          </CommandItem>
-          <CommandItem onSelect={() => runCommand(() => router.push('/dashboard/billing'))}>
-            <CreditCard className="mr-2 h-4 w-4" />
-            <span>Billing</span>
           </CommandItem>
         </CommandGroup>
       </CommandList>
