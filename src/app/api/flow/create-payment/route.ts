@@ -3,12 +3,17 @@ import { NextResponse } from 'next/server';
 import Flow from 'flow-api-client';
 import { plans } from '@/lib/plans';
 import { auth } from 'firebase-admin/auth';
-import { adminApp } from '@/firebase/admin';
+import '@/firebase/admin';
 
-// Inicializa el SDK de Flow con tus credenciales desde las variables de entorno
+// Configura Flow con tus credenciales directamente aquí
+// <-- REEMPLAZA CON TU API KEY REAL
+const FLOW_API_KEY = 'TU_API_KEY_AQUI'; 
+// <-- REEMPLAZA CON TU SECRET KEY REAL
+const FLOW_SECRET_KEY = 'TU_SECRET_KEY_AQUI';
+
 const flow = new Flow({
-    apiKey: process.env.FLOW_API_KEY || '',
-    secret: process.env.FLOW_SECRET_KEY || '',
+    apiKey: FLOW_API_KEY,
+    secret: FLOW_SECRET_KEY,
     // Cambia a true cuando estés listo para producción
     production: false, 
 });
@@ -26,7 +31,6 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'Plan no encontrado.' }, { status: 404 });
     }
     
-    // Correct way to get user data in a server environment
     const user = await auth().getUser(userId);
     if (!user.email) {
         return NextResponse.json({ error: 'El usuario no tiene un email registrado.' }, { status: 400 });
@@ -39,6 +43,7 @@ export async function POST(request: Request) {
     }
     
     const commerceOrder = `orden_${planId}_${userId}_${Date.now()}`;
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:9002';
     
     const paymentData = {
         commerceOrder: commerceOrder,
@@ -46,19 +51,19 @@ export async function POST(request: Request) {
         currency: 'CLP',
         amount: amount,
         email: user.email,
-        urlConfirmation: `${process.env.NEXT_PUBLIC_BASE_URL}/api/flow/webhook`,
-        urlReturn: `${process.env.NEXT_PUBLIC_BASE_URL}/dashboard/billing?status=success`,
+        urlConfirmation: `${baseUrl}/api/flow/webhook`,
+        urlReturn: `${baseUrl}/dashboard/billing?status=success`,
     };
 
     const result = await flow.send('payment/create', paymentData);
     
-    // La respuesta de Flow contiene una URL a la que debes redirigir al usuario
     const redirectUrl = `${result.url}?token=${result.token}`;
 
     return NextResponse.json({ redirectUrl });
 
   } catch (error: any) {
     console.error('Error al crear el pago en Flow:', error);
+    // Devuelve un error JSON claro
     return NextResponse.json({ error: 'Error interno del servidor al procesar el pago.', details: error.message }, { status: 500 });
   }
 }

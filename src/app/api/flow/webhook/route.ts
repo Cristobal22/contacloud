@@ -4,10 +4,15 @@ import Flow from 'flow-api-client';
 import { adminFirestore } from '@/firebase/admin';
 import { add, format } from 'date-fns';
 
-// Inicializa el SDK de Flow con tus credenciales
+// Configura Flow con tus credenciales directamente aquí
+// <-- REEMPLAZA CON TU API KEY REAL
+const FLOW_API_KEY = 'TU_API_KEY_AQUI';
+// <-- REEMPLAZA CON TU SECRET KEY REAL
+const FLOW_SECRET_KEY = 'TU_SECRET_KEY_AQUI';
+
 const flow = new Flow({
-    apiKey: process.env.FLOW_API_KEY || '',
-    secret: process.env.FLOW_SECRET_KEY || '',
+    apiKey: FLOW_API_KEY,
+    secret: FLOW_SECRET_KEY,
     production: false, // Cambia a true en producción
 });
 
@@ -20,17 +25,13 @@ export async function POST(request: Request) {
             return NextResponse.json({ status: 'error', message: 'Falta el token' }, { status: 400 });
         }
 
-        // 1. Validar el estado del pago con Flow
         const paymentStatus = await flow.send('payment/get', { token }, 'GET');
 
-        // 2. Verificar que el pago fue exitoso (status = 2 para pago exitoso)
         if (paymentStatus.status !== 2) {
             console.log(`Pago ${token} no fue exitoso. Estado: ${paymentStatus.status}`);
             return NextResponse.json({ status: 'ok', message: 'Pago no exitoso, no se procesa.' });
         }
         
-        // 3. Extraer la información de la orden para saber qué usuario y plan actualizar
-        // Formato esperado de commerceOrder: orden_{planId}_{userId}_{timestamp}
         const [_, planId, userId] = paymentStatus.commerceOrder.split('_');
 
         if (!planId || !userId) {
@@ -38,7 +39,6 @@ export async function POST(request: Request) {
              return NextResponse.json({ status: 'error', message: 'Formato de orden inválido.' }, { status: 400 });
         }
 
-        // 4. Actualizar la base de datos en Firestore
         const userRef = adminFirestore.collection('users').doc(userId);
         const userDoc = await userRef.get();
 
@@ -47,10 +47,8 @@ export async function POST(request: Request) {
             return NextResponse.json({ status: 'error', message: 'Usuario no encontrado.' }, { status: 404 });
         }
         
-        // Calcular la nueva fecha de expiración
         const currentUserData = userDoc.data();
         let currentEndDate = new Date();
-        // Si ya tiene una fecha, usamos esa como base para extender. Si no, usamos hoy.
         if (currentUserData && currentUserData.subscriptionEndDate && new Date(currentUserData.subscriptionEndDate) > new Date()) {
             currentEndDate = new Date(currentUserData.subscriptionEndDate);
         }
