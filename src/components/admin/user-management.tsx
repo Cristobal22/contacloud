@@ -55,6 +55,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { useUserProfile } from '@/firebase/auth/use-user-profile';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { add, format } from 'date-fns';
 
 type NewUserInput = {
   email: string;
@@ -88,10 +89,15 @@ export default function UserManagement() {
     const [selectedUser, setSelectedUser] = useState<Partial<UserProfile> | null>(null);
     const [userToDelete, setUserToDelete] = useState<UserProfile | null>(null);
 
+    const [subscriptionDuration, setSubscriptionDuration] = useState('30');
+    const [customSubscriptionDate, setCustomSubscriptionDate] = useState('');
+
     const [isProcessing, setIsProcessing] = useState(false);
 
     const handleCreateNew = () => {
         setNewUser({email: '', displayName: '', plan: 'Individual'});
+        setSubscriptionDuration('30');
+        setCustomSubscriptionDate('');
         setIsCreateFormOpen(true);
     };
 
@@ -118,6 +124,23 @@ export default function UserManagement() {
         setIsProcessing(true);
 
         try {
+            let subscriptionEndDate: string;
+            const today = new Date();
+
+            if (subscriptionDuration === '30') {
+                subscriptionEndDate = format(add(today, { days: 30 }), 'yyyy-MM-dd');
+            } else if (subscriptionDuration === '60') {
+                subscriptionEndDate = format(add(today, { days: 60 }), 'yyyy-MM-dd');
+            } else {
+                if (!customSubscriptionDate) {
+                    toast({ variant: 'destructive', title: 'Error', description: 'Por favor, selecciona una fecha de finalización personalizada.' });
+                    setIsProcessing(false);
+                    return;
+                }
+                subscriptionEndDate = customSubscriptionDate;
+            }
+
+
             // This password is temporary. The user will be forced to reset it.
             const tempPassword = Math.random().toString(36).slice(-8) + 'A1!';
             const userCredential = await createUserWithEmailAndPassword(auth, newUser.email, tempPassword);
@@ -128,7 +151,8 @@ export default function UserManagement() {
                 email: user.email!,
                 displayName: newUser.displayName || user.email!.split('@')[0],
                 role: 'Accountant',
-                plan: newUser.plan, 
+                plan: newUser.plan,
+                subscriptionEndDate: subscriptionEndDate,
                 photoURL: `https://i.pravatar.cc/150?u=${user.uid}`,
                 companyIds: [],
                 createdBy: authUser.uid, // Set the creator
@@ -304,11 +328,11 @@ export default function UserManagement() {
 
             {/* Create User Dialog */}
             <Dialog open={isCreateFormOpen} onOpenChange={setIsCreateFormOpen}>
-                <DialogContent className="sm:max-w-[425px]">
+                <DialogContent className="sm:max-w-md">
                     <DialogHeader>
                         <DialogTitle>Invitar Nuevo Contador</DialogTitle>
                         <DialogDescription>
-                            Ingresa el correo y nombre del nuevo usuario. Se enviará un correo para que establezca su contraseña.
+                            Completa los detalles y la duración de la suscripción. Se enviará un correo para que el usuario establezca su contraseña.
                         </DialogDescription>
                     </DialogHeader>
                     <div className="grid gap-4 py-4">
@@ -333,6 +357,31 @@ export default function UserManagement() {
                                 </SelectContent>
                             </Select>
                         </div>
+                        <div className="grid grid-cols-4 items-center gap-4">
+                            <Label htmlFor="subscription-duration" className="text-right">Duración</Label>
+                            <Select value={subscriptionDuration} onValueChange={setSubscriptionDuration}>
+                                <SelectTrigger id="subscription-duration" className="col-span-3">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="30">30 días</SelectItem>
+                                    <SelectItem value="60">60 días</SelectItem>
+                                    <SelectItem value="custom">Personalizado</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        {subscriptionDuration === 'custom' && (
+                            <div className="grid grid-cols-4 items-center gap-4">
+                                <Label htmlFor="custom-date" className="text-right">Fecha Fin</Label>
+                                <Input
+                                    id="custom-date"
+                                    type="date"
+                                    value={customSubscriptionDate}
+                                    onChange={(e) => setCustomSubscriptionDate(e.target.value)}
+                                    className="col-span-3"
+                                />
+                            </div>
+                        )}
                     </div>
                     <DialogFooter>
                         <DialogClose asChild>
