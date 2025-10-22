@@ -1,31 +1,9 @@
 import { NextResponse } from 'next/server';
 import { adminFirestore } from '@/firebase/admin';
 import { add, format } from 'date-fns';
+import { FLOW_API_KEY, FLOW_SECRET_KEY, FLOW_API_URL, sign } from '@/lib/flow';
 
 export const runtime = 'nodejs';
-
-// --- CONFIGURACIÓN DE FLOW ---
-// <-- REEMPLAZA CON TU API KEY REAL
-const FLOW_API_KEY = '7DED014F-BB5E-4362-A08B-1L9BBD532D53';
-// <-- REEMPLAZA CON TU SECRET KEY REAL
-const FLOW_SECRET_KEY = '68192639ec79397b7404b38198b1c918e6de1988';
-// Cambia a true cuando estés listo para producción
-const IS_PRODUCTION = false;
-const FLOW_API_URL = IS_PRODUCTION 
-    ? 'https://www.flow.cl/api' 
-    : 'https://sandbox.flow.cl/api';
-
-
-/**
- * Genera una firma HMAC-SHA256 para autenticar la solicitud a la API de Flow.
- */
-async function sign(params: Record<string, any>, secret: string): Promise<string> {
-  const crypto = (await import('crypto')).default;
-  const sortedParams = Object.keys(params).sort();
-  const toSign = sortedParams.map(key => `${key}${params[key]}`).join('');
-  return crypto.createHmac('sha256', secret).update(toSign).digest('hex');
-}
-
 
 export async function POST(request: Request) {
     try {
@@ -45,8 +23,13 @@ export async function POST(request: Request) {
         const queryString = `apiKey=${FLOW_API_KEY}&token=${token}&s=${signature}`;
 
         const response = await fetch(`${FLOW_API_URL}/payment/getStatus?${queryString}`);
-        const paymentStatus = await response.json();
+        
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || 'Error al verificar el estado del pago en Flow.');
+        }
 
+        const paymentStatus = await response.json();
 
         // Status 2 significa pago exitoso. Otros estados (1: pendiente, 3: rechazado, 4: anulado) no se procesan.
         if (paymentStatus.status !== 2) {

@@ -1,6 +1,4 @@
-// NOTE: Este archivo se ha deshabilitado para evitar problemas de instalación.
-// La lógica se ha movido directamente a los endpoints de la API.
-const flow: any = {
-    send: () => Promise.reject(new Error("Flow client is disabled.")),
-};
-export default flow;
+// Este archivo ha sido renombrado y su lógica movida a src/lib/flow.ts
+// para una mejor centralización y claridad.
+// Dejamos este archivo vacío para evitar errores de importación residuales,
+// pero puede ser eliminado de forma segura.

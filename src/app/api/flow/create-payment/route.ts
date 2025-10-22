@@ -1,29 +1,9 @@
 import { NextResponse } from 'next/server';
 import { plans } from '@/lib/plans';
 import { adminAuth } from '@/firebase/admin';
+import { FLOW_API_KEY, FLOW_SECRET_KEY, FLOW_API_URL, sign } from '@/lib/flow';
 
 export const runtime = 'nodejs';
-
-// --- CONFIGURACIÓN DE FLOW ---
-// <-- REEMPLAZA CON TU API KEY REAL
-const FLOW_API_KEY = '7DED014F-BB5E-4362-A08B-1L9BBD532D53'; 
-// <-- REEMPLAZA CON TU SECRET KEY REAL
-const FLOW_SECRET_KEY = '68192639ec79397b7404b38198b1c918e6de1988';
-// Cambia a true cuando estés listo para producción
-const IS_PRODUCTION = false;
-const FLOW_API_URL = IS_PRODUCTION 
-    ? 'https://www.flow.cl/api' 
-    : 'https://sandbox.flow.cl/api';
-
-/**
- * Genera una firma HMAC-SHA256 para autenticar la solicitud a la API de Flow.
- */
-async function sign(params: Record<string, any>, secret: string): Promise<string> {
-  const crypto = (await import('crypto')).default;
-  const sortedParams = Object.keys(params).sort();
-  const toSign = sortedParams.map(key => `${key}${params[key]}`).join('');
-  return crypto.createHmac('sha256', secret).update(toSign).digest('hex');
-}
 
 export async function POST(request: Request) {
   try {
@@ -45,6 +25,7 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Plan no encontrado.' }, { status: 404 });
         }
         
+        // Corregido: Eliminar todos los caracteres no numéricos para una conversión segura.
         amount = parseInt(plan.price.replace(/\D/g, ''), 10);
         if (isNaN(amount) || amount <= 0) {
             return NextResponse.json({ error: 'El precio del plan no es válido.' }, { status: 400 });
@@ -74,6 +55,7 @@ export async function POST(request: Request) {
     // Añadir la firma a los parámetros
     paymentParams.s = await sign(paymentParams, FLOW_SECRET_KEY);
 
+    // Construir el cuerpo de la solicitud en formato x-www-form-urlencoded
     const bodyString = Object.keys(paymentParams)
         .map(key => `${encodeURIComponent(key)}=${encodeURIComponent(paymentParams[key])}`)
         .join('&');
@@ -88,8 +70,9 @@ export async function POST(request: Request) {
     
     const result = await response.json();
 
-    if (result.code) { // Flow devuelve un 'code' en caso de error
-      throw new Error(`Error de Flow: ${result.message}`);
+    if (!response.ok) {
+      // Flow devuelve errores con un 'code' y 'message'
+      throw new Error(result.message || 'Error de comunicación con Flow.');
     }
     
     const redirectUrl = `${result.url}?token=${result.token}`;
@@ -98,7 +81,6 @@ export async function POST(request: Request) {
 
   } catch (error: any) {
     console.error('Error al crear el pago en Flow:', error);
-    // Devuelve un error JSON claro y detallado
     return NextResponse.json({ error: 'Error interno del servidor al procesar el pago.', details: error.message }, { status: 500 });
   }
 }
