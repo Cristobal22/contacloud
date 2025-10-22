@@ -2,7 +2,7 @@
 import { NextResponse } from 'next/server';
 import Flow from 'flow-api-client';
 import { plans } from '@/lib/plans';
-import { auth } from 'firebase-admin';
+import { auth } from 'firebase-admin/auth';
 import { adminApp } from '@/firebase/admin';
 
 // Inicializa el SDK de Flow con tus credenciales desde las variables de entorno
