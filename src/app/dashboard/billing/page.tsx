@@ -48,21 +48,12 @@ export default function BillingPage() {
                 body: JSON.stringify({ planId, userId: user.uid }),
             });
 
-            if (!response.ok) {
-                let errorData;
-                try {
-                    // Primero intenta parsear la respuesta como JSON
-                    errorData = await response.json();
-                } catch (e) {
-                    // Si falla, lee la respuesta como texto (probablemente es una página de error HTML)
-                    const errorText = await response.text();
-                    throw new Error(`Error del servidor (${response.status}): ${errorText.substring(0, 200)}...`);
-                }
-                // Si tenemos un JSON con detalles, lo lanzamos
-                throw new Error(errorData.error || errorData.details || 'Ocurrió un problema inesperado.');
-            }
-
             const data = await response.json();
+
+            if (!response.ok) {
+                // Si la respuesta no es OK, lanzamos un error con el mensaje del servidor
+                throw new Error(data.details || data.error || 'Ocurrió un problema inesperado.');
+            }
             
             // Redirigir al usuario a la URL de pago de Flow
             if (data.redirectUrl) {

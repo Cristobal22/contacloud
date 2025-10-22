@@ -2,7 +2,6 @@
 import { NextResponse } from 'next/server';
 import { plans } from '@/lib/plans';
 import { adminAuth } from '@/firebase/admin';
-import crypto from 'crypto';
 
 // --- CONFIGURACIÓN DE FLOW ---
 // <-- REEMPLAZA CON TU API KEY REAL
@@ -18,7 +17,8 @@ const FLOW_API_URL = IS_PRODUCTION
 /**
  * Genera una firma HMAC-SHA256 para autenticar la solicitud a la API de Flow.
  */
-function sign(params: Record<string, any>, secret: string): string {
+async function sign(params: Record<string, any>, secret: string): Promise<string> {
+  const crypto = (await import('crypto')).default;
   const sortedParams = Object.keys(params).sort();
   const toSign = sortedParams.map(key => `${key}${params[key]}`).join('');
   return crypto.createHmac('sha256', secret).update(toSign).digest('hex');
@@ -63,7 +63,7 @@ export async function POST(request: Request) {
     };
 
     // Añadir la firma a los parámetros
-    paymentParams.s = sign(paymentParams, FLOW_SECRET_KEY);
+    paymentParams.s = await sign(paymentParams, FLOW_SECRET_KEY);
 
     const response = await fetch(`${FLOW_API_URL}/payment/create`, {
         method: 'POST',
@@ -89,3 +89,4 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Error interno del servidor al procesar el pago.', details: error.message }, { status: 500 });
   }
 }
+

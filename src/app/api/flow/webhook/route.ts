@@ -2,7 +2,6 @@
 import { NextResponse } from 'next/server';
 import { adminFirestore } from '@/firebase/admin';
 import { add, format } from 'date-fns';
-import crypto from 'crypto';
 
 // --- CONFIGURACIÓN DE FLOW ---
 // <-- REEMPLAZA CON TU API KEY REAL
@@ -19,7 +18,8 @@ const FLOW_API_URL = IS_PRODUCTION
 /**
  * Genera una firma HMAC-SHA256 para autenticar la solicitud a la API de Flow.
  */
-function sign(params: Record<string, any>, secret: string): string {
+async function sign(params: Record<string, any>, secret: string): Promise<string> {
+  const crypto = (await import('crypto')).default;
   const sortedParams = Object.keys(params).sort();
   const toSign = sortedParams.map(key => `${key}${params[key]}`).join('');
   return crypto.createHmac('sha256', secret).update(toSign).digest('hex');
@@ -39,7 +39,7 @@ export async function POST(request: Request) {
           apiKey: FLOW_API_KEY,
           token: token,
         };
-        const signature = sign(params, FLOW_SECRET_KEY);
+        const signature = await sign(params, FLOW_SECRET_KEY);
 
         const response = await fetch(`${FLOW_API_URL}/payment/getStatus?apiKey=${FLOW_API_KEY}&token=${token}&s=${signature}`);
         const paymentStatus = await response.json();
