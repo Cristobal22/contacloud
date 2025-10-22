@@ -1,3 +1,4 @@
+
 import { NextResponse } from 'next/server';
 import { adminFirestore } from '@/firebase/admin';
 import { add, format } from 'date-fns';
@@ -20,9 +21,12 @@ export async function POST(request: Request) {
         };
         const signature = await sign(params, FLOW_SECRET_KEY);
         
-        const queryString = `apiKey=${FLOW_API_KEY}&token=${token}&s=${signature}`;
+        const searchParams = new URLSearchParams({
+            ...params,
+            s: signature,
+        });
 
-        const response = await fetch(`${FLOW_API_URL}/payment/getStatus?${queryString}`);
+        const response = await fetch(`${FLOW_API_URL}/payment/getStatus?${searchParams.toString()}`);
         
         if (!response.ok) {
             const errorData = await response.json();
@@ -31,7 +35,6 @@ export async function POST(request: Request) {
 
         const paymentStatus = await response.json();
 
-        // Status 2 significa pago exitoso. Otros estados (1: pendiente, 3: rechazado, 4: anulado) no se procesan.
         if (paymentStatus.status !== 2) {
             console.log(`Pago ${token} no fue exitoso. Estado: ${paymentStatus.status}`);
             return NextResponse.json({ status: 'ok', message: 'Pago no exitoso, no se procesa.' });
@@ -44,7 +47,6 @@ export async function POST(request: Request) {
              return NextResponse.json({ status: 'error', message: 'Formato de orden inválido.' }, { status: 400 });
         }
 
-        // Si es un pago de prueba, no actualizamos la base de datos, solo confirmamos que el flujo funcionó.
         if (planId === 'test-payment') {
             console.log(`Pago de prueba exitoso para el usuario ${userId}. No se actualiza la suscripción.`);
             return NextResponse.json({ status: 'ok', message: 'Pago de prueba procesado correctamente.' });
@@ -60,7 +62,6 @@ export async function POST(request: Request) {
         
         const currentUserData = userDoc.data();
         let currentEndDate = new Date();
-        // Si el usuario ya tiene una suscripción activa y futura, agregamos días a esa fecha.
         if (currentUserData && currentUserData.subscriptionEndDate && new Date(currentUserData.subscriptionEndDate) > new Date()) {
             currentEndDate = new Date(currentUserData.subscriptionEndDate);
         }

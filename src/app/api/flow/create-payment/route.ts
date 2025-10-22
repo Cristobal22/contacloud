@@ -1,3 +1,4 @@
+
 import { NextResponse } from 'next/server';
 import { plans } from '@/lib/plans';
 import { adminAuth } from '@/firebase/admin';
@@ -25,7 +26,6 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Plan no encontrado.' }, { status: 404 });
         }
         
-        // Corregido: Eliminar todos los caracteres no numéricos para una conversión segura.
         amount = parseInt(plan.price.replace(/\D/g, ''), 10);
         if (isNaN(amount) || amount <= 0) {
             return NextResponse.json({ error: 'El precio del plan no es válido.' }, { status: 400 });
@@ -52,26 +52,19 @@ export async function POST(request: Request) {
         urlReturn: `${baseUrl}/dashboard/billing?status=success`,
     };
 
-    // Añadir la firma a los parámetros
     paymentParams.s = await sign(paymentParams, FLOW_SECRET_KEY);
-
-    // Construir el cuerpo de la solicitud en formato x-www-form-urlencoded
-    const bodyString = Object.keys(paymentParams)
-        .map(key => `${encodeURIComponent(key)}=${encodeURIComponent(paymentParams[key])}`)
-        .join('&');
     
     const response = await fetch(`${FLOW_API_URL}/payment/create`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/x-www-form-urlencoded',
         },
-        body: bodyString,
+        body: new URLSearchParams(paymentParams),
     });
     
     const result = await response.json();
 
     if (!response.ok) {
-      // Flow devuelve errores con un 'code' y 'message'
       throw new Error(result.message || 'Error de comunicación con Flow.');
     }
     
