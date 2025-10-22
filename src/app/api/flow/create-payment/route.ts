@@ -41,6 +41,7 @@ export async function POST(request: Request) {
     const commerceOrder = `orden_${planId}_${userId}_${Date.now()}`;
     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:9002';
     
+    // 1. Prepara los parámetros SIN la firma
     const paymentParams: Record<string, any> = {
         apiKey: FLOW_API_KEY,
         commerceOrder: commerceOrder,
@@ -52,14 +53,21 @@ export async function POST(request: Request) {
         urlReturn: `${baseUrl}/dashboard/billing?status=success`,
     };
 
-    paymentParams.s = await sign(paymentParams, FLOW_SECRET_KEY);
+    // 2. Genera la firma usando los parámetros base
+    const signature = await sign(paymentParams, FLOW_SECRET_KEY);
+    
+    // 3. Crea el cuerpo de la solicitud final, incluyendo ahora la firma
+    const finalBody = new URLSearchParams({
+        ...paymentParams,
+        s: signature,
+    });
     
     const response = await fetch(`${FLOW_API_URL}/payment/create`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/x-www-form-urlencoded',
         },
-        body: new URLSearchParams(paymentParams),
+        body: finalBody,
     });
     
     const result = await response.json();
