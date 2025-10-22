@@ -1,6 +1,18 @@
 
 export const plans = [
   {
+    id: "Demo",
+    name: "Plan Demo",
+    price: "$0",
+    priceSuffix: "/mes",
+    description: "Prueba las funciones básicas de la plataforma.",
+    features: [
+      "Gestiona hasta 2 empresas",
+      "Módulos de Contabilidad y Remuneraciones",
+      "Soporte limitado",
+    ],
+  },
+  {
     id: "Individual",
     name: "Contador Individual",
     price: "$20.000",

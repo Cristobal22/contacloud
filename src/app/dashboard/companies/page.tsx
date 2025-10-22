@@ -61,6 +61,7 @@ import {
   import { useUserProfile } from '@/firebase/auth/use-user-profile';
 
   const planLimits: { [key: string]: number } = {
+    'Demo': 2,
     'Individual': 5,
     'Team': 25,
     'Enterprise': Infinity,

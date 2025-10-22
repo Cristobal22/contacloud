@@ -60,9 +60,9 @@ export default function BillingPage() {
                 <CardContent>
                     <section>
                       <h2 className="text-xl font-semibold mb-4">Planes de Suscripción</h2>
-                      <div className="grid md:grid-cols-3 gap-6">
+                      <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
                         {loading ? (
-                            Array.from({ length: 3 }).map((_, i) => (
+                            Array.from({ length: 4 }).map((_, i) => (
                                <Card key={i}>
                                    <CardHeader>
                                         <Skeleton className="h-6 w-1/2" />

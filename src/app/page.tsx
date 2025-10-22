@@ -117,9 +117,9 @@ export default function Home() {
                     Elige el plan que mejor se adapte al tamaño y las necesidades de tu práctica contable.
                 </p>
                 </div>
-                 <div className="mt-16 grid md:grid-cols-3 gap-6">
+                 <div className="mt-16 grid md:grid-cols-2 lg:grid-cols-4 gap-6">
                     {plans.map((plan, index) => (
-                        <Card key={plan.name} className={cn(index === 1 && "border-primary")}>
+                        <Card key={plan.name} className={cn(plan.id === 'Team' && "border-primary")}>
                             <CardHeader>
                             <CardTitle>{plan.name}</CardTitle>
                             <CardDescription>{plan.description}</CardDescription>
@@ -139,7 +139,7 @@ export default function Home() {
                             </ul>
                             </CardContent>
                             <CardFooter>
-                                <Button className="w-full" asChild variant={index === 1 ? "default" : "outline"}>
+                                <Button className="w-full" asChild variant={plan.id === 'Team' ? "default" : "outline"}>
                                     <Link href="/login">Seleccionar Plan</Link>
                                 </Button>
                             </CardFooter>

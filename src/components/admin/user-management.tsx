@@ -1,3 +1,4 @@
+
 'use client';
 
 import React from 'react';
@@ -351,6 +352,7 @@ export default function UserManagement() {
                                     <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
+                                    <SelectItem value="Demo">Demo</SelectItem>
                                     <SelectItem value="Individual">Individual</SelectItem>
                                     <SelectItem value="Team">Equipo</SelectItem>
                                     <SelectItem value="Enterprise">Empresarial</SelectItem>
@@ -416,6 +418,7 @@ export default function UserManagement() {
                                         <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent>
+                                        <SelectItem value="Demo">Demo</SelectItem>
                                         <SelectItem value="Individual">Individual</SelectItem>
                                         <SelectItem value="Team">Equipo</SelectItem>
                                         <SelectItem value="Enterprise">Empresarial</SelectItem>
