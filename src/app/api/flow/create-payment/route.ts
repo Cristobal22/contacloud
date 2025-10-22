@@ -62,7 +62,7 @@ export async function POST(request: Request) {
 
   } catch (error: any) {
     console.error('Error al crear el pago en Flow:', error);
-    // Devuelve un error JSON claro
+    // Devuelve un error JSON claro y detallado
     return NextResponse.json({ error: 'Error interno del servidor al procesar el pago.', details: error.message }, { status: 500 });
   }
 }

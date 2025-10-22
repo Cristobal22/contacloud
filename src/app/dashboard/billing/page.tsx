@@ -49,22 +49,27 @@ export default function BillingPage() {
             });
 
             if (!response.ok) {
-                // If the response is not OK, read the body as text to get the server error message
-                const errorText = await response.text();
-                // Check if it's JSON error response from our API
+                let errorData;
                 try {
-                    const errorJson = JSON.parse(errorText);
-                    throw new Error(errorJson.error || errorJson.details || 'Error en el servidor.');
+                    // Primero intenta parsear la respuesta como JSON
+                    errorData = await response.json();
                 } catch (e) {
-                    // It's not JSON, probably an HTML error page
-                    throw new Error(`Error del servidor (${response.status}): Ocurrió un problema inesperado.`);
+                    // Si falla, lee la respuesta como texto (probablemente es una página de error HTML)
+                    const errorText = await response.text();
+                    throw new Error(`Error del servidor (${response.status}): ${errorText.substring(0, 200)}...`);
                 }
+                // Si tenemos un JSON con detalles, lo lanzamos
+                throw new Error(errorData.error || errorData.details || 'Error en el servidor.');
             }
 
             const data = await response.json();
             
             // Redirigir al usuario a la URL de pago de Flow
-            router.push(data.redirectUrl);
+            if (data.redirectUrl) {
+                router.push(data.redirectUrl);
+            } else {
+                throw new Error("No se recibió una URL de redirección del servidor.");
+            }
 
         } catch (error: any) {
             console.error("Error al crear el pago:", error);
@@ -73,6 +78,7 @@ export default function BillingPage() {
                 title: "Error de Pago",
                 description: error.message,
             });
+        } finally {
             setIsProcessing('');
         }
     };
