@@ -48,12 +48,21 @@ export default function BillingPage() {
                 body: JSON.stringify({ planId, userId: user.uid }),
             });
 
-            const data = await response.json();
-
             if (!response.ok) {
-                throw new Error(data.error || 'No se pudo iniciar el proceso de pago.');
+                // If the response is not OK, read the body as text to get the server error message
+                const errorText = await response.text();
+                // Check if it's JSON error response from our API
+                try {
+                    const errorJson = JSON.parse(errorText);
+                    throw new Error(errorJson.error || errorJson.details || 'Error en el servidor.');
+                } catch (e) {
+                    // It's not JSON, probably an HTML error page
+                    throw new Error(`Error del servidor (${response.status}): Ocurrió un problema inesperado.`);
+                }
             }
 
+            const data = await response.json();
+            
             // Redirigir al usuario a la URL de pago de Flow
             router.push(data.redirectUrl);
 
