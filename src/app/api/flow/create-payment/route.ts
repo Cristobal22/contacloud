@@ -2,14 +2,13 @@
 import { NextResponse } from 'next/server';
 import Flow from 'flow-api-client';
 import { plans } from '@/lib/plans';
-import { auth } from 'firebase-admin/auth';
-import '@/firebase/admin';
+import { adminAuth } from '@/firebase/admin';
 
 // Configura Flow con tus credenciales directamente aquí
 // <-- REEMPLAZA CON TU API KEY REAL
-const FLOW_API_KEY = '7DED014F-BB5E-4362-A08B-1L9BBD532D53'; 
+const FLOW_API_KEY ='7DED014F-BB5E-4362-A08B-1L9BBD532D53'; 
 // <-- REEMPLAZA CON TU SECRET KEY REAL
-const FLOW_SECRET_KEY = '68192639ec79397b7404b38198b1c918e6de1988';
+const FLOW_SECRET_KEY ='68192639ec79397b7404b38198b1c918e6de1988';
 
 const flow = new Flow({
     apiKey: FLOW_API_KEY,
@@ -31,7 +30,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'Plan no encontrado.' }, { status: 404 });
     }
     
-    const user = await auth().getUser(userId);
+    const user = await adminAuth.getUser(userId);
     if (!user.email) {
         return NextResponse.json({ error: 'El usuario no tiene un email registrado.' }, { status: 400 });
     }
