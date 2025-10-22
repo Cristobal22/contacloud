@@ -5,7 +5,6 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import {
   ChevronDown,
-  Home,
   Briefcase,
   Calendar as CalendarIcon,
 } from "lucide-react"
@@ -34,6 +33,7 @@ import { useUser, useFirestore, useCollection } from "@/firebase"
 import { useUserProfile } from "@/firebase/auth/use-user-profile"
 import { useToast } from "@/hooks/use-toast"
 import { CommandMenu } from "@/components/command-menu"
+import { Sidebar, SidebarContent, SidebarHeader, SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
 
 export const SelectedCompanyContext = React.createContext<SelectedCompanyContextType | null>(null);
 
@@ -47,18 +47,15 @@ function AccountantDashboardLayout({ children }: { children: React.ReactNode }) 
     const [selectedCompany, setSelectedCompany] = React.useState<Company | null>(null);
     const [isLoadingCompany, setIsLoadingCompany] = React.useState(true);
 
-    // Esta consulta es segura para contadores. Solo pide las empresas de su lista.
     const companiesQuery = React.useMemo(() => {
         if (!firestore || !userProfile || userProfile.role !== 'Accountant' || !userProfile.companyIds || userProfile.companyIds.length === 0) {
             return null;
         }
-        // Firestore 'in' queries are limited to 30 elements. We slice to stay within limits.
         return query(collection(firestore, 'companies'), where(documentId(), 'in', userProfile.companyIds.slice(0, 30)));
     }, [firestore, userProfile]);
 
     const { data: companies, loading: companiesLoading } = useCollection<Company>({ 
       query: companiesQuery,
-      // Deshabilitar la consulta si el perfil se está cargando, no hay consulta válida, o si el usuario no es contador.
       disabled: profileLoading || !companiesQuery || userProfile?.role !== 'Accountant'
     });
     
@@ -79,11 +76,10 @@ function AccountantDashboardLayout({ children }: { children: React.ReactNode }) 
 
     }, [companies, companiesLoading, profileLoading, userLoading]);
 
-    // Check for expired subscription
     React.useEffect(() => {
       if (userProfile?.role === 'Accountant' && userProfile.subscriptionEndDate) {
           const today = new Date();
-          today.setHours(0, 0, 0, 0); // Normalize today to the start of the day
+          today.setHours(0, 0, 0, 0);
           const endDate = parseISO(userProfile.subscriptionEndDate);
           const daysRemaining = differenceInDays(endDate, today);
 
@@ -157,125 +153,120 @@ function AccountantDashboardLayout({ children }: { children: React.ReactNode }) 
     return (
         <SelectedCompanyContext.Provider value={{ selectedCompany, setSelectedCompany: handleCompanyChange }}>
             <CommandMenu />
-            <div className="flex min-h-screen w-full flex-col bg-muted/40">
-                <aside className="fixed inset-y-0 left-0 z-10 hidden w-64 flex-col border-r bg-background sm:flex">
-                    <div className="flex h-16 items-center border-b px-6">
+            <SidebarProvider>
+                <Sidebar>
+                    <SidebarHeader>
                         <Link href="/dashboard" className="flex items-center gap-2 font-semibold">
                             <Logo />
                         </Link>
-                    </div>
-                    <div className="flex-1 overflow-auto py-4">
+                    </SidebarHeader>
+                    <SidebarContent>
                         <DashboardNav role="Accountant" />
-                    </div>
-                </aside>
+                    </SidebarContent>
+                </Sidebar>
+                <SidebarInset>
+                     <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-4 border-b bg-background px-4 sm:px-6">
+                        <div className="flex items-center gap-2">
+                             <SidebarTrigger className="sm:hidden"/>
+                             <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button variant="outline" className="flex items-center gap-2" disabled={isLoading}>
+                                        <Briefcase className="h-4 w-4" />
+                                        <span>{selectedCompany?.name || 'Seleccionar Empresa'}</span>
+                                        <ChevronDown className="h-4 w-4" />
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="start">
+                                    <DropdownMenuLabel>Selecciona una Empresa</DropdownMenuLabel>
+                                    <DropdownMenuSeparator />
+                                    {companies && companies.length > 0 ? companies.map((company) => (
+                                        <DropdownMenuItem key={company.id} onSelect={() => handleCompanyChange(company)}>{company.name}</DropdownMenuItem>
+                                    )) : (
+                                        <DropdownMenuItem disabled>No tienes empresas asignadas.</DropdownMenuItem>
+                                    )}
+                                </DropdownMenuContent>
+                            </DropdownMenu>
 
-                <div className="flex flex-col sm:pl-64">
-                    <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-4 border-b bg-background px-4 sm:justify-end sm:px-6">
-                        <div className="flex items-center gap-4">
-                            {/* Mobile menu - placeholder */}
-                            <Button variant="outline" className="sm:hidden">
-                                <Home className="h-4 w-4" />
-                                <span className="sr-only">Toggle Company</span>
-                            </Button>
-
-                            <div className="hidden sm:flex items-center gap-2">
-                                <DropdownMenu>
-                                    <DropdownMenuTrigger asChild>
-                                        <Button variant="outline" className="flex items-center gap-2" disabled={isLoading}>
-                                            <Briefcase className="h-4 w-4" />
-                                            <span>{selectedCompany?.name || 'Seleccionar Empresa'}</span>
-                                            <ChevronDown className="h-4 w-4" />
-                                        </Button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="start">
-                                        <DropdownMenuLabel>Selecciona una Empresa</DropdownMenuLabel>
-                                        <DropdownMenuSeparator />
-                                        {companies && companies.length > 0 ? companies.map((company) => (
-                                            <DropdownMenuItem key={company.id} onSelect={() => handleCompanyChange(company)}>{company.name}</DropdownMenuItem>
-                                        )) : (
-                                            <DropdownMenuItem disabled>No tienes empresas asignadas.</DropdownMenuItem>
-                                        )}
-                                    </DropdownMenuContent>
-                                </DropdownMenu>
-
-                                 <DropdownMenu>
-                                    <DropdownMenuTrigger asChild>
-                                        <Button variant="outline" className="flex items-center gap-2 capitalize" disabled={isLoading || !selectedCompany}>
-                                            <CalendarIcon className="h-4 w-4" />
-                                            <span>{periodLabel}</span>
-                                            <ChevronDown className="h-4 w-4" />
-                                        </Button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="start">
-                                        <DropdownMenuLabel>Cambiar Período de Trabajo</DropdownMenuLabel>
-                                        <DropdownMenuSeparator/>
-                                         <DropdownMenuSub>
-                                            <DropdownMenuSubTrigger>
-                                                <span>{selectedCompany?.periodStartDate ? parseISO(selectedCompany.periodStartDate).getFullYear() : 'Año'}</span>
-                                            </DropdownMenuSubTrigger>
-                                            <DropdownMenuPortal>
-                                                <DropdownMenuSubContent>
-                                                    {years.map(year => (
-                                                        <DropdownMenuItem key={year} onSelect={() => handlePeriodChange(year, selectedCompany?.periodStartDate ? parseISO(selectedCompany.periodStartDate).getMonth() : new Date().getMonth())}>
-                                                            {year}
-                                                        </DropdownMenuItem>
-                                                    ))}
-                                                </DropdownMenuSubContent>
-                                            </DropdownMenuPortal>
-                                        </DropdownMenuSub>
-                                        <DropdownMenuSub>
-                                            <DropdownMenuSubTrigger>
-                                                 <span>{selectedCompany?.periodStartDate ? format(parseISO(selectedCompany.periodStartDate), 'MMMM', { locale: es}) : 'Mes'}</span>
-                                            </DropdownMenuSubTrigger>
-                                            <DropdownMenuPortal>
-                                                <DropdownMenuSubContent>
-                                                    {months.map(month => (
-                                                        <DropdownMenuItem key={month.value} onSelect={() => handlePeriodChange(selectedCompany?.periodStartDate ? parseISO(selectedCompany.periodStartDate).getFullYear() : new Date().getFullYear(), month.value)}>
-                                                            {month.label}
-                                                        </DropdownMenuItem>
-                                                    ))}
-                                                </DropdownMenuSubContent>
-                                            </DropdownMenuPortal>
-                                        </DropdownMenuSub>
-                                    </DropdownMenuContent>
-                                </DropdownMenu>
-                            </div>
+                             <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button variant="outline" className="flex items-center gap-2 capitalize" disabled={isLoading || !selectedCompany}>
+                                        <CalendarIcon className="h-4 w-4" />
+                                        <span>{periodLabel}</span>
+                                        <ChevronDown className="h-4 w-4" />
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="start">
+                                    <DropdownMenuLabel>Cambiar Período de Trabajo</DropdownMenuLabel>
+                                    <DropdownMenuSeparator/>
+                                     <DropdownMenuSub>
+                                        <DropdownMenuSubTrigger>
+                                            <span>{selectedCompany?.periodStartDate ? parseISO(selectedCompany.periodStartDate).getFullYear() : 'Año'}</span>
+                                        </DropdownMenuSubTrigger>
+                                        <DropdownMenuPortal>
+                                            <DropdownMenuSubContent>
+                                                {years.map(year => (
+                                                    <DropdownMenuItem key={year} onSelect={() => handlePeriodChange(year, selectedCompany?.periodStartDate ? parseISO(selectedCompany.periodStartDate).getMonth() : new Date().getMonth())}>
+                                                        {year}
+                                                    </DropdownMenuItem>
+                                                ))}
+                                            </DropdownMenuSubContent>
+                                        </DropdownMenuPortal>
+                                    </DropdownMenuSub>
+                                    <DropdownMenuSub>
+                                        <DropdownMenuSubTrigger>
+                                             <span>{selectedCompany?.periodStartDate ? format(parseISO(selectedCompany.periodStartDate), 'MMMM', { locale: es}) : 'Mes'}</span>
+                                        </DropdownMenuSubTrigger>
+                                        <DropdownMenuPortal>
+                                            <DropdownMenuSubContent>
+                                                {months.map(month => (
+                                                    <DropdownMenuItem key={month.value} onSelect={() => handlePeriodChange(selectedCompany?.periodStartDate ? parseISO(selectedCompany.periodStartDate).getFullYear() : new Date().getFullYear(), month.value)}>
+                                                        {month.label}
+                                                    </DropdownMenuItem>
+                                                ))}
+                                            </DropdownMenuSubContent>
+                                        </DropdownMenuPortal>
+                                    </DropdownMenuSub>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
                         </div>
-                        <UserNav />
+                        <div className="flex items-center gap-2">
+                             <SidebarTrigger className="hidden sm:flex"/>
+                            <UserNav />
+                        </div>
                     </header>
                     <main className="flex-1 p-4 sm:p-6">
                         {isLoading ? <div className="flex h-full w-full items-center justify-center"><p>Cargando datos del contador...</p></div> : children}
                     </main>
-                </div>
-            </div>
+                </SidebarInset>
+            </SidebarProvider>
         </SelectedCompanyContext.Provider>
     );
 }
 
 function AdminDashboardLayout({ children }: { children: React.ReactNode }) {
     return (
-        <div className="flex min-h-screen w-full flex-col bg-muted/40">
-            <aside className="fixed inset-y-0 left-0 z-10 hidden w-64 flex-col border-r bg-background sm:flex">
-                <div className="flex h-16 items-center border-b px-6">
+       <SidebarProvider>
+            <Sidebar>
+                <SidebarHeader>
                     <Link href="/dashboard" className="flex items-center gap-2 font-semibold">
                         <Logo />
                     </Link>
-                </div>
-                <div className="flex-1 overflow-auto py-4">
+                </SidebarHeader>
+                <SidebarContent>
                     <DashboardNav role="Admin" />
-                </div>
-            </aside>
-
-            <div className="flex flex-col sm:pl-64">
+                </SidebarContent>
+            </Sidebar>
+             <SidebarInset>
                 <header className="sticky top-0 z-30 flex h-16 items-center justify-end gap-4 border-b bg-background px-4 sm:px-6">
                     <CommandMenu />
+                     <SidebarTrigger className="hidden sm:flex"/>
                     <UserNav />
                 </header>
                 <main className="flex-1 p-4 sm:p-6">
                     {children}
                 </main>
-            </div>
-        </div>
+            </SidebarInset>
+        </SidebarProvider>
     );
 }
 
@@ -323,5 +314,3 @@ export default function DashboardLayout({
   
   return <DashboardLayoutContent>{children}</DashboardLayoutContent>;
 }
-
-    

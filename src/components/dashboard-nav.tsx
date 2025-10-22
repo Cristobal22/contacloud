@@ -1,4 +1,3 @@
-
 'use client';
 
 import Link from 'next/link';
@@ -45,6 +44,8 @@ import {
 import { cn } from '@/lib/utils';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './ui/collapsible';
 import React from 'react';
+import { useSidebar } from './ui/sidebar';
+import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
 
 const accountantNavSections = [
     {
@@ -202,6 +203,7 @@ type DashboardNavProps = {
 
 export function DashboardNav({ role }: DashboardNavProps) {
   const pathname = usePathname();
+  const { state: sidebarState } = useSidebar();
   const [openSections, setOpenSections] = React.useState<Record<string, boolean>>({
     'Contabilidad': true,
     'Movimientos': true,
@@ -227,31 +229,48 @@ export function DashboardNav({ role }: DashboardNavProps) {
 
   const renderLink = (item: { href: string, label: string, icon: React.ElementType }) => {
     const isActive = pathname === item.href;
+    const isCollapsed = sidebarState === 'collapsed';
+
+    const linkContent = (
+      <>
+        <item.icon className="h-4 w-4" />
+        <span className={cn('truncate', isCollapsed && "hidden")}>{item.label}</span>
+      </>
+    );
+
     return (
-        <Link
-            key={item.href}
-            href={item.href}
-            className={cn(
-            'flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary',
-            isActive && 'bg-muted text-primary'
+        <Tooltip key={item.href}>
+            <TooltipTrigger asChild>
+                <Link
+                    href={item.href}
+                    className={cn(
+                    'flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary',
+                    isActive && 'bg-muted text-primary',
+                    isCollapsed && 'justify-center'
+                    )}
+                >
+                    {linkContent}
+                </Link>
+            </TooltipTrigger>
+            {isCollapsed && (
+                 <TooltipContent side="right" sideOffset={12}>
+                    <p>{item.label}</p>
+                </TooltipContent>
             )}
-        >
-            <item.icon className="h-4 w-4" />
-            {item.label}
-        </Link>
+        </Tooltip>
     );
   }
 
   const renderSection = (section: { title: string, icon: React.ElementType, links: { href: string, label: string, icon: React.ElementType }[], subSections?: any[] }) => (
     <Collapsible key={section.title} open={openSections[section.title]} onOpenChange={() => toggleSection(section.title)}>
-        <CollapsibleTrigger className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-muted-foreground hover:text-primary">
+        <CollapsibleTrigger className={cn("flex w-full items-center justify-between rounded-lg px-3 py-2 text-muted-foreground hover:text-primary", sidebarState === 'collapsed' && 'justify-center')}>
             <div className="flex items-center gap-3">
-            <section.icon className="h-4 w-4" />
-            <span>{section.title}</span>
+                <section.icon className="h-4 w-4" />
+                <span className={cn(sidebarState === 'collapsed' && "hidden")}>{section.title}</span>
             </div>
-            {openSections[section.title] ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            {sidebarState === 'expanded' && (openSections[section.title] ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />)}
         </CollapsibleTrigger>
-        <CollapsibleContent className="ml-7 flex flex-col gap-1 border-l border-muted-foreground/20 pl-5 py-2">
+        <CollapsibleContent className={cn("ml-7 flex flex-col gap-1 border-l border-muted-foreground/20 pl-5 py-2", sidebarState === 'collapsed' && "hidden")}>
             {section.links.map(renderLink)}
             {section.subSections?.map((subSection) => (
                 <Collapsible key={subSection.title} open={openSections[subSection.title]} onOpenChange={() => toggleSection(subSection.title)}>
@@ -280,15 +299,22 @@ export function DashboardNav({ role }: DashboardNavProps) {
         if (!subSections || subSections.length === 0) return null;
 
         return (
-        <Collapsible open={openSections[parentTitle] ?? defaultOpen} onOpenChange={() => toggleSection(parentTitle)}>
-            <CollapsibleTrigger className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-muted-foreground hover:text-primary">
-                <div className="flex items-center gap-3">
-                <ParentIcon className="h-4 w-4" />
-                <span>{parentTitle}</span>
-                </div>
-                {openSections[parentTitle] ?? defaultOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-            </CollapsibleTrigger>
-            <CollapsibleContent className="ml-7 flex flex-col gap-1 border-l border-muted-foreground/20 pl-5 py-2">
+        <Collapsible open={(openSections[parentTitle] ?? defaultOpen) && sidebarState === 'expanded'} onOpenChange={() => toggleSection(parentTitle)} disabled={sidebarState === 'collapsed'}>
+            <Tooltip>
+                <TooltipTrigger asChild>
+                    <CollapsibleTrigger className={cn("flex w-full items-center justify-between rounded-lg px-3 py-2 text-muted-foreground hover:text-primary", sidebarState === 'collapsed' && "justify-center")}>
+                        <div className="flex items-center gap-3">
+                            <ParentIcon className="h-4 w-4" />
+                            <span className={cn(sidebarState === 'collapsed' && "hidden")}>{parentTitle}</span>
+                        </div>
+                        {sidebarState === 'expanded' && (openSections[parentTitle] ?? defaultOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />)}
+                    </CollapsibleTrigger>
+                </TooltipTrigger>
+                {sidebarState === 'collapsed' && (
+                    <TooltipContent side="right" sideOffset={12}><p>{parentTitle}</p></TooltipContent>
+                )}
+            </Tooltip>
+            <CollapsibleContent className={cn("ml-7 flex flex-col gap-1 border-l border-muted-foreground/20 pl-5 py-2", sidebarState === 'collapsed' && "hidden")}>
                 {subSections.map((subSection) => (
                     <Collapsible key={subSection.title} open={openSections[subSection.title + '_sub']} onOpenChange={() => toggleSection(subSection.title + '_sub')}>
                         <CollapsibleTrigger className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-muted-foreground hover:text-primary">
@@ -324,14 +350,12 @@ export function DashboardNav({ role }: DashboardNavProps) {
 
   return (
     <div className="flex h-full flex-col justify-between">
-      <nav className="grid items-start gap-2 px-4 text-sm font-medium">
+      <nav className="grid items-start gap-2 px-2 text-sm font-medium">
         {navContent}
       </nav>
-      <nav className="mt-auto grid items-start gap-1 px-4 text-sm font-medium">
+      <nav className="mt-auto grid items-start gap-1 px-2 text-sm font-medium">
         {bottomNavItems.map(renderLink)}
       </nav>
     </div>
   );
 }
-
-    
