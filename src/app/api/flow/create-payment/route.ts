@@ -26,7 +26,9 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Plan no encontrado.' }, { status: 404 });
         }
         
-        amount = parseInt(plan.price.replace(/\D/g, ''), 10);
+        const priceString = plan.price.replace(/[$.]/g, '');
+        amount = parseInt(priceString, 10);
+        
         if (isNaN(amount) || amount <= 0) {
             return NextResponse.json({ error: 'El precio del plan no es válido.' }, { status: 400 });
         }
