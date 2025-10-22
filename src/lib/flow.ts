@@ -1,3 +1,4 @@
+
 // --- CONFIGURACIÓN DE FLOW ---
 // Mueve aquí toda la configuración relacionada con Flow para centralizarla.
 
@@ -22,7 +23,7 @@ export async function sign(params: Record<string, any>, secret: string): Promise
   const crypto = (await import('crypto')).default;
   // 1. Ordenar los parámetros alfabéticamente por nombre de clave.
   const sortedKeys = Object.keys(params).sort();
-  // 2. Concatenar los pares clave-valor en una sola cadena en el orden correcto.
+  // 2. Concatenar los pares clave-valor en una sola cadena, sin separadores.
   const toSign = sortedKeys.map(key => `${key}${params[key]}`).join('');
   // 3. Generar el hash HMAC-SHA256.
   return crypto.createHmac('sha256', secret).update(toSign).digest('hex');
