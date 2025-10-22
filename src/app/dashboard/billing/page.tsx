@@ -36,18 +36,7 @@ export default function BillingPage() {
             toast({ variant: "destructive", title: "Error", description: "Debes iniciar sesión para realizar un pago." });
             return;
         }
-        
-        // Temporarily disable payment functionality and inform the user.
-        toast({
-            variant: "destructive",
-            title: "Función Deshabilitada",
-            description: "La integración de pagos está temporalmente desactivada debido a un problema de configuración del paquete 'flow-api-client'.",
-            duration: 8000,
-        });
-        return;
 
-
-        /*
         setIsProcessing(planId);
         
         try {
@@ -70,7 +59,7 @@ export default function BillingPage() {
                     throw new Error(`Error del servidor (${response.status}): ${errorText.substring(0, 200)}...`);
                 }
                 // Si tenemos un JSON con detalles, lo lanzamos
-                throw new Error(errorData.error || errorData.details || 'Error en el servidor.');
+                throw new Error(errorData.error || errorData.details || 'Ocurrió un problema inesperado.');
             }
 
             const data = await response.json();
@@ -92,7 +81,6 @@ export default function BillingPage() {
         } finally {
             setIsProcessing('');
         }
-        */
     };
 
     const loading = userLoading || profileLoading;

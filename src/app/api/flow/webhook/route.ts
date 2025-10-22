@@ -1,14 +1,32 @@
 
 import { NextResponse } from 'next/server';
-// import flow from '@/lib/flow-client';
 import { adminFirestore } from '@/firebase/admin';
 import { add, format } from 'date-fns';
+import crypto from 'crypto';
+
+// --- CONFIGURACIÓN DE FLOW ---
+// <-- REEMPLAZA CON TU API KEY REAL
+const FLOW_API_KEY = '7DED014F-BB5E-4362-A08B-1L9BBD532D53';
+// <-- REEMPLAZA CON TU SECRET KEY REAL
+const FLOW_SECRET_KEY = '68192639ec79397b7404b38198b1c918e6de1988';
+// Cambia a true cuando estés listo para producción
+const IS_PRODUCTION = false;
+const FLOW_API_URL = IS_PRODUCTION 
+    ? 'https://www.flow.cl/api' 
+    : 'https://sandbox.flow.cl/api';
+
+
+/**
+ * Genera una firma HMAC-SHA256 para autenticar la solicitud a la API de Flow.
+ */
+function sign(params: Record<string, any>, secret: string): string {
+  const sortedParams = Object.keys(params).sort();
+  const toSign = sortedParams.map(key => `${key}${params[key]}`).join('');
+  return crypto.createHmac('sha256', secret).update(toSign).digest('hex');
+}
+
 
 export async function POST(request: Request) {
-    // NOTE: This functionality is temporarily disabled.
-    return NextResponse.json({ status: 'ok', message: 'Webhook de Flow deshabilitado temporalmente.' });
-
-    /*
     try {
         const formData = await request.formData();
         const token = formData.get('token') as string;
@@ -17,7 +35,15 @@ export async function POST(request: Request) {
             return NextResponse.json({ status: 'error', message: 'Falta el token' }, { status: 400 });
         }
 
-        const paymentStatus = await flow.send('payment/get', { token }, 'GET');
+        const params = {
+          apiKey: FLOW_API_KEY,
+          token: token,
+        };
+        const signature = sign(params, FLOW_SECRET_KEY);
+
+        const response = await fetch(`${FLOW_API_URL}/payment/getStatus?apiKey=${FLOW_API_KEY}&token=${token}&s=${signature}`);
+        const paymentStatus = await response.json();
+
 
         // Status 2 significa pago exitoso. Otros estados (1: pendiente, 3: rechazado, 4: anulado) no se procesan.
         if (paymentStatus.status !== 2) {
@@ -62,5 +88,4 @@ export async function POST(request: Request) {
         console.error('Error en el webhook de Flow:', error);
         return NextResponse.json({ status: 'error', message: 'Error interno del servidor.', details: error.message }, { status: 500 });
     }
-    */
 }
