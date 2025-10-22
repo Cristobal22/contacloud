@@ -10,7 +10,7 @@ import {
   Calendar as CalendarIcon,
 } from "lucide-react"
 import { collection, query, where, documentId, doc, updateDoc } from "firebase/firestore"
-import { format, startOfMonth, endOfMonth, parseISO, isAfter } from 'date-fns';
+import { format, startOfMonth, endOfMonth, parseISO, isAfter, differenceInDays } from 'date-fns';
 import { es } from 'date-fns/locale';
 
 import { Button } from "@/components/ui/button"
@@ -85,6 +85,7 @@ function AccountantDashboardLayout({ children }: { children: React.ReactNode }) 
           const today = new Date();
           today.setHours(0, 0, 0, 0); // Normalize today to the start of the day
           const endDate = parseISO(userProfile.subscriptionEndDate);
+          const daysRemaining = differenceInDays(endDate, today);
 
           if (isAfter(today, endDate)) {
               toast({
@@ -94,6 +95,12 @@ function AccountantDashboardLayout({ children }: { children: React.ReactNode }) 
                   duration: 8000,
               });
               router.push('/dashboard/billing');
+          } else if (daysRemaining <= 5) {
+              toast({
+                  title: "Aviso de Suscripción",
+                  description: `Tu plan expira en ${daysRemaining + 1} día(s). Asegúrate de renovarlo para no perder el acceso.`,
+                  duration: 8000,
+              });
           }
       }
     }, [userProfile, router, toast]);
@@ -316,3 +323,5 @@ export default function DashboardLayout({
   
   return <DashboardLayoutContent>{children}</DashboardLayoutContent>;
 }
+
+    
