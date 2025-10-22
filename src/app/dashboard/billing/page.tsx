@@ -1,3 +1,4 @@
+
 'use client';
 
 import React from "react";
@@ -20,30 +21,51 @@ import { cn } from "@/lib/utils";
 import { plans } from "@/lib/plans";
 import { format, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
+import { useRouter } from 'next/navigation';
+
 
 export default function BillingPage() {
     const { user, loading: userLoading } = useUser();
     const { userProfile, loading: profileLoading } = useUserProfile(user?.uid);
     const { toast } = useToast();
-    const [isProcessing, setIsProcessing] = React.useState(false);
+    const router = useRouter();
+    const [isProcessing, setIsProcessing] = React.useState(''); // Almacena el ID del plan que se está procesando
 
     const handlePayment = async (planId: string) => {
-        setIsProcessing(true);
-        toast({
-            title: 'Redirigiendo a la pasarela de pago...',
-            description: `Estás a punto de pagar por el plan ${planId}.`,
-        });
+        if (!user) {
+            toast({ variant: "destructive", title: "Error", description: "Debes iniciar sesión para realizar un pago." });
+            return;
+        }
 
-        // Simulación de redirección a Flow.cl
-        // En una implementación real, aquí se generaría la URL de pago
-        // y se redirigiría al usuario: router.push(paymentUrl);
-        setTimeout(() => {
-            toast({
-                title: 'Esperando confirmación de pago',
-                description: 'Una vez que el pago se confirme, tu suscripción se actualizará automáticamente.',
+        setIsProcessing(planId);
+        
+        try {
+            const response = await fetch('/api/flow/create-payment', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ planId, userId: user.uid }),
             });
-            setIsProcessing(false);
-        }, 3000);
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.error || 'No se pudo iniciar el proceso de pago.');
+            }
+
+            // Redirigir al usuario a la URL de pago de Flow
+            router.push(data.redirectUrl);
+
+        } catch (error: any) {
+            console.error("Error al crear el pago:", error);
+            toast({
+                variant: "destructive",
+                title: "Error de Pago",
+                description: error.message,
+            });
+            setIsProcessing('');
+        }
     };
 
     const loading = userLoading || profileLoading;
@@ -115,10 +137,10 @@ export default function BillingPage() {
                             <CardFooter>
                                 <Button 
                                     className="w-full"
-                                    disabled={isCurrent || isProcessing}
+                                    disabled={isCurrent || !!isProcessing}
                                     onClick={() => handlePayment(plan.id)}
                                 >
-                                    {isProcessing ? "Procesando..." : (isCurrent ? "Plan Actual" : "Pagar con Flow")}
+                                    {isProcessing === plan.id ? "Procesando..." : (isCurrent ? "Plan Actual" : "Pagar con Flow")}
                                 </Button>
                             </CardFooter>
                           </Card>
