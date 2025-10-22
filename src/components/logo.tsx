@@ -6,12 +6,12 @@ export function Logo({ className }: { className?: string }) {
     <div className={cn("flex items-center gap-2", className)}>
       <Image 
         src="/images/logo.svg" 
-        alt="Contador Cloud Logo" 
+        alt="Guardián del Tesoro Logo" 
         width={24} 
         height={24}
         className="h-6 w-6"
       />
-      <span className="font-headline text-xl font-semibold text-primary">Contador Cloud</span>
+      <span className="font-headline text-xl font-semibold text-primary">Guardián del Tesoro</span>
     </div>
   );
 }

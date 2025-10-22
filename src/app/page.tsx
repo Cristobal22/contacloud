@@ -45,7 +45,7 @@ export default function Home() {
                 El Futuro de la Contabilidad en la Nube está Aquí
               </h1>
               <p className="mt-6 text-lg text-muted-foreground">
-                Contador Cloud ofrece una plataforma segura y multi-empresa para que los contadores modernos gestionen las finanzas, nóminas e impuestos de las empresas con una eficiencia sin igual.
+                Guardián del Tesoro ofrece una plataforma segura y multi-empresa para que los contadores modernos gestionen las finanzas, nóminas e impuestos de las empresas con una eficiencia sin igual.
               </p>
               <div className="mt-10 flex justify-center gap-4">
                 <Button asChild size="lg">
@@ -157,7 +157,7 @@ export default function Home() {
                 ¿Listo para transformar tu práctica contable?
               </h2>
               <p className="mt-4 text-lg text-muted-foreground">
-                Únete a Contador Cloud hoy y experimenta la nueva generación de software contable.
+                Únete a Guardián del Tesoro hoy y experimenta la nueva generación de software contable.
               </p>
               <div className="mt-8">
                 <Button asChild size="lg">

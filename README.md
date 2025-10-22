@@ -1,7 +1,7 @@
 
-# Contador Cloud
+# Guardian del Tesoro
 
-Contador Cloud es una moderna aplicación de contabilidad multi-tenant diseñada para que los contadores gestionen las finanzas de múltiples empresas de forma segura y eficiente. Esta aplicación está construida como un prototipo robusto utilizando Next.js, Firebase y shadcn/ui, mostrando una experiencia de usuario completa e interactiva.
+Guardián del Tesoro es una moderna aplicación de contabilidad multi-tenant diseñada para que los contadores gestionen las finanzas de múltiples empresas de forma segura y eficiente. Esta aplicación está construida como un prototipo robusto utilizando Next.js, Firebase y shadcn/ui, mostrando una experiencia de usuario completa e interactiva.
 
 ## Key Features
 
@@ -114,4 +114,3 @@ La aplicación estará disponible en `http://localhost:9002`.
 - `firestore.rules`: Reglas de seguridad para Firestore.
 - `.github/workflows/`: Workflows de CI/CD para despliegue automático.
 - `init-admin.mjs`: Script para inicializar el primer usuario administrador.
-

@@ -309,7 +309,7 @@ function AccountantDashboard() {
         return (
             <Card>
                 <CardHeader>
-                    <CardTitle>Bienvenido a Contador Cloud</CardTitle>
+                    <CardTitle>Bienvenido a Guardián del Tesoro</CardTitle>
                     <CardDescription>Por favor, selecciona una empresa desde el menú superior para empezar a trabajar.</CardDescription>
                 </CardHeader>
                 <CardContent>

@@ -5,8 +5,8 @@ import { FirebaseClientProvider } from '@/firebase';
 import { ThemeProvider } from '@/components/theme-provider';
 
 export const metadata: Metadata = {
-  title: 'Contador Cloud',
-  description: 'A multi-tenant accounting application.',
+  title: 'Guardián del Tesoro',
+  description: 'Una aplicación de contabilidad multi-tenant.',
 };
 
 export default function RootLayout({
