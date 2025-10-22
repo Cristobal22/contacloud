@@ -82,3 +82,4 @@ export async function POST(request: Request) {
         return NextResponse.json({ status: 'error', message: 'Error interno del servidor.', details: error.message }, { status: 500 });
     }
 }
+
