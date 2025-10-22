@@ -36,7 +36,18 @@ export default function BillingPage() {
             toast({ variant: "destructive", title: "Error", description: "Debes iniciar sesión para realizar un pago." });
             return;
         }
+        
+        // Temporarily disable payment functionality and inform the user.
+        toast({
+            variant: "destructive",
+            title: "Función Deshabilitada",
+            description: "La integración de pagos está temporalmente desactivada debido a un problema de configuración del paquete 'flow-api-client'.",
+            duration: 8000,
+        });
+        return;
 
+
+        /*
         setIsProcessing(planId);
         
         try {
@@ -81,6 +92,7 @@ export default function BillingPage() {
         } finally {
             setIsProcessing('');
         }
+        */
     };
 
     const loading = userLoading || profileLoading;

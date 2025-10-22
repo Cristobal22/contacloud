@@ -1,10 +1,17 @@
 
 import { NextResponse } from 'next/server';
-import flow from '@/lib/flow-client';
+// import flow from '@/lib/flow-client';
 import { plans } from '@/lib/plans';
 import { adminAuth } from '@/firebase/admin';
 
 export async function POST(request: Request) {
+  // NOTE: This functionality is temporarily disabled due to installation issues with 'flow-api-client'.
+  return NextResponse.json({ 
+      error: 'La funcionalidad de pago está temporalmente deshabilitada.', 
+      details: 'El paquete `flow-api-client` no se pudo instalar. Un desarrollador debe instalarlo manualmente en el entorno del servidor y reactivar este endpoint.'
+    }, { status: 503 });
+
+  /*
   try {
     const { planId, userId } = await request.json();
 
@@ -52,4 +59,5 @@ export async function POST(request: Request) {
     // Devuelve un error JSON claro y detallado
     return NextResponse.json({ error: 'Error interno del servidor al procesar el pago.', details: error.message }, { status: 500 });
   }
+  */
 }

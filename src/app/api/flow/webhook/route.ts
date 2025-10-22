@@ -1,10 +1,14 @@
 
 import { NextResponse } from 'next/server';
-import flow from '@/lib/flow-client';
+// import flow from '@/lib/flow-client';
 import { adminFirestore } from '@/firebase/admin';
 import { add, format } from 'date-fns';
 
 export async function POST(request: Request) {
+    // NOTE: This functionality is temporarily disabled.
+    return NextResponse.json({ status: 'ok', message: 'Webhook de Flow deshabilitado temporalmente.' });
+
+    /*
     try {
         const formData = await request.formData();
         const token = formData.get('token') as string;
@@ -58,4 +62,5 @@ export async function POST(request: Request) {
         console.error('Error en el webhook de Flow:', error);
         return NextResponse.json({ status: 'error', message: 'Error interno del servidor.', details: error.message }, { status: 500 });
     }
+    */
 }
