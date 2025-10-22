@@ -1,4 +1,3 @@
-
 'use client';
 
 import React from "react";
@@ -47,15 +46,19 @@ export default function BillingPage() {
                 },
                 body: JSON.stringify({ planId, userId: user.uid }),
             });
-
-            const data = await response.json();
-
+            
             if (!response.ok) {
-                // Si la respuesta no es OK, lanzamos un error con el mensaje del servidor
-                throw new Error(data.details || data.error || 'Ocurrió un problema inesperado.');
+                let errorData;
+                try {
+                    errorData = await response.json();
+                } catch (e) {
+                    throw new Error(`Error del servidor (${response.status}): Ocurrió un problema inesperado.`);
+                }
+                throw new Error(errorData.error || errorData.details || 'Ocurrió un problema inesperado.');
             }
             
-            // Redirigir al usuario a la URL de pago de Flow
+            const data = await response.json();
+            
             if (data.redirectUrl) {
                 router.push(data.redirectUrl);
             } else {
@@ -120,6 +123,7 @@ export default function BillingPage() {
                         ) : (
                         plans.map(plan => {
                           const isCurrent = plan.id === currentPlanId;
+                          const isFree = plan.id === 'Demo';
                           return (
                           <Card key={plan.name} className={cn(isCurrent && "border-primary ring-1 ring-primary")}>
                             <CardHeader>
@@ -143,10 +147,10 @@ export default function BillingPage() {
                             <CardFooter>
                                 <Button 
                                     className="w-full"
-                                    disabled={isCurrent || !!isProcessing}
+                                    disabled={isCurrent || !!isProcessing || isFree}
                                     onClick={() => handlePayment(plan.id)}
                                 >
-                                    {isProcessing === plan.id ? "Procesando..." : (isCurrent ? "Plan Actual" : "Pagar con Flow")}
+                                    {isProcessing === plan.id ? "Procesando..." : (isCurrent ? "Plan Actual" : isFree ? "Elegir Plan" : "Pagar con Flow")}
                                 </Button>
                             </CardFooter>
                           </Card>

@@ -1,4 +1,3 @@
-
 import { NextResponse } from 'next/server';
 import { plans } from '@/lib/plans';
 import { adminAuth } from '@/firebase/admin';
@@ -44,7 +43,7 @@ export async function POST(request: Request) {
 
     // Extraer el monto numérico del precio. Ejemplo: "$20.000" -> 20000
     const amount = parseInt(plan.price.replace(/\D/g, ''), 10);
-    if (isNaN(amount)) {
+    if (isNaN(amount) || amount <= 0) {
         return NextResponse.json({ error: 'El precio del plan no es válido.' }, { status: 400 });
     }
     
@@ -89,4 +88,3 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Error interno del servidor al procesar el pago.', details: error.message }, { status: 500 });
   }
 }
-
