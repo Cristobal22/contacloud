@@ -1,7 +1,7 @@
 
 import { NextResponse } from 'next/server';
 import Flow from 'flow-api-client';
-import { adminApp, adminFirestore } from '@/firebase/admin';
+import { adminFirestore } from '@/firebase/admin';
 import { add, format } from 'date-fns';
 
 // Inicializa el SDK de Flow con tus credenciales

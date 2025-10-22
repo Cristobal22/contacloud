@@ -26,7 +26,8 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'Plan no encontrado.' }, { status: 404 });
     }
     
-    const user = await auth(adminApp).getUser(userId);
+    // Correct way to get user data in a server environment
+    const user = await auth().getUser(userId);
     if (!user.email) {
         return NextResponse.json({ error: 'El usuario no tiene un email registrado.' }, { status: 400 });
     }
