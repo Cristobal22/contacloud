@@ -2,7 +2,7 @@
 import { NextResponse } from 'next/server';
 import Flow from 'flow-api-client';
 import { plans } from '@/lib/plans';
-import { getAuth } from 'firebase-admin/auth';
+import { auth } from 'firebase-admin';
 import { adminApp } from '@/firebase/admin';
 
 // Inicializa el SDK de Flow con tus credenciales desde las variables de entorno
@@ -26,8 +26,8 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'Plan no encontrado.' }, { status: 404 });
     }
     
-    // Obtener el email del usuario desde Firebase Admin SDK
-    const user = await getAuth(adminApp).getUser(userId);
+    // CORRECCIÓN: Usar auth() para obtener el usuario
+    const user = await auth(adminApp).getUser(userId);
     if (!user.email) {
         return NextResponse.json({ error: 'El usuario no tiene un email registrado.' }, { status: 400 });
     }
