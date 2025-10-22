@@ -1,20 +1,8 @@
 
 import { NextResponse } from 'next/server';
-import Flow from 'flow-api-client';
+import flow from '@/lib/flow-client';
 import { adminFirestore } from '@/firebase/admin';
 import { add, format } from 'date-fns';
-
-// Configura Flow con tus credenciales directamente aquí
-// <-- REEMPLAZA CON TU API KEY REAL
-const FLOW_API_KEY = '7DED014F-BB5E-4362-A08B-1L9BBD532D53';
-// <-- REEMPLAZA CON TU SECRET KEY REAL
-const FLOW_SECRET_KEY = '68192639ec79397b7404b38198b1c918e6de1988';
-
-const flow = new Flow({
-    apiKey: FLOW_API_KEY,
-    secret: FLOW_SECRET_KEY,
-    production: false, // Cambia a true en producción
-});
 
 export async function POST(request: Request) {
     try {
@@ -27,6 +15,7 @@ export async function POST(request: Request) {
 
         const paymentStatus = await flow.send('payment/get', { token }, 'GET');
 
+        // Status 2 significa pago exitoso. Otros estados (1: pendiente, 3: rechazado, 4: anulado) no se procesan.
         if (paymentStatus.status !== 2) {
             console.log(`Pago ${token} no fue exitoso. Estado: ${paymentStatus.status}`);
             return NextResponse.json({ status: 'ok', message: 'Pago no exitoso, no se procesa.' });
@@ -49,6 +38,7 @@ export async function POST(request: Request) {
         
         const currentUserData = userDoc.data();
         let currentEndDate = new Date();
+        // Si el usuario ya tiene una suscripción activa y futura, agregamos días a esa fecha.
         if (currentUserData && currentUserData.subscriptionEndDate && new Date(currentUserData.subscriptionEndDate) > new Date()) {
             currentEndDate = new Date(currentUserData.subscriptionEndDate);
         }
@@ -66,6 +56,6 @@ export async function POST(request: Request) {
 
     } catch (error: any) {
         console.error('Error en el webhook de Flow:', error);
-        return NextResponse.json({ status: 'error', message: 'Error interno del servidor.' }, { status: 500 });
+        return NextResponse.json({ status: 'error', message: 'Error interno del servidor.', details: error.message }, { status: 500 });
     }
 }
