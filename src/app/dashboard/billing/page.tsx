@@ -29,6 +29,8 @@ export default function BillingPage() {
     const { toast } = useToast();
     const router = useRouter();
     const [isProcessing, setIsProcessing] = React.useState(''); // Almacena el ID del plan que se está procesando
+    const [isTestProcessing, setIsTestProcessing] = React.useState(false);
+
 
     const handlePayment = async (planId: string) => {
         if (!user) {
@@ -74,6 +76,53 @@ export default function BillingPage() {
             });
         } finally {
             setIsProcessing('');
+        }
+    };
+    
+    const handleTestPayment = async () => {
+        if (!user) {
+            toast({ variant: "destructive", title: "Error", description: "Debes iniciar sesión para realizar un pago." });
+            return;
+        }
+
+        setIsTestProcessing(true);
+        
+        try {
+            const response = await fetch('/api/flow/create-payment', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ planId: 'test-payment', userId: user.uid, amount: 5000 }),
+            });
+            
+            if (!response.ok) {
+                let errorData;
+                try {
+                    errorData = await response.json();
+                } catch (e) {
+                    throw new Error(`Error del servidor (${response.status}): Ocurrió un problema inesperado.`);
+                }
+                throw new Error(errorData.error || errorData.details || 'Ocurrió un problema inesperado.');
+            }
+            
+            const data = await response.json();
+            
+            if (data.redirectUrl) {
+                router.push(data.redirectUrl);
+            } else {
+                throw new Error("No se recibió una URL de redirección del servidor.");
+            }
+
+        } catch (error: any) {
+            console.error("Error al crear el pago de prueba:", error);
+            toast({
+                variant: "destructive",
+                title: "Error de Pago de Prueba",
+                description: error.message,
+            });
+        } finally {
+            setIsTestProcessing(false);
         }
     };
 
@@ -123,7 +172,7 @@ export default function BillingPage() {
                         ) : (
                         plans.map(plan => {
                           const isCurrent = plan.id === currentPlanId;
-                          const isFree = plan.id === 'Demo';
+                          const isDemo = plan.id === 'Demo';
                           return (
                           <Card key={plan.name} className={cn(isCurrent && "border-primary ring-1 ring-primary")}>
                             <CardHeader>
@@ -147,16 +196,32 @@ export default function BillingPage() {
                             <CardFooter>
                                 <Button 
                                     className="w-full"
-                                    disabled={isCurrent || !!isProcessing || isFree}
+                                    disabled={isCurrent || !!isProcessing || isDemo}
                                     onClick={() => handlePayment(plan.id)}
                                 >
-                                    {isProcessing === plan.id ? "Procesando..." : (isCurrent ? "Plan Actual" : isFree ? "Elegir Plan" : "Pagar con Flow")}
+                                    {isProcessing === plan.id ? "Procesando..." : (isCurrent ? "Plan Actual" : isDemo ? "Elegir Plan" : "Pagar con Flow")}
                                 </Button>
                             </CardFooter>
                           </Card>
                         )})
                         )}
                       </div>
+                    </section>
+                     <Separator className="my-8" />
+                      <section>
+                        <h2 className="text-xl font-semibold mb-4">Prueba de Integración</h2>
+                         <div className="rounded-lg border bg-card text-card-foreground shadow-sm p-6 flex flex-col items-center gap-4 text-center">
+                            <p className="max-w-md">
+                                Utiliza este botón para realizar un pago de prueba de $5.000 CLP y verificar que el sistema de pagos funciona correctamente.
+                            </p>
+                             <Button 
+                                className="w-full max-w-xs"
+                                disabled={isTestProcessing}
+                                onClick={handleTestPayment}
+                            >
+                                {isTestProcessing ? "Procesando..." : "Pagar $5.000 (Prueba)"}
+                            </Button>
+                        </div>
                     </section>
                      <Separator className="my-8" />
                     <section>

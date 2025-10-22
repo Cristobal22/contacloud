@@ -25,26 +25,34 @@ async function sign(params: Record<string, any>, secret: string): Promise<string
 
 export async function POST(request: Request) {
   try {
-    const { planId, userId } = await request.json();
+    const { planId, userId, amount: testAmount } = await request.json();
 
     if (!planId || !userId) {
         return NextResponse.json({ error: 'Faltan parámetros: planId y userId son requeridos.' }, { status: 400 });
     }
 
-    const plan = plans.find(p => p.id === planId);
-    if (!plan) {
-        return NextResponse.json({ error: 'Plan no encontrado.' }, { status: 404 });
+    let amount: number;
+    let subject: string;
+
+    if (planId === 'test-payment' && testAmount) {
+        amount = testAmount;
+        subject = 'Pago de Prueba';
+    } else {
+        const plan = plans.find(p => p.id === planId);
+        if (!plan) {
+            return NextResponse.json({ error: 'Plan no encontrado.' }, { status: 404 });
+        }
+        
+        amount = parseInt(plan.price.replace(/\D/g, ''), 10);
+        if (isNaN(amount) || amount <= 0) {
+            return NextResponse.json({ error: 'El precio del plan no es válido.' }, { status: 400 });
+        }
+        subject = `Suscripción Plan ${plan.name}`;
     }
     
     const user = await adminAuth.getUser(userId);
     if (!user.email) {
         return NextResponse.json({ error: 'El usuario no tiene un email registrado.' }, { status: 400 });
-    }
-
-    // Extraer el monto numérico del precio. Ejemplo: "$20.000" -> 20000
-    const amount = parseInt(plan.price.replace(/\D/g, ''), 10);
-    if (isNaN(amount) || amount <= 0) {
-        return NextResponse.json({ error: 'El precio del plan no es válido.' }, { status: 400 });
     }
     
     const commerceOrder = `orden_${planId}_${userId}_${Date.now()}`;
@@ -53,7 +61,7 @@ export async function POST(request: Request) {
     const paymentParams: Record<string, any> = {
         apiKey: FLOW_API_KEY,
         commerceOrder: commerceOrder,
-        subject: `Suscripción Plan ${plan.name}`,
+        subject: subject,
         currency: 'CLP',
         amount: amount,
         email: user.email,
