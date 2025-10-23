@@ -218,7 +218,7 @@ const afpBaseData = [
     { name: "UNO", mandatoryContribution: 10.69, previredCode: "35", provisionalRegime: "DL 3.500", dtCode: "09" }
 ];
 
-const healthData2024 = [
+const healthData = [
     { name: "FONASA", mandatoryContribution: 7.00, previredCode: "01", dtCode: "01" },
     { name: "CONSALUD", mandatoryContribution: 7.00, previredCode: "18", dtCode: "02" },
     { name: "CRUZBLANCA", mandatoryContribution: 7.00, previredCode: "07", dtCode: "03" },
@@ -228,28 +228,19 @@ const healthData2024 = [
     { name: "COLMENA", mandatoryContribution: 7.00, previredCode: "02", dtCode: "07" },
 ];
 
-const sisRatesByPeriod = {
-    '2023': 1.54, // Tasa ejemplo para 2023 completo
-    '2024': 1.47, // Tasa ejemplo para 2024 completo
-    '2025-1': 1.38,
-    '2025-2': 1.38,
-    '2025-3': 1.38,
-    '2025-4': 1.78,
-    '2025-5': 1.78,
-    '2025-6': 1.78,
-    '2025-7': 1.88,
-    '2025-8': 1.88,
-    '2025-9': 1.88,
-    '2025-10': 1.88,
-    '2025-11': 1.88,
-    '2025-12': 1.88,
+const sisRatesByYear: { [key: number]: { [key: number]: number } } = {
+    2023: { default: 1.54 },
+    2024: { 1: 1.49, 2: 1.49, 3: 1.49, 4: 1.49, 5: 1.49, 6: 1.49, 7: 2.01, 8: 2.01, 9: 2.01, 10: 1.5, 11: 1.5, 12: 1.5 },
+    2025: { 1: 1.38, 2: 1.38, 3: 1.38, 4: 1.78, 5: 1.78, 6: 1.78, 7: 1.88, 8: 1.88, 9: 1.88, default: 1.88 }
 };
 
+
 const getSisRate = (year: number, month: number): number => {
-    const key = `${year}-${month}` as keyof typeof sisRatesByPeriod;
-    const yearKey = `${year}` as keyof typeof sisRatesByPeriod;
-    return sisRatesByPeriod[key] || sisRatesByPeriod[yearKey] || 1.47; // Fallback
+    const yearRates = sisRatesByYear[year];
+    if (!yearRates) return 1.47; // Default fallback
+    return yearRates[month] || yearRates.default || 1.47;
 };
+
 
 const generateAfpDataForYear = (year: number) => {
     return Array.from({ length: 12 }, (_, i) => i + 1).flatMap(month => {
@@ -265,19 +256,13 @@ export const initialAfpEntities: Omit<AfpEntity, 'id'>[] = [
 ];
 
 export const initialHealthEntities: Omit<HealthEntity, 'id'>[] = [
-    // 2023
-    ...Array.from({ length: 12 }, (_, i) => i + 1).flatMap(month => 
-        healthData2024.map(health => ({ ...health, year: 2023, month }))
-    ),
-    // 2024
-    ...Array.from({ length: 12 }, (_, i) => i + 1).flatMap(month => 
-        healthData2024.map(health => ({ ...health, year: 2024, month }))
-    ),
-     // 2025
-    ...Array.from({ length: 12 }, (_, i) => i + 1).flatMap(month => 
-        healthData2024.map(health => ({ ...health, year: 2025, month }))
-    ),
+    ...[2023, 2024, 2025].flatMap(year => 
+        Array.from({ length: 12 }, (_, i) => i + 1).flatMap(month => 
+            healthData.map(health => ({ ...health, year, month }))
+        )
+    )
 ];
+
 
 const familyAllowanceJanToApr2023 = [
     { tramo: "A", desde: 0, hasta: 429899, monto: 16828 },
@@ -355,28 +340,28 @@ export const initialEconomicIndicators: Omit<EconomicIndicator, 'id' | 'uta' | '
     { year: 2023, month: 11, uf: 36622.18, utm: 64115, minWage: 460000 },
     { year: 2023, month: 12, uf: 36768.91, utm: 64343, minWage: 460000 },
     // 2024
-    { year: 2024, month: 1, uf: 36904.91, utm: 64666, minWage: 460000 },
-    { year: 2024, month: 2, uf: 37042.82, utm: 64793, minWage: 460000 },
-    { year: 2024, month: 3, uf: 37166.90, utm: 65182, minWage: 460000 },
-    { year: 2024, month: 4, uf: 37302.35, utm: 65443, minWage: 460000 },
-    { year: 2024, month: 5, uf: 37402.04, utm: 65770, minWage: 460000 },
-    { year: 2024, month: 6, uf: 37482.52, utm: 65770, minWage: 460000 },
-    { year: 2024, month: 7, uf: 37470.61, utm: 66395, minWage: 500000 },
-    { year: 2024, month: 8, uf: 37508.43, utm: 66497, minWage: 500000 },
-    { year: 2024, month: 9, uf: 37489.17, utm: 66524, minWage: 500000 },
-    { year: 2024, month: 10, uf: 37489.17, utm: 66524, minWage: 500000 },
-    { year: 2024, month: 11, uf: 37489.17, utm: 66524, minWage: 500000 },
-    { year: 2024, month: 12, uf: 37489.17, utm: 66524, minWage: 500000 },
+    { year: 2024, month: 1, uf: 36733.04, utm: 64666, minWage: 460000 },
+    { year: 2024, month: 2, uf: 36856.50, utm: 64793, minWage: 460000 },
+    { year: 2024, month: 3, uf: 37093.52, utm: 64793, minWage: 460000 },
+    { year: 2024, month: 4, uf: 37261.98, utm: 65182, minWage: 460000 },
+    { year: 2024, month: 5, uf: 37438.91, utm: 65443, minWage: 460000 },
+    { year: 2024, month: 6, uf: 37571.86, utm: 65770, minWage: 460000 },
+    { year: 2024, month: 7, uf: 37578.95, utm: 65967, minWage: 500000 },
+    { year: 2024, month: 8, uf: 37754.47, utm: 65901, minWage: 500000 },
+    { year: 2024, month: 9, uf: 37910.42, utm: 66362, minWage: 500000 },
+    { year: 2024, month: 10, uf: 37971.42, utm: 66561, minWage: 500000 },
+    { year: 2024, month: 11, uf: 38247.92, utm: 66628, minWage: 500000 },
+    { year: 2024, month: 12, uf: 38416.69, utm: 67294, minWage: 500000 },
     // 2025
-    { year: 2025, month: 1, uf: 38384, utm: 67429, minWage: 510636 },
-    { year: 2025, month: 2, uf: 38647, utm: 67294, minWage: 510636 },
-    { year: 2025, month: 3, uf: 38894, utm: 68034, minWage: 510636 },
-    { year: 2025, month: 4, uf: 39075, utm: 68306, minWage: 510636 },
-    { year: 2025, month: 5, uf: 39189, utm: 68648, minWage: 510636 },
-    { year: 2025, month: 6, uf: 39267, utm: 68785, minWage: 529000 },
-    { year: 2025, month: 7, uf: 39179, utm: 68923, minWage: 529000 },
-    { year: 2025, month: 8, uf: 39383, utm: 68647, minWage: 529000 },
-    { year: 2025, month: 9, uf: 39485, utm: 69265, minWage: 529000 },
+    { year: 2025, month: 1, uf: 38989.01, utm: 67429, minWage: 510636 },
+    { year: 2025, month: 2, uf: 39081.90, utm: 67294, minWage: 510636 },
+    { year: 2025, month: 3, uf: 39269.69, utm: 68034, minWage: 510636 },
+    { year: 2025, month: 4, uf: 39485.65, utm: 68306, minWage: 510636 },
+    { year: 2025, month: 5, uf: 39081.90, utm: 68648, minWage: 510636 },
+    { year: 2025, month: 6, uf: 39189.45, utm: 68785, minWage: 529000 },
+    { year: 2025, month: 7, uf: 39269.69, utm: 68923, minWage: 529000 },
+    { year: 2025, month: 8, uf: 39265.22, utm: 68647, minWage: 529000 },
+    { year: 2025, month: 9, uf: 39394.46, utm: 69265, minWage: 529000 },
     { year: 2025, month: 10, minWage: 529000 },
     { year: 2025, month: 11, minWage: 529000 },
     { year: 2025, month: 12, minWage: 529000 },
@@ -387,3 +372,4 @@ export const initialTaxableCaps: Omit<TaxableCap, 'id'>[] = [
     { year: 2024, afpCap: 84.3, afcCap: 126.6 },
     { year: 2025, afpCap: 87.8, afcCap: 131.9 }, 
 ];
+
