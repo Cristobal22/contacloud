@@ -5,7 +5,7 @@ export function Footer() {
     <footer className="border-t bg-gray-900 text-gray-400">
       <div className="container py-8">
         <div className="flex flex-col items-center justify-between gap-6 sm:flex-row">
-            <Logo variant="horizontal" monochrome={true} className="h-9 w-44"/>
+            <Logo variant="horizontal" className="h-9 w-44"/>
             <div className="flex flex-col items-center gap-1 sm:items-end">
                  <p className="text-sm">
                     © {new Date().getFullYear()} BaseImponible.cl
