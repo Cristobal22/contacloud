@@ -3,6 +3,17 @@
 
 BaseImponible.cl es una moderna aplicación de contabilidad multi-tenant diseñada para que los contadores gestionen las finanzas de múltiples empresas de forma segura y eficiente. Esta aplicación está construida como un prototipo robusto utilizando Next.js, Firebase y shadcn/ui, mostrando una experiencia de usuario completa e interactiva.
 
+## Tech Stack
+
+- **Framework**: [Next.js](https://nextjs.org/) (App Router)
+- **Lenguaje**: TypeScript
+- **Base de Datos**: [Firebase Firestore](https://firebase.google.com/docs/firestore)
+- **Autenticación**: [Firebase Authentication](https://firebase.google.com/docs/auth)
+- **Hosting**: [Firebase App Hosting](https://firebase.google.com/docs/hosting)
+- **Estilos**: [Tailwind CSS](https://tailwindcss.com/)
+- **Componentes UI**: [shadcn/ui](https://ui.shadcn.com/)
+- **IA Generativa**: [Genkit](https://firebase.google.com/docs/genkit)
+
 ## Key Features
 
 - **Arquitectura Multi-Tenant Segura**:
@@ -20,7 +31,9 @@ BaseImponible.cl es una moderna aplicación de contabilidad multi-tenant diseña
     - **Dashboard Interactivo**: Una visión general de las métricas financieras clave.
     - **Plan de Cuentas Jerárquico**: Permite cargar un plan predeterminado, crearlo desde cero o importarlo. La interfaz visualiza la estructura anidada de las cuentas.
     - **Gestión de Comprobantes Profesional**: Flujo de trabajo completo con estados "Borrador" y "Contabilizado". Un comprobante contabilizado puede ser editado, pero se revierte a "Borrador" para garantizar la integridad de los informes.
-    - **Informes Precisos**: Libro Diario, Libro Mayor y Balances que **solo** consideran comprobantes contabilizados, asegurando la fiabilidad de los datos.
+    - **Módulos de Compras y Ventas**: Importación de documentos desde los registros del SII y centralización automática para generar los asientos contables correspondientes.
+    - **Tesorería Inteligente**: Módulo para gestionar los pagos a proveedores y cobros a clientes, generando automáticamente los comprobantes de egreso e ingreso.
+    - **Informes Precisos**: Libro Diario, Libro Mayor, Balances y Estado de Resultados que **solo** consideran comprobantes contabilizados, asegurando la fiabilidad de los datos.
     - **Gestión de Remuneraciones**: Módulo completo para la gestión de empleados y el procesamiento de liquidaciones de sueldo.
     - **Datos Maestros Centralizados**: Los administradores pueden actualizar datos esenciales como entidades de AFP, Salud, parámetros de IUT y Asignación Familiar directamente desde la interfaz de usuario.
 
@@ -31,17 +44,6 @@ BaseImponible.cl es una moderna aplicación de contabilidad multi-tenant diseña
     - Interfaz profesional construida con **shadcn/ui** y **Tailwind CSS**.
     - **Menú de Comandos (Cmd+K)**: Un buscador global para navegar rápidamente por la aplicación.
     - **Modo Oscuro**: Apariencia personalizable para comodidad del usuario.
-
-## Tech Stack
-
-- **Framework**: [Next.js](https://nextjs.org/) (App Router)
-- **Lenguaje**: TypeScript
-- **Base de Datos**: [Firebase Firestore](https://firebase.google.com/docs/firestore)
-- **Autenticación**: [Firebase Authentication](https://firebase.google.com/docs/auth)
-- **Hosting**: [Firebase App Hosting](https://firebase.google.com/docs/hosting)
-- **Estilos**: [Tailwind CSS](https://tailwindcss.com/)
-- **Componentes UI**: [shadcn/ui](https://ui.shadcn.com/)
-- **IA Generativa**: [Genkit](https://firebase.google.com/docs/genkit)
 
 ## Getting Started
 
