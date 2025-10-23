@@ -175,7 +175,7 @@ export const initialChartOfAccounts: Omit<Account, 'id' | 'companyId' | 'balance
     { code: "4010813", name: "GASTOS DE AFC EMPLEADOR", type: "Resultado" },
     { code: "4010814", name: "GASTOS DE SEGURO DE INVALIDEZ", type: "Resultado" },
     { code: "4010815", name: "GASTOS DE SEGURO ACCIDENTE", type: "Resultado" },
-    { code: "4010816", name: "GASTOS DE MOVILIZACION", type: "Resultado" },
+    { code: "4010816", name: "GASTOS DE MOVILIZacion", type: "Resultado" },
     { code: "4010817", name: "GASTOS DE COLACION", type: "Resultado" },
     { code: "4010818", name: "BONOS E OUTROS", type: "Resultado" },
     { code: "4010822", name: "HONORARIOS", type: "Resultado" },
@@ -208,15 +208,16 @@ export const initialChartOfAccounts: Omit<Account, 'id' | 'companyId' | 'balance
     { code: "40199", name: "UTILIDAD CONSOLIDADA", type: "Resultado" },
 ];
 
-const afpData2024 = [
-    { name: "CAPITAL", mandatoryContribution: 11.44, previredCode: "33", provisionalRegime: "DL 3.500", dtCode: "02", employerContribution: 1.41 },
-    { name: "CUPRUM", mandatoryContribution: 11.44, previredCode: "03", provisionalRegime: "DL 3.500", dtCode: "03", employerContribution: 1.41 },
-    { name: "HABITAT", mandatoryContribution: 11.27, previredCode: "05", provisionalRegime: "DL 3.500", dtCode: "04", employerContribution: 1.41 },
-    { name: "MODELO", mandatoryContribution: 10.58, previredCode: "34", provisionalRegime: "DL 3.500", dtCode: "08", employerContribution: 1.41 },
-    { name: "PLANVITAL", mandatoryContribution: 11.16, previredCode: "08", provisionalRegime: "DL 3.500", dtCode: "05", employerContribution: 1.41 },
-    { name: "PROVIDA", mandatoryContribution: 11.45, previredCode: "09", provisionalRegime: "DL 3.500", dtCode: "06", employerContribution: 1.41 },
-    { name: "UNO", mandatoryContribution: 10.69, previredCode: "35", provisionalRegime: "DL 3.500", dtCode: "09", employerContribution: 1.41 }
+const afpBaseData = [
+    { name: "CAPITAL", mandatoryContribution: 11.44, previredCode: "33", provisionalRegime: "DL 3.500", dtCode: "02" },
+    { name: "CUPRUM", mandatoryContribution: 11.44, previredCode: "03", provisionalRegime: "DL 3.500", dtCode: "03" },
+    { name: "HABITAT", mandatoryContribution: 11.27, previredCode: "05", provisionalRegime: "DL 3.500", dtCode: "04" },
+    { name: "MODELO", mandatoryContribution: 10.58, previredCode: "34", provisionalRegime: "DL 3.500", dtCode: "08" },
+    { name: "PLANVITAL", mandatoryContribution: 11.16, previredCode: "08", provisionalRegime: "DL 3.500", dtCode: "05" },
+    { name: "PROVIDA", mandatoryContribution: 11.45, previredCode: "09", provisionalRegime: "DL 3.500", dtCode: "06" },
+    { name: "UNO", mandatoryContribution: 10.69, previredCode: "35", provisionalRegime: "DL 3.500", dtCode: "09" }
 ];
+
 const healthData2024 = [
     { name: "FONASA", mandatoryContribution: 7.00, previredCode: "01", dtCode: "01" },
     { name: "CONSALUD", mandatoryContribution: 7.00, previredCode: "18", dtCode: "02" },
@@ -227,26 +228,28 @@ const healthData2024 = [
     { name: "COLMENA", mandatoryContribution: 7.00, previredCode: "02", dtCode: "07" },
 ];
 
-const afpData2025_JanMar = afpData2024.map(afp => ({ ...afp, employerContribution: 1.38 }));
-const afpData2025_JunDec = afpData2024.map(afp => ({ ...afp, employerContribution: 1.78 }));
+// Tasa SIS (employerContribution) por período para 2025
+const sisRates2025 = [
+    { startMonth: 1, endMonth: 3, rate: 1.38 },
+    { startMonth: 4, endMonth: 5, rate: 1.78 },
+    { startMonth: 6, endMonth: 6, rate: 1.78 },
+    { startMonth: 7, endMonth: 12, rate: 1.88 },
+];
 
+const generateAfpDataForYear = (year: number) => {
+    return Array.from({ length: 12 }, (_, i) => i + 1).flatMap(month => {
+        let sisRate = 1.41; // Tasa por defecto (ej. para 2024)
+        if (year === 2025) {
+            sisRate = sisRates2025.find(r => month >= r.startMonth && month <= r.endMonth)?.rate || sisRate;
+        }
+        return afpBaseData.map(afp => ({ ...afp, year, month, employerContribution: sisRate }));
+    });
+};
 
 export const initialAfpEntities: Omit<AfpEntity, 'id'>[] = [
-    // 2023
-    ...Array.from({ length: 12 }, (_, i) => i + 1).flatMap(month => 
-        afpData2024.map(afp => ({ ...afp, year: 2023, month }))
-    ),
-    // 2024
-    ...Array.from({ length: 12 }, (_, i) => i + 1).flatMap(month => 
-        afpData2024.map(afp => ({ ...afp, year: 2024, month }))
-    ),
-     // 2025
-    ...Array.from({ length: 3 }, (_, i) => i + 1).flatMap(month => 
-        afpData2025_JanMar.map(afp => ({ ...afp, year: 2025, month }))
-    ),
-    ...Array.from({ length: 7 }, (_, i) => i + 6).flatMap(month => 
-        afpData2025_JunDec.map(afp => ({ ...afp, year: 2025, month }))
-    ),
+    ...generateAfpDataForYear(2023),
+    ...generateAfpDataForYear(2024),
+    ...generateAfpDataForYear(2025),
 ];
 
 export const initialHealthEntities: Omit<HealthEntity, 'id'>[] = [
@@ -353,32 +356,22 @@ export const initialEconomicIndicators: Omit<EconomicIndicator, 'id' | 'uta' | '
     { year: 2024, month: 11, uf: 37489.17, utm: 66524, minWage: 500000 },
     { year: 2024, month: 12, uf: 37489.17, utm: 66524, minWage: 500000 },
     // 2025
-    { year: 2025, month: 1, uf: 38989.01, utm: 67429, minWage: 500000 },
-    { year: 2025, month: 2, uf: 39081.90, utm: 67294, minWage: 500000 },
-    { year: 2025, month: 3, uf: 39269.69, utm: 68034, minWage: 500000 },
-    { year: 2025, month: 4, uf: 39485.65, utm: 68306, minWage: 500000 },
-    { year: 2025, month: 5, uf: 39081.90, utm: 68648, minWage: 500000 },
-    { year: 2025, month: 6, uf: 39189.45, utm: 68785, minWage: 500000 },
-    { year: 2025, month: 7, uf: 39269.69, utm: 68923, minWage: 500000 },
-    { year: 2025, month: 8, uf: 39265.22, utm: 68647, minWage: 500000 },
-    { year: 2025, month: 9, uf: 39394.46, utm: 69265, minWage: 500000 },
-    { year: 2025, month: 10, uf: 39485.65, utm: 69265, minWage: 500000 },
-    { year: 2025, month: 11, uf: 39602.77, utm: 69542, minWage: 500000 },
-    { year: 2025, month: 12, minWage: 500000 },
+    { year: 2025, month: 1, uf: 38384, utm: 67429, minWage: 510636 },
+    { year: 2025, month: 2, uf: 38647, utm: 67294, minWage: 510636 },
+    { year: 2025, month: 3, uf: 38894, utm: 68034, minWage: 510636 },
+    { year: 2025, month: 4, uf: 38894, utm: 68034, minWage: 510636 },
+    { year: 2025, month: 5, uf: 39075, utm: 68306, minWage: 510636 },
+    { year: 2025, month: 6, uf: 39267, utm: 68785, minWage: 510636 },
+    { year: 2025, month: 7, uf: 39179, utm: 68923, minWage: 510636 },
+    { year: 2025, month: 8, uf: 39383, utm: 68647, minWage: 510636 },
+    { year: 2025, month: 9, uf: 39485, utm: 69265, minWage: 510636 },
+    { year: 2025, month: 10, minWage: 510636 },
+    { year: 2025, month: 11, minWage: 510636 },
+    { year: 2025, month: 12, minWage: 510636 },
 ];
 
 export const initialTaxableCaps: Omit<TaxableCap, 'id'>[] = [
     { year: 2023, afpCap: 81.6, afcCap: 122.6 },
     { year: 2024, afpCap: 84.3, afcCap: 126.6 },
-    { year: 2025, afpCap: 87.8, afcCap: 126.6 }, 
+    { year: 2025, afpCap: 87.8, afcCap: 131.9 }, 
 ];
-
-
-    
-
-    
-
-    
-
-
-
