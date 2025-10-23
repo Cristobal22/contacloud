@@ -227,7 +227,6 @@ const healthData2024 = [
     { name: "COLMENA", mandatoryContribution: 7.00, previredCode: "02", dtCode: "07" },
 ];
 
-// Asumiendo que los datos para 2025 son similares a 2024
 const afpData2025 = afpData2024; 
 const healthData2025 = healthData2024;
 
@@ -350,11 +349,11 @@ export const initialEconomicIndicators: Omit<EconomicIndicator, 'id' | 'uta' | '
     { year: 2024, month: 10, uf: 37489.17, utm: 66524, minWage: 500000 },
     { year: 2024, month: 11, uf: 37489.17, utm: 66524, minWage: 500000 },
     { year: 2024, month: 12, uf: 37489.17, utm: 66524, minWage: 500000 },
-    // 2025 (Plausible historical data for early months, placeholders for future)
-    { year: 2025, month: 1, uf: 37500, utm: 67000, minWage: 500000 },
-    { year: 2025, month: 2, uf: 37520, utm: 67100, minWage: 500000 },
-    { year: 2025, month: 3, uf: 37550, utm: 67500, minWage: 500000 },
-    { year: 2025, month: 4, uf: 37580, utm: 67800, minWage: 500000 },
+    // 2025
+    { year: 2025, month: 1, minWage: 500000 },
+    { year: 2025, month: 2, minWage: 500000 },
+    { year: 2025, month: 3, minWage: 500000 },
+    { year: 2025, month: 4, minWage: 500000 },
     { year: 2025, month: 5, minWage: 500000 },
     { year: 2025, month: 6, minWage: 500000 },
     { year: 2025, month: 7, minWage: 500000 },
@@ -377,3 +376,4 @@ export const initialTaxableCaps: Omit<TaxableCap, 'id'>[] = [
     
 
     
+
