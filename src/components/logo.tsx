@@ -15,8 +15,9 @@ export function Logo({ className, variant = 'icon', monochrome = false }: LogoPr
             <Image
                 src={src}
                 alt="BaseImponible.cl Logo"
-                fill
-                className="object-contain"
+                width={192} // 192px width base
+                height={40} // 40px height base
+                className="h-full w-full object-contain"
                 priority
             />
         </div>
@@ -32,6 +33,7 @@ export function Logo({ className, variant = 'icon', monochrome = false }: LogoPr
         width={32} 
         height={32}
         className="h-8 w-8"
+        priority
       />
       <span className="font-headline text-xl font-semibold text-primary">BaseImponible.cl</span>
     </div>
