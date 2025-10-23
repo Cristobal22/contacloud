@@ -1,3 +1,4 @@
+
 'use client'
 
 import React from "react"
@@ -33,9 +34,20 @@ import { useUser, useFirestore, useCollection } from "@/firebase"
 import { useUserProfile } from "@/firebase/auth/use-user-profile"
 import { useToast } from "@/hooks/use-toast"
 import { CommandMenu } from "@/components/command-menu"
-import { Sidebar, SidebarContent, SidebarHeader, SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
+import { Sidebar, SidebarContent, SidebarHeader, SidebarInset, SidebarProvider, SidebarTrigger, useSidebar } from "@/components/ui/sidebar"
+import { cn } from "@/lib/utils"
 
 export const SelectedCompanyContext = React.createContext<SelectedCompanyContextType | null>(null);
+
+function SidebarLogo() {
+    const { state } = useSidebar();
+    return (
+        <Link href="/dashboard" className="flex items-center gap-2 font-semibold">
+             <Logo variant="icon" className={cn("transition-opacity", state === 'expanded' ? 'opacity-0 absolute' : 'opacity-100')} />
+             <Logo variant="horizontal" className={cn("w-full h-auto transition-opacity", state === 'collapsed' ? 'opacity-0 absolute' : 'opacity-100')} />
+        </Link>
+    )
+}
 
 function AccountantDashboardLayout({ children }: { children: React.ReactNode }) {
     const firestore = useFirestore();
@@ -156,9 +168,7 @@ function AccountantDashboardLayout({ children }: { children: React.ReactNode }) 
             <SidebarProvider>
                 <Sidebar>
                     <SidebarHeader>
-                        <Link href="/dashboard" className="flex items-center gap-2 font-semibold">
-                            <Logo />
-                        </Link>
+                        <SidebarLogo />
                     </SidebarHeader>
                     <SidebarContent>
                         <DashboardNav role="Accountant" />
@@ -248,9 +258,7 @@ function AdminDashboardLayout({ children }: { children: React.ReactNode }) {
        <SidebarProvider>
             <Sidebar>
                 <SidebarHeader>
-                    <Link href="/dashboard" className="flex items-center gap-2 font-semibold">
-                        <Logo />
-                    </Link>
+                    <SidebarLogo />
                 </SidebarHeader>
                 <SidebarContent>
                     <DashboardNav role="Admin" />
