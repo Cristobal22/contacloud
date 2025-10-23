@@ -12,28 +12,26 @@ export function Logo({ className, variant = 'icon', monochrome = false }: LogoPr
   if (variant === 'horizontal') {
     const src = monochrome ? '/images/logo-horizontal-white.svg' : '/images/logo-horizontal.svg';
     return (
-        <div className={cn("relative", className)}>
-            <Image
-                src={src}
-                alt="BaseImponible.cl Logo"
-                fill
-                className="object-contain"
-                priority
-            />
-        </div>
+        <Image
+            src={src}
+            alt="BaseImponible.cl Logo"
+            width={240}
+            height={60}
+            className={cn("object-contain", className)}
+            priority
+        />
     );
   }
 
   // variant 'icon'
   return (
-    <div className={cn("relative flex items-center gap-2", className)}>
-      <Image 
-        src="/images/logo.svg" 
-        alt="BaseImponible.cl Logo" 
-        fill
-        className="object-contain"
-        priority
-      />
-    </div>
+    <Image 
+      src="/images/logo.svg" 
+      alt="BaseImponible.cl Logo" 
+      width={24}
+      height={24}
+      className={cn("object-contain", className)}
+      priority
+    />
   );
 }
