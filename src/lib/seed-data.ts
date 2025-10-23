@@ -209,13 +209,13 @@ export const initialChartOfAccounts: Omit<Account, 'id' | 'companyId' | 'balance
 ];
 
 const afpData2024 = [
-    { name: "CAPITAL", mandatoryContribution: 11.44, previredCode: "33", provisionalRegime: "DL 3.500", dtCode: "02", employerContribution: 1.0 },
-    { name: "CUPRUM", mandatoryContribution: 11.44, previredCode: "03", provisionalRegime: "DL 3.500", dtCode: "03", employerContribution: 1.0 },
-    { name: "HABITAT", mandatoryContribution: 11.27, previredCode: "05", provisionalRegime: "DL 3.500", dtCode: "04", employerContribution: 1.0 },
-    { name: "MODELO", mandatoryContribution: 10.58, previredCode: "34", provisionalRegime: "DL 3.500", dtCode: "08", employerContribution: 1.0 },
-    { name: "PLANVITAL", mandatoryContribution: 11.16, previredCode: "08", provisionalRegime: "DL 3.500", dtCode: "05", employerContribution: 1.0 },
-    { name: "PROVIDA", mandatoryContribution: 11.45, previredCode: "09", provisionalRegime: "DL 3.500", dtCode: "06", employerContribution: 1.0 },
-    { name: "UNO", mandatoryContribution: 10.69, previredCode: "35", provisionalRegime: "DL 3.500", dtCode: "09", employerContribution: 1.0 }
+    { name: "CAPITAL", mandatoryContribution: 11.44, previredCode: "33", provisionalRegime: "DL 3.500", dtCode: "02", employerContribution: 1.41 },
+    { name: "CUPRUM", mandatoryContribution: 11.44, previredCode: "03", provisionalRegime: "DL 3.500", dtCode: "03", employerContribution: 1.41 },
+    { name: "HABITAT", mandatoryContribution: 11.27, previredCode: "05", provisionalRegime: "DL 3.500", dtCode: "04", employerContribution: 1.41 },
+    { name: "MODELO", mandatoryContribution: 10.58, previredCode: "34", provisionalRegime: "DL 3.500", dtCode: "08", employerContribution: 1.41 },
+    { name: "PLANVITAL", mandatoryContribution: 11.16, previredCode: "08", provisionalRegime: "DL 3.500", dtCode: "05", employerContribution: 1.41 },
+    { name: "PROVIDA", mandatoryContribution: 11.45, previredCode: "09", provisionalRegime: "DL 3.500", dtCode: "06", employerContribution: 1.41 },
+    { name: "UNO", mandatoryContribution: 10.69, previredCode: "35", provisionalRegime: "DL 3.500", dtCode: "09", employerContribution: 1.41 }
 ];
 const healthData2024 = [
     { name: "FONASA", mandatoryContribution: 7.00, previredCode: "01", dtCode: "01" },
@@ -227,8 +227,8 @@ const healthData2024 = [
     { name: "COLMENA", mandatoryContribution: 7.00, previredCode: "02", dtCode: "07" },
 ];
 
-const afpData2025 = afpData2024; 
-const healthData2025 = healthData2024;
+const afpData2025_JanMar = afpData2024.map(afp => ({ ...afp, employerContribution: 1.38 }));
+const afpData2025_JunDec = afpData2024.map(afp => ({ ...afp, employerContribution: 1.78 }));
 
 
 export const initialAfpEntities: Omit<AfpEntity, 'id'>[] = [
@@ -241,8 +241,11 @@ export const initialAfpEntities: Omit<AfpEntity, 'id'>[] = [
         afpData2024.map(afp => ({ ...afp, year: 2024, month }))
     ),
      // 2025
-    ...Array.from({ length: 12 }, (_, i) => i + 1).flatMap(month => 
-        afpData2025.map(afp => ({ ...afp, year: 2025, month }))
+    ...Array.from({ length: 3 }, (_, i) => i + 1).flatMap(month => 
+        afpData2025_JanMar.map(afp => ({ ...afp, year: 2025, month }))
+    ),
+    ...Array.from({ length: 7 }, (_, i) => i + 6).flatMap(month => 
+        afpData2025_JunDec.map(afp => ({ ...afp, year: 2025, month }))
     ),
 ];
 
@@ -257,7 +260,7 @@ export const initialHealthEntities: Omit<HealthEntity, 'id'>[] = [
     ),
      // 2025
     ...Array.from({ length: 12 }, (_, i) => i + 1).flatMap(month => 
-        healthData2025.map(health => ({ ...health, year: 2025, month }))
+        healthData2024.map(health => ({ ...health, year: 2025, month }))
     ),
 ];
 
@@ -367,7 +370,7 @@ export const initialEconomicIndicators: Omit<EconomicIndicator, 'id' | 'uta' | '
 export const initialTaxableCaps: Omit<TaxableCap, 'id'>[] = [
     { year: 2023, afpCap: 81.6, afcCap: 122.6 },
     { year: 2024, afpCap: 84.3, afcCap: 126.6 },
-    { year: 2025, afpCap: 84.3, afcCap: 126.6 }, // Placeholder, assuming same as 2024
+    { year: 2025, afpCap: 87.8, afcCap: 126.6 }, 
 ];
 
 
@@ -376,5 +379,6 @@ export const initialTaxableCaps: Omit<TaxableCap, 'id'>[] = [
     
 
     
+
 
 
