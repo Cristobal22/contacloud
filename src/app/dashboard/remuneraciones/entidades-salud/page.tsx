@@ -17,13 +17,13 @@ import {
     CardHeader,
     CardTitle,
 } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
+import { Button, buttonVariants } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { useCollection, useFirestore, useUser } from "@/firebase"
 import type { HealthEntity } from "@/lib/types"
 import { useToast } from '@/hooks/use-toast';
 import { initialHealthEntities } from '@/lib/seed-data';
-import { writeBatch, collection, doc } from 'firebase/firestore';
+import { writeBatch, collection, doc, getDocs } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { useUserProfile } from '@/firebase/auth/use-user-profile';
@@ -31,6 +31,25 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { MoreVertical } from 'lucide-react';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 export default function HealthEntitiesPage() {
     const { data: healthEntities, loading } = useCollection<HealthEntity>({ path: 'health-entities' });
@@ -44,6 +63,8 @@ export default function HealthEntitiesPage() {
     const [year, setYear] = React.useState(currentYear);
     const [month, setMonth] = React.useState(currentMonth);
     const [isProcessing, setIsProcessing] = React.useState(false);
+    const [isLoadAllDialogOpen, setIsLoadAllDialogOpen] = React.useState(false);
+    const [isDeleteAllDialogOpen, setIsDeleteAllDialogOpen] = React.useState(false);
 
     const handleLoadDefaults = async () => {
         if (!firestore || !userProfile || userProfile.role !== 'Admin') {
@@ -82,6 +103,70 @@ export default function HealthEntitiesPage() {
         }
     };
     
+    const handleLoadAllDefaults = async () => {
+        if (!firestore || !userProfile || userProfile.role !== 'Admin') {
+            toast({ variant: 'destructive', title: 'Permiso denegado' });
+            return;
+        }
+
+        setIsProcessing(true);
+        const batch = writeBatch(firestore);
+        const collectionRef = collection(firestore, 'health-entities');
+        
+        initialHealthEntities.forEach(entityData => {
+            const id = `${entityData.year}-${entityData.month}-${entityData.previredCode}`;
+            const docRef = doc(collectionRef, id);
+            batch.set(docRef, { ...entityData, id }, { merge: true });
+        });
+
+        try {
+            await batch.commit();
+            toast({ title: 'Carga Masiva Completa', description: `Se cargaron/actualizaron ${initialHealthEntities.length} registros de entidades de salud.`});
+        } catch (error) {
+            errorEmitter.emit('permission-error', new FirestorePermissionError({
+                path: 'health-entities',
+                operation: 'create',
+            }));
+        } finally {
+            setIsProcessing(false);
+            setIsLoadAllDialogOpen(false);
+        }
+    };
+
+    const handleDeleteAllGlobals = async () => {
+        if (!firestore || !userProfile || userProfile.role !== 'Admin') {
+            toast({ variant: 'destructive', title: 'Permiso denegado' });
+            return;
+        }
+        setIsProcessing(true);
+        const collectionRef = collection(firestore, 'health-entities');
+        try {
+            const querySnapshot = await getDocs(collectionRef);
+            if (querySnapshot.empty) {
+                toast({ description: "No hay parámetros para eliminar." });
+            } else {
+                const batch = writeBatch(firestore);
+                querySnapshot.forEach(doc => {
+                    batch.delete(doc.ref);
+                });
+                await batch.commit();
+                toast({
+                    title: "Parámetros Eliminados",
+                    description: "Todos los parámetros de entidades de salud globales han sido eliminados.",
+                    variant: 'destructive',
+                });
+            }
+        } catch (error) {
+             errorEmitter.emit('permission-error', new FirestorePermissionError({
+                path: 'health-entities',
+                operation: 'delete',
+            }));
+        } finally {
+            setIsProcessing(false);
+            setIsDeleteAllDialogOpen(false);
+        }
+    };
+
     const filteredEntities = React.useMemo(() => {
         return healthEntities?.filter(e => e.year === year && e.month === month) || [];
     }, [healthEntities, year, month]);
@@ -96,9 +181,28 @@ export default function HealthEntitiesPage() {
                             <CardDescription>Gestiona las Isapres y Fonasa para el cálculo de remuneraciones.</CardDescription>
                         </div>
                         {userProfile?.role === 'Admin' && (
-                            <Button onClick={handleLoadDefaults} disabled={isProcessing}>
-                                {isProcessing ? 'Cargando...' : 'Cargar Parámetros Predeterminados'}
-                            </Button>
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button variant="outline" size="icon" disabled={isProcessing}>
+                                        <MoreVertical className="h-4 w-4" />
+                                        <span className="sr-only">Acciones de Administrador</span>
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                    <DropdownMenuLabel>Acciones de Admin</DropdownMenuLabel>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem onSelect={handleLoadDefaults} disabled={isProcessing}>
+                                        Cargar para {month}/{year}
+                                    </DropdownMenuItem>
+                                     <DropdownMenuItem onSelect={() => setIsLoadAllDialogOpen(true)} disabled={isProcessing}>
+                                        Cargar Todos los Períodos
+                                    </DropdownMenuItem>
+                                    <DropdownMenuSeparator />
+                                     <DropdownMenuItem onSelect={() => setIsDeleteAllDialogOpen(true)} disabled={isProcessing} className="text-destructive">
+                                        Eliminar Todos los Parámetros
+                                    </DropdownMenuItem>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
                         )}
                     </div>
                      <div className="flex items-end gap-4 pt-4">
@@ -167,6 +271,47 @@ export default function HealthEntitiesPage() {
                     </ScrollArea>
                 </CardContent>
             </Card>
+
+            <AlertDialog open={isLoadAllDialogOpen} onOpenChange={setIsLoadAllDialogOpen}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>¿Confirmas la carga masiva?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                           Esta acción cargará o sobreescribirá **TODOS** los parámetros de entidades de salud para todos los períodos disponibles en el código fuente.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={handleLoadAllDefaults}
+                            disabled={isProcessing}
+                        >
+                            {isProcessing ? "Cargando..." : "Sí, cargar todo"}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+            
+            <AlertDialog open={isDeleteAllDialogOpen} onOpenChange={setIsDeleteAllDialogOpen}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>¿Confirmas la eliminación total?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                           Esta acción eliminará permanentemente **TODOS** los parámetros de entidades de salud de la base de datos. Deberás volver a cargarlos.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction
+                            className={buttonVariants({ variant: "destructive" })}
+                            onClick={handleDeleteAllGlobals}
+                            disabled={isProcessing}
+                        >
+                            {isProcessing ? "Eliminando..." : "Sí, eliminar todo"}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </>
     )
 }
