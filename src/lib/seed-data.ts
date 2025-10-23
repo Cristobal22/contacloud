@@ -318,6 +318,11 @@ export const initialEconomicIndicators: Omit<EconomicIndicator, 'id' | 'uta' | '
     { year: 2024, month: 5, uf: 37402.04, utm: 65770, minWage: 460000 },
     { year: 2024, month: 6, uf: 37482.52, utm: 65770, minWage: 460000 },
     { year: 2024, month: 7, uf: 37470.61, utm: 66395, minWage: 500000 },
+    { year: 2024, month: 8, uf: 37508.43, utm: 66497, minWage: 500000 },
+    { year: 2024, month: 9, uf: 37489.17, utm: 66524, minWage: 500000 },
+    { year: 2024, month: 10, minWage: 500000 },
+    { year: 2024, month: 11, minWage: 500000 },
+    { year: 2024, month: 12, minWage: 500000 },
 ];
 
 export const initialTaxableCaps: Omit<TaxableCap, 'id'>[] = [
