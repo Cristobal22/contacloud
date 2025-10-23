@@ -1,3 +1,4 @@
+
 'use client';
 
 import Link from 'next/link';
@@ -234,7 +235,7 @@ export function DashboardNav({ role }: DashboardNavProps) {
     const linkContent = (
       <>
         <item.icon className="h-4 w-4" />
-        <span className={cn('truncate', isCollapsed && "hidden")}>{item.label}</span>
+        <span className={cn(isCollapsed && "hidden")}>{item.label}</span>
       </>
     );
 
