@@ -11,12 +11,12 @@ export function Logo({ className, variant = 'icon', monochrome = false }: LogoPr
   if (variant === 'horizontal') {
     const src = monochrome ? '/images/logo-horizontal-white.svg' : '/images/logo-horizontal.svg';
     return (
-        <div className={cn("relative h-10 w-48", className)}>
+        <div className={cn("relative", className)}>
             <Image
                 src={src}
                 alt="BaseImponible.cl Logo"
-                width={192} // 192px width base
-                height={40} // 40px height base
+                width={192} 
+                height={40} 
                 className="h-full w-full object-contain"
                 priority
             />
@@ -35,7 +35,6 @@ export function Logo({ className, variant = 'icon', monochrome = false }: LogoPr
         className="h-8 w-8"
         priority
       />
-      <span className="font-headline text-xl font-semibold text-primary">BaseImponible.cl</span>
     </div>
   );
 }
