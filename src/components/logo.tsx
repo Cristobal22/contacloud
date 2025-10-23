@@ -1,3 +1,4 @@
+
 import Image from 'next/image';
 import { cn } from '@/lib/utils';
 
@@ -15,9 +16,8 @@ export function Logo({ className, variant = 'icon', monochrome = false }: LogoPr
             <Image
                 src={src}
                 alt="BaseImponible.cl Logo"
-                width={192} 
-                height={40} 
-                className="h-full w-full object-contain"
+                fill
+                className="object-contain"
                 priority
             />
         </div>
@@ -26,13 +26,12 @@ export function Logo({ className, variant = 'icon', monochrome = false }: LogoPr
 
   // variant 'icon'
   return (
-    <div className={cn("flex items-center gap-2", className)}>
+    <div className={cn("relative flex items-center gap-2", className)}>
       <Image 
         src="/images/logo.svg" 
         alt="BaseImponible.cl Logo" 
-        width={32} 
-        height={32}
-        className="h-8 w-8"
+        fill
+        className="object-contain"
         priority
       />
     </div>

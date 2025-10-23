@@ -111,7 +111,7 @@ export default function LoginPage() {
           <Card className="rounded-xl shadow-2xl">
             <CardHeader className="text-center">
               <div className="mb-4 flex justify-center">
-                <Logo variant="horizontal" className="h-12 w-auto" />
+                <Logo variant="horizontal" className="h-12 w-44" />
               </div>
               <CardTitle className="font-headline text-2xl">Bienvenido de Nuevo</CardTitle>
               <CardDescription>Ingresa tus credenciales para acceder a tu cuenta.</CardDescription>
