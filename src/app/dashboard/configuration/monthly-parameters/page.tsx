@@ -15,7 +15,7 @@ import {
   import React from "react";
   import { useCollection, useFirestore, useUser, useDoc } from "@/firebase";
   import type { EconomicIndicator } from "@/lib/types";
-  import { doc, setDoc, writeBatch, collection, deleteDoc } from "firebase/firestore";
+  import { doc, setDoc, writeBatch, collection, deleteDoc, getDocs } from "firebase/firestore";
   import { useToast } from "@/hooks/use-toast";
   import { errorEmitter } from "@/firebase/error-emitter";
   import { FirestorePermissionError } from "@/firebase/errors";
@@ -28,6 +28,14 @@ import { initialEconomicIndicators } from "@/lib/seed-data";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+  } from "@/components/ui/dropdown-menu"
+import {
     AlertDialog,
     AlertDialogAction,
     AlertDialogCancel,
@@ -37,6 +45,7 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
   } from "@/components/ui/alert-dialog"
+import { MoreVertical } from "lucide-react";
 
   export default function MonthlyParametersPage() {
     const { selectedCompany } = React.useContext(SelectedCompanyContext) || {};
@@ -55,7 +64,8 @@ import {
     const [isCompanySpecific, setIsCompanySpecific] = React.useState(false);
     const [isGlobalDataForPeriod, setIsGlobalDataForPeriod] = React.useState(false);
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false);
-    
+    const [isDeleteAllDialogOpen, setIsDeleteAllDialogOpen] = React.useState(false);
+
     const indicatorId = `${year}-${month.toString().padStart(2, '0')}`;
 
     // Fetch all global indicators for the history table
@@ -142,6 +152,39 @@ import {
         }
     };
 
+    const handleDeleteAllGlobals = async () => {
+        if (!firestore || !userProfile || userProfile.role !== 'Admin') {
+            toast({ variant: 'destructive', title: 'Permiso denegado' });
+            return;
+        }
+        setIsLoading(true);
+        const collectionRef = collection(firestore, 'economic-indicators');
+        try {
+            const querySnapshot = await getDocs(collectionRef);
+            if (querySnapshot.empty) {
+                toast({ description: "No hay parámetros para eliminar." });
+            } else {
+                const batch = writeBatch(firestore);
+                querySnapshot.forEach(doc => {
+                    batch.delete(doc.ref);
+                });
+                await batch.commit();
+                toast({
+                    title: "Parámetros Eliminados",
+                    description: "Todos los indicadores económicos globales han sido eliminados."
+                });
+            }
+        } catch (error) {
+             errorEmitter.emit('permission-error', new FirestorePermissionError({
+                path: 'economic-indicators',
+                operation: 'delete',
+            }));
+        } finally {
+            setIsLoading(false);
+            setIsDeleteAllDialogOpen(false);
+        }
+    };
+
 
     const handleSaveCompanySpecific = async () => {
         if (!firestore || !user || !companyId) return;
@@ -192,14 +235,28 @@ import {
                             </CardDescription>
                         </div>
                          {userProfile?.role === 'Admin' && (
-                            <div className='flex gap-2'>
-                                <Button onClick={() => setIsDeleteDialogOpen(true)} disabled={isLoading || !isGlobalDataForPeriod} variant="destructive">
-                                   Eliminar Parámetro Global
-                                </Button>
-                                <Button onClick={handleLoadDefaults} disabled={isLoading}>
-                                    {isLoading ? 'Cargando...' : `Cargar Predeterminados para ${month}/${year}`}
-                                </Button>
-                            </div>
+                             <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button variant="outline" size="icon">
+                                        <MoreVertical className="h-4 w-4" />
+                                        <span className="sr-only">Acciones de Administrador</span>
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                    <DropdownMenuLabel>Acciones de Admin</DropdownMenuLabel>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem onSelect={handleLoadDefaults} disabled={isLoading}>
+                                        Cargar Predeterminados para {month}/{year}
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onSelect={() => setIsDeleteDialogOpen(true)} disabled={isLoading || !isGlobalDataForPeriod}>
+                                        Eliminar para {month}/{year}
+                                    </DropdownMenuItem>
+                                    <DropdownMenuSeparator />
+                                     <DropdownMenuItem onSelect={() => setIsDeleteAllDialogOpen(true)} disabled={isLoading} className="text-destructive">
+                                        Eliminar Todos los Parámetros Globales
+                                    </DropdownMenuItem>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
                         )}
                     </div>
                 </CardHeader>
@@ -321,6 +378,27 @@ import {
                             onClick={handleDeleteGlobal}
                         >
                             Sí, eliminar
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
+            <AlertDialog open={isDeleteAllDialogOpen} onOpenChange={setIsDeleteAllDialogOpen}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>¿Confirmas la eliminación total?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                           Esta acción eliminará permanentemente **TODOS** los indicadores económicos globales de la base de datos. Deberás volver a cargarlos manualmente período por período. Esta acción no se puede deshacer.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction
+                            className={buttonVariants({ variant: "destructive" })}
+                            onClick={handleDeleteAllGlobals}
+                            disabled={isLoading}
+                        >
+                            {isLoading ? "Eliminando..." : "Sí, eliminar todo"}
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>
