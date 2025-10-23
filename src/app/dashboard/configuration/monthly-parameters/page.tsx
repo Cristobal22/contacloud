@@ -65,6 +65,8 @@ import { MoreVertical } from "lucide-react";
     const [isGlobalDataForPeriod, setIsGlobalDataForPeriod] = React.useState(false);
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false);
     const [isDeleteAllDialogOpen, setIsDeleteAllDialogOpen] = React.useState(false);
+    const [isLoadAllDialogOpen, setIsLoadAllDialogOpen] = React.useState(false);
+
 
     const indicatorId = `${year}-${month.toString().padStart(2, '0')}`;
 
@@ -92,7 +94,7 @@ import { MoreVertical } from "lucide-react";
           setIndicator(globalIndicatorForPeriod);
           setIsCompanySpecific(false);
       } else {
-          setIndicator(null); 
+           setIndicator(null);
           setIsCompanySpecific(false);
       }
     }, [year, month, allGlobalIndicators, companyIndicator, indicatorId, allGlobalsLoading, companyLoading, companyId]);
@@ -128,6 +130,42 @@ import { MoreVertical } from "lucide-react";
             }));
         } finally {
             setIsLoading(false);
+        }
+    };
+    
+    const handleLoadAllDefaults = async () => {
+        if (!firestore || !userProfile || userProfile.role !== 'Admin') {
+            toast({ variant: 'destructive', title: 'Permiso denegado' });
+            return;
+        }
+
+        setIsLoading(true);
+        const batch = writeBatch(firestore);
+        const collectionRef = collection(firestore, 'economic-indicators');
+        let count = 0;
+
+        initialEconomicIndicators.forEach(indicatorData => {
+            if (indicatorData.uf !== undefined && indicatorData.utm !== undefined) {
+                const id = `${indicatorData.year}-${indicatorData.month.toString().padStart(2, '0')}`;
+                const uta = (indicatorData.utm || 0) * 12;
+                const gratificationCap = indicatorData.minWage ? Math.round((4.75 * indicatorData.minWage) / 12) : 0;
+                const docRef = doc(collectionRef, id);
+                batch.set(docRef, { ...indicatorData, id, uta, gratificationCap }, { merge: true });
+                count++;
+            }
+        });
+
+        try {
+            await batch.commit();
+            toast({ title: 'Carga Masiva Completa', description: `Se cargaron/actualizaron ${count} períodos de indicadores.`});
+        } catch (error) {
+            errorEmitter.emit('permission-error', new FirestorePermissionError({
+                path: 'economic-indicators',
+                operation: 'create',
+            }));
+        } finally {
+            setIsLoading(false);
+            setIsLoadAllDialogOpen(false);
         }
     };
 
@@ -248,10 +286,13 @@ import { MoreVertical } from "lucide-react";
                                     <DropdownMenuItem onSelect={handleLoadDefaults} disabled={isLoading}>
                                         Cargar Predeterminados para {month}/{year}
                                     </DropdownMenuItem>
+                                     <DropdownMenuItem onSelect={() => setIsLoadAllDialogOpen(true)} disabled={isLoading}>
+                                        Cargar Todos los Períodos
+                                    </DropdownMenuItem>
+                                    <DropdownMenuSeparator />
                                     <DropdownMenuItem onSelect={() => setIsDeleteDialogOpen(true)} disabled={isLoading || !isGlobalDataForPeriod}>
                                         Eliminar para {month}/{year}
                                     </DropdownMenuItem>
-                                    <DropdownMenuSeparator />
                                      <DropdownMenuItem onSelect={() => setIsDeleteAllDialogOpen(true)} disabled={isLoading} className="text-destructive">
                                         Eliminar Todos los Parámetros Globales
                                     </DropdownMenuItem>
@@ -399,6 +440,26 @@ import { MoreVertical } from "lucide-react";
                             disabled={isLoading}
                         >
                             {isLoading ? "Eliminando..." : "Sí, eliminar todo"}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+            
+            <AlertDialog open={isLoadAllDialogOpen} onOpenChange={setIsLoadAllDialogOpen}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>¿Confirmas la carga masiva?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                           Esta acción cargará o sobreescribirá **TODOS** los indicadores económicos predeterminados (UF, UTM, Sueldo Mínimo) para todos los períodos disponibles en el código fuente. Esto puede tardar unos segundos.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={handleLoadAllDefaults}
+                            disabled={isLoading}
+                        >
+                            {isLoading ? "Cargando..." : "Sí, cargar todo"}
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>
