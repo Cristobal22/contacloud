@@ -227,17 +227,38 @@ const healthData2024 = [
     { name: "COLMENA", mandatoryContribution: 7.00, previredCode: "02", dtCode: "07" },
 ];
 
+// Asumiendo que los datos para 2025 son similares a 2024
+const afpData2025 = afpData2024; 
+const healthData2025 = healthData2024;
+
+
 export const initialAfpEntities: Omit<AfpEntity, 'id'>[] = [
+    // 2023
+    ...Array.from({ length: 12 }, (_, i) => i + 1).flatMap(month => 
+        afpData2024.map(afp => ({ ...afp, year: 2023, month }))
+    ),
     // 2024
     ...Array.from({ length: 12 }, (_, i) => i + 1).flatMap(month => 
         afpData2024.map(afp => ({ ...afp, year: 2024, month }))
     ),
+     // 2025
+    ...Array.from({ length: 12 }, (_, i) => i + 1).flatMap(month => 
+        afpData2025.map(afp => ({ ...afp, year: 2025, month }))
+    ),
 ];
 
 export const initialHealthEntities: Omit<HealthEntity, 'id'>[] = [
+    // 2023
+    ...Array.from({ length: 12 }, (_, i) => i + 1).flatMap(month => 
+        healthData2024.map(health => ({ ...health, year: 2023, month }))
+    ),
     // 2024
     ...Array.from({ length: 12 }, (_, i) => i + 1).flatMap(month => 
         healthData2024.map(health => ({ ...health, year: 2024, month }))
+    ),
+     // 2025
+    ...Array.from({ length: 12 }, (_, i) => i + 1).flatMap(month => 
+        healthData2025.map(health => ({ ...health, year: 2025, month }))
     ),
 ];
 
@@ -267,6 +288,8 @@ const familyAllowance2024 = [
     { tramo: "D", desde: 1228615, hasta: Infinity, monto: 0 }
 ];
 
+const familyAllowance2025 = familyAllowance2024;
+
 export const initialFamilyAllowanceParameters: Omit<FamilyAllowanceParameter, 'id'>[] = [
     // 2023
     ...Array.from({ length: 4 }, (_, i) => i + 1).flatMap(month => 
@@ -282,9 +305,13 @@ export const initialFamilyAllowanceParameters: Omit<FamilyAllowanceParameter, 'i
     ...Array.from({ length: 12 }, (_, i) => i + 1).flatMap(month => 
         familyAllowance2024.map(param => ({ ...param, year: 2024, month }))
     ),
+     // 2025
+    ...Array.from({ length: 12 }, (_, i) => i + 1).flatMap(month => 
+        familyAllowance2025.map(param => ({ ...param, year: 2025, month }))
+    ),
 ];
 
-export const initialTaxParameters: Omit<TaxParameter, 'id'>[] = [
+export const initialTaxParameters: Omit<TaxParameter, 'id' | 'year' | 'month'>[] = [
     { tramo: "Exento", desdeUTM: 0, hastaUTM: 13.5, factor: 0, rebajaUTM: 0 },
     { tramo: "Tramo 1", desdeUTM: 13.5, hastaUTM: 30, factor: 0.04, rebajaUTM: 0.54 },
     { tramo: "Tramo 2", desdeUTM: 30, hastaUTM: 50, factor: 0.08, rebajaUTM: 1.74 },
@@ -320,14 +347,28 @@ export const initialEconomicIndicators: Omit<EconomicIndicator, 'id' | 'uta' | '
     { year: 2024, month: 7, uf: 37470.61, utm: 66395, minWage: 500000 },
     { year: 2024, month: 8, uf: 37508.43, utm: 66497, minWage: 500000 },
     { year: 2024, month: 9, uf: 37489.17, utm: 66524, minWage: 500000 },
-    { year: 2024, month: 10, minWage: 500000 },
-    { year: 2024, month: 11, minWage: 500000 },
-    { year: 2024, month: 12, minWage: 500000 },
+    { year: 2024, month: 10, uf: 37489.17, utm: 66524, minWage: 500000 },
+    { year: 2024, month: 11, uf: 37489.17, utm: 66524, minWage: 500000 },
+    { year: 2024, month: 12, uf: 37489.17, utm: 66524, minWage: 500000 },
+    // 2025 (Plausible historical data for early months, placeholders for future)
+    { year: 2025, month: 1, uf: 37500, utm: 67000, minWage: 500000 },
+    { year: 2025, month: 2, uf: 37520, utm: 67100, minWage: 500000 },
+    { year: 2025, month: 3, uf: 37550, utm: 67500, minWage: 500000 },
+    { year: 2025, month: 4, uf: 37580, utm: 67800, minWage: 500000 },
+    { year: 2025, month: 5, minWage: 500000 },
+    { year: 2025, month: 6, minWage: 500000 },
+    { year: 2025, month: 7, minWage: 500000 },
+    { year: 2025, month: 8, minWage: 500000 },
+    { year: 2025, month: 9, minWage: 500000 },
+    { year: 2025, month: 10, minWage: 500000 },
+    { year: 2025, month: 11, minWage: 500000 },
+    { year: 2025, month: 12, minWage: 500000 },
 ];
 
 export const initialTaxableCaps: Omit<TaxableCap, 'id'>[] = [
     { year: 2023, afpCap: 81.6, afcCap: 122.6 },
     { year: 2024, afpCap: 84.3, afcCap: 126.6 },
+    { year: 2025, afpCap: 84.3, afcCap: 126.6 }, // Placeholder, assuming same as 2024
 ];
 
 
