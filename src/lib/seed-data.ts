@@ -228,20 +228,32 @@ const healthData2024 = [
     { name: "COLMENA", mandatoryContribution: 7.00, previredCode: "02", dtCode: "07" },
 ];
 
-// Tasa SIS (employerContribution) por período para 2025
-const sisRates2025 = [
-    { startMonth: 1, endMonth: 3, rate: 1.38 },
-    { startMonth: 4, endMonth: 5, rate: 1.78 },
-    { startMonth: 6, endMonth: 6, rate: 1.78 },
-    { startMonth: 7, endMonth: 12, rate: 1.88 },
-];
+const sisRatesByPeriod = {
+    '2023': 1.54, // Tasa ejemplo para 2023 completo
+    '2024': 1.47, // Tasa ejemplo para 2024 completo
+    '2025-1': 1.38,
+    '2025-2': 1.38,
+    '2025-3': 1.38,
+    '2025-4': 1.78,
+    '2025-5': 1.78,
+    '2025-6': 1.78,
+    '2025-7': 1.88,
+    '2025-8': 1.88,
+    '2025-9': 1.88,
+    '2025-10': 1.88,
+    '2025-11': 1.88,
+    '2025-12': 1.88,
+};
+
+const getSisRate = (year: number, month: number): number => {
+    const key = `${year}-${month}` as keyof typeof sisRatesByPeriod;
+    const yearKey = `${year}` as keyof typeof sisRatesByPeriod;
+    return sisRatesByPeriod[key] || sisRatesByPeriod[yearKey] || 1.47; // Fallback
+};
 
 const generateAfpDataForYear = (year: number) => {
     return Array.from({ length: 12 }, (_, i) => i + 1).flatMap(month => {
-        let sisRate = 1.41; // Tasa por defecto (ej. para 2024)
-        if (year === 2025) {
-            sisRate = sisRates2025.find(r => month >= r.startMonth && month <= r.endMonth)?.rate || sisRate;
-        }
+        const sisRate = getSisRate(year, month);
         return afpBaseData.map(afp => ({ ...afp, year, month, employerContribution: sisRate }));
     });
 };
@@ -293,7 +305,7 @@ const familyAllowance2024 = [
     { tramo: "D", desde: 1228615, hasta: Infinity, monto: 0 }
 ];
 
-const familyAllowance2025 = familyAllowance2024;
+const familyAllowance2025 = familyAllowance2024; // Assuming 2025 is same as 2024 until official data
 
 export const initialFamilyAllowanceParameters: Omit<FamilyAllowanceParameter, 'id'>[] = [
     // 2023
@@ -359,15 +371,15 @@ export const initialEconomicIndicators: Omit<EconomicIndicator, 'id' | 'uta' | '
     { year: 2025, month: 1, uf: 38384, utm: 67429, minWage: 510636 },
     { year: 2025, month: 2, uf: 38647, utm: 67294, minWage: 510636 },
     { year: 2025, month: 3, uf: 38894, utm: 68034, minWage: 510636 },
-    { year: 2025, month: 4, uf: 38894, utm: 68034, minWage: 510636 },
-    { year: 2025, month: 5, uf: 39075, utm: 68306, minWage: 510636 },
-    { year: 2025, month: 6, uf: 39267, utm: 68785, minWage: 510636 },
-    { year: 2025, month: 7, uf: 39179, utm: 68923, minWage: 510636 },
-    { year: 2025, month: 8, uf: 39383, utm: 68647, minWage: 510636 },
-    { year: 2025, month: 9, uf: 39485, utm: 69265, minWage: 510636 },
-    { year: 2025, month: 10, minWage: 510636 },
-    { year: 2025, month: 11, minWage: 510636 },
-    { year: 2025, month: 12, minWage: 510636 },
+    { year: 2025, month: 4, uf: 39075, utm: 68306, minWage: 510636 },
+    { year: 2025, month: 5, uf: 39189, utm: 68648, minWage: 510636 },
+    { year: 2025, month: 6, uf: 39267, utm: 68785, minWage: 529000 },
+    { year: 2025, month: 7, uf: 39179, utm: 68923, minWage: 529000 },
+    { year: 2025, month: 8, uf: 39383, utm: 68647, minWage: 529000 },
+    { year: 2025, month: 9, uf: 39485, utm: 69265, minWage: 529000 },
+    { year: 2025, month: 10, minWage: 529000 },
+    { year: 2025, month: 11, minWage: 529000 },
+    { year: 2025, month: 12, minWage: 529000 },
 ];
 
 export const initialTaxableCaps: Omit<TaxableCap, 'id'>[] = [
