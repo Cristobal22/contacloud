@@ -22,16 +22,34 @@ import { useCollection, useFirestore, useUser } from "@/firebase"
 import type { AfpEntity } from "@/lib/types"
 import { useToast } from '@/hooks/use-toast';
 import { initialAfpEntities } from '@/lib/seed-data';
-import { writeBatch, collection, doc } from 'firebase/firestore';
+import { writeBatch, collection, doc, getDocs } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { useUserProfile } from '@/firebase/auth/use-user-profile';
-import { Eye } from 'lucide-react';
+import { MoreVertical } from 'lucide-react';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 export default function AfpEntitiesPage() {
     const { data: afpEntities, loading } = useCollection<AfpEntity>({ path: 'afp-entities' });
@@ -45,6 +63,8 @@ export default function AfpEntitiesPage() {
     const [year, setYear] = React.useState(currentYear);
     const [month, setMonth] = React.useState(currentMonth);
     const [isProcessing, setIsProcessing] = React.useState(false);
+    const [isLoadAllDialogOpen, setIsLoadAllDialogOpen] = React.useState(false);
+    const [isDeleteAllDialogOpen, setIsDeleteAllDialogOpen] = React.useState(false);
     
     const handleLoadDefaults = async () => {
         if (!firestore || !userProfile || userProfile.role !== 'Admin') {
@@ -83,6 +103,70 @@ export default function AfpEntitiesPage() {
         }
     };
     
+    const handleLoadAllDefaults = async () => {
+        if (!firestore || !userProfile || userProfile.role !== 'Admin') {
+            toast({ variant: 'destructive', title: 'Permiso denegado' });
+            return;
+        }
+
+        setIsProcessing(true);
+        const batch = writeBatch(firestore);
+        const collectionRef = collection(firestore, 'afp-entities');
+        
+        initialAfpEntities.forEach(entityData => {
+            const id = `${entityData.year}-${entityData.month}-${entityData.previredCode}`;
+            const docRef = doc(collectionRef, id);
+            batch.set(docRef, { ...entityData, id }, { merge: true });
+        });
+
+        try {
+            await batch.commit();
+            toast({ title: 'Carga Masiva Completa', description: `Se cargaron/actualizaron ${initialAfpEntities.length} registros de AFP.`});
+        } catch (error) {
+            errorEmitter.emit('permission-error', new FirestorePermissionError({
+                path: 'afp-entities',
+                operation: 'create',
+            }));
+        } finally {
+            setIsProcessing(false);
+            setIsLoadAllDialogOpen(false);
+        }
+    };
+
+    const handleDeleteAllGlobals = async () => {
+        if (!firestore || !userProfile || userProfile.role !== 'Admin') {
+            toast({ variant: 'destructive', title: 'Permiso denegado' });
+            return;
+        }
+        setIsProcessing(true);
+        const collectionRef = collection(firestore, 'afp-entities');
+        try {
+            const querySnapshot = await getDocs(collectionRef);
+            if (querySnapshot.empty) {
+                toast({ description: "No hay parámetros para eliminar." });
+            } else {
+                const batch = writeBatch(firestore);
+                querySnapshot.forEach(doc => {
+                    batch.delete(doc.ref);
+                });
+                await batch.commit();
+                toast({
+                    title: "Parámetros Eliminados",
+                    description: "Todos los parámetros de AFP globales han sido eliminados.",
+                    variant: 'destructive',
+                });
+            }
+        } catch (error) {
+             errorEmitter.emit('permission-error', new FirestorePermissionError({
+                path: 'afp-entities',
+                operation: 'delete',
+            }));
+        } finally {
+            setIsProcessing(false);
+            setIsDeleteAllDialogOpen(false);
+        }
+    };
+
     const filteredEntities = React.useMemo(() => {
         return afpEntities?.filter(e => e.year === year && e.month === month) || [];
     }, [afpEntities, year, month]);
@@ -97,9 +181,28 @@ export default function AfpEntitiesPage() {
                             <CardDescription>Gestiona las AFP para el cálculo de remuneraciones.</CardDescription>
                         </div>
                          {userProfile?.role === 'Admin' && (
-                            <Button onClick={handleLoadDefaults} disabled={isProcessing}>
-                                {isProcessing ? 'Cargando...' : 'Cargar Parámetros Predeterminados'}
-                            </Button>
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button variant="outline" size="icon" disabled={isProcessing}>
+                                        <MoreVertical className="h-4 w-4" />
+                                        <span className="sr-only">Acciones de Administrador</span>
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                    <DropdownMenuLabel>Acciones de Admin</DropdownMenuLabel>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem onSelect={handleLoadDefaults} disabled={isProcessing}>
+                                        Cargar para {month}/{year}
+                                    </DropdownMenuItem>
+                                     <DropdownMenuItem onSelect={() => setIsLoadAllDialogOpen(true)} disabled={isProcessing}>
+                                        Cargar Todos los Períodos
+                                    </DropdownMenuItem>
+                                    <DropdownMenuSeparator />
+                                     <DropdownMenuItem onSelect={() => setIsDeleteAllDialogOpen(true)} disabled={isProcessing} className="text-destructive">
+                                        Eliminar Todos los Parámetros
+                                    </DropdownMenuItem>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
                         )}
                     </div>
                      <div className="flex items-end gap-4 pt-4">
@@ -170,6 +273,47 @@ export default function AfpEntitiesPage() {
                     </ScrollArea>
                 </CardContent>
             </Card>
+
+            <AlertDialog open={isLoadAllDialogOpen} onOpenChange={setIsLoadAllDialogOpen}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>¿Confirmas la carga masiva?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                           Esta acción cargará o sobreescribirá **TODOS** los parámetros de AFP para todos los períodos disponibles en el código fuente.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={handleLoadAllDefaults}
+                            disabled={isProcessing}
+                        >
+                            {isProcessing ? "Cargando..." : "Sí, cargar todo"}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+            
+            <AlertDialog open={isDeleteAllDialogOpen} onOpenChange={setIsDeleteAllDialogOpen}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>¿Confirmas la eliminación total?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                           Esta acción eliminará permanentemente **TODOS** los parámetros de AFP de la base de datos. Deberás volver a cargarlos.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction
+                            className={buttonVariants({ variant: "destructive" })}
+                            onClick={handleDeleteAllGlobals}
+                            disabled={isProcessing}
+                        >
+                            {isProcessing ? "Eliminando..." : "Sí, eliminar todo"}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </>
     )
 }
