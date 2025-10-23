@@ -9,7 +9,7 @@ interface LogoProps {
 
 export function Logo({ className, variant = 'icon', monochrome = false }: LogoProps) {
   if (variant === 'horizontal') {
-    const src = monochrome ? '/images/logo-horizontal-white.png' : '/images/logo-horizontal.png';
+    const src = monochrome ? '/images/logo-horizontal-white.svg' : '/images/logo-horizontal.svg';
     return (
         <div className={cn("relative h-10 w-48", className)}>
             <Image
