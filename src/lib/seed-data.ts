@@ -350,17 +350,17 @@ export const initialEconomicIndicators: Omit<EconomicIndicator, 'id' | 'uta' | '
     { year: 2024, month: 11, uf: 37489.17, utm: 66524, minWage: 500000 },
     { year: 2024, month: 12, uf: 37489.17, utm: 66524, minWage: 500000 },
     // 2025
-    { year: 2025, month: 1, minWage: 500000 },
-    { year: 2025, month: 2, minWage: 500000 },
-    { year: 2025, month: 3, minWage: 500000 },
-    { year: 2025, month: 4, minWage: 500000 },
-    { year: 2025, month: 5, minWage: 500000 },
-    { year: 2025, month: 6, minWage: 500000 },
-    { year: 2025, month: 7, minWage: 500000 },
-    { year: 2025, month: 8, minWage: 500000 },
-    { year: 2025, month: 9, minWage: 500000 },
-    { year: 2025, month: 10, minWage: 500000 },
-    { year: 2025, month: 11, minWage: 500000 },
+    { year: 2025, month: 1, uf: 38989.01, utm: 67429, minWage: 500000 },
+    { year: 2025, month: 2, uf: 39081.90, utm: 67294, minWage: 500000 },
+    { year: 2025, month: 3, uf: 39269.69, utm: 68034, minWage: 500000 },
+    { year: 2025, month: 4, uf: 39485.65, utm: 68306, minWage: 500000 },
+    { year: 2025, month: 5, uf: 39081.90, utm: 68648, minWage: 500000 },
+    { year: 2025, month: 6, uf: 39189.45, utm: 68785, minWage: 500000 },
+    { year: 2025, month: 7, uf: 39269.69, utm: 68923, minWage: 500000 },
+    { year: 2025, month: 8, uf: 39265.22, utm: 68647, minWage: 500000 },
+    { year: 2025, month: 9, uf: 39394.46, utm: 69265, minWage: 500000 },
+    { year: 2025, month: 10, uf: 39485.65, utm: 69265, minWage: 500000 },
+    { year: 2025, month: 11, uf: 39602.77, utm: 69542, minWage: 500000 },
     { year: 2025, month: 12, minWage: 500000 },
 ];
 
@@ -376,4 +376,5 @@ export const initialTaxableCaps: Omit<TaxableCap, 'id'>[] = [
     
 
     
+
 
