@@ -215,7 +215,7 @@ const afpBaseData = [
     { name: "MODELO", mandatoryContribution: 10.58, previredCode: "34", provisionalRegime: "DL 3.500", dtCode: "08" },
     { name: "PLANVITAL", mandatoryContribution: 11.16, previredCode: "08", provisionalRegime: "DL 3.500", dtCode: "05" },
     { name: "PROVIDA", mandatoryContribution: 11.45, previredCode: "09", provisionalRegime: "DL 3.500", dtCode: "06" },
-    { name: "UNO", mandatoryContribution: 10.69, previredCode: "35", provisionalRegime: "DL 3.500", dtCode: "09" }
+    { name: "UNO", mandatoryContribution: 10.49, previredCode: "35", provisionalRegime: "DL 3.500", dtCode: "09" }
 ];
 
 const healthData = [
@@ -228,31 +228,31 @@ const healthData = [
     { name: "COLMENA", mandatoryContribution: 7.00, previredCode: "02", dtCode: "07" },
 ];
 
-const sisRatesByYear: { [key: number]: { [key: number]: number } } = {
-    2023: { default: 1.54 },
-    2024: { 1: 1.49, 2: 1.49, 3: 1.49, 4: 1.49, 5: 1.49, 6: 1.49, 7: 2.01, 8: 2.01, 9: 2.01, 10: 1.5, 11: 1.5, 12: 1.5 },
-    2025: { 1: 1.38, 2: 1.38, 3: 1.38, 4: 1.78, 5: 1.78, 6: 1.78, 7: 1.88, 8: 1.88, 9: 1.88, default: 1.88 }
+const sisRates = {
+    '2024-1': 1.49, '2024-2': 1.49, '2024-3': 1.49, '2024-4': 1.49, '2024-5': 1.49, '2024-6': 1.49,
+    '2024-7': 2.01, '2024-8': 2.01, '2024-9': 2.01, 
+    '2024-10': 1.50, '2024-11': 1.50, '2024-12': 1.50,
+    '2025-1': 1.38, '2025-2': 1.38, '2025-3': 1.38,
+    '2025-4': 1.78, '2025-5': 1.78, '2025-6': 1.78,
+    '2025-7': 1.88, '2025-8': 1.88, '2025-9': 1.88, '2025-10': 1.88, '2025-11': 1.88, '2025-12': 1.88,
 };
-
 
 const getSisRate = (year: number, month: number): number => {
-    const yearRates = sisRatesByYear[year];
-    if (!yearRates) return 1.47; // Default fallback
-    return yearRates[month] || yearRates.default || 1.47;
+    return sisRates[`${year}-${month}`] || 1.47; // Default fallback
 };
 
 
-const generateAfpDataForYear = (year: number) => {
-    return Array.from({ length: 12 }, (_, i) => i + 1).flatMap(month => {
-        const sisRate = getSisRate(year, month);
-        return afpBaseData.map(afp => ({ ...afp, year, month, employerContribution: sisRate }));
-    });
+const generateAfpDataForYears = (years: number[]) => {
+    return years.flatMap(year => 
+        Array.from({ length: 12 }, (_, i) => i + 1).flatMap(month => {
+            const sisRate = getSisRate(year, month);
+            return afpBaseData.map(afp => ({ ...afp, year, month, employerContribution: sisRate }));
+        })
+    );
 };
 
 export const initialAfpEntities: Omit<AfpEntity, 'id'>[] = [
-    ...generateAfpDataForYear(2023),
-    ...generateAfpDataForYear(2024),
-    ...generateAfpDataForYear(2025),
+    ...generateAfpDataForYears([2023, 2024, 2025])
 ];
 
 export const initialHealthEntities: Omit<HealthEntity, 'id'>[] = [
@@ -372,4 +372,5 @@ export const initialTaxableCaps: Omit<TaxableCap, 'id'>[] = [
     { year: 2024, afpCap: 84.3, afcCap: 126.6 },
     { year: 2025, afpCap: 87.8, afcCap: 131.9 }, 
 ];
+
 
