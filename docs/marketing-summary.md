@@ -1,18 +1,18 @@
-# Resumen de Marketing para la Página Web de Contador Cloud
+# Resumen de Marketing para la Página Web de BaseImponible.cl
 
 ## Título Principal Sugerido:
-**Contador Cloud: La Plataforma Definitiva para la Contabilidad Moderna**
+**BaseImponible.cl: La Plataforma Definitiva para la Contabilidad Moderna**
 
 ## Slogan / Propuesta de Valor Principal:
 Transforma tu práctica contable con una solución en la nube, segura, multi-empresa y diseñada para la máxima eficiencia. Dedica menos tiempo a la entrada de datos y más tiempo a asesorar a tus clientes.
 
 ---
 
-### ¿Qué es Contador Cloud?
+### ¿Qué es BaseImponible.cl?
 
-Contador Cloud es una innovadora plataforma de software contable (SaaS) diseñada exclusivamente para contadores y estudios contables en Chile. Nuestra solución permite gestionar de forma centralizada y segura la contabilidad, remuneraciones e impuestos de múltiples empresas cliente desde una única interfaz moderna e intuitiva.
+BaseImponible.cl es una innovadora plataforma de software contable (SaaS) diseñada exclusivamente para contadores y estudios contables en Chile. Nuestra solución permite gestionar de forma centralizada y segura la contabilidad, remuneraciones e impuestos de múltiples empresas cliente desde una única interfaz moderna e intuitiva.
 
-Construida con tecnología de punta (Next.js, Firebase y IA), Contador Cloud automatiza los procesos repetitivos y garantiza la integridad de los datos, permitiéndote ofrecer un servicio de mayor calidad y escalar tu negocio.
+Construida con tecnología de punta (Next.js, Firebase y IA), BaseImponible.cl automatiza los procesos repetitivos y garantiza la integridad de los datos, permitiéndote ofrecer un servicio de mayor calidad y escalar tu negocio.
 
 ---
 
@@ -73,5 +73,5 @@ Construida con tecnología de punta (Next.js, Firebase y IA), Contador Cloud aut
 
 *   **Confianza y Profesionalismo:** Usar un lenguaje que inspire seguridad. "Tu información, segura en la nube de Google", "Informes precisos en los que puedes confiar".
 *   **Eficiencia y Ahorro de Tiempo:** Resaltar el beneficio principal. "Automatiza tu contabilidad", "Más tiempo para tus clientes, menos para la digitación".
-*   **Modernidad y Futuro:** Posicionar a Contador Cloud como la herramienta del futuro. "La nueva generación de software contable", "Adáptate a la era digital".
+*   **Modernidad y Futuro:** Posicionar a BaseImponible.cl como la herramienta del futuro. "La nueva generación de software contable", "Adáptate a la era digital".
 *   **Simplicidad y Facilidad de Uso:** Atraer a quienes temen a la complejidad. "Intuitivo desde el primer día", "Empieza a trabajar en minutos, no en semanas".
