@@ -209,13 +209,13 @@ export const initialChartOfAccounts: Omit<Account, 'id' | 'companyId' | 'balance
 ];
 
 const afpData2024 = [
-    { name: "CAPITAL", mandatoryContribution: 11.44, previredCode: "33", provisionalRegime: "DL 3.500", dtCode: "02" },
-    { name: "CUPRUM", mandatoryContribution: 11.44, previredCode: "03", provisionalRegime: "DL 3.500", dtCode: "03" },
-    { name: "HABITAT", mandatoryContribution: 11.27, previredCode: "05", provisionalRegime: "DL 3.500", dtCode: "04" },
-    { name: "MODELO", mandatoryContribution: 10.58, previredCode: "34", provisionalRegime: "DL 3.500", dtCode: "08" },
-    { name: "PLANVITAL", mandatoryContribution: 11.16, previredCode: "08", provisionalRegime: "DL 3.500", dtCode: "05" },
-    { name: "PROVIDA", mandatoryContribution: 11.45, previredCode: "09", provisionalRegime: "DL 3.500", dtCode: "06" },
-    { name: "UNO", mandatoryContribution: 10.69, previredCode: "35", provisionalRegime: "DL 3.500", dtCode: "09" }
+    { name: "CAPITAL", mandatoryContribution: 11.44, previredCode: "33", provisionalRegime: "DL 3.500", dtCode: "02", employerContribution: 1.0 },
+    { name: "CUPRUM", mandatoryContribution: 11.44, previredCode: "03", provisionalRegime: "DL 3.500", dtCode: "03", employerContribution: 1.0 },
+    { name: "HABITAT", mandatoryContribution: 11.27, previredCode: "05", provisionalRegime: "DL 3.500", dtCode: "04", employerContribution: 1.0 },
+    { name: "MODELO", mandatoryContribution: 10.58, previredCode: "34", provisionalRegime: "DL 3.500", dtCode: "08", employerContribution: 1.0 },
+    { name: "PLANVITAL", mandatoryContribution: 11.16, previredCode: "08", provisionalRegime: "DL 3.500", dtCode: "05", employerContribution: 1.0 },
+    { name: "PROVIDA", mandatoryContribution: 11.45, previredCode: "09", provisionalRegime: "DL 3.500", dtCode: "06", employerContribution: 1.0 },
+    { name: "UNO", mandatoryContribution: 10.69, previredCode: "35", provisionalRegime: "DL 3.500", dtCode: "09", employerContribution: 1.0 }
 ];
 const healthData2024 = [
     { name: "FONASA", mandatoryContribution: 7.00, previredCode: "01", dtCode: "01" },
@@ -227,34 +227,10 @@ const healthData2024 = [
     { name: "COLMENA", mandatoryContribution: 7.00, previredCode: "02", dtCode: "07" },
 ];
 
-const afpData2025 = [
-    { name: "CAPITAL", mandatoryContribution: 11.44, employerContribution: 1.0, previredCode: "33", provisionalRegime: "DL 3.500", dtCode: "02" },
-    { name: "CUPRUM", mandatoryContribution: 11.44, employerContribution: 1.0, previredCode: "03", provisionalRegime: "DL 3.500", dtCode: "03" },
-    { name: "HABITAT", mandatoryContribution: 11.27, employerContribution: 1.0, previredCode: "05", provisionalRegime: "DL 3.500", dtCode: "04" },
-    { name: "MODELO", mandatoryContribution: 10.58, employerContribution: 1.0, previredCode: "34", provisionalRegime: "DL 3.500", dtCode: "08" },
-    { name: "PLANVITAL", mandatoryContribution: 11.16, employerContribution: 1.0, previredCode: "08", provisionalRegime: "DL 3.500", dtCode: "05" },
-    { name: "PROVIDA", mandatoryContribution: 11.45, employerContribution: 1.0, previredCode: "09", provisionalRegime: "DL 3.500", dtCode: "06" },
-    { name: "UNO", mandatoryContribution: 10.69, employerContribution: 1.0, previredCode: "35", provisionalRegime: "DL 3.500", dtCode: "09" }
-];
-const healthData2025 = [
-    { name: "FONASA", mandatoryContribution: 7.00, previredCode: "01", dtCode: "01" },
-    { name: "CONSALUD", mandatoryContribution: 7.00, previredCode: "18", dtCode: "02" },
-    { name: "CRUZBLANCA", mandatoryContribution: 7.00, previredCode: "07", dtCode: "03" },
-    { name: "NUEVA MASVIDA", mandatoryContribution: 7.00, previredCode: "31", dtCode: "04" },
-    { name: "BANMEDICA", mandatoryContribution: 7.00, previredCode: "04", dtCode: "05" },
-    { name: "VIDA TRES", mandatoryContribution: 7.00, previredCode: "17", dtCode: "06" },
-    { name: "COLMENA", mandatoryContribution: 7.00, previredCode: "02", dtCode: "07" },
-];
-
-
 export const initialAfpEntities: Omit<AfpEntity, 'id'>[] = [
     // 2024
     ...Array.from({ length: 12 }, (_, i) => i + 1).flatMap(month => 
         afpData2024.map(afp => ({ ...afp, year: 2024, month }))
-    ),
-    // 2025
-    ...Array.from({ length: 12 }, (_, i) => i + 1).flatMap(month => 
-        afpData2025.map(afp => ({ ...afp, year: 2025, month }))
     ),
 ];
 
@@ -262,10 +238,6 @@ export const initialHealthEntities: Omit<HealthEntity, 'id'>[] = [
     // 2024
     ...Array.from({ length: 12 }, (_, i) => i + 1).flatMap(month => 
         healthData2024.map(health => ({ ...health, year: 2024, month }))
-    ),
-    // 2025
-    ...Array.from({ length: 12 }, (_, i) => i + 1).flatMap(month => 
-        healthData2025.map(health => ({ ...health, year: 2025, month }))
     ),
 ];
 
@@ -295,14 +267,6 @@ const familyAllowance2024 = [
     { tramo: "D", desde: 1228615, hasta: Infinity, monto: 0 }
 ];
 
-const familyAllowance2025 = [
-    { tramo: "A", desde: 0, hasta: 551239, monto: 20328 },
-    { tramo: "B", desde: 551240, hasta: 804962, monto: 12475 },
-    { tramo: "C", desde: 804963, hasta: 1255478, monto: 3942 },
-    { tramo: "D", desde: 1255479, hasta: Infinity, monto: 0 }
-];
-
-
 export const initialFamilyAllowanceParameters: Omit<FamilyAllowanceParameter, 'id'>[] = [
     // 2023
     ...Array.from({ length: 4 }, (_, i) => i + 1).flatMap(month => 
@@ -311,16 +275,12 @@ export const initialFamilyAllowanceParameters: Omit<FamilyAllowanceParameter, 'i
     ...Array.from({ length: 4 }, (_, i) => i + 5).flatMap(month => 
         familyAllowanceMayToAug2023.map(param => ({ ...param, year: 2023, month }))
     ),
-    ...Array.from({ length: 12 }, (_, i) => i + 9).flatMap(month => 
+    ...Array.from({ length: 4 }, (_, i) => i + 9).flatMap(month => 
         familyAllowanceSep2023onwards.map(param => ({ ...param, year: 2023, month }))
     ),
     // 2024
     ...Array.from({ length: 12 }, (_, i) => i + 1).flatMap(month => 
         familyAllowance2024.map(param => ({ ...param, year: 2024, month }))
-    ),
-    // 2025
-    ...Array.from({ length: 12 }, (_, i) => i + 1).flatMap(month => 
-        familyAllowance2025.map(param => ({ ...param, year: 2025, month }))
     ),
 ];
 
@@ -358,32 +318,15 @@ export const initialEconomicIndicators: Omit<EconomicIndicator, 'id' | 'uta' | '
     { year: 2024, month: 5, uf: 37402.04, utm: 65770, minWage: 460000 },
     { year: 2024, month: 6, uf: 37482.52, utm: 65770, minWage: 460000 },
     { year: 2024, month: 7, uf: 37470.61, utm: 66395, minWage: 500000 },
-    { year: 2024, month: 8, uf: 37540.0, utm: 66900, minWage: 500000 },
-    { year: 2024, month: 9, uf: 37570.0, utm: 67142, minWage: 500000 },
-    { year: 2024, month: 10, uf: 37600.0, utm: 67142, minWage: 500000 },
-    { year: 2024, month: 11, uf: 37630.0, utm: 67355, minWage: 500000 },
-    { year: 2024, month: 12, uf: 37660.0, utm: 67500, minWage: 500000 },
-    // 2025
-    { year: 2025, month: 1, uf: 37690.0, utm: 67650, minWage: 500000 },
-    { year: 2025, month: 2, uf: 37720.0, utm: 67800, minWage: 500000 },
-    { year: 2025, month: 3, uf: 37750.0, utm: 67950, minWage: 500000 },
-    { year: 2025, month: 4, uf: 37780.0, utm: 68100, minWage: 500000 },
-    { year: 2025, month: 5, uf: 37810.0, utm: 68250, minWage: 500000 },
-    { year: 2025, month: 6, uf: 37840.0, utm: 68400, minWage: 500000 },
-    { year: 2025, month: 7, uf: 37870.0, utm: 68550, minWage: 500000 },
-    { year: 2025, month: 8, uf: 37900.0, utm: 68700, minWage: 500000 },
-    { year: 2025, month: 9, uf: 37930.0, utm: 68850, minWage: 500000 },
-    { year: 2025, month: 10, uf: 37960.0, utm: 69000, minWage: 500000 },
-    { year: 2025, month: 11, uf: 37990.0, utm: 69150, minWage: 500000 },
-    { year: 2025, month: 12, uf: 38020.0, utm: 69300, minWage: 500000 },
 ];
 
 export const initialTaxableCaps: Omit<TaxableCap, 'id'>[] = [
     { year: 2023, afpCap: 81.6, afcCap: 122.6 },
     { year: 2024, afpCap: 84.3, afcCap: 126.6 },
-    { year: 2025, afpCap: 87.8, afcCap: 131.8 },
 ];
 
+
+    
 
     
 
