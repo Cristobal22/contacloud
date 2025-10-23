@@ -29,9 +29,9 @@ export function Logo({ className, variant = 'icon', monochrome = false }: LogoPr
       <Image 
         src="/images/logo.svg" 
         alt="BaseImponible.cl Logo" 
-        width={24} 
-        height={24}
-        className="h-6 w-6"
+        width={32} 
+        height={32}
+        className="h-8 w-8"
       />
       <span className="font-headline text-xl font-semibold text-primary">BaseImponible.cl</span>
     </div>
