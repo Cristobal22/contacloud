@@ -171,7 +171,7 @@ function AccountantDashboardLayout({ children }: { children: React.ReactNode }) 
                         <SidebarLogo />
                     </SidebarHeader>
                     <SidebarContent>
-                        <DashboardNav role="Accountant" />
+                        <DashboardNav role="Accountant" planId={userProfile?.planId} />
                     </SidebarContent>
                 </Sidebar>
                 <SidebarInset>

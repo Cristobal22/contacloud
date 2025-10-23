@@ -11,6 +11,7 @@ export const plans = [
       "Módulos de Contabilidad y Remuneraciones",
       "Soporte limitado",
     ],
+    hasDocumentsModule: false,
   },
   {
     id: "Individual",
@@ -24,6 +25,7 @@ export const plans = [
       "Centralización del RCV (Compras y Ventas)",
       "Soporte por correo electrónico",
     ],
+    hasDocumentsModule: false,
   },
   {
     id: "Team",
@@ -39,6 +41,7 @@ export const plans = [
       "Acceso prioritario a nuevas funciones",
       "Planillas de contratos, documentos legales y más",
     ],
+    hasDocumentsModule: true,
   },
   {
     id: "Enterprise",
@@ -54,5 +57,6 @@ export const plans = [
       "Acceso prioritario a nuevas funciones",
       "Planillas de contratos, documentos legales y más",
     ],
+    hasDocumentsModule: true,
   }
 ];

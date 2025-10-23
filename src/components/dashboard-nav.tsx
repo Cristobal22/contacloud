@@ -41,6 +41,7 @@ import {
   Receipt,
   FileDown,
   Shield,
+  File,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './ui/collapsible';
@@ -99,6 +100,14 @@ const accountantNavSections = [
         ]
     },
 ];
+
+const documentsSection = {
+    title: 'Documentos Legales',
+    icon: File,
+    links: [
+        { href: '/dashboard/documents', label: 'Plantillas de Documentos', icon: FileText },
+    ]
+};
 
 const payrollSections = [
     {
@@ -172,7 +181,7 @@ const adminNavSections = [
         title: 'Administración',
         icon: UserCog,
         links: [
-            { href: '/dashboard', label: 'Gestión de Usuarios', icon: Users },
+            { href: '/dashboard/admin/users', label: 'Gestión de Usuarios', icon: Users },
         ]
     }
 ];
@@ -200,9 +209,10 @@ const bottomNavItems = [
 
 type DashboardNavProps = {
     role: 'Admin' | 'Accountant';
+    planId?: string;
 }
 
-export function DashboardNav({ role }: DashboardNavProps) {
+export function DashboardNav({ role, planId }: DashboardNavProps) {
   const pathname = usePathname();
   const { state: sidebarState } = useSidebar();
   const [openSections, setOpenSections] = React.useState<Record<string, boolean>>({
@@ -211,6 +221,7 @@ export function DashboardNav({ role }: DashboardNavProps) {
     'Documentos': true,
     'Informes': true,
     'Maestros': true,
+    'Documentos Legales': true, 
     'Remuneraciones': true,
     'Movimientos_sub': true,
     'Procesos_sub': true,
@@ -337,12 +348,14 @@ export function DashboardNav({ role }: DashboardNavProps) {
     const navContent = role === 'Admin' ? (
         <>
             {adminNavSections.map(renderSection)}
+            {renderSection(documentsSection)}
             {renderNestedSection('Remuneraciones', Users, adminPayrollSections)}
             {renderNestedSection('Configuración', SlidersHorizontal, adminConfigurationSections, false)}
         </>
     ) : (
         <>
             {accountantNavSections.map(renderSection)}
+            {renderSection(documentsSection)}
             {renderNestedSection('Remuneraciones', Users, payrollSections)}
             {renderNestedSection('Procesos Críticos', RefreshCw, criticalProcessesSections, false)}
             {renderNestedSection('Configuración', SlidersHorizontal, configurationSections, false)}
