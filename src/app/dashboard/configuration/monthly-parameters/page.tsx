@@ -10,12 +10,12 @@ import {
   } from "@/components/ui/card"
   import { Input } from "@/components/ui/input"
   import { Label } from "@/components/ui/label"
-  import { Button } from "@/components/ui/button"
+  import { Button, buttonVariants } from "@/components/ui/button"
   import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
   import React from "react";
   import { useCollection, useFirestore, useUser, useDoc } from "@/firebase";
   import type { EconomicIndicator } from "@/lib/types";
-  import { doc, setDoc, writeBatch, collection } from "firebase/firestore";
+  import { doc, setDoc, writeBatch, collection, deleteDoc } from "firebase/firestore";
   import { useToast } from "@/hooks/use-toast";
   import { errorEmitter } from "@/firebase/error-emitter";
   import { FirestorePermissionError } from "@/firebase/errors";
@@ -27,6 +27,16 @@ import { useUserProfile } from "@/firebase/auth/use-user-profile";
 import { initialEconomicIndicators } from "@/lib/seed-data";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+  } from "@/components/ui/alert-dialog"
 
   export default function MonthlyParametersPage() {
     const { selectedCompany } = React.useContext(SelectedCompanyContext) || {};
@@ -43,6 +53,8 @@ import { es } from "date-fns/locale";
     const [indicator, setIndicator] = React.useState<Partial<EconomicIndicator> | null>(null);
     const [isLoading, setIsLoading] = React.useState(false);
     const [isCompanySpecific, setIsCompanySpecific] = React.useState(false);
+    const [isGlobalDataForPeriod, setIsGlobalDataForPeriod] = React.useState(false);
+    const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false);
     
     const indicatorId = `${year}-${month.toString().padStart(2, '0')}`;
 
@@ -61,6 +73,7 @@ import { es } from "date-fns/locale";
       if (loading) return;
       
       const globalIndicatorForPeriod = allGlobalIndicators?.find(i => i.id === indicatorId);
+      setIsGlobalDataForPeriod(!!globalIndicatorForPeriod);
 
       if (companyIndicator) {
           setIndicator(companyIndicator);
@@ -69,7 +82,7 @@ import { es } from "date-fns/locale";
           setIndicator(globalIndicatorForPeriod);
           setIsCompanySpecific(false);
       } else {
-          setIndicator(null); // Set to null if no data exists
+          setIndicator(null); 
           setIsCompanySpecific(false);
       }
     }, [year, month, allGlobalIndicators, companyIndicator, indicatorId, allGlobalsLoading, companyLoading, companyId]);
@@ -105,6 +118,27 @@ import { es } from "date-fns/locale";
             }));
         } finally {
             setIsLoading(false);
+        }
+    };
+
+    const handleDeleteGlobal = async () => {
+        if (!firestore || !userProfile || userProfile.role !== 'Admin' || !isGlobalDataForPeriod) {
+             toast({ variant: 'destructive', title: 'Acción no permitida' });
+            return;
+        }
+        setIsLoading(true);
+        const docRef = doc(firestore, 'economic-indicators', indicatorId);
+        try {
+            await deleteDoc(docRef);
+            toast({ title: 'Parámetro Eliminado', description: `Los indicadores globales para ${month}/${year} han sido eliminados.` });
+        } catch(error) {
+            errorEmitter.emit('permission-error', new FirestorePermissionError({
+                path: 'economic-indicators',
+                operation: 'delete',
+            }));
+        } finally {
+            setIsLoading(false);
+            setIsDeleteDialogOpen(false);
         }
     };
 
@@ -158,9 +192,14 @@ import { es } from "date-fns/locale";
                             </CardDescription>
                         </div>
                          {userProfile?.role === 'Admin' && (
-                            <Button onClick={handleLoadDefaults} disabled={isLoading}>
-                                {isLoading ? 'Cargando...' : `Cargar Predeterminados para ${month}/${year}`}
-                            </Button>
+                            <div className='flex gap-2'>
+                                <Button onClick={() => setIsDeleteDialogOpen(true)} disabled={isLoading || !isGlobalDataForPeriod} variant="destructive">
+                                   Eliminar Parámetro Global
+                                </Button>
+                                <Button onClick={handleLoadDefaults} disabled={isLoading}>
+                                    {isLoading ? 'Cargando...' : `Cargar Predeterminados para ${month}/${year}`}
+                                </Button>
+                            </div>
                         )}
                     </div>
                 </CardHeader>
@@ -266,8 +305,26 @@ import { es } from "date-fns/locale";
                     </Button>
                 </CardFooter>
             </Card>
-        </div>
+
+             <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>¿Confirmas la eliminación?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                           Esta acción eliminará permanentemente los indicadores globales para el período de <span className='font-bold'>{format(new Date(year, month - 1), 'MMMM yyyy', { locale: es })}</span>. No se puede deshacer.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction
+                            className={buttonVariants({ variant: "destructive" })}
+                            onClick={handleDeleteGlobal}
+                        >
+                            Sí, eliminar
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+      </div>
   )
 }
-
-    
