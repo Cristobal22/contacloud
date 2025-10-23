@@ -40,7 +40,7 @@ import { es } from "date-fns/locale";
 
     const [year, setYear] = React.useState(currentYear);
     const [month, setMonth] = React.useState(currentMonth);
-    const [indicator, setIndicator] = React.useState<Partial<EconomicIndicator>>({});
+    const [indicator, setIndicator] = React.useState<Partial<EconomicIndicator> | null>(null);
     const [isLoading, setIsLoading] = React.useState(false);
     const [isCompanySpecific, setIsCompanySpecific] = React.useState(false);
     
@@ -62,19 +62,14 @@ import { es } from "date-fns/locale";
       
       const globalIndicatorForPeriod = allGlobalIndicators?.find(i => i.id === indicatorId);
 
-      // Prioritize company-specific indicator
       if (companyIndicator) {
           setIndicator(companyIndicator);
           setIsCompanySpecific(true);
-      } 
-      // Fallback to global indicator
-      else if (globalIndicatorForPeriod) {
+      } else if (globalIndicatorForPeriod) {
           setIndicator(globalIndicatorForPeriod);
           setIsCompanySpecific(false);
-      } 
-      // If neither exists, reset to a blank state for the selected period
-      else {
-          setIndicator({ id: indicatorId, year, month });
+      } else {
+          setIndicator(null); // Set to null if no data exists
           setIsCompanySpecific(false);
       }
     }, [year, month, allGlobalIndicators, companyIndicator, indicatorId, allGlobalsLoading, companyLoading, companyId]);
@@ -85,7 +80,7 @@ import { es } from "date-fns/locale";
 
         const indicatorData = initialEconomicIndicators.find(i => i.year === year && i.month === month);
 
-        if (!indicatorData) {
+        if (!indicatorData || indicatorData.uf === undefined || indicatorData.utm === undefined) {
             toast({
                 variant: 'destructive',
                 title: 'Sin Datos',
@@ -115,21 +110,21 @@ import { es } from "date-fns/locale";
 
 
     const handleSaveCompanySpecific = async () => {
-        if (!firestore || !user || !indicator.id || !companyId) return;
+        if (!firestore || !user || !companyId) return;
         
         setIsLoading(true);
         const path = `companies/${companyId}/economic-indicators`;
-        const docRef = doc(firestore, path, indicator.id);
+        const docRef = doc(firestore, path, indicatorId);
         
         const dataToSave: Partial<EconomicIndicator> = {
-            ...indicator,
+            id: indicatorId,
             year: Number(year),
             month: Number(month),
-            uf: Number(indicator.uf) || 0,
-            utm: Number(indicator.utm) || 0,
+            uf: Number(indicator?.uf) || 0,
+            utm: Number(indicator?.utm) || 0,
+            minWage: Number(indicator?.minWage) || 0,
         };
         dataToSave.uta = dataToSave.utm ? Number(dataToSave.utm) * 12 : 0;
-        dataToSave.minWage = Number(indicator.minWage) || 0;
         dataToSave.gratificationCap = dataToSave.minWage ? Math.round((4.75 * dataToSave.minWage)/12) : 0;
 
         try {
@@ -148,7 +143,7 @@ import { es } from "date-fns/locale";
     };
 
     const handleFieldChange = (field: keyof EconomicIndicator, value: string) => {
-        setIndicator(prev => ({ ...prev, [field]: value }));
+        setIndicator(prev => ({ ...(prev || {id: indicatorId, year, month}), [field]: value }));
     };
     
     return (
@@ -189,9 +184,9 @@ import { es } from "date-fns/locale";
                                         <TableCell>
                                             {format(new Date(ind.year, ind.month - 1), 'MMMM yyyy', { locale: es })}
                                         </TableCell>
-                                        <TableCell className="text-right">${ind.uf?.toLocaleString('es-CL')}</TableCell>
-                                        <TableCell className="text-right">${ind.utm?.toLocaleString('es-CL')}</TableCell>
-                                        <TableCell className="text-right">${ind.minWage?.toLocaleString('es-CL')}</TableCell>
+                                        <TableCell className="text-right">{ind.uf ? `$${ind.uf?.toLocaleString('es-CL')}` : 'N/A'}</TableCell>
+                                        <TableCell className="text-right">{ind.utm ? `$${ind.utm?.toLocaleString('es-CL')}` : 'N/A'}</TableCell>
+                                        <TableCell className="text-right">{ind.minWage ? `$${ind.minWage?.toLocaleString('es-CL')}` : 'N/A'}</TableCell>
                                     </TableRow>
                                 ))
                                 ) : (
@@ -248,15 +243,15 @@ import { es } from "date-fns/locale";
                             <div className="grid gap-6 md:grid-cols-3">
                                 <div className="space-y-2">
                                     <Label htmlFor="uf">Valor UF (Personalizado)</Label>
-                                    <Input id="uf" type="number" placeholder="Ingresa el valor de la UF" value={indicator.uf || ''} onChange={e => handleFieldChange('uf', e.target.value)} disabled={!companyId || isLoading} />
+                                    <Input id="uf" type="number" placeholder={indicator?.uf === undefined ? "Sin datos" : "Ingresa el valor"} value={indicator?.uf ?? ''} onChange={e => handleFieldChange('uf', e.target.value)} disabled={!companyId || isLoading} />
                                 </div>
                                 <div className="space-y-2">
                                     <Label htmlFor="utm">Valor UTM (Personalizado)</Label>
-                                    <Input id="utm" type="number" placeholder="Ingresa el valor de la UTM" value={indicator.utm || ''} onChange={e => handleFieldChange('utm', e.target.value)} disabled={!companyId || isLoading} />
+                                    <Input id="utm" type="number" placeholder={indicator?.utm === undefined ? "Sin datos" : "Ingresa el valor"} value={indicator?.utm ?? ''} onChange={e => handleFieldChange('utm', e.target.value)} disabled={!companyId || isLoading} />
                                 </div>
                                 <div className="space-y-2">
                                     <Label htmlFor="sueldo-minimo">Sueldo Mínimo (Personalizado)</Label>
-                                    <Input id="sueldo-minimo" type="number" placeholder="Ingresa el sueldo mínimo" value={indicator.minWage || ''} onChange={e => handleFieldChange('minWage', e.target.value)} disabled={!companyId || isLoading} />
+                                    <Input id="sueldo-minimo" type="number" placeholder={indicator?.minWage === undefined ? "Sin datos" : "Ingresa el valor"} value={indicator?.minWage ?? ''} onChange={e => handleFieldChange('minWage', e.target.value)} disabled={!companyId || isLoading} />
                                 </div>
                             </div>
                              {isCompanySpecific && (
