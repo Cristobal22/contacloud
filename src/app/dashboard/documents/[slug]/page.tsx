@@ -86,17 +86,40 @@ const formSections = {
   ],
   'contrato-trabajador-administrativo': [
     {
-      title: 'Datos del Contrato',
+      title: 'I. Comparecencia',
       fields: [
-        { id: 'cargo_trabajador', label: 'Cargo del Trabajador' },
+        { id: 'ciudad_firma', label: 'Ciudad de Firma' },
+        { id: 'dia_firma', label: 'Día de Firma' },
+        { id: 'mes_firma', label: 'Mes de Firma' },
+        { id: 'ano_firma', label: 'Año de Firma' },
+        { id: 'email_empresa', label: 'Email de la Empresa' },
+      ]
+    },
+    {
+      title: 'II. Cláusulas Contractuales',
+      fields: [
+        { id: 'cargo_trabajador', label: 'Cargo Específico' },
+        { id: 'departamento_seccion', label: 'Departamento o Sección' },
+        { id: 'direccion_lugar_trabajo', label: 'Dirección Lugar de Trabajo' },
+        { id: 'comuna_lugar_trabajo', label: 'Comuna Lugar de Trabajo' },
+        { id: 'funciones_principales', label: 'Funciones Principales' },
+        { id: 'fecha_ingreso', label: 'Fecha de Ingreso' },
+        { id: 'jornada_semanal_horas', label: 'Jornada Semanal (Horas)' },
+        { id: 'jornada_dias', label: 'Días de Trabajo (ej. Lunes a Viernes)' },
+        { id: 'jornada_horario', label: 'Horario (ej. 09:00 a 18:00)' },
+        { id: 'descanso_minutos', label: 'Minutos de Descanso para Colación' },
+        { id: 'horario_colacion', label: 'Horario Colación (ej. 13:00 a 14:00)' },
+        { id: 'imputa_jornada_colacion', label: 'Colación se imputa a jornada? (SI/NO)' },
+        { id: 'cargo_colacion', label: 'Colación de cargo de (TRABAJADOR/EMPLEADOR)' },
         { id: 'sueldo_mensual_monto', label: 'Sueldo Mensual (CLP)' },
-        { id: 'sueldo_mensual_palabras', label: 'Sueldo (Palabras)' },
-        { id: 'jornada_semanal_horas', label: 'Horas Semanales' },
-        { id: 'jornada_dias', label: 'Días de Trabajo' },
-        { id: 'jornada_horario', label: 'Horario de Trabajo' },
-        { id: 'descanso_minutos', label: 'Minutos de Colación' },
+        { id: 'sueldo_mensual_palabras', label: 'Sueldo Mensual (Palabras)' },
+        { id: 'metodo_pago', label: 'Método de Pago' },
+        { id: 'banco_trabajador', label: 'Banco del Trabajador' },
+        { id: 'cuenta_bancaria_trabajador', label: 'N° de Cuenta del Trabajador' },
+        { id: 'beneficio_a', label: 'Beneficio Adicional A' },
+        { id: 'beneficio_b', label: 'Beneficio Adicional B' },
+        { id: 'beneficio_c', label: 'Beneficio Adicional C' },
         { id: 'duracion_contrato', label: 'Duración del Contrato' },
-        { id: 'fecha_inicio_contrato', label: 'Fecha de Inicio' },
       ]
     }
   ],
