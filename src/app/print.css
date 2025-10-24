@@ -1,0 +1,33 @@
+@page {
+  size: A4;
+  margin: 0;
+}
+
+@media print {
+  body {
+    margin: 1.6cm;
+  }
+
+  body * {
+    visibility: hidden;
+  }
+
+  #document-preview-container,
+  #document-preview-container * {
+    visibility: visible;
+  }
+
+  #document-preview-container {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: auto;
+    overflow: visible;
+  }
+
+  /* Ocultar elementos de la interfaz dentro del contenedor de vista previa */
+  #document-preview-container .print\:hidden {
+    display: none;
+  }
+}

@@ -10,6 +10,14 @@ import {
     CardTitle,
     CardFooter,
 } from "@/components/ui/card";
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+  } from "@/components/ui/table"
 import { Button } from "@/components/ui/button";
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -21,16 +29,18 @@ import {
     SelectValue,
   } from "@/components/ui/select"
 import { Checkbox } from '@/components/ui/checkbox';
-import { useCollection, useDoc, useFirestore, useUser } from '@/firebase';
-import type { Employee, CostCenter, AfpEntity, HealthEntity, EconomicIndicator } from '@/lib/types';
+import { useCollection, useDoc, useFirestore } from '@/firebase';
+import type { Employee, CostCenter, AfpEntity, HealthEntity, EconomicIndicator, LegalDocument } from '@/lib/types';
+import { DOCUMENT_TEMPLATES } from '@/lib/document-templates';
 import { SelectedCompanyContext } from '@/app/dashboard/layout';
-import { doc, setDoc, addDoc, collection, DocumentReference } from 'firebase/firestore';
+import { doc, setDoc, addDoc, collection, where, DocumentReference, Timestamp } from 'firebase/firestore';
 import { useRouter, useParams } from 'next/navigation';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, FileText, Eye } from 'lucide-react';
 import Link from 'next/link';
 import { errorEmitter } from '@/firebase/error-emitter'
 import { FirestorePermissionError } from '@/firebase/errors'
 import { nationalities, regions, communesByRegion } from '@/lib/geographical-data';
+
 
 export default function EmployeeFormPage() {
     const params = useParams();
@@ -41,12 +51,16 @@ export default function EmployeeFormPage() {
     const firestore = useFirestore();
     const router = useRouter();
 
-
     const employeeRef = React.useMemo(() => 
         !isNew && firestore && companyId ? doc(firestore, `companies/${companyId}/employees`, id) as DocumentReference<Employee> : null
     , [isNew, firestore, companyId, id]);
 
     const { data: existingEmployee, loading: employeeLoading } = useDoc<Employee>(employeeRef);
+    
+    const { data: legalDocuments, loading: documentsLoading } = useCollection<LegalDocument>({
+        path: companyId ? `companies/${companyId}/documents` : undefined,
+        query: companyId && !isNew ? [where('employeeId', '==', id)] : undefined,
+    });
 
     const [employee, setEmployee] = React.useState<Partial<Employee> | null>(null);
     const [availableCommunes, setAvailableCommunes] = React.useState<string[]>([]);
@@ -64,7 +78,6 @@ export default function EmployeeFormPage() {
         path: 'health-entities',
     });
 
-    // Fetch economic indicators to get the latest minimum wage for gratification cap
     const { data: economicIndicators, loading: indicatorsLoading } = useCollection<EconomicIndicator>({
         path: 'economic-indicators',
     });
@@ -73,7 +86,6 @@ export default function EmployeeFormPage() {
         if (!economicIndicators || economicIndicators.length === 0) {
             return 0;
         }
-        // Get the most recent indicator with a minimum wage
         const latestIndicator = economicIndicators
             .filter(i => i.minWage)
             .sort((a, b) => b.id.localeCompare(a.id))[0];
@@ -107,7 +119,6 @@ export default function EmployeeFormPage() {
             
             if (field === 'region' && typeof value === 'string') {
                 setAvailableCommunes(communesByRegion[value] || []);
-                // Reset commune if region changes
                 updatedEmployee.commune = ''; 
             }
 
@@ -115,14 +126,13 @@ export default function EmployeeFormPage() {
         }
     };
     
-    // Auto-calculate gratification when base salary or type changes
     React.useEffect(() => {
         if (employee?.gratificationType === 'Automatico' && employee.baseSalary && gratificationCapMonthly > 0) {
             const calculatedGratification = employee.baseSalary * 0.25;
             const finalGratification = Math.min(calculatedGratification, gratificationCapMonthly);
             setEmployee(prev => prev ? {...prev, gratification: Math.round(finalGratification)} : null);
         } else if (employee?.gratificationType === 'Manual') {
-            // Optionally clear or keep the manual value. Keeping it is often desired.
+            // Manual logic
         } else if (employee?.gratificationType === 'Automatico' && !employee.baseSalary) {
              setEmployee(prev => prev ? {...prev, gratification: 0} : null);
         }
@@ -160,6 +170,16 @@ export default function EmployeeFormPage() {
                     }));
                 });
         }
+    };
+    
+    const getDocumentName = (slug: string) => {
+        const template = DOCUMENT_TEMPLATES.find(t => t.slug === slug);
+        return template ? template.name : 'Documento Desconocido';
+    };
+
+    const formatDate = (timestamp: Timestamp) => {
+        if (!timestamp) return 'N/A';
+        return new Date(timestamp.seconds * 1000).toLocaleDateString('es-CL');
     };
 
     if (employeeLoading || indicatorsLoading) {
@@ -252,20 +272,7 @@ export default function EmployeeFormPage() {
                 <section className="space-y-4">
                     <h3 className="text-lg font-medium border-b pb-2">Datos Contractuales y de Remuneración</h3>
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
-                        <div className="space-y-2">
-                            <Label>Tipo de Contrato</Label>
-                             <Select value={employee.contractType} onValueChange={(v) => handleFieldChange('contractType', v)}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent>
-                                <SelectItem value="Indefinido">Indefinido</SelectItem>
-                                <SelectItem value="Plazo Fijo">Plazo Fijo</SelectItem>
-                                <SelectItem value="Por Obra o Faena">Por Obra o Faena</SelectItem>
-                                <SelectItem value="Part-Time">Part-Time</SelectItem>
-                                <SelectItem value="Honorarios">Honorarios</SelectItem>
-                             </SelectContent></Select>
-                        </div>
-                        <div className="space-y-2"><Label>Cargo</Label><Input value={employee.position || ''} onChange={(e) => handleFieldChange('position', e.target.value)} /></div>
-                        <div className="space-y-2"><Label>Fecha Inicio Contrato</Label><Input type="date" value={employee.contractStartDate || ''} onChange={(e) => handleFieldChange('contractStartDate', e.target.value)} /></div>
-                        <div className="space-y-2"><Label>Fecha Término Contrato</Label><Input type="date" value={employee.contractEndDate || ''} onChange={(e) => handleFieldChange('contractEndDate', e.target.value)} /></div>
-                        <div className="space-y-2"><Label>Sueldo Base</Label><Input type="number" value={employee.baseSalary ?? ''} onChange={(e) => handleFieldChange('baseSalary', parseFloat(e.target.value) || 0)} /></div>
+                         <div className="space-y-2"><Label>Sueldo Base</Label><Input type="number" value={employee.baseSalary ?? ''} onChange={(e) => handleFieldChange('baseSalary', parseFloat(e.target.value) || 0)} /></div>
                         
                         <div className="space-y-2">
                             <Label>Gratificación Legal</Label>
@@ -360,6 +367,48 @@ export default function EmployeeFormPage() {
                     </div>
                 </section>
 
+                {/* Legal Documents */}
+                {!isNew && (
+                <section className="space-y-4">
+                    <h3 className="text-lg font-medium border-b pb-2">Documentos Legales</h3>
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead><FileText className="h-4 w-4 inline-block mr-2"/>Tipo de Documento</TableHead>
+                                <TableHead>Fecha de Guardado</TableHead>
+                                <TableHead className="text-right">Acciones</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {documentsLoading && (
+                                <TableRow>
+                                    <TableCell colSpan={3} className="text-center">Cargando documentos...</TableCell>
+                                </TableRow>
+                            )}
+                            {!documentsLoading && legalDocuments && legalDocuments.length === 0 && (
+                                <TableRow>
+                                    <TableCell colSpan={3} className="text-center">No se encontraron documentos para este empleado.</TableCell>
+                                </TableRow>
+                            )}
+                            {legalDocuments?.map((doc) => (
+                                <TableRow key={doc.id}>
+                                    <TableCell className="font-medium">{getDocumentName(doc.templateSlug)}</TableCell>
+                                    <TableCell>{doc.lastSaved ? formatDate(doc.lastSaved as Timestamp) : 'N/A'}</TableCell>
+                                    <TableCell className="text-right">
+                                        <Button variant="outline" size="sm" asChild>
+                                            <Link href={`/dashboard/documents/${doc.templateSlug}?docId=${doc.id}`}>
+                                                <Eye className="h-4 w-4 mr-2"/>
+                                                Ver/Editar
+                                            </Link>
+                                        </Button>
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </section>
+                )}
+
                  {/* Payment Data */}
                 <section className="space-y-4">
                     <h3 className="text-lg font-medium border-b pb-2">Datos de Pago</h3>
@@ -408,6 +457,4 @@ export default function EmployeeFormPage() {
             </CardFooter>
         </Card>
     );
-
-    
 }
