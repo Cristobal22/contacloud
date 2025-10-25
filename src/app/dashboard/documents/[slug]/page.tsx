@@ -18,7 +18,7 @@ import React, { useState, useMemo, useEffect, useContext, useRef } from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
-import { Printer, Edit, X, Save, Loader2 } from 'lucide-react';
+import { Printer, Edit, X, Save, Loader2, FileDown } from 'lucide-react';
 import { useCollection, useFirestore, useDoc } from '@/firebase';
 import { collection, addDoc, doc, setDoc, serverTimestamp, DocumentReference } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
@@ -27,6 +27,7 @@ import type { Employee, LegalDocument } from '@/lib/types';
 import { SelectedCompanyContext } from '@/app/dashboard/layout';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Terminal } from "lucide-react"
+import { saveAs } from 'file-saver';
 
 interface FormData {
   [key: string]: string;
@@ -35,10 +36,21 @@ interface FormData {
 const formSections = {
   'carta-renuncia-voluntaria': [
     {
-      title: 'Detalles de la Renuncia',
+      title: 'I. Fecha y lugar',
       fields: [
-        { id: 'fecha_renuncia', label: 'Fecha de Renuncia' },
-        { id: 'fecha_ultimo_dia', label: 'Último Día de Trabajo' },
+        { id: 'ciudad_firma', label: 'Ciudad de Firma' },
+        { id: 'dia_firma', label: 'Día de Firma' },
+        { id: 'mes_firma', label: 'Mes de Firma' },
+        { id: 'ano_firma', label: 'Año de Firma' },
+      ],
+    },
+    {
+      title: 'II. Detalles de la Renuncia',
+      fields: [
+        { id: 'cargo', label: 'Cargo actual del trabajador' },
+        { id: 'fecha_ultimo_dia_dia', label: 'Día del último día de trabajo' },
+        { id: 'fecha_ultimo_dia_mes', label: 'Mes del último día de trabajo' },
+        { id: 'fecha_ultimo_dia_ano', label: 'Año del último día de trabajo' },
       ],
     },
   ],
@@ -152,6 +164,7 @@ export default function DocumentEditorPage() {
   const [editedContent, setEditedContent] = useState('');
   const [savedDocId, setSavedDocId] = useState<string | null>(docId);
   const [isSaving, setIsSaving] = useState(false);
+  const [isDownloadingDocx, setIsDownloadingDocx] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
 
   const templateDetails = DOCUMENT_TEMPLATES.find(t => t.slug === slug);
@@ -188,7 +201,6 @@ export default function DocumentEditorPage() {
 
   const [formData, setFormData] = useState<FormData>(initialFormData);
   
-  // EFFECT 1: Handles loading an existing document (EDIT mode)
   useEffect(() => {
     if (!loadedDocument) return;
     setFormData(loadedDocument.formData);
@@ -202,17 +214,15 @@ export default function DocumentEditorPage() {
     }
   }, [loadedDocument, docId]);
 
-  // EFFECT 2: Initializes form for CREATE mode
   useEffect(() => {
-    if (docId) return; // Only run in create mode
+    if (docId) return;
     setFormData(initialFormData);
     setEditedContent('');
     setIsEditing(false);
     setSelectedEmployeeId('');
     setSavedDocId(null);
-  }, [docId, initialFormData, slug]); // slug dependency to re-init when template changes
+  }, [docId, initialFormData, slug]);
 
-  // EFFECT 3: Populates company data in CREATE mode
   useEffect(() => {
     if (docId || !company) return;
 
@@ -235,7 +245,6 @@ export default function DocumentEditorPage() {
 
   }, [company, docId, slug]);
 
-  // EFFECT 4: Populates or clears employee data in CREATE mode
   useEffect(() => {
     if (docId || !employees) return;
 
@@ -262,7 +271,6 @@ export default function DocumentEditorPage() {
         setFormData(prev => ({ ...prev, ...employeeData }));
       }
     } else {
-      // If no employee is selected, clear only the employee-related fields
       const fieldsToClear: Partial<FormData> = {};
       for (const key of employeeFieldKeys) {
         fieldsToClear[key] = '';
@@ -296,6 +304,33 @@ export default function DocumentEditorPage() {
   };
 
   const handlePrint = () => window.print();
+
+  const handleDownloadDocx = async () => {
+    setIsDownloadingDocx(true);
+    const htmlString = isEditing ? editedContent : processedDocument;
+    try {
+      const response = await fetch('/api/generate-docx', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ htmlString }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Error: ${response.statusText}`);
+      }
+
+      const blob = await response.blob();
+      saveAs(blob, `${templateDetails?.name || 'document'}.docx`);
+      toast({ title: 'Descarga Iniciada', description: 'El documento .docx se está descargando.' });
+    } catch (error) {
+      console.error("Error generating docx: ", error);
+      toast({ title: 'Error de Descarga', description: 'No se pudo generar el archivo .docx.', variant: 'destructive' });
+    } finally {
+      setIsDownloadingDocx(false);
+    }
+  };
 
   const handleEditClick = () => {
     setEditedContent(processedDocument);
@@ -388,6 +423,10 @@ export default function DocumentEditorPage() {
                 <Button onClick={handleSave} variant="outline" size="sm" disabled={!company || isSaving}>
                     {isSaving ? <Loader2 className="h-4 w-4 mr-2 animate-spin"/> : <Save className="h-4 w-4 mr-2" />}
                     {savedDocId || docId ? 'Actualizar' : 'Guardar'}
+                </Button>
+                 <Button onClick={handleDownloadDocx} variant="outline" size="sm" disabled={!company || isDownloadingDocx}>
+                    {isDownloadingDocx ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <FileDown className="h-4 w-4 mr-2" />}
+                    Descargar .docx
                 </Button>
                 <Button onClick={handlePrint} variant="default" size="sm" disabled={!company}>
                     <Printer className="h-4 w-4 mr-2" />
