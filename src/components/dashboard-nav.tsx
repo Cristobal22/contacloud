@@ -172,6 +172,7 @@ const configurationSections = [
         links: [
             { href: '/dashboard/companies', label: 'Empresas', icon: Building },
             { href: '/dashboard/configuration/monthly-parameters', label: 'Parámetros Mensuales', icon: Book },
+            { href: '/dashboard/billing', label: 'Facturación', icon: DollarSign },
         ]
     }
 ];
@@ -314,7 +315,7 @@ export function DashboardNav({ role, planId }: DashboardNavProps) {
         <Collapsible open={(openSections[parentTitle] ?? defaultOpen) && sidebarState === 'expanded'} onOpenChange={() => toggleSection(parentTitle)} disabled={sidebarState === 'collapsed'}>
             <Tooltip>
                 <TooltipTrigger asChild>
-                    <CollapsibleTrigger className={cn("flex w-full items-center justify-between rounded-lg px-3 py-2 text-muted-foreground hover:text-primary", sidebarState === 'collapsed' && "justify-center")}>
+                    <CollapsibleTrigger className={cn("flex w-full items-center justify-between rounded-lg px-3 py-2 text-muted-foreground hover:text-primary", sidebarState === 'collapsed' && 'justify-center')}>
                         <div className="flex items-center gap-3">
                             <ParentIcon className="h-4 w-4" />
                             <span className={cn(sidebarState === 'collapsed' && "hidden")}>{parentTitle}</span>
@@ -364,10 +365,10 @@ export function DashboardNav({ role, planId }: DashboardNavProps) {
 
   return (
     <div className="flex h-full flex-col justify-between">
-      <nav className="grid items-start gap-2 px-2 text-sm font-medium">
+      <nav className="grid items-start gap-2 px-2 text-xs font-medium">
         {navContent}
       </nav>
-      <nav className="mt-auto grid items-start gap-1 px-2 text-sm font-medium">
+      <nav className="mt-auto grid items-start gap-1 px-2 text-xs font-medium">
         {bottomNavItems.map(renderLink)}
       </nav>
     </div>

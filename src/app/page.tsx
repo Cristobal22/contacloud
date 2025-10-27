@@ -1,3 +1,4 @@
+'use client';
 
 import Image from 'next/image';
 import Link from 'next/link';
@@ -33,6 +34,12 @@ export default function Home() {
       image: featureData,
     },
   ];
+
+  const handlePlanSelection = (planName: string) => {
+    const message = `Estoy interesado en el plan ${planName} de BaseImponible.cl`;
+    const whatsappUrl = `https://wa.me/56920571475?text=${encodeURIComponent(message)}`;
+    window.open(whatsappUrl, '_blank');
+  };
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
@@ -139,8 +146,12 @@ export default function Home() {
                             </ul>
                             </CardContent>
                             <CardFooter>
-                                <Button className="w-full" asChild variant={plan.id === 'Team' ? "default" : "outline"}>
-                                    <Link href="/login">Seleccionar Plan</Link>
+                                <Button 
+                                    className="w-full" 
+                                    variant={plan.id === 'Team' ? "default" : "outline"}
+                                    onClick={() => handlePlanSelection(plan.name)}
+                                >
+                                    Seleccionar Plan
                                 </Button>
                             </CardFooter>
                         </Card>
