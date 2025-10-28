@@ -160,6 +160,7 @@ export type Purchase = {
   exemptAmount: number;
   netAmount: number;
   taxAmount: number;
+  otherTaxesAmount?: number;
   total: number;
   status: 'Pendiente' | 'Contabilizado' | 'Pagado';
   assignedAccount?: string; // Cuenta de gasto/activo asignada

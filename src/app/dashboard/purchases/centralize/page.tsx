@@ -81,10 +81,11 @@ export default function CentralizePurchasesPage() {
         purchasesToProcess,
         isValid,
         totalIvaCredit,
+        totalOtherTaxes,
         totalPayable
     } = React.useMemo(() => {
         if (!allPurchases || !accounts || !selectedCompany) {
-            return { summary: [], totalDebit: 0, totalCredit: 0, unassignedDocs: [], closedPeriodDocs: [], purchasesToProcess: [], isValid: false, totalIvaCredit: 0, totalPayable: 0 };
+            return { summary: [], totalDebit: 0, totalCredit: 0, unassignedDocs: [], closedPeriodDocs: [], purchasesToProcess: [], isValid: false, totalIvaCredit: 0, totalOtherTaxes: 0, totalPayable: 0 };
         }
         
         const lastClosed = selectedCompany.lastClosedDate ? parseISO(selectedCompany.lastClosedDate) : null;
@@ -105,15 +106,16 @@ export default function CentralizePurchasesPage() {
 
         const netSummary = new Map<string, { name: string, total: number, count: number }>();
         let currentTotalIvaCredit = 0;
+        let currentTotalOtherTaxes = 0;
         let currentTotalPayable = 0;
 
         processableDocs.forEach(p => {
             if (!p.assignedAccount) return;
 
-            // Handle credit notes (type 61) by inverting amounts
             const sign = p.documentType.includes('61') ? -1 : 1;
             const netAmount = (p.netAmount + (p.exemptAmount || 0)) * sign;
             const taxAmount = p.taxAmount * sign;
+            const otherTaxesAmount = (p.otherTaxesAmount || 0) * sign;
             const totalAmount = p.total * sign;
 
             const current = netSummary.get(p.assignedAccount) || { name: accounts.find(a => a.code === p.assignedAccount)?.name || 'N/A', total: 0, count: 0 };
@@ -122,6 +124,7 @@ export default function CentralizePurchasesPage() {
             netSummary.set(p.assignedAccount, current);
             
             currentTotalIvaCredit += taxAmount;
+            currentTotalOtherTaxes += otherTaxesAmount;
             currentTotalPayable += totalAmount;
         });
 
@@ -132,13 +135,14 @@ export default function CentralizePurchasesPage() {
             docCount: data.count,
         }));
         
-        const debit = summaryRows.reduce((sum, row) => sum + row.totalNet, 0) + currentTotalIvaCredit;
+        const debit = summaryRows.reduce((sum, row) => sum + row.totalNet, 0) + currentTotalIvaCredit + currentTotalOtherTaxes;
         
         const isBalanced = Math.round(debit) === Math.round(currentTotalPayable);
         
         return {
             summary: summaryRows,
             totalIvaCredit: currentTotalIvaCredit,
+            totalOtherTaxes: currentTotalOtherTaxes,
             totalPayable: currentTotalPayable,
             totalDebit: debit,
             totalCredit: currentTotalPayable,
@@ -252,6 +256,23 @@ export default function CentralizePurchasesPage() {
                     description: 'Ajuste IVA Crédito Fiscal',
                     debit: 0,
                     credit: -totalIvaCredit,
+                });
+            }
+        }
+        if (selectedCompany.purchasesOtherTaxesAccount && totalOtherTaxes !== 0) {
+             if (totalOtherTaxes > 0) {
+                 entries.push({
+                    account: selectedCompany.purchasesOtherTaxesAccount,
+                    description: 'Otros Impuestos del período',
+                    debit: totalOtherTaxes,
+                    credit: 0,
+                });
+            } else if (totalOtherTaxes < 0){
+                 entries.push({
+                    account: selectedCompany.purchasesOtherTaxesAccount,
+                    description: 'Ajuste Otros Impuestos',
+                    debit: 0,
+                    credit: -totalOtherTaxes,
                 });
             }
         }
@@ -399,6 +420,12 @@ export default function CentralizePurchasesPage() {
                                                 <TableCell className="text-right">${totalIvaCredit.toLocaleString('es-CL')}</TableCell>
                                             </TableRow>
                                         )}
+                                        {totalOtherTaxes > 0 && (
+                                            <TableRow>
+                                                <TableCell>{selectedCompany?.purchasesOtherTaxesAccount} - Otros Impuestos</TableCell>
+                                                <TableCell className="text-right">${totalOtherTaxes.toLocaleString('es-CL')}</TableCell>
+                                            </TableRow>
+                                        )}
                                         {totalPayable < 0 && (
                                             <TableRow>
                                                 <TableCell>{selectedCompany?.purchasesInvoicesPayableAccount} - Disminución Proveedores</TableCell>
@@ -435,6 +462,12 @@ export default function CentralizePurchasesPage() {
                                             <TableRow>
                                                 <TableCell>{selectedCompany?.purchasesVatAccount} - Ajuste IVA Crédito</TableCell>
                                                 <TableCell className="text-right">${(-totalIvaCredit).toLocaleString('es-CL')}</TableCell>
+                                            </TableRow>
+                                        )}
+                                        {totalOtherTaxes < 0 && (
+                                            <TableRow>
+                                                <TableCell>{selectedCompany?.purchasesOtherTaxesAccount} - Ajuste Otros Impuestos</TableCell>
+                                                <TableCell className="text-right">${(-totalOtherTaxes).toLocaleString('es-CL')}</TableCell>
                                             </TableRow>
                                         )}
                                         {totalPayable > 0 && (
@@ -504,8 +537,7 @@ export default function CentralizePurchasesPage() {
                             {isProcessing ? 'Guardando...' : 'Guardar y Asignar'}
                         </Button>
                     </DialogFooter>
-                </DialogContent>
-            </Dialog>
+                </Dialog>
         </div>
     )
 }
