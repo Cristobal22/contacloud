@@ -22,7 +22,7 @@ import { Upload, ArrowRight, Trash2 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { useCollection, useFirestore } from "@/firebase"
 import { collection, addDoc, writeBatch, query, where, getDocs, doc } from "firebase/firestore"
-import type { Sale } from "@/lib/types";
+import type { Sale, OtherTax } from "@/lib/types";
 import { errorEmitter } from '@/firebase/error-emitter'
 import { FirestorePermissionError } from '@/firebase/errors'
 import { SelectedCompanyContext } from "../layout";
@@ -39,6 +39,25 @@ import {
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { parseISO } from "date-fns";
+
+const taxCodeMap: { [key: string]: string } = {
+    "15": "Imp. Específico Diesel",
+    "16": "Imp. Específico Gasolinas",
+    "23": "Imp. Adic. Pirotecnia, Armas y Similares",
+    "24": "Imp. Adic. Alfombras y Tapices Finos",
+    "25": "Imp. Adic. Pieles Finas",
+    "26": "Imp. Adic. Casas Rodantes",
+    "27": "Imp. Adic. Licores, Piscos y Vinos", // ILA
+    "28": "Imp. Adic. Bebidas Analcohólicas y Minerales",
+    "29": "Imp. Adic. Vehículos de Lujo",
+    "32": "Margen de Comercialización",
+    "49": "Tabacos Elaborados",
+    "50": "Cigarrillos",
+};
+
+const getTaxNameFromCode = (code: string) => {
+    return taxCodeMap[code] || `Otro Imp. Cód ${code}`;
+}
 
 export default function SalesPage() {
     const { selectedCompany } = React.useContext(SelectedCompanyContext) || {};
@@ -66,11 +85,36 @@ export default function SalesPage() {
             const reader = new FileReader();
             reader.onload = async (e) => {
                 const text = e.target?.result as string;
-                const lines = text.split('\n').slice(1).filter(line => line.trim() !== '');
-                if (lines.length === 0) {
-                    toast({ variant: 'destructive', title: 'Error de archivo', description: 'El archivo CSV está vacío o tiene un formato incorrecto.' });
+                const lines = text.split('\n').filter(line => line.trim() !== '');
+                if (lines.length < 2) {
+                    toast({ variant: 'destructive', title: 'Error de archivo', description: 'El archivo CSV está vacío o no contiene un encabezado.' });
                     return;
                 }
+
+                const headerLine = lines[0].replace(/"/g, '');
+                const headers = headerLine.split(';').map(h => h.trim());
+                const dataLines = lines.slice(1);
+
+                const colIdx = {
+                    docType: headers.indexOf('Tipo Doc'),
+                    docNum: headers.indexOf('Folio'),
+                    rut: headers.indexOf('RUT Cliente'),
+                    name: headers.indexOf('Razón Social Cliente'),
+                    date: headers.indexOf('Fecha Docto'),
+                    exempt: headers.indexOf('Monto Exento'),
+                    net: headers.indexOf('Monto Neto'),
+                    vat: headers.indexOf('Monto IVA'),
+                    total: headers.indexOf('Monto Total'),
+                };
+
+                const otherTaxesHeaders: { codeIndex: number, valueIndex: number }[] = [];
+                headers.forEach((h, i) => {
+                    if (h.startsWith('Cód. Otro Imp.')) {
+                        if (headers[i + 2] && headers[i + 2].startsWith('Vlr. Otro Imp.')) {
+                            otherTaxesHeaders.push({ codeIndex: i, valueIndex: i + 2 });
+                        }
+                    }
+                });
 
                 const batch = writeBatch(firestore);
                 const collectionRef = collection(firestore, `companies/${companyId}/sales`);
@@ -79,30 +123,46 @@ export default function SalesPage() {
                 const workingPeriodMonth = selectedCompany.periodStartDate ? parseISO(selectedCompany.periodStartDate).getMonth() : -1;
                 const workingPeriodYear = selectedCompany.periodStartDate ? parseISO(selectedCompany.periodStartDate).getFullYear() : -1;
 
-                lines.forEach(line => {
+                dataLines.forEach(line => {
                     const columns = line.split(';');
-                    if (columns.length < 14) return;
 
                     const parseDate = (dateStr: string) => {
                         const [day, month, year] = dateStr.split('-');
                         if (!day || !month || !year) return new Date().toISOString().substring(0, 10);
-                        return new Date(`${year}-${month}-${day}`).toISOString().substring(0,10);
+                        return new Date(`${year}-${month}-${day}`).toISOString().substring(0, 10);
                     };
-                    
-                    const documentDateStr = parseDate(columns[6]?.trim() || '');
+
+                    const documentDateStr = parseDate(columns[colIdx.date]?.trim() || '');
                     const documentDate = parseISO(documentDateStr);
 
                     if (workingPeriodMonth !== -1 && (documentDate.getMonth() !== workingPeriodMonth || documentDate.getFullYear() !== workingPeriodYear)) {
                         hasDateMismatch = true;
                     }
 
+                    const otherTaxes: OtherTax[] = [];
+                    otherTaxesHeaders.forEach(taxHeader => {
+                        const taxCode = columns[taxHeader.codeIndex]?.trim();
+                        const taxAmount = parseFloat(columns[taxHeader.valueIndex]) || 0;
+                        if (taxCode && taxAmount > 0) {
+                            otherTaxes.push({
+                                code: taxCode,
+                                name: getTaxNameFromCode(taxCode),
+                                amount: taxAmount,
+                            });
+                        }
+                    });
+
                     const newSale: Omit<Sale, 'id'> = {
+                        documentType: columns[colIdx.docType]?.trim() || '',
+                        documentNumber: columns[colIdx.docNum]?.trim() || '',
+                        customerRut: columns[colIdx.rut]?.trim() || '',
+                        customer: columns[colIdx.name]?.trim() || '',
                         date: documentDateStr,
-                        documentNumber: columns[5]?.trim() || '',
-                        customer: columns[4]?.trim() || '',
-                        exemptAmount: parseFloat(columns[9]) || 0,
-                        netAmount: parseFloat(columns[10]) || 0,
-                        total: parseFloat(columns[13]) || 0,
+                        exemptAmount: parseFloat(columns[colIdx.exempt]) || 0,
+                        netAmount: parseFloat(columns[colIdx.net]) || 0,
+                        taxAmount: parseFloat(columns[colIdx.vat]) || 0,
+                        otherTaxes: otherTaxes,
+                        total: parseFloat(columns[colIdx.total]) || 0,
                         status: 'Pendiente',
                         companyId: companyId
                     };
@@ -115,10 +175,10 @@ export default function SalesPage() {
                 });
 
                 if (count === 0) {
-                     toast({ variant: 'destructive', title: 'Error de formato', description: 'No se encontraron documentos válidos en el archivo.' });
+                    toast({ variant: 'destructive', title: 'Error de formato', description: 'No se encontraron documentos válidos en el archivo.' });
                     return;
                 }
-                
+
                 try {
                     await batch.commit();
                     toast({ title: 'Importación Exitosa', description: `Se importaron ${count} documentos de venta.` });
@@ -217,7 +277,7 @@ export default function SalesPage() {
                                     >
                                     Ir a Centralizar <ArrowRight className="h-4 w-4" />
                                     </Button>
-                                </>
+                                <>
                             )}
                         </div>
                     </div>
@@ -227,32 +287,36 @@ export default function SalesPage() {
                         <TableHeader>
                             <TableRow>
                                 <TableHead>Fecha</TableHead>
-                                <TableHead>Nº Documento</TableHead>
+                                <TableHead>Documento</TableHead>
                                 <TableHead>Cliente</TableHead>
                                 <TableHead className="text-right">Exento</TableHead>
                                 <TableHead className="text-right">Neto</TableHead>
+                                <TableHead className="text-right">IVA</TableHead>
+                                <TableHead className="text-right">Otros Imp.</TableHead>
                                 <TableHead className="text-right">Total</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
                             {loading && (
                                 <TableRow>
-                                    <TableCell colSpan={6} className="text-center">Cargando...</TableCell>
+                                    <TableCell colSpan={8} className="text-center">Cargando...</TableCell>
                                 </TableRow>
                             )}
                             {!loading && pendingSales.map((sale) => (
                                 <TableRow key={sale.id}>
                                     <TableCell>{new Date(sale.date).toLocaleDateString('es-CL', { timeZone: 'UTC' })}</TableCell>
-                                    <TableCell className="font-medium">{sale.documentNumber}</TableCell>
+                                    <TableCell className="font-medium">{sale.documentType} {sale.documentNumber}</TableCell>
                                     <TableCell>{sale.customer}</TableCell>
                                     <TableCell className="text-right">${Math.round(sale.exemptAmount).toLocaleString('es-CL')}</TableCell>
                                     <TableCell className="text-right">${Math.round(sale.netAmount).toLocaleString('es-CL')}</TableCell>
+                                    <TableCell className="text-right">${Math.round(sale.taxAmount).toLocaleString('es-CL')}</TableCell>
+                                    <TableCell className="text-right">${Math.round(sale.otherTaxes?.reduce((sum, tax) => sum + tax.amount, 0) || 0).toLocaleString('es-CL')}</TableCell>
                                     <TableCell className="text-right font-bold">${Math.round(sale.total).toLocaleString('es-CL')}</TableCell>
                                 </TableRow>
                             ))}
                             {!loading && pendingSales.length === 0 && (
                                 <TableRow>
-                                    <TableCell colSpan={6} className="text-center h-24">
+                                    <TableCell colSpan={8} className="text-center h-24">
                                         {!companyId ? "Selecciona una empresa para empezar." : "No hay documentos de venta pendientes. ¡Importa un archivo!"}
                                     </TableCell>
                                 </TableRow>

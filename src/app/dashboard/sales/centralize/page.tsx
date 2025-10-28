@@ -12,7 +12,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { useCollection, useFirestore } from "@/firebase"
 import { collection, addDoc, writeBatch, doc, Timestamp, query, where } from "firebase/firestore"
-import type { Sale, VoucherEntry } from "@/lib/types";
+import type { Sale, VoucherEntry, OtherTax } from "@/lib/types";
 import { errorEmitter } from '@/firebase/error-emitter'
 import { FirestorePermissionError } from '@/firebase/errors'
 import { SelectedCompanyContext } from "../../layout";
@@ -24,6 +24,12 @@ import { AlertCircle } from "lucide-react";
 import Link from "next/link";
 import { format, lastDayOfMonth, parseISO, isAfter, isEqual, isBefore } from "date-fns";
 import { es } from "date-fns/locale";
+
+type OtherTaxesSummary = {
+    code: string;
+    name: string;
+    total: number;
+}
 
 export default function CentralizeSalesPage() {
     const { selectedCompany } = React.useContext(SelectedCompanyContext) || {};
@@ -48,15 +54,17 @@ export default function CentralizeSalesPage() {
     const {
         totalNet,
         totalIvaDebit,
-        totalOtherTaxes,
+        otherTaxesSummary,
         totalReceivable,
+        totalDebit,
+        totalCredit,
         closedPeriodDocs,
         salesToProcess,
         isValid,
         isBalanced
     } = React.useMemo(() => {
         if (!allSales || !selectedCompany) {
-            return { totalNet: 0, totalIvaDebit: 0, totalOtherTaxes: 0, totalReceivable: 0, closedPeriodDocs: [], salesToProcess: [], isValid: false, isBalanced: false };
+            return { totalNet: 0, totalIvaDebit: 0, otherTaxesSummary: [], totalReceivable: 0, totalDebit: 0, totalCredit: 0, closedPeriodDocs: [], salesToProcess: [], isValid: false, isBalanced: false };
         }
         
         const lastClosed = selectedCompany.lastClosedDate ? parseISO(selectedCompany.lastClosedDate) : null;
@@ -73,34 +81,57 @@ export default function CentralizeSalesPage() {
             return isBefore(docDate, lastClosed) || isEqual(docDate, lastClosed);
         });
         
-        const totals = processableDocs.reduce((acc, doc) => {
-            const sign = doc.documentType.includes('61') ? -1 : 1; // 61=Nota de Crédito
-            acc.net += (doc.netAmount || 0) * sign;
-            acc.exempt += (doc.exemptAmount || 0) * sign;
-            acc.iva += (doc.taxAmount || 0) * sign;
-            acc.otherTaxes += (doc.otherTaxesAmount || 0) * sign;
-            acc.total += doc.total * sign;
-            return acc;
-        }, { net: 0, exempt: 0, iva: 0, otherTaxes: 0, total: 0 });
+        const otherTaxesGrouped = new Map<string, { name: string, total: number }>();
+        let currentTotalNet = 0;
+        let currentTotalExempt = 0;
+        let currentTotalIva = 0;
+        let currentTotalReceivable = 0;
 
-        const totalNetIncome = totals.net + totals.exempt;
-        const currentTotalIvaDebit = totals.iva;
-        const currentTotalOtherTaxes = totals.otherTaxes;
-        const currentTotalReceivable = totals.total;
+        processableDocs.forEach(doc => {
+            const sign = doc.documentType.includes('61') ? -1 : 1; // 61 = Nota de Crédito
+            currentTotalNet += (doc.netAmount || 0) * sign;
+            currentTotalExempt += (doc.exemptAmount || 0) * sign;
+            currentTotalIva += (doc.taxAmount || 0) * sign;
+            currentTotalReceivable += doc.total * sign;
 
-        const balanced = Math.round(currentTotalReceivable) === Math.round(totalNetIncome + currentTotalIvaDebit + currentTotalOtherTaxes);
+            if (doc.otherTaxes) {
+                doc.otherTaxes.forEach(tax => {
+                    const taxTotal = (tax.amount || 0) * sign;
+                    const currentTax = otherTaxesGrouped.get(tax.code) || { name: tax.name, total: 0 };
+                    currentTax.total += taxTotal;
+                    otherTaxesGrouped.set(tax.code, currentTax);
+                });
+            }
+        });
 
-        const valid = processableDocs.length > 0 && 
-                      !!selectedCompany.salesInvoicesReceivableAccount && 
+        const otSummary: OtherTaxesSummary[] = Array.from(otherTaxesGrouped.entries()).map(([code, data]) => ({
+            code: code,
+            name: data.name,
+            total: data.total,
+        }));
+
+        const totalNetIncome = currentTotalNet + currentTotalExempt;
+        const totalOtherTaxes = otSummary.reduce((sum, tax) => sum + tax.total, 0);
+
+        const debit = currentTotalReceivable;
+        const credit = totalNetIncome + currentTotalIva + totalOtherTaxes;
+
+        const balanced = Math.round(debit) === Math.round(credit);
+        const hasOtherTaxes = otSummary.some(t => t.total !== 0);
+
+        const valid = processableDocs.length > 0 &&
+                      !!selectedCompany.salesInvoicesReceivableAccount &&
                       !!selectedCompany.salesVatAccount &&
-                      (currentTotalOtherTaxes === 0 || !!selectedCompany.salesOtherTaxesAccount) &&
+                      (!hasOtherTaxes || !!selectedCompany.salesOtherTaxesAccount) &&
                       balanced;
 
         return {
             totalNet: totalNetIncome,
-            totalIvaDebit: currentTotalIvaDebit,
-            totalOtherTaxes: currentTotalOtherTaxes,
+            totalIvaDebit: currentTotalIva,
+            otherTaxesSummary: otSummary,
             totalReceivable: currentTotalReceivable,
+            totalDebit: debit,
+            totalCredit: credit,
             closedPeriodDocs: rejectedDocs,
             salesToProcess: processableDocs,
             isValid: valid,
@@ -142,21 +173,25 @@ export default function CentralizeSalesPage() {
             });
         }
 
-        if (totalIvaDebit !== 0) {
+        if (totalIvaDebit !== 0 && selectedCompany.salesVatAccount) {
             entries.push({
-                account: selectedCompany.salesVatAccount!,
+                account: selectedCompany.salesVatAccount,
                 description: 'IVA Débito Fiscal del período',
                 debit: totalIvaDebit < 0 ? -totalIvaDebit : 0,
                 credit: totalIvaDebit > 0 ? totalIvaDebit : 0,
             });
         }
 
-        if (totalOtherTaxes !== 0 && selectedCompany.salesOtherTaxesAccount) {
-            entries.push({
-                account: selectedCompany.salesOtherTaxesAccount,
-                description: 'Otros Impuestos a Pagar',
-                debit: totalOtherTaxes < 0 ? -totalOtherTaxes : 0,
-                credit: totalOtherTaxes > 0 ? totalOtherTaxes : 0,
+        if (otherTaxesSummary.length > 0 && selectedCompany.salesOtherTaxesAccount) {
+            otherTaxesSummary.forEach(tax => {
+                 if (tax.total !== 0) {
+                    entries.push({
+                        account: selectedCompany.salesOtherTaxesAccount!,
+                        description: tax.name,
+                        debit: tax.total < 0 ? -tax.total : 0,
+                        credit: tax.total > 0 ? tax.total : 0,
+                    });
+                }
             });
         }
         
@@ -221,7 +256,7 @@ export default function CentralizeSalesPage() {
                         <CardTitle>Resumen del Asiento a Generar</CardTitle>
                     </CardHeader>
                     <CardContent>
-                         {(!selectedCompany?.salesInvoicesReceivableAccount || !selectedCompany?.salesVatAccount || (totalOtherTaxes > 0 && !selectedCompany?.salesOtherTaxesAccount)) && (
+                         {(!isValid && isBalanced) && (
                              <Alert variant="destructive" className="mb-4">
                                 <AlertCircle className="h-4 w-4" />
                                 <AlertTitle>Falta Configuración de Cuentas</AlertTitle>
@@ -253,15 +288,35 @@ export default function CentralizeSalesPage() {
                                 <Table>
                                     <TableHeader><TableRow><TableHead>Cuenta Contable</TableHead><TableHead className="text-right">Monto</TableHead></TableRow></TableHeader>
                                     <TableBody>
-                                        <TableRow>
-                                            <TableCell>{selectedCompany?.salesInvoicesReceivableAccount} - Clientes</TableCell>
-                                            <TableCell className="text-right">${Math.round(totalReceivable).toLocaleString('es-CL')}</TableCell>
-                                        </TableRow>
+                                        {totalReceivable > 0 && (
+                                            <TableRow>
+                                                <TableCell>{selectedCompany?.salesInvoicesReceivableAccount} - Clientes</TableCell>
+                                                <TableCell className="text-right">${Math.round(totalReceivable).toLocaleString('es-CL')}</TableCell>
+                                            </TableRow>
+                                        )}
+                                        {totalNet < 0 && (
+                                             <TableRow>
+                                                <TableCell>{selectedCompany?.profitAccount || '4010110'} - Ajuste Ingreso por Ventas</TableCell>
+                                                <TableCell className="text-right">${Math.round(-totalNet).toLocaleString('es-CL')}</TableCell>
+                                            </TableRow>
+                                        )}
+                                        {totalIvaDebit < 0 && (
+                                            <TableRow>
+                                                <TableCell>{selectedCompany?.salesVatAccount} - Ajuste IVA Débito Fiscal</TableCell>
+                                                <TableCell className="text-right">${Math.round(-totalIvaDebit).toLocaleString('es-CL')}</TableCell>
+                                            </TableRow>
+                                        )}
+                                        {otherTaxesSummary.filter(t => t.total < 0).map(tax => (
+                                            <TableRow key={tax.code}>
+                                                <TableCell>{selectedCompany?.salesOtherTaxesAccount} - Ajuste {tax.name}</TableCell>
+                                                <TableCell className="text-right">${Math.round(-tax.total).toLocaleString('es-CL')}</TableCell>
+                                            </TableRow>
+                                        ))}
                                     </TableBody>
                                     <TableFooter>
                                         <TableRow className="font-bold text-base">
                                             <TableCell>Total Debe</TableCell>
-                                            <TableCell className="text-right">${Math.round(totalReceivable).toLocaleString('es-CL')}</TableCell>
+                                            <TableCell className="text-right">${Math.round(totalDebit).toLocaleString('es-CL')}</TableCell>
                                         </TableRow>
                                     </TableFooter>
                                 </Table>
@@ -272,25 +327,35 @@ export default function CentralizeSalesPage() {
                                 <Table>
                                     <TableHeader><TableRow><TableHead>Cuenta Contable</TableHead><TableHead className="text-right">Monto</TableHead></TableRow></TableHeader>
                                     <TableBody>
-                                        <TableRow>
-                                            <TableCell>{selectedCompany?.profitAccount || '4010110'} - Ingreso por Ventas</TableCell>
-                                            <TableCell className="text-right">${Math.round(totalNet).toLocaleString('es-CL')}</TableCell>
-                                        </TableRow>
-                                        <TableRow>
-                                            <TableCell>{selectedCompany?.salesVatAccount} - IVA Débito Fiscal</TableCell>
-                                            <TableCell className="text-right">${Math.round(totalIvaDebit).toLocaleString('es-CL')}</TableCell>
-                                        </TableRow>
-                                        {totalOtherTaxes > 0 && (
+                                        {totalNet > 0 && (
                                             <TableRow>
-                                                <TableCell>{selectedCompany?.salesOtherTaxesAccount} - Otros Impuestos</TableCell>
-                                                <TableCell className="text-right">${Math.round(totalOtherTaxes).toLocaleString('es-CL')}</TableCell>
+                                                <TableCell>{selectedCompany?.profitAccount || '4010110'} - Ingreso por Ventas</TableCell>
+                                                <TableCell className="text-right">${Math.round(totalNet).toLocaleString('es-CL')}</TableCell>
+                                            </TableRow>
+                                        )}
+                                        {totalIvaDebit > 0 && (
+                                            <TableRow>
+                                                <TableCell>{selectedCompany?.salesVatAccount} - IVA Débito Fiscal</TableCell>
+                                                <TableCell className="text-right">${Math.round(totalIvaDebit).toLocaleString('es-CL')}</TableCell>
+                                            </TableRow>
+                                        )}
+                                        {otherTaxesSummary.filter(t => t.total > 0).map(tax => (
+                                            <TableRow key={tax.code}>
+                                                <TableCell>{selectedCompany?.salesOtherTaxesAccount} - {tax.name}</TableCell>
+                                                <TableCell className="text-right">${Math.round(tax.total).toLocaleString('es-CL')}</TableCell>
+                                            </TableRow>
+                                        ))}
+                                        {totalReceivable < 0 && (
+                                            <TableRow>
+                                                <TableCell>{selectedCompany?.salesInvoicesReceivableAccount} - Disminución Clientes</TableCell>
+                                                <TableCell className="text-right">${Math.round(-totalReceivable).toLocaleString('es-CL')}</TableCell>
                                             </TableRow>
                                         )}
                                     </TableBody>
                                      <TableFooter>
                                         <TableRow className="font-bold text-base">
                                             <TableCell>Total Haber</TableCell>
-                                            <TableCell className="text-right">${Math.round(totalNet + totalIvaDebit + totalOtherTaxes).toLocaleString('es-CL')}</TableCell>
+                                            <TableCell className="text-right">${Math.round(totalCredit).toLocaleString('es-CL')}</TableCell>
                                         </TableRow>
                                     </TableFooter>
                                 </Table>
@@ -302,6 +367,9 @@ export default function CentralizeSalesPage() {
                         <div className="text-right">
                            <p className={`font-bold ${isBalanced ? 'text-green-600' : 'text-destructive'}`}>
                                 {isBalanced ? 'El asiento está cuadrado.' : 'El asiento no está cuadrado.'}
+                           </p>
+                           <p className="text-sm text-muted-foreground">
+                               Diferencia: ${(Math.round(totalDebit) - Math.round(totalCredit)).toLocaleString('es-CL')}
                            </p>
                         </div>
                         <div className="flex gap-2">

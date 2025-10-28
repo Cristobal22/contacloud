@@ -12,7 +12,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { useCollection, useFirestore } from "@/firebase"
 import { collection, addDoc, writeBatch, doc, Timestamp, getDocs, query, where } from "firebase/firestore"
-import type { Purchase, Account, VoucherEntry, Subject } from "@/lib/types";
+import type { Purchase, Account, VoucherEntry, Subject, OtherTax } from "@/lib/types";
 import { errorEmitter } from '@/firebase/error-emitter'
 import { FirestorePermissionError } from '@/firebase/errors'
 import { SelectedCompanyContext } from "../../layout";
@@ -40,6 +40,12 @@ type SummaryRow = {
     accountName: string;
     totalNet: number;
     docCount: number;
+}
+
+type OtherTaxesSummary = {
+    code: string;
+    name: string;
+    total: number;
 }
 
 export default function CentralizePurchasesPage() {
@@ -80,12 +86,13 @@ export default function CentralizePurchasesPage() {
         closedPeriodDocs,
         purchasesToProcess,
         isValid,
+        isBalanced,
         totalIvaCredit,
-        totalOtherTaxes,
+        otherTaxesSummary,
         totalPayable
     } = React.useMemo(() => {
         if (!allPurchases || !accounts || !selectedCompany) {
-            return { summary: [], totalDebit: 0, totalCredit: 0, unassignedDocs: [], closedPeriodDocs: [], purchasesToProcess: [], isValid: false, totalIvaCredit: 0, totalOtherTaxes: 0, totalPayable: 0 };
+            return { summary: [], totalDebit: 0, totalCredit: 0, unassignedDocs: [], closedPeriodDocs: [], purchasesToProcess: [], isValid: false, isBalanced: false, totalIvaCredit: 0, otherTaxesSummary: [], totalPayable: 0 };
         }
         
         const lastClosed = selectedCompany.lastClosedDate ? parseISO(selectedCompany.lastClosedDate) : null;
@@ -105,27 +112,34 @@ export default function CentralizePurchasesPage() {
         const unassigned = processableDocs.filter(p => !p.assignedAccount);
 
         const netSummary = new Map<string, { name: string, total: number, count: number }>();
+        const otherTaxesGrouped = new Map<string, { name: string, total: number }>();
         let currentTotalIvaCredit = 0;
-        let currentTotalOtherTaxes = 0;
         let currentTotalPayable = 0;
 
         processableDocs.forEach(p => {
-            if (!p.assignedAccount) return;
-
-            const sign = p.documentType.includes('61') ? -1 : 1;
-            const netAmount = (p.netAmount + (p.exemptAmount || 0)) * sign;
-            const taxAmount = p.taxAmount * sign;
-            const otherTaxesAmount = (p.otherTaxesAmount || 0) * sign;
+            const sign = p.documentType.includes('61') ? -1 : 1; // 61=Nota de Crédito, so invert sign
             const totalAmount = p.total * sign;
-
-            const current = netSummary.get(p.assignedAccount) || { name: accounts.find(a => a.code === p.assignedAccount)?.name || 'N/A', total: 0, count: 0 };
-            current.total += netAmount;
-            current.count++;
-            netSummary.set(p.assignedAccount, current);
-            
-            currentTotalIvaCredit += taxAmount;
-            currentTotalOtherTaxes += otherTaxesAmount;
             currentTotalPayable += totalAmount;
+
+            if (p.assignedAccount) {
+                const netAmount = (p.netAmount + (p.exemptAmount || 0)) * sign;
+                const current = netSummary.get(p.assignedAccount) || { name: accounts.find(a => a.code === p.assignedAccount)?.name || 'N/A', total: 0, count: 0 };
+                current.total += netAmount;
+                current.count++;
+                netSummary.set(p.assignedAccount, current);
+            }
+            
+            const taxAmount = (p.taxAmount || 0) * sign;
+            currentTotalIvaCredit += taxAmount;
+
+            if (p.otherTaxes) {
+                p.otherTaxes.forEach(tax => {
+                    const taxTotal = (tax.amount || 0) * sign;
+                    const currentTax = otherTaxesGrouped.get(tax.code) || { name: tax.name, total: 0 };
+                    currentTax.total += taxTotal;
+                    otherTaxesGrouped.set(tax.code, currentTax);
+                });
+            }
         });
 
         const summaryRows: SummaryRow[] = Array.from(netSummary.entries()).map(([code, data]) => ({
@@ -134,22 +148,37 @@ export default function CentralizePurchasesPage() {
             totalNet: data.total,
             docCount: data.count,
         }));
+
+        const otSummary: OtherTaxesSummary[] = Array.from(otherTaxesGrouped.entries()).map(([code, data]) => ({
+            code: code,
+            name: data.name,
+            total: data.total,
+        }));
+
+        const totalOtherTaxes = otSummary.reduce((sum, tax) => sum + tax.total, 0);
+        const totalNet = summaryRows.reduce((sum, row) => sum + row.totalNet, 0);
+
+        const debit = totalNet + currentTotalIvaCredit + totalOtherTaxes;
         
-        const debit = summaryRows.reduce((sum, row) => sum + row.totalNet, 0) + currentTotalIvaCredit + currentTotalOtherTaxes;
+        const balanced = Math.round(debit) === Math.round(currentTotalPayable);
         
-        const isBalanced = Math.round(debit) === Math.round(currentTotalPayable);
-        
+        const valid = unassigned.length === 0 && 
+                      processableDocs.length > 0 && 
+                      balanced && 
+                      (totalOtherTaxes === 0 || !!selectedCompany.purchasesOtherTaxesAccount);
+
         return {
             summary: summaryRows,
             totalIvaCredit: currentTotalIvaCredit,
-            totalOtherTaxes: currentTotalOtherTaxes,
+            otherTaxesSummary: otSummary,
             totalPayable: currentTotalPayable,
             totalDebit: debit,
             totalCredit: currentTotalPayable,
             unassignedDocs: unassigned,
             closedPeriodDocs: rejectedDocs,
             purchasesToProcess: processableDocs,
-            isValid: unassigned.length === 0 && processableDocs.length > 0 && isBalanced,
+            isValid: valid,
+            isBalanced: balanced,
         };
     }, [allPurchases, accounts, selectedCompany]);
 
@@ -196,7 +225,6 @@ export default function CentralizePurchasesPage() {
 
         const batch = writeBatch(firestore);
 
-        // --- 1. Auto-create Subjects ---
         const existingSubjectRuts = new Set(existingSubjects.map(s => s.rut));
         const newSuppliers = new Map<string, { rut: string; name: string }>();
         purchasesToProcess.forEach(p => {
@@ -219,79 +247,49 @@ export default function CentralizePurchasesPage() {
             });
         }
         
-        // --- 2. Create Voucher ---
         const periodDate = selectedCompany.periodStartDate ? parseISO(selectedCompany.periodStartDate) : new Date();
         const lastDay = lastDayOfMonth(periodDate);
         const monthName = format(periodDate, 'MMMM', { locale: es });
 
         const entries: Omit<VoucherEntry, 'id'>[] = [];
         summary.forEach(row => {
-            if (row.totalNet > 0) {
-                entries.push({
-                    account: row.accountCode,
-                    description: `Neto compras ${row.accountName}`,
-                    debit: row.totalNet,
-                    credit: 0,
-                });
-            } else if (row.totalNet < 0) {
-                 entries.push({
-                    account: row.accountCode,
-                    description: `Ajuste compras ${row.accountName}`,
-                    debit: 0,
-                    credit: -row.totalNet,
-                });
-            }
+            entries.push({
+                account: row.accountCode,
+                description: `Neto compras ${row.accountName}`,
+                debit: row.totalNet > 0 ? row.totalNet : 0,
+                credit: row.totalNet < 0 ? -row.totalNet : 0,
+            });
         });
-        if (selectedCompany.purchasesVatAccount) {
-            if (totalIvaCredit > 0) {
-                 entries.push({
-                    account: selectedCompany.purchasesVatAccount,
-                    description: 'IVA Crédito Fiscal del período',
-                    debit: totalIvaCredit,
-                    credit: 0,
-                });
-            } else if (totalIvaCredit < 0){
-                 entries.push({
-                    account: selectedCompany.purchasesVatAccount,
-                    description: 'Ajuste IVA Crédito Fiscal',
-                    debit: 0,
-                    credit: -totalIvaCredit,
-                });
-            }
+
+        if (totalIvaCredit !== 0 && selectedCompany.purchasesVatAccount) {
+            entries.push({
+                account: selectedCompany.purchasesVatAccount,
+                description: 'IVA Crédito Fiscal del período',
+                debit: totalIvaCredit > 0 ? totalIvaCredit : 0,
+                credit: totalIvaCredit < 0 ? -totalIvaCredit : 0,
+            });
         }
-        if (selectedCompany.purchasesOtherTaxesAccount && totalOtherTaxes !== 0) {
-             if (totalOtherTaxes > 0) {
-                 entries.push({
-                    account: selectedCompany.purchasesOtherTaxesAccount,
-                    description: 'Otros Impuestos del período',
-                    debit: totalOtherTaxes,
-                    credit: 0,
-                });
-            } else if (totalOtherTaxes < 0){
-                 entries.push({
-                    account: selectedCompany.purchasesOtherTaxesAccount,
-                    description: 'Ajuste Otros Impuestos',
-                    debit: 0,
-                    credit: -totalOtherTaxes,
-                });
-            }
+
+        if (otherTaxesSummary.length > 0 && selectedCompany.purchasesOtherTaxesAccount) {
+            otherTaxesSummary.forEach(tax => {
+                if (tax.total !== 0) {
+                    entries.push({
+                        account: selectedCompany.purchasesOtherTaxesAccount!,
+                        description: tax.name,
+                        debit: tax.total > 0 ? tax.total : 0,
+                        credit: tax.total < 0 ? -tax.total : 0,
+                    });
+                }
+            });
         }
-        if (selectedCompany.purchasesInvoicesPayableAccount) {
-             if (totalPayable > 0) {
-                entries.push({
-                    account: selectedCompany.purchasesInvoicesPayableAccount,
-                    description: 'Cuentas por Pagar Proveedores',
-                    debit: 0,
-                    credit: totalPayable,
-                });
-            } else if (totalPayable < 0) {
-                 entries.push({
-                    account: selectedCompany.purchasesInvoicesPayableAccount,
-                    description: 'Disminución Cuentas por Pagar',
-                    debit: -totalPayable,
-                    credit: 0,
-                });
-            }
+
+        if (totalPayable !== 0 && selectedCompany.purchasesInvoicesPayableAccount) {
+            entries.push({
+                account: selectedCompany.purchasesInvoicesPayableAccount,
+                description: 'Cuentas por Pagar Proveedores',
+                debit: totalPayable < 0 ? -totalPayable : 0,
+                credit: totalPayable > 0 ? totalPayable : 0,
+            });
         }
         
         const finalEntries = entries.filter(e => e.debit !== 0 || e.credit !== 0);
@@ -310,7 +308,6 @@ export default function CentralizePurchasesPage() {
         const newVoucherRef = doc(collection(firestore, `companies/${companyId}/vouchers`));
         batch.set(newVoucherRef, voucherData);
 
-        // --- 3. Update Purchases ---
         purchasesToProcess.forEach(purchase => {
             const purchaseRef = doc(firestore, `companies/${companyId}/purchases`, purchase.id);
             batch.update(purchaseRef, { status: 'Contabilizado', voucherId: newVoucherRef.id });
@@ -411,25 +408,25 @@ export default function CentralizePurchasesPage() {
                                         {summary.filter(r => r.totalNet > 0).map(row => (
                                             <TableRow key={row.accountCode}>
                                                 <TableCell>{row.accountCode} - {row.accountName}</TableCell>
-                                                <TableCell className="text-right">${row.totalNet.toLocaleString('es-CL')}</TableCell>
+                                                <TableCell className="text-right">${Math.round(row.totalNet).toLocaleString('es-CL')}</TableCell>
                                             </TableRow>
                                         ))}
                                         {totalIvaCredit > 0 && (
                                             <TableRow>
                                                 <TableCell>{selectedCompany?.purchasesVatAccount} - IVA Crédito Fiscal</TableCell>
-                                                <TableCell className="text-right">${totalIvaCredit.toLocaleString('es-CL')}</TableCell>
+                                                <TableCell className="text-right">${Math.round(totalIvaCredit).toLocaleString('es-CL')}</TableCell>
                                             </TableRow>
                                         )}
-                                        {totalOtherTaxes > 0 && (
-                                            <TableRow>
-                                                <TableCell>{selectedCompany?.purchasesOtherTaxesAccount} - Otros Impuestos</TableCell>
-                                                <TableCell className="text-right">${totalOtherTaxes.toLocaleString('es-CL')}</TableCell>
+                                        {otherTaxesSummary.filter(t => t.total > 0).map(tax => (
+                                            <TableRow key={tax.code}>
+                                                <TableCell>{selectedCompany?.purchasesOtherTaxesAccount} - {tax.name}</TableCell>
+                                                <TableCell className="text-right">${Math.round(tax.total).toLocaleString('es-CL')}</TableCell>
                                             </TableRow>
-                                        )}
+                                        ))}
                                         {totalPayable < 0 && (
                                             <TableRow>
                                                 <TableCell>{selectedCompany?.purchasesInvoicesPayableAccount} - Disminución Proveedores</TableCell>
-                                                <TableCell className="text-right">${(-totalPayable).toLocaleString('es-CL')}</TableCell>
+                                                <TableCell className="text-right">${Math.round(-totalPayable).toLocaleString('es-CL')}</TableCell>
                                             </TableRow>
                                         )}
                                     </TableBody>
@@ -455,25 +452,25 @@ export default function CentralizePurchasesPage() {
                                         {summary.filter(r => r.totalNet < 0).map(row => (
                                             <TableRow key={row.accountCode}>
                                                 <TableCell>{row.accountCode} - {row.accountName}</TableCell>
-                                                <TableCell className="text-right">${(-row.totalNet).toLocaleString('es-CL')}</TableCell>
+                                                <TableCell className="text-right">${Math.round(-row.totalNet).toLocaleString('es-CL')}</TableCell>
                                             </TableRow>
                                         ))}
                                         {totalIvaCredit < 0 && (
                                             <TableRow>
                                                 <TableCell>{selectedCompany?.purchasesVatAccount} - Ajuste IVA Crédito</TableCell>
-                                                <TableCell className="text-right">${(-totalIvaCredit).toLocaleString('es-CL')}</TableCell>
+                                                <TableCell className="text-right">${Math.round(-totalIvaCredit).toLocaleString('es-CL')}</TableCell>
                                             </TableRow>
                                         )}
-                                        {totalOtherTaxes < 0 && (
-                                            <TableRow>
-                                                <TableCell>{selectedCompany?.purchasesOtherTaxesAccount} - Ajuste Otros Impuestos</TableCell>
-                                                <TableCell className="text-right">${(-totalOtherTaxes).toLocaleString('es-CL')}</TableCell>
+                                        {otherTaxesSummary.filter(t => t.total < 0).map(tax => (
+                                            <TableRow key={tax.code}>
+                                                <TableCell>{selectedCompany?.purchasesOtherTaxesAccount} - Ajuste {tax.name}</TableCell>
+                                                <TableCell className="text-right">${Math.round(-tax.total).toLocaleString('es-CL')}</TableCell>
                                             </TableRow>
-                                        )}
+                                        ))}
                                         {totalPayable > 0 && (
                                             <TableRow>
                                                 <TableCell>{selectedCompany?.purchasesInvoicesPayableAccount} - Proveedores</TableCell>
-                                                <TableCell className="text-right">${totalPayable.toLocaleString('es-CL')}</TableCell>
+                                                <TableCell className="text-right">${Math.round(totalPayable).toLocaleString('es-CL')}</TableCell>
                                             </TableRow>
                                         )}
                                     </TableBody>
@@ -490,8 +487,8 @@ export default function CentralizePurchasesPage() {
                     </CardContent>
                     <CardFooter className="flex flex-col items-end gap-4 pt-6">
                         <div className="text-right">
-                           <p className={`font-bold ${isValid ? 'text-green-600' : 'text-destructive'}`}>
-                                {isValid ? 'El asiento está cuadrado.' : 'El asiento no está cuadrado o faltan datos.'}
+                           <p className={`font-bold ${isBalanced ? 'text-green-600' : 'text-destructive'}`}>
+                                {isBalanced ? 'El asiento está cuadrado.' : 'El asiento no está cuadrado.'}
                            </p>
                            <p className="text-sm text-muted-foreground">
                                Diferencia: ${(Math.round(totalDebit) - Math.round(totalCredit)).toLocaleString('es-CL')}

@@ -150,6 +150,12 @@ export type VoucherEntry = {
     credit: number;
 };
 
+export type OtherTax = {
+  code: string;
+  name: string;
+  amount: number;
+};
+
 export type Purchase = {
   id: string;
   date: string;
@@ -160,7 +166,7 @@ export type Purchase = {
   exemptAmount: number;
   netAmount: number;
   taxAmount: number;
-  otherTaxesAmount?: number;
+  otherTaxes?: OtherTax[];
   total: number;
   status: 'Pendiente' | 'Contabilizado' | 'Pagado';
   assignedAccount?: string; // Cuenta de gasto/activo asignada
@@ -173,10 +179,14 @@ export type Purchase = {
 export type Sale = {
   id: string;
   date: string;
+  documentType: string;
   documentNumber: string;
   customer: string;
+  customerRut: string;
   exemptAmount: number;
   netAmount: number;
+  taxAmount: number;
+  otherTaxes?: OtherTax[];
   total: number;
   status: 'Pendiente' | 'Contabilizado' | 'Cobrado';
   companyId: string;
