@@ -154,11 +154,23 @@ export default function CentralizePurchasesPage() {
         
         const missingTaxes = otSummary.filter(tax => tax.total !== 0 && !tax.accountCode);
 
-        const totalOtherTaxes = otSummary.reduce((sum, tax) => sum + tax.total, 0);
         const totalNet = summaryRows.reduce((sum, row) => sum + row.totalNet, 0);
+        const totalOtherTaxes = otSummary.reduce((sum, tax) => sum + tax.total, 0);
 
-        const debit = totalNet + currentTotalIvaCredit + totalOtherTaxes;
-        const balanced = Math.round(debit) === Math.round(currentTotalPayable);
+        // This is the correct way to calculate debit: it must be the sum of all its parts.
+        // We will show the negative parts (credit notes) on the credit side, so we only sum the positive values here.
+        const debit = summaryRows.reduce((sum, row) => sum + Math.max(0, row.totalNet), 0) + 
+                    Math.max(0, currentTotalIvaCredit) + 
+                    otSummary.reduce((sum, tax) => sum + Math.max(0, tax.total), 0) + 
+                    Math.max(0, -currentTotalPayable); // If payable is negative (credit note > purchases), it becomes a debit
+
+        // And credit is the sum of its parts.
+        const credit = summaryRows.reduce((sum, row) => sum + Math.max(0, -row.totalNet), 0) + 
+                     Math.max(0, -currentTotalIvaCredit) + 
+                     otSummary.reduce((sum, tax) => sum + Math.max(0, -tax.total), 0) + 
+                     Math.max(0, currentTotalPayable); // If payable is positive
+
+        const balanced = Math.round(debit) === Math.round(credit);
         
         const valid = unassigned.length === 0 && processableDocs.length > 0 && balanced && missingTaxes.length === 0;
 
@@ -168,7 +180,7 @@ export default function CentralizePurchasesPage() {
             otherTaxesSummary: otSummary,
             totalPayable: currentTotalPayable,
             totalDebit: debit,
-            totalCredit: currentTotalPayable,
+            totalCredit: credit,
             unassignedDocs: unassigned,
             closedPeriodDocs: rejectedDocs,
             purchasesToProcess: processableDocs,
