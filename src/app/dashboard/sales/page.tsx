@@ -12,7 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { DataTable } from '@/components/data-table';
 import { useToast } from '@/hooks/use-toast';
 import type { Sale, OtherTax, Company } from '@/lib/types';
-import { firestore } from '@/firebase';
+import { useFirestore } from '@/firebase';
 import { SelectedCompanyContext } from '../layout';
 import { columns } from './columns';
 
@@ -48,6 +48,7 @@ export default function SalesPage() {
     const { toast } = useToast();
     const { selectedCompany } = React.useContext(SelectedCompanyContext) || {};
     const router = useRouter();
+    const firestore = useFirestore();
 
     const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
         if (event.target.files && event.target.files[0]) {
@@ -56,6 +57,11 @@ export default function SalesPage() {
     };
 
     const handleFileUpload = async () => {
+        if (!firestore) {
+            toast({ variant: 'destructive', description: 'Error de conexión con la base de datos. Inténtalo de nuevo.' });
+            return;
+        }
+
         if (!selectedFile) {
             toast({ variant: 'destructive', description: 'Por favor, selecciona un archivo CSV para continuar.' });
             return;
@@ -74,9 +80,10 @@ export default function SalesPage() {
         Papa.parse(selectedFile, {
             header: true,
             skipEmptyLines: true,
-            encoding: 'ISO-8859-1', // To handle special characters
+            delimiter: ';',
+            encoding: 'UTF-8',
             complete: async (results) => {
-                const requiredFields = ['Fecha', 'Tipo', 'Folio', 'Cliente', 'RUT Cliente', 'Exento', 'Neto', 'IVA', 'Total'];
+                const requiredFields = ['Fecha Docto', 'Tipo Doc', 'Folio', 'Razon Social', 'RUT Cliente', 'Monto Exento', 'Monto Neto', 'Monto IVA Recuperable', 'Monto Total'];
                 const missingFields = requiredFields.filter(field => !results.meta.fields?.includes(field));
 
                 if (missingFields.length > 0) {
@@ -115,23 +122,23 @@ export default function SalesPage() {
 
                     newSales.push({
                         id: '', // Firestore will generate this
-                        date: parseDate(row['Fecha']),
-                        documentType: row['Tipo'],
+                        date: parseDate(row['Fecha Docto']),
+                        documentType: row['Tipo Doc'],
                         documentNumber: row['Folio'],
-                        customer: row['Cliente'],
+                        customer: row['Razon Social'],
                         customerRut: row['RUT Cliente'],
-                        exemptAmount: parseFloat(row['Exento']) || 0,
-                        netAmount: parseFloat(row['Neto']) || 0,
-                        taxAmount: parseFloat(row['IVA']) || 0,
+                        exemptAmount: parseFloat(row['Monto Exento']) || 0,
+                        netAmount: parseFloat(row['Monto Neto']) || 0,
+                        taxAmount: parseFloat(row['Monto IVA Recuperable']) || 0,
                         otherTaxes,
-                        total: parseFloat(row['Total']) || 0,
+                        total: parseFloat(row['Monto Total']) || 0,
                         status: 'Pendiente',
                         companyId: selectedCompany.id
                     });
                 }
 
                 // Firestore batch write
-                const salesCollection = collection(firestore, 'sales');
+                const salesCollection = collection(firestore, 'companies', selectedCompany.id, 'sales');
                 const batch = writeBatch(firestore);
                 let operationsCount = 0;
 
