@@ -1,532 +1,221 @@
 
 'use client';
 
-import React from "react";
-import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from "@/components/ui/table"
-import {
-    Card,
-    CardContent,
-    CardDescription,
-    CardHeader,
-    CardTitle,
-} from "@/components/ui/card"
-import { Button, buttonVariants } from "@/components/ui/button"
-import { Upload, ArrowRight, Trash2, Edit } from "lucide-react"
-import { Input } from "@/components/ui/input"
-import { useCollection, useFirestore } from "@/firebase"
-import { collection, addDoc, setDoc, doc, writeBatch, query, where, getDocs } from "firebase/firestore"
-import type { Purchase, Account, OtherTax } from "@/lib/types";
-import { errorEmitter } from '@/firebase/error-emitter'
-import { FirestorePermissionError } from '@/firebase/errors'
-import { SelectedCompanyContext } from "../layout";
-import { useToast } from "@/hooks/use-toast";
-import { AccountSearchInput } from "@/components/account-search-input";
-import { useRouter } from "next/navigation";
-import { cn } from "@/lib/utils";
-import {
-    AlertDialog,
-    AlertDialogAction,
-    AlertDialogCancel,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
-import {
-    Dialog,
-    DialogContent,
-    DialogHeader,
-    DialogTitle,
-    DialogDescription,
-    DialogFooter,
-    DialogClose,
-} from "@/components/ui/dialog";
-import { parseISO } from "date-fns";
+import React from 'react';
+import { useRouter } from 'next/navigation';
+import Papa from 'papaparse';
+import { DocumentMagnifyingGlassIcon } from '@heroicons/react/24/outline';
+import { addDoc, collection, doc, getDocs, query, serverTimestamp, where, writeBatch } from 'firebase/firestore';
 
-const taxCodeMap: { [key: string]: string } = {
-    "15": "Imp. Específico Diesel",
-    "16": "Imp. Específico Gasolinas",
-    "23": "Imp. Adic. Pirotecnia, Armas y Similares",
-    "24": "Imp. Adic. Alfombras y Tapices Finos",
-    "25": "Imp. Adic. Pieles Finas",
-    "26": "Imp. Adic. Casas Rodantes",
-    "27": "Imp. Adic. Licores, Piscos y Vinos", // ILA
-    "28": "Imp. Adic. Bebidas Analcohólicas y Minerales",
-    "29": "Imp. Adic. Vehículos de Lujo",
-    "32": "Margen de Comercialización",
-    "49": "Tabacos Elaborados",
-    "50": "Cigarrillos",
-};
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { DataTable } from '@/components/data-table';
+import { useToast } from '@/hooks/use-toast';
+import type { Purchase, OtherTax, Company } from '@/lib/types';
+import { firestore } from '@/firebase';
+import { SelectedCompanyContext } from '../layout';
+import { columns } from './columns';
 
-const getTaxNameFromCode = (code: string) => {
-    return taxCodeMap[code] || `Otro Imp. Cód ${code}`;
-}
+const parseDate = (dateString: string): string => {
+  if (!dateString) return '';
 
-const parseDate = (dateStr: string): string | null => {
-    if (!dateStr) return null;
-    // SII format is dd/mm/yyyy
-    const parts = dateStr.trim().split('/');
-    if (parts.length !== 3) return null;
+  const formats = [
+    (str: string) => {
+      const parts = str.split('/');
+      return parts.length === 3 ? `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}` : '';
+    },
+    (str: string) => {
+        const parts = str.split('-');
+        return parts.length === 3 ? `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`: '';
+    }
+  ];
 
-    const [day, month, year] = parts;
-    // Basic validation
-    if (day.length !== 2 || month.length !== 2 || year.length !== 4) return null;
+  for (const format of formats) {
+    const formattedDate = format(dateString);
+    if (formattedDate && !isNaN(new Date(formattedDate).getTime())) {
+      return formattedDate;
+    }
+  }
 
-    // Reassemble in ISO format (YYYY-MM-DD) which new Date() parses reliably
-    const isoDateString = `${year}-${month}-${day}`;
-    const date = new Date(isoDateString);
-
-    // Check if the created date is valid
-    if (isNaN(date.getTime())) return null;
-    
-    // Return the date part of the ISO string (YYYY-MM-DD)
-    return isoDateString;
+  return ''; 
 };
 
 
 export default function PurchasesPage() {
-    const { selectedCompany } = React.useContext(SelectedCompanyContext) || {};
-    const companyId = selectedCompany?.id;
-    const firestore = useFirestore();
+    const [selectedFile, setSelectedFile] = React.useState<File | null>(null);
+    const [isParsing, setIsParsing] = React.useState(false);
+    const [purchases, setPurchases] = React.useState<Purchase[]>([]);
     const { toast } = useToast();
+    const { selectedCompany } = React.useContext(SelectedCompanyContext) || {};
     const router = useRouter();
-    const fileInputRef = React.useRef<HTMLInputElement>(null);
-    const [fileName, setFileName] = React.useState<string | null>(null);
 
-    const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false);
-    const [isAssignAllDialogOpen, setIsAssignAllDialogOpen] = React.useState(false);
-    const [bulkAssignAccount, setBulkAssignAccount] = React.useState<string | null>(null);
-    const [isProcessing, setIsProcessing] = React.useState(false);
-
-    const { data: purchases, loading: purchasesLoading } = useCollection<Purchase>({
-        path: companyId ? `companies/${companyId}/purchases` : undefined,
-        companyId: companyId
-    });
-    const { data: accounts, loading: accountsLoading } = useCollection<Account>({
-        path: companyId ? `companies/${companyId}/accounts` : undefined,
-    });
-
-    const loading = purchasesLoading || accountsLoading;
-
-    const handleAccountChange = (purchaseId: string, accountCode: string) => {
-        if (!firestore || !companyId) return;
-
-        const purchaseRef = doc(firestore, `companies/${companyId}/purchases`, purchaseId);
-        setDoc(purchaseRef, { assignedAccount: accountCode }, { merge: true })
-            .catch(err => {
-                errorEmitter.emit('permission-error', new FirestorePermissionError({
-                    path: purchaseRef.path,
-                    operation: 'update',
-                    requestResourceData: { assignedAccount: accountCode },
-                }));
-            });
+    const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+        if (event.target.files && event.target.files[0]) {
+            setSelectedFile(event.target.files[0]);
+        }
     };
 
-    const handleFileImport = (event: React.ChangeEvent<HTMLInputElement>) => {
-        if (!event.target.files || !firestore || !companyId || !selectedCompany) return;
-        const file = event.target.files[0];
-        if (file) {
-            setIsProcessing(true);
-            setFileName(file.name);
-            const reader = new FileReader();
-            reader.onload = async (e) => {
-                const text = e.target?.result as string;
-                const lines = text.split('\n').filter(line => line.trim() !== '');
-                if (lines.length < 2) {
-                    toast({ variant: 'destructive', title: 'Error de archivo', description: 'El archivo CSV está vacío o no contiene un encabezado.' });
-                    setIsProcessing(false);
-                    return;
-                }
+    const handleFileUpload = async () => {
+        if (!selectedFile) {
+            toast({ variant: 'destructive', description: 'Por favor, selecciona un archivo CSV para continuar.' });
+            return;
+        }
 
-                const headerLine = lines[0].replace(/"/g, '');
-                const headers = headerLine.split(';').map(h => h.trim());
-                const dataLines = lines.slice(1);
+        if (!selectedCompany) {
+            toast({ variant: 'destructive', description: 'No hay ninguna empresa seleccionada.' });
+            return;
+        }
 
-                const colIdx = {
-                    docType: headers.indexOf('Tipo Doc'),
-                    docNum: headers.indexOf('Folio'),
-                    rut: headers.indexOf('RUT Proveedor'),
-                    name: headers.indexOf('Razon Social'),
-                    date: headers.indexOf('Fecha Docto'),
-                    exempt: headers.indexOf('Monto Exento'),
-                    net: headers.indexOf('Monto Neto'),
-                    vat: headers.indexOf('Monto IVA Recuperable'),
-                    total: headers.indexOf('Monto Total'),
-                };
+        const company = selectedCompany as Company;
+        const definedTaxes = company.purchasesOtherTaxesAccounts || [];
 
-                if (colIdx.docType === -1 || colIdx.docNum === -1 || colIdx.rut === -1 || colIdx.name === -1 || colIdx.date === -1) {
-                    toast({ variant: 'destructive', title: 'Error de formato', description: 'El archivo CSV no parece ser un Registro de Compras válido. Faltan encabezados críticos (Tipo Doc, Folio, RUT Proveedor, Razon Social, Fecha Docto).' });
-                    setIsProcessing(false);
-                    return;
-                }
+        setIsParsing(true);
 
-                const otherTaxesHeaders: { codeIndex: number, valueIndex: number }[] = [];
-                headers.forEach((h, i) => {
-                    if (h === 'Codigo Otro Impuesto') {
-                        const valueIndex = headers.indexOf('Valor Otro Impuesto', i);
-                        if (valueIndex > i) {
-                            otherTaxesHeaders.push({ codeIndex: i, valueIndex: valueIndex });
-                        }
-                    }
-                });
+        Papa.parse(selectedFile, {
+            header: true,
+            skipEmptyLines: true,
+            encoding: 'ISO-8859-1', // To handle special characters
+            complete: async (results) => {
+                const requiredFields = ['Fecha', 'Tipo', 'Folio', 'Proveedor', 'RUT Proveedor', 'Exento', 'Neto', 'IVA', 'Total'];
+                const missingFields = requiredFields.filter(field => !results.meta.fields?.includes(field));
 
-                const supplierAccountMap = new Map<string, string>();
-                if (purchases) {
-                    purchases.forEach(p => {
-                        if (p.supplierRut && p.assignedAccount) {
-                            supplierAccountMap.set(p.supplierRut, p.assignedAccount);
-                        }
+                if (missingFields.length > 0) {
+                    toast({ 
+                        variant: 'destructive', 
+                        title: 'Error en el archivo CSV',
+                        description: `Faltan las siguientes columnas obligatorias: ${missingFields.join(', ')}.` 
                     });
+                    setIsParsing(false);
+                    return;
                 }
 
-                const batch = writeBatch(firestore);
-                const collectionRef = collection(firestore, `companies/${companyId}/purchases`);
-                let count = 0;
-                let hasDateMismatch = false;
-                let invalidDateRows = 0;
-                const workingPeriodMonth = selectedCompany.periodStartDate ? parseISO(selectedCompany.periodStartDate).getMonth() : -1;
-                const workingPeriodYear = selectedCompany.periodStartDate ? parseISO(selectedCompany.periodStartDate).getFullYear() : -1;
+                const newPurchases: Purchase[] = [];
+                const otherTaxHeaders = results.meta.fields?.filter(h => h.startsWith('Codigo Otro Impuesto')) || [];
+                const otherTaxValueHeaders = results.meta.fields?.filter(h => h.startsWith('Valor Otro Impuesto')) || [];
 
-                dataLines.forEach(line => {
-                    const columns = line.split(';');
-
-                    const documentDateStr = parseDate(columns[colIdx.date]?.trim() || '');
-
-                    if (!documentDateStr) {
-                        invalidDateRows++;
-                        return; // Skip row if date is invalid
-                    }
-                    
-                    const supplierRut = columns[colIdx.rut]?.trim() || '';
-                    const documentDate = parseISO(documentDateStr);
-
-                    if (workingPeriodMonth !== -1 && (documentDate.getMonth() !== workingPeriodMonth || documentDate.getFullYear() !== workingPeriodYear)) {
-                        hasDateMismatch = true;
-                    }
-
+                for (const row of results.data as any[]) {
                     const otherTaxes: OtherTax[] = [];
-                    otherTaxesHeaders.forEach(taxHeader => {
-                        const taxCode = columns[taxHeader.codeIndex]?.trim();
-                        const taxAmount = parseFloat(columns[taxHeader.valueIndex]) || 0;
-                        if (taxCode && taxAmount > 0) {
+
+                    otherTaxHeaders.forEach((header, i) => {
+                        const codeHeader = header;
+                        const valueHeader = otherTaxValueHeaders[i];
+                        
+                        const taxCode = row[codeHeader];
+                        const taxAmount = parseFloat(row[valueHeader]);
+
+                        if (taxCode && !isNaN(taxAmount) && taxAmount !== 0) {
+                            const taxDefinition = definedTaxes.find(t => t.taxCode === taxCode);
                             otherTaxes.push({
                                 code: taxCode,
-                                name: getTaxNameFromCode(taxCode),
+                                name: taxDefinition?.name || 'Impuesto Desconocido',
                                 amount: taxAmount,
                             });
                         }
                     });
 
-                    const newPurchase: Omit<Purchase, 'id'> = {
-                        documentType: columns[colIdx.docType]?.trim() || '',
-                        documentNumber: columns[colIdx.docNum]?.trim() || '',
-                        supplierRut: supplierRut,
-                        supplier: columns[colIdx.name]?.trim() || '',
-                        date: documentDateStr,
-                        exemptAmount: parseFloat(columns[colIdx.exempt]) || 0,
-                        netAmount: parseFloat(columns[colIdx.net]) || 0,
-                        taxAmount: parseFloat(columns[colIdx.vat]) || 0,
-                        otherTaxes: otherTaxes,
-                        total: parseFloat(columns[colIdx.total]) || 0,
+                    newPurchases.push({
+                        id: '', // Firestore will generate this
+                        date: parseDate(row['Fecha']),
+                        documentType: row['Tipo'],
+                        documentNumber: row['Folio'],
+                        supplier: row['Proveedor'],
+                        supplierRut: row['RUT Proveedor'],
+                        exemptAmount: parseFloat(row['Exento']) || 0,
+                        netAmount: parseFloat(row['Neto']) || 0,
+                        taxAmount: parseFloat(row['IVA']) || 0,
+                        otherTaxes,
+                        total: parseFloat(row['Total']) || 0,
                         status: 'Pendiente',
-                        companyId: companyId,
-                    };
-
-                    const assignedAccount = supplierAccountMap.get(supplierRut);
-                    if (assignedAccount) {
-                        newPurchase.assignedAccount = assignedAccount;
-                    }
-
-                    if (newPurchase.documentNumber && newPurchase.supplier) {
-                        const docRef = doc(collectionRef);
-                        batch.set(docRef, newPurchase);
-                        count++;
-                    }
-                });
-
-                if (invalidDateRows > 0) {
-                    toast({
-                        variant: 'destructive',
-                        title: 'Advertencia de Fechas',
-                        description: `Se omitieron ${invalidDateRows} filas debido a un formato de fecha no válido. El formato esperado es dd/mm/yyyy.`,
-                        duration: 8000,
+                        companyId: selectedCompany.id
                     });
                 }
 
-                if (count === 0) {
-                    toast({ variant: 'destructive', title: 'Error de formato', description: 'No se encontraron documentos válidos en el archivo. Verifica que los datos y encabezados sean correctos.' });
-                    setIsProcessing(false);
-                    return;
-                }
+                // Firestore batch write
+                const purchasesCollection = collection(firestore, 'purchases');
+                const batch = writeBatch(firestore);
+                let operationsCount = 0;
 
-                try {
-                    await batch.commit();
-                    toast({ title: 'Importación Exitosa', description: `Se importaron ${count} documentos de compra.` });
-                    if (hasDateMismatch) {
-                        toast({
-                            variant: 'destructive',
-                            title: 'Advertencia de Fechas',
-                            description: 'Algunos documentos importados no corresponden al período de trabajo actual. Revísalos antes de centralizar.',
-                            duration: 8000,
-                        });
+                for (const purchase of newPurchases) {
+                    const docRef = doc(purchasesCollection);
+                    batch.set(docRef, purchase);
+                    operationsCount++;
+                    // Firestore batches have a limit of 500 operations.
+                    if (operationsCount >= 499) {
+                        await batch.commit();
+                        operationsCount = 0;
                     }
-                } catch (error) {
-                    errorEmitter.emit('permission-error', new FirestorePermissionError({
-                        path: `companies/${companyId}/purchases`,
-                        operation: 'create',
-                    }));
-                } finally {
-                    setIsProcessing(false);
                 }
-            };
-            reader.readAsText(file, 'ISO-8859-1');
-        }
-        if (fileInputRef.current) fileInputRef.current.value = '';
-    };
 
-    const handleDeletePending = async () => {
-        if (!firestore || !companyId) return;
-        setIsProcessing(true);
+                if (operationsCount > 0) {
+                    await batch.commit();
+                }
 
-        const collectionPath = `companies/${companyId}/purchases`;
-        const q = query(collection(firestore, collectionPath), where("status", "==", "Pendiente"));
-
-        try {
-            const querySnapshot = await getDocs(q);
-            if (querySnapshot.empty) {
-                toast({ description: "No hay documentos pendientes para eliminar." });
-                setIsDeleteDialogOpen(false);
-                setIsProcessing(false);
-                return;
+                toast({ 
+                    title: 'Carga completada',
+                    description: `${newPurchases.length} documentos de compra han sido cargados y guardados.`
+                });
+                setPurchases(newPurchases);
+                setIsParsing(false);
+                setSelectedFile(null); // Reset file input
+            },
+            error: (error) => {
+                toast({ 
+                    variant: 'destructive', 
+                    title: 'Error al procesar el archivo',
+                    description: error.message 
+                });
+                setIsParsing(false);
             }
-
-            const batch = writeBatch(firestore);
-            querySnapshot.forEach(doc => {
-                batch.delete(doc.ref);
-            });
-            
-            await batch.commit();
-            toast({
-                title: 'Proceso Cancelado',
-                description: 'Se han eliminado todos los documentos de compra pendientes.',
-                variant: 'destructive'
-            });
-
-        } catch (error) {
-            errorEmitter.emit('permission-error', new FirestorePermissionError({
-                path: collectionPath,
-                operation: 'delete',
-            }));
-        } finally {
-            setIsDeleteDialogOpen(false);
-            setIsProcessing(false);
-        }
-    };
-
-    const pendingPurchases = purchases?.filter(p => p.status === 'Pendiente') || [];
-    const unassignedPurchases = pendingPurchases.filter(p => !p.assignedAccount);
-
-    const handleBulkAssignAccount = async () => {
-        if (!firestore || !companyId || !bulkAssignAccount || unassignedPurchases.length === 0) {
-            toast({ variant: 'destructive', title: 'Error', description: 'No hay cuenta seleccionada o no hay documentos que actualizar.' });
-            return;
-        }
-    
-        setIsProcessing(true);
-        const batch = writeBatch(firestore);
-        const purchasesCollectionRef = collection(firestore, `companies/${companyId}/purchases`);
-    
-        unassignedPurchases.forEach(docToUpdate => {
-            const docRef = doc(purchasesCollectionRef, docToUpdate.id);
-            batch.update(docRef, { assignedAccount: bulkAssignAccount });
         });
-    
-        try {
-            await batch.commit();
-            toast({
-                title: 'Actualización Exitosa',
-                description: `Se asignó la cuenta ${bulkAssignAccount} a ${unassignedPurchases.length} documentos.`,
-            });
-            setIsAssignAllDialogOpen(false);
-            setBulkAssignAccount(null);
-        } catch (error) {
-            errorEmitter.emit('permission-error', new FirestorePermissionError({
-                path: `companies/${companyId}/purchases`,
-                operation: 'update',
-            }));
-        } finally {
-            setIsProcessing(false);
-        }
     };
 
+    const goToCentralize = () => {
+        router.push('/dashboard/purchases/centralize');
+    };
 
     return (
-        <>
-            <Card>
-                <CardHeader>
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <CardTitle>Centralización de Compras</CardTitle>
-                            <CardDescription>Paso 1: Importa documentos y asigna las cuentas de gasto/activo.</CardDescription>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <div className="flex items-center gap-2">
-                                <input type="file" ref={fileInputRef} className="hidden" accept=".csv" onChange={handleFileImport} />
-                                <Button size="sm" className="gap-1" onClick={() => fileInputRef.current?.click()} disabled={!companyId || isProcessing}>
-                                    <Upload className="h-4 w-4" />
-                                    Importar CSV
-                                </Button>
-                                {fileName && <span className="text-xs text-muted-foreground">{fileName}</span>}
+        <Card>
+            <CardHeader className="flex-row items-center justify-between">
+                <div>
+                    <CardTitle>Libro de Compras</CardTitle>
+                    <CardDescription>Carga y visualización de documentos de compra.</CardDescription>
+                </div>
+                <Button onClick={goToCentralize}>Centralizar Compras</Button>
+            </CardHeader>
+            <CardContent className="space-y-6">
+                <div className="p-6 border rounded-lg bg-slate-50/50">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between space-y-4 md:space-y-0">
+                        <div className="flex items-center space-x-4">
+                            <DocumentMagnifyingGlassIcon className="h-10 w-10 text-gray-500" />
+                            <div>
+                                <h3 className="text-lg font-medium">Cargar Libro de Compras (RCC)</h3>
+                                <p className="text-sm text-muted-foreground">
+                                    Sube el archivo CSV exportado desde el SII para importar tus compras.
+                                </p>
                             </div>
-                            {unassignedPurchases.length > 0 && (
-                                <Button 
-                                    size="sm" 
-                                    variant="outline"
-                                    className="gap-1" 
-                                    onClick={() => setIsAssignAllDialogOpen(true)}
-                                    disabled={isProcessing}
-                                >
-                                    <Edit className="h-4 w-4" />
-                                    Asignar Cuenta a Todos
-                                </Button>
-                            )}
-                            {pendingPurchases.length > 0 && (
-                                <>
-                                    <Button 
-                                        size="sm" 
-                                        variant="destructive"
-                                        className="gap-1" 
-                                        onClick={() => setIsDeleteDialogOpen(true)}
-                                        disabled={isProcessing}
-                                    >
-                                        <Trash2 className="h-4 w-4" />
-                                        Eliminar Pendientes
-                                    </Button>
-                                    <Button 
-                                        size="sm" 
-                                        className="gap-1" 
-                                        onClick={() => router.push('/dashboard/purchases/centralize')}
-                                        disabled={isProcessing || unassignedPurchases.length > 0}
-                                    >
-                                    Ir a Centralizar <ArrowRight className="h-4 w-4" />
-                                    </Button>
-                                </>
-                            )}
+                        </div>
+                        <div className="flex items-center space-x-2">
+                            <input 
+                                type="file" 
+                                accept=".csv" 
+                                onChange={handleFileChange} 
+                                className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-violet-50 file:text-violet-700 hover:file:bg-violet-100"/>
+                            <Button onClick={handleFileUpload} disabled={isParsing || !selectedFile}>
+                                {isParsing ? 'Procesando...' : 'Subir Archivo'}
+                            </Button>
                         </div>
                     </div>
-                </CardHeader>
-                <CardContent>
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Fecha</TableHead>
-                                <TableHead>Documento</TableHead>
-                                <TableHead>Proveedor</TableHead>
-                                <TableHead className="w-[300px]">Cuenta de Gasto/Activo</TableHead>
-                                <TableHead className="text-right">Exento</TableHead>
-                                <TableHead className="text-right">Neto</TableHead>
-                                <TableHead className="text-right">IVA</TableHead>
-                                <TableHead className="text-right">Otros Imp.</TableHead>
-                                <TableHead className="text-right">Total</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {loading && (
-                                <TableRow>
-                                    <TableCell colSpan={9} className="text-center">Cargando...</TableCell>
-                                </TableRow>
-                            )}
-                            {!loading && pendingPurchases.map((purchase) => (
-                                <TableRow 
-                                    key={purchase.id}
-                                    className={cn(!purchase.assignedAccount && "bg-destructive/10 border-l-4 border-destructive")}
-                                >
-                                    <TableCell>{new Date(purchase.date).toLocaleDateString('es-CL', { timeZone: 'UTC' })}</TableCell>
-                                    <TableCell className="font-medium">{purchase.documentType} {purchase.documentNumber}</TableCell>
-                                    <TableCell>{purchase.supplier}</TableCell>
-                                    <TableCell>
-                                        <AccountSearchInput 
-                                            value={purchase.assignedAccount || ''}
-                                            onValueChange={(value) => handleAccountChange(purchase.id, value)}
-                                            accounts={accounts || []}
-                                            loading={accountsLoading}
-                                            label=""
-                                        />
-                                    </TableCell>
-                                    <TableCell className="text-right">${Math.round(purchase.exemptAmount).toLocaleString('es-CL')}</TableCell>
-                                    <TableCell className="text-right">${Math.round(purchase.netAmount).toLocaleString('es-CL')}</TableCell>
-                                    <TableCell className="text-right">${Math.round(purchase.taxAmount).toLocaleString('es-CL')}</TableCell>
-                                    <TableCell className="text-right">${Math.round(purchase.otherTaxes?.reduce((sum, tax) => sum + tax.amount, 0) || 0).toLocaleString('es-CL')}</TableCell>
-                                    <TableCell className="text-right font-bold">${Math.round(purchase.total).toLocaleString('es-CL')}</TableCell>
-                                </TableRow>
-                            ))}
-                            {!loading && pendingPurchases.length === 0 && (
-                                <TableRow>
-                                    <TableCell colSpan={9} className="text-center h-24">
-                                        {!companyId ? "Selecciona una empresa para empezar." : "No hay documentos de compra pendientes. ¡Importa un archivo!"}
-                                    </TableCell>
-                                </TableRow>
-                            )}
-                        </TableBody>
-                    </Table>
-                </CardContent>
-            </Card>
+                </div>
 
-            <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-                <AlertDialogContent>
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>¿Estás absolutamente seguro?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                            Esta acción no se puede deshacer. Se eliminarán permanentemente **todos** los documentos de compra con estado "Pendiente" para la empresa seleccionada.
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                        <AlertDialogAction
-                            className={buttonVariants({ variant: "destructive" })}
-                            onClick={handleDeletePending}
-                        >
-                            Sí, eliminar pendientes
-                        </AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
-
-            <Dialog open={isAssignAllDialogOpen} onOpenChange={setIsAssignAllDialogOpen}>
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>Asignar Cuenta a Documentos no Clasificados</DialogTitle>
-                        <DialogDescription>
-                            Selecciona la cuenta de gasto/activo que deseas asignar a los {unassignedPurchases.length} documentos sin cuenta.
-                        </DialogDescription>
-                    </DialogHeader>
-                    <div className="py-4">
-                       <AccountSearchInput
-                            label="Cuenta de Gasto/Activo"
-                            value={bulkAssignAccount || ''}
-                            onValueChange={setBulkAssignAccount}
-                            accounts={accounts || []}
-                            loading={accountsLoading}
-                        />
-                    </div>
-                    <DialogFooter>
-                        <DialogClose asChild>
-                            <Button type="button" variant="secondary">Cancelar</Button>
-                        </DialogClose>
-                        <Button type="button" onClick={handleBulkAssignAccount} disabled={!bulkAssignAccount || isProcessing}>
-                            {isProcessing ? 'Guardando...' : 'Guardar y Asignar'}
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
-        </>
-    )
+                <div>
+                    <h3 className="text-lg font-medium mb-4">Compras Cargadas Recientemente</h3>
+                    {purchases.length > 0 ? (
+                        <DataTable columns={columns} data={purchases} />
+                    ) : (
+                        <p className="text-sm text-muted-foreground">No hay compras para mostrar. Sube un archivo CSV para empezar.</p>
+                    )}
+                </div>
+            </CardContent>
+        </Card>
+    );
 }

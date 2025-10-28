@@ -27,6 +27,7 @@ export type User = {
 
 export type TaxAccountMapping = {
   taxCode: string;
+  name: string;
   accountCode: string;
 };
 
