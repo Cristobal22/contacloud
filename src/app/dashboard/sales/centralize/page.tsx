@@ -48,13 +48,15 @@ export default function CentralizeSalesPage() {
     const {
         totalNet,
         totalIvaDebit,
+        totalOtherTaxes,
         totalReceivable,
         closedPeriodDocs,
         salesToProcess,
-        isValid
+        isValid,
+        isBalanced
     } = React.useMemo(() => {
         if (!allSales || !selectedCompany) {
-            return { totalNet: 0, totalIvaDebit: 0, totalReceivable: 0, closedPeriodDocs: [], salesToProcess: [], isValid: false };
+            return { totalNet: 0, totalIvaDebit: 0, totalOtherTaxes: 0, totalReceivable: 0, closedPeriodDocs: [], salesToProcess: [], isValid: false, isBalanced: false };
         }
         
         const lastClosed = selectedCompany.lastClosedDate ? parseISO(selectedCompany.lastClosedDate) : null;
@@ -71,26 +73,44 @@ export default function CentralizeSalesPage() {
             return isBefore(docDate, lastClosed) || isEqual(docDate, lastClosed);
         });
         
-        const VAT_RATE = 0.19;
-        const total = processableDocs.reduce((sum, doc) => sum + doc.total, 0);
-        const totalExempt = processableDocs.reduce((sum, doc) => sum + (doc.exemptAmount || 0), 0);
-        const totalTaxable = total - totalExempt;
-        const net = totalTaxable / (1 + VAT_RATE);
-        const iva = totalTaxable - net;
+        const totals = processableDocs.reduce((acc, doc) => {
+            const sign = doc.documentType.includes('61') ? -1 : 1; // 61=Nota de Crédito
+            acc.net += (doc.netAmount || 0) * sign;
+            acc.exempt += (doc.exemptAmount || 0) * sign;
+            acc.iva += (doc.taxAmount || 0) * sign;
+            acc.otherTaxes += (doc.otherTaxesAmount || 0) * sign;
+            acc.total += doc.total * sign;
+            return acc;
+        }, { net: 0, exempt: 0, iva: 0, otherTaxes: 0, total: 0 });
+
+        const totalNetIncome = totals.net + totals.exempt;
+        const currentTotalIvaDebit = totals.iva;
+        const currentTotalOtherTaxes = totals.otherTaxes;
+        const currentTotalReceivable = totals.total;
+
+        const balanced = Math.round(currentTotalReceivable) === Math.round(totalNetIncome + currentTotalIvaDebit + currentTotalOtherTaxes);
+
+        const valid = processableDocs.length > 0 && 
+                      !!selectedCompany.salesInvoicesReceivableAccount && 
+                      !!selectedCompany.salesVatAccount &&
+                      (currentTotalOtherTaxes === 0 || !!selectedCompany.salesOtherTaxesAccount) &&
+                      balanced;
 
         return {
-            totalNet: net + totalExempt, // Total income is net + exempt
-            totalIvaDebit: iva,
-            totalReceivable: total,
+            totalNet: totalNetIncome,
+            totalIvaDebit: currentTotalIvaDebit,
+            totalOtherTaxes: currentTotalOtherTaxes,
+            totalReceivable: currentTotalReceivable,
             closedPeriodDocs: rejectedDocs,
             salesToProcess: processableDocs,
-            isValid: processableDocs.length > 0 && !!selectedCompany.salesInvoicesReceivableAccount && !!selectedCompany.salesVatAccount,
+            isValid: valid,
+            isBalanced: balanced
         };
     }, [allSales, selectedCompany]);
 
     const handleCentralize = async () => {
         if (!firestore || !companyId || !selectedCompany || !salesToProcess || !isValid) {
-            toast({ variant: 'destructive', title: 'Error de validación', description: 'No se puede centralizar. Revisa que las cuentas de venta estén configuradas.' });
+            toast({ variant: 'destructive', title: 'Error de validación', description: 'No se puede centralizar. Revisa que las cuentas de venta estén configuradas y el asiento cuadrado.' });
             return;
         }
 
@@ -102,29 +122,43 @@ export default function CentralizeSalesPage() {
 
         const entries: Omit<VoucherEntry, 'id'>[] = [];
 
-        // Asiento: Clientes (DEBE) a Ventas (HABER) y a IVA DF (HABER)
-        entries.push({
-            account: selectedCompany.salesInvoicesReceivableAccount!,
-            description: `Centralización Ventas Clientes`,
-            debit: totalReceivable,
-            credit: 0,
-        });
+        // Asiento: Clientes (DEBE) a Ventas, IVA DF y Otros Impuestos (HABER)
+        if (totalReceivable !== 0) {
+            entries.push({
+                account: selectedCompany.salesInvoicesReceivableAccount!,
+                description: `Centralización Ventas Clientes`,
+                debit: totalReceivable > 0 ? totalReceivable : 0,
+                credit: totalReceivable < 0 ? -totalReceivable : 0,
+            });
+        }
 
-        // This assumes a single income account for all sales. A more complex system might need to find one.
         const defaultIncomeAccount = selectedCompany.profitAccount || '4010110';
-        entries.push({
-            account: defaultIncomeAccount, 
-            description: `Ventas del período`,
-            debit: 0,
-            credit: totalNet,
-        });
+        if (totalNet !== 0) {
+            entries.push({
+                account: defaultIncomeAccount, 
+                description: `Ventas del período`,
+                debit: totalNet < 0 ? -totalNet : 0,
+                credit: totalNet > 0 ? totalNet : 0,
+            });
+        }
 
-        entries.push({
-            account: selectedCompany.salesVatAccount!,
-            description: 'IVA Débito Fiscal del período',
-            debit: 0,
-            credit: totalIvaDebit,
-        });
+        if (totalIvaDebit !== 0) {
+            entries.push({
+                account: selectedCompany.salesVatAccount!,
+                description: 'IVA Débito Fiscal del período',
+                debit: totalIvaDebit < 0 ? -totalIvaDebit : 0,
+                credit: totalIvaDebit > 0 ? totalIvaDebit : 0,
+            });
+        }
+
+        if (totalOtherTaxes !== 0 && selectedCompany.salesOtherTaxesAccount) {
+            entries.push({
+                account: selectedCompany.salesOtherTaxesAccount,
+                description: 'Otros Impuestos a Pagar',
+                debit: totalOtherTaxes < 0 ? -totalOtherTaxes : 0,
+                credit: totalOtherTaxes > 0 ? totalOtherTaxes : 0,
+            });
+        }
         
         const finalEntries = entries.filter(e => e.debit !== 0 || e.credit !== 0);
 
@@ -133,7 +167,7 @@ export default function CentralizeSalesPage() {
             type: 'Traspaso' as const,
             description: `Centralización Ventas ${monthName} ${periodDate.getFullYear()}`,
             status: 'Contabilizado' as const,
-            total: totalReceivable,
+            total: Math.abs(finalEntries.reduce((sum, e) => sum + e.debit, 0)),
             entries: finalEntries,
             companyId: companyId,
             createdAt: Timestamp.now(),
@@ -187,15 +221,15 @@ export default function CentralizeSalesPage() {
                         <CardTitle>Resumen del Asiento a Generar</CardTitle>
                     </CardHeader>
                     <CardContent>
-                         {!selectedCompany?.salesInvoicesReceivableAccount || !selectedCompany?.salesVatAccount ? (
+                         {(!selectedCompany?.salesInvoicesReceivableAccount || !selectedCompany?.salesVatAccount || (totalOtherTaxes > 0 && !selectedCompany?.salesOtherTaxesAccount)) && (
                              <Alert variant="destructive" className="mb-4">
                                 <AlertCircle className="h-4 w-4" />
                                 <AlertTitle>Falta Configuración de Cuentas</AlertTitle>
                                 <AlertDescription>
-                                    <p>Debes definir las cuentas contables para "Facturas por Cobrar" y "IVA Débito Fiscal" en la <Link href="/dashboard/companies/settings" className="font-bold underline">configuración de la empresa</Link> antes de poder centralizar.</p>
+                                    <p>Debes definir las cuentas contables para "Facturas por Cobrar", "IVA Débito Fiscal" y/o "Otros Impuestos de Ventas" en la <Link href="/dashboard/companies/settings" className="font-bold underline">configuración de la empresa</Link> antes de poder centralizar.</p>
                                 </AlertDescription>
                             </Alert>
-                         ): null}
+                         )}
                          {closedPeriodDocs.length > 0 && (
                              <Alert variant="destructive" className="mb-4">
                                 <AlertCircle className="h-4 w-4" />
@@ -246,11 +280,17 @@ export default function CentralizeSalesPage() {
                                             <TableCell>{selectedCompany?.salesVatAccount} - IVA Débito Fiscal</TableCell>
                                             <TableCell className="text-right">${Math.round(totalIvaDebit).toLocaleString('es-CL')}</TableCell>
                                         </TableRow>
+                                        {totalOtherTaxes > 0 && (
+                                            <TableRow>
+                                                <TableCell>{selectedCompany?.salesOtherTaxesAccount} - Otros Impuestos</TableCell>
+                                                <TableCell className="text-right">${Math.round(totalOtherTaxes).toLocaleString('es-CL')}</TableCell>
+                                            </TableRow>
+                                        )}
                                     </TableBody>
                                      <TableFooter>
                                         <TableRow className="font-bold text-base">
                                             <TableCell>Total Haber</TableCell>
-                                            <TableCell className="text-right">${Math.round(totalNet + totalIvaDebit).toLocaleString('es-CL')}</TableCell>
+                                            <TableCell className="text-right">${Math.round(totalNet + totalIvaDebit + totalOtherTaxes).toLocaleString('es-CL')}</TableCell>
                                         </TableRow>
                                     </TableFooter>
                                 </Table>
@@ -260,8 +300,8 @@ export default function CentralizeSalesPage() {
                     </CardContent>
                     <CardFooter className="flex flex-col items-end gap-4 pt-6">
                         <div className="text-right">
-                           <p className={`font-bold ${Math.round(totalReceivable) === Math.round(totalNet + totalIvaDebit) ? 'text-green-600' : 'text-destructive'}`}>
-                                {Math.round(totalReceivable) === Math.round(totalNet + totalIvaDebit) ? 'El asiento está cuadrado.' : 'El asiento no está cuadrado.'}
+                           <p className={`font-bold ${isBalanced ? 'text-green-600' : 'text-destructive'}`}>
+                                {isBalanced ? 'El asiento está cuadrado.' : 'El asiento no está cuadrado.'}
                            </p>
                         </div>
                         <div className="flex gap-2">
