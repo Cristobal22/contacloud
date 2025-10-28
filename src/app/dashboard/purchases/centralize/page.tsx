@@ -11,8 +11,8 @@ import {
 } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { useCollection, useFirestore } from "@/firebase"
-import { collection, addDoc, writeBatch, doc, Timestamp, getDocs, query, where } from "firebase/firestore"
-import type { Purchase, Account, VoucherEntry, Subject, OtherTax } from "@/lib/types";
+import { collection, writeBatch, doc, Timestamp, query, where } from "firebase/firestore"
+import type { Purchase, Account, VoucherEntry, Subject, TaxAccountMapping } from "@/lib/types";
 import { errorEmitter } from '@/firebase/error-emitter'
 import { FirestorePermissionError } from '@/firebase/errors'
 import { SelectedCompanyContext } from "../../layout";
@@ -46,6 +46,7 @@ type OtherTaxesSummary = {
     code: string;
     name: string;
     total: number;
+    accountCode?: string;
 }
 
 export default function CentralizePurchasesPage() {
@@ -89,10 +90,12 @@ export default function CentralizePurchasesPage() {
         isBalanced,
         totalIvaCredit,
         otherTaxesSummary,
-        totalPayable
+        totalPayable,
+        missingTaxAccounts
     } = React.useMemo(() => {
+        const initialReturn = { summary: [], totalDebit: 0, totalCredit: 0, unassignedDocs: [], closedPeriodDocs: [], purchasesToProcess: [], isValid: false, isBalanced: false, totalIvaCredit: 0, otherTaxesSummary: [], totalPayable: 0, missingTaxAccounts: [] };
         if (!allPurchases || !accounts || !selectedCompany) {
-            return { summary: [], totalDebit: 0, totalCredit: 0, unassignedDocs: [], closedPeriodDocs: [], purchasesToProcess: [], isValid: false, isBalanced: false, totalIvaCredit: 0, otherTaxesSummary: [], totalPayable: 0 };
+            return initialReturn;
         }
         
         const lastClosed = selectedCompany.lastClosedDate ? parseISO(selectedCompany.lastClosedDate) : null;
@@ -104,7 +107,7 @@ export default function CentralizePurchasesPage() {
         });
 
         const rejectedDocs = allPurchases.filter(p => {
-             if (!lastClosed) return false;
+            if (!lastClosed) return false;
             const docDate = parseISO(p.date);
             return isBefore(docDate, lastClosed) || isEqual(docDate, lastClosed);
         });
@@ -118,8 +121,7 @@ export default function CentralizePurchasesPage() {
 
         processableDocs.forEach(p => {
             const sign = p.documentType.includes('61') ? -1 : 1; // 61=Nota de Crédito, so invert sign
-            const totalAmount = p.total * sign;
-            currentTotalPayable += totalAmount;
+            currentTotalPayable += p.total * sign;
 
             if (p.assignedAccount) {
                 const netAmount = (p.netAmount + (p.exemptAmount || 0)) * sign;
@@ -129,43 +131,36 @@ export default function CentralizePurchasesPage() {
                 netSummary.set(p.assignedAccount, current);
             }
             
-            const taxAmount = (p.taxAmount || 0) * sign;
-            currentTotalIvaCredit += taxAmount;
+            currentTotalIvaCredit += (p.taxAmount || 0) * sign;
 
-            if (p.otherTaxes) {
-                p.otherTaxes.forEach(tax => {
-                    const taxTotal = (tax.amount || 0) * sign;
-                    const currentTax = otherTaxesGrouped.get(tax.code) || { name: tax.name, total: 0 };
-                    currentTax.total += taxTotal;
-                    otherTaxesGrouped.set(tax.code, currentTax);
-                });
-            }
+            p.otherTaxes?.forEach(tax => {
+                const taxTotal = (tax.amount || 0) * sign;
+                const currentTax = otherTaxesGrouped.get(tax.code) || { name: tax.name, total: 0 };
+                currentTax.total += taxTotal;
+                otherTaxesGrouped.set(tax.code, currentTax);
+            });
         });
 
-        const summaryRows: SummaryRow[] = Array.from(netSummary.entries()).map(([code, data]) => ({
-            accountCode: code,
-            accountName: data.name,
-            totalNet: data.total,
-            docCount: data.count,
-        }));
+        const summaryRows: SummaryRow[] = Array.from(netSummary.entries()).map(([code, data]) => ({ accountCode: code, accountName: data.name, totalNet: data.total, docCount: data.count }));
+        
+        const taxAccountMap = new Map(selectedCompany.purchasesOtherTaxesAccounts?.map(m => [m.taxCode, m.accountCode]));
 
         const otSummary: OtherTaxesSummary[] = Array.from(otherTaxesGrouped.entries()).map(([code, data]) => ({
             code: code,
             name: data.name,
             total: data.total,
+            accountCode: taxAccountMap.get(code)
         }));
+        
+        const missingTaxes = otSummary.filter(tax => tax.total !== 0 && !tax.accountCode);
 
         const totalOtherTaxes = otSummary.reduce((sum, tax) => sum + tax.total, 0);
         const totalNet = summaryRows.reduce((sum, row) => sum + row.totalNet, 0);
 
         const debit = totalNet + currentTotalIvaCredit + totalOtherTaxes;
-        
         const balanced = Math.round(debit) === Math.round(currentTotalPayable);
         
-        const valid = unassigned.length === 0 && 
-                      processableDocs.length > 0 && 
-                      balanced && 
-                      (totalOtherTaxes === 0 || !!selectedCompany.purchasesOtherTaxesAccount);
+        const valid = unassigned.length === 0 && processableDocs.length > 0 && balanced && missingTaxes.length === 0;
 
         return {
             summary: summaryRows,
@@ -179,37 +174,25 @@ export default function CentralizePurchasesPage() {
             purchasesToProcess: processableDocs,
             isValid: valid,
             isBalanced: balanced,
+            missingTaxAccounts: missingTaxes,
         };
     }, [allPurchases, accounts, selectedCompany]);
 
     const handleBulkAssignAccount = async () => {
-        if (!firestore || !companyId || !bulkAssignAccount || !unassignedDocs || unassignedDocs.length === 0) {
-            toast({ variant: 'destructive', title: 'Error', description: 'No hay cuenta seleccionada o no hay documentos que actualizar.' });
-            return;
-        }
-
+        if (!firestore || !companyId || !bulkAssignAccount || unassignedDocs.length === 0) return;
         setIsProcessing(true);
         const batch = writeBatch(firestore);
         const purchasesCollectionRef = collection(firestore, `companies/${companyId}/purchases`);
-
         unassignedDocs.forEach(docToUpdate => {
-            const docRef = doc(purchasesCollectionRef, docToUpdate.id);
-            batch.update(docRef, { assignedAccount: bulkAssignAccount });
+            batch.update(doc(purchasesCollectionRef, docToUpdate.id), { assignedAccount: bulkAssignAccount });
         });
-
         try {
             await batch.commit();
-            toast({
-                title: 'Actualización Exitosa',
-                description: `Se asignó la cuenta ${bulkAssignAccount} a ${unassignedDocs.length} documentos.`,
-            });
+            toast({ title: 'Actualización Exitosa', description: `Se asignó la cuenta ${bulkAssignAccount} a ${unassignedDocs.length} documentos.` });
             setIsAssignAllDialogOpen(false);
             setBulkAssignAccount(null);
         } catch (error) {
-            errorEmitter.emit('permission-error', new FirestorePermissionError({
-                path: `companies/${companyId}/purchases`,
-                operation: 'update',
-            }));
+            errorEmitter.emit('permission-error', new FirestorePermissionError({ path: `companies/${companyId}/purchases`, operation: 'update' }));
         } finally {
             setIsProcessing(false);
         }
@@ -217,14 +200,14 @@ export default function CentralizePurchasesPage() {
 
     const handleCentralize = async () => {
         if (!firestore || !companyId || !selectedCompany || !purchasesToProcess || !isValid || !existingSubjects) {
-            toast({ variant: 'destructive', title: 'Error de validación', description: 'No se puede centralizar. Revisa que todo esté correcto.' });
+            toast({ variant: 'destructive', title: 'Error de validación', description: 'No se puede centralizar. Revisa que todo esté correcto y que todas las cuentas estén asignadas.' });
             return;
         }
 
         setIsProcessing(true);
-
         const batch = writeBatch(firestore);
 
+        // Create new subjects if they don't exist
         const existingSubjectRuts = new Set(existingSubjects.map(s => s.rut));
         const newSuppliers = new Map<string, { rut: string; name: string }>();
         purchasesToProcess.forEach(p => {
@@ -237,13 +220,7 @@ export default function CentralizePurchasesPage() {
             const subjectsCollectionRef = collection(firestore, `companies/${companyId}/subjects`);
             newSuppliers.forEach(supplier => {
                 const newSubjectRef = doc(subjectsCollectionRef);
-                batch.set(newSubjectRef, {
-                    name: supplier.name,
-                    rut: supplier.rut,
-                    type: 'Proveedor',
-                    status: 'Active',
-                    companyId: companyId,
-                });
+                batch.set(newSubjectRef, { name: supplier.name, rut: supplier.rut, type: 'Proveedor', status: 'Active', companyId: companyId });
             });
         }
         
@@ -252,49 +229,32 @@ export default function CentralizePurchasesPage() {
         const monthName = format(periodDate, 'MMMM', { locale: es });
 
         const entries: Omit<VoucherEntry, 'id'>[] = [];
+        
+        // Net purchases
         summary.forEach(row => {
-            entries.push({
-                account: row.accountCode,
-                description: `Neto compras ${row.accountName}`,
-                debit: row.totalNet > 0 ? row.totalNet : 0,
-                credit: row.totalNet < 0 ? -row.totalNet : 0,
-            });
+            entries.push({ account: row.accountCode, description: `Neto compras ${row.accountName}`, debit: row.totalNet > 0 ? row.totalNet : 0, credit: row.totalNet < 0 ? -row.totalNet : 0 });
         });
 
+        // VAT
         if (totalIvaCredit !== 0 && selectedCompany.purchasesVatAccount) {
-            entries.push({
-                account: selectedCompany.purchasesVatAccount,
-                description: 'IVA Crédito Fiscal del período',
-                debit: totalIvaCredit > 0 ? totalIvaCredit : 0,
-                credit: totalIvaCredit < 0 ? -totalIvaCredit : 0,
-            });
+            entries.push({ account: selectedCompany.purchasesVatAccount, description: 'IVA Crédito Fiscal del período', debit: totalIvaCredit > 0 ? totalIvaCredit : 0, credit: totalIvaCredit < 0 ? -totalIvaCredit : 0 });
         }
 
-        if (otherTaxesSummary.length > 0 && selectedCompany.purchasesOtherTaxesAccount) {
-            otherTaxesSummary.forEach(tax => {
-                if (tax.total !== 0) {
-                    entries.push({
-                        account: selectedCompany.purchasesOtherTaxesAccount!,
-                        description: tax.name,
-                        debit: tax.total > 0 ? tax.total : 0,
-                        credit: tax.total < 0 ? -tax.total : 0,
-                    });
-                }
-            });
-        }
+        // Other Taxes
+        otherTaxesSummary.forEach(tax => {
+            if (tax.total !== 0 && tax.accountCode) {
+                entries.push({ account: tax.accountCode, description: tax.name, debit: tax.total > 0 ? tax.total : 0, credit: tax.total < 0 ? -tax.total : 0 });
+            }
+        });
 
+        // Total Payable
         if (totalPayable !== 0 && selectedCompany.purchasesInvoicesPayableAccount) {
-            entries.push({
-                account: selectedCompany.purchasesInvoicesPayableAccount,
-                description: 'Cuentas por Pagar Proveedores',
-                debit: totalPayable < 0 ? -totalPayable : 0,
-                credit: totalPayable > 0 ? totalPayable : 0,
-            });
+            entries.push({ account: selectedCompany.purchasesInvoicesPayableAccount, description: 'Cuentas por Pagar Proveedores', debit: totalPayable < 0 ? -totalPayable : 0, credit: totalPayable > 0 ? totalPayable : 0 });
         }
         
         const finalEntries = entries.filter(e => e.debit !== 0 || e.credit !== 0);
-
-        const voucherData = {
+        const newVoucherRef = doc(collection(firestore, `companies/${companyId}/vouchers`));
+        batch.set(newVoucherRef, {
             date: format(lastDay, 'yyyy-MM-dd'),
             type: 'Traspaso' as const,
             description: `Centralización Compras ${monthName} ${periodDate.getFullYear()}`,
@@ -303,37 +263,21 @@ export default function CentralizePurchasesPage() {
             entries: finalEntries,
             companyId: companyId,
             createdAt: Timestamp.now(),
-        };
-
-        const newVoucherRef = doc(collection(firestore, `companies/${companyId}/vouchers`));
-        batch.set(newVoucherRef, voucherData);
+        });
 
         purchasesToProcess.forEach(purchase => {
-            const purchaseRef = doc(firestore, `companies/${companyId}/purchases`, purchase.id);
-            batch.update(purchaseRef, { status: 'Contabilizado', voucherId: newVoucherRef.id });
+            batch.update(doc(firestore, `companies/${companyId}/purchases`, purchase.id), { status: 'Contabilizado', voucherId: newVoucherRef.id });
         });
         
         try {
             await batch.commit();
-            let toastDescription = 'El comprobante ha sido generado y las compras actualizadas.';
-            if (newSuppliers.size > 0) {
-                toastDescription += ` Se crearon ${newSuppliers.size} nuevos proveedores.`;
-            }
-
-            toast({
-                title: 'Centralización Exitosa',
-                description: toastDescription,
-            });
+            toast({ title: 'Centralización Exitosa', description: `El comprobante ha sido generado, ${newSuppliers.size > 0 ? `${newSuppliers.size} nuevos proveedores creados.` : ''}` });
             router.push('/dashboard/vouchers');
         } catch (error) {
-             errorEmitter.emit('permission-error', new FirestorePermissionError({
-                path: `companies/${companyId}`,
-                operation: 'update',
-            }));
-            setIsProcessing(false);
+             errorEmitter.emit('permission-error', new FirestorePermissionError({ path: `companies/${companyId}`, operation: 'update' }));
+             setIsProcessing(false);
         }
     };
-
 
     return (
         <div className="space-y-6">
@@ -347,7 +291,7 @@ export default function CentralizePurchasesPage() {
             {!loading && allPurchases && allPurchases.length === 0 && (
                 <Card>
                     <CardHeader><CardTitle>Sin Documentos Pendientes</CardTitle></CardHeader>
-                    <CardContent><p className="text-muted-foreground">No hay documentos de compra pendientes por centralizar. Vuelve a la página anterior para importar nuevos documentos.</p></CardContent>
+                    <CardContent><p className="text-muted-foreground">No hay documentos de compra pendientes por centralizar.</p></CardContent>
                 </Card>
             )}
 
@@ -357,23 +301,33 @@ export default function CentralizePurchasesPage() {
                         <CardTitle>Resumen del Asiento a Generar</CardTitle>
                     </CardHeader>
                     <CardContent>
+                        {missingTaxAccounts.length > 0 && (
+                            <Alert variant="destructive" className="mb-4">
+                                <AlertCircle className="h-4 w-4" />
+                                <AlertTitle>Faltan Cuentas de Impuestos Adicionales</AlertTitle>
+                                <AlertDescription>
+                                    <p>Para poder centralizar, debes asignar una cuenta contable a los siguientes impuestos en la <Link href="/dashboard/companies/settings" className="font-bold underline">configuración de la empresa</Link>:</p>
+                                    <ul className="list-disc pl-5 mt-2 text-xs">
+                                        {missingTaxAccounts.map(tax => (
+                                            <li key={tax.code}>{tax.name}</li>
+                                        ))}
+                                    </ul>
+                                </AlertDescription>
+                            </Alert>
+                        )}
                          {unassignedDocs.length > 0 && (
                              <Alert variant="destructive" className="mb-4">
                                 <AlertCircle className="h-4 w-4" />
                                 <AlertTitle>Atención Requerida: {unassignedDocs.length} Documento(s) Sin Cuenta Asignada</AlertTitle>
                                 <AlertDescription className="flex flex-col gap-2">
                                     <div>
-                                      <p>Debes asignar una cuenta de gasto a todos los documentos. Puedes volver a la página anterior o asignar una cuenta a todos los documentos pendientes desde aquí.</p>
+                                      <p>Debes asignar una cuenta de gasto a todos los documentos.</p>
                                       <ul className="list-disc pl-5 mt-2 text-xs">
-                                         {unassignedDocs.slice(0, 5).map(doc => (
-                                             <li key={doc.id}>Folio {doc.documentNumber} de {doc.supplier}</li>
-                                         ))}
+                                         {unassignedDocs.slice(0, 5).map(doc => <li key={doc.id}>Folio {doc.documentNumber} de {doc.supplier}</li>)}
                                           {unassignedDocs.length > 5 && <li>... y {unassignedDocs.length - 5} más.</li>}
                                       </ul>
                                     </div>
-                                    <Button size="sm" variant="secondary" onClick={() => setIsAssignAllDialogOpen(true)}>
-                                        Asignar Cuenta a Todos
-                                    </Button>
+                                    <Button size="sm" variant="secondary" onClick={() => setIsAssignAllDialogOpen(true)}>Asignar Cuenta a Todos</Button>
                                 </AlertDescription>
                             </Alert>
                          )}
@@ -382,11 +336,9 @@ export default function CentralizePurchasesPage() {
                                 <AlertCircle className="h-4 w-4" />
                                 <AlertTitle>Atención Requerida: {closedPeriodDocs.length} Documento(s) en Período Cerrado</AlertTitle>
                                 <AlertDescription>
-                                    <p>Estos documentos no serán incluidos en esta centralización y permanecerán pendientes:</p>
+                                    <p>Estos documentos no serán incluidos en esta centralización:</p>
                                      <ul className="list-disc pl-5 mt-2 text-xs">
-                                       {closedPeriodDocs.slice(0, 5).map(doc => (
-                                           <li key={doc.id}>Folio {doc.documentNumber} de {doc.supplier} (Fecha: {new Date(doc.date).toLocaleDateString('es-CL')})</li>
-                                       ))}
+                                       {closedPeriodDocs.slice(0, 5).map(doc => <li key={doc.id}>Folio {doc.documentNumber} de {doc.supplier} (Fecha: {new Date(doc.date).toLocaleDateString('es-CL')})</li>)}
                                         {closedPeriodDocs.length > 5 && <li>... y {closedPeriodDocs.length - 5} más.</li>}
                                     </ul>
                                 </AlertDescription>
@@ -398,88 +350,44 @@ export default function CentralizePurchasesPage() {
                             <div className="space-y-2">
                                 <h3 className="font-semibold text-lg">DEBE (Cargos)</h3>
                                 <Table>
-                                    <TableHeader>
-                                        <TableRow>
-                                            <TableHead>Cuenta Contable</TableHead>
-                                            <TableHead className="text-right">Monto</TableHead>
-                                        </TableRow>
-                                    </TableHeader>
+                                    <TableHeader><TableRow><TableHead>Cuenta Contable</TableHead><TableHead className="text-right">Monto</TableHead></TableRow></TableHeader>
                                     <TableBody>
                                         {summary.filter(r => r.totalNet > 0).map(row => (
-                                            <TableRow key={row.accountCode}>
-                                                <TableCell>{row.accountCode} - {row.accountName}</TableCell>
-                                                <TableCell className="text-right">${Math.round(row.totalNet).toLocaleString('es-CL')}</TableCell>
-                                            </TableRow>
+                                            <TableRow key={row.accountCode}><TableCell>{row.accountCode} - {row.accountName}</TableCell><TableCell className="text-right">${Math.round(row.totalNet).toLocaleString('es-CL')}</TableCell></TableRow>
                                         ))}
                                         {totalIvaCredit > 0 && (
-                                            <TableRow>
-                                                <TableCell>{selectedCompany?.purchasesVatAccount} - IVA Crédito Fiscal</TableCell>
-                                                <TableCell className="text-right">${Math.round(totalIvaCredit).toLocaleString('es-CL')}</TableCell>
-                                            </TableRow>
+                                            <TableRow><TableCell>{selectedCompany?.purchasesVatAccount} - IVA Crédito Fiscal</TableCell><TableCell className="text-right">${Math.round(totalIvaCredit).toLocaleString('es-CL')}</TableCell></TableRow>
                                         )}
                                         {otherTaxesSummary.filter(t => t.total > 0).map(tax => (
-                                            <TableRow key={tax.code}>
-                                                <TableCell>{selectedCompany?.purchasesOtherTaxesAccount} - {tax.name}</TableCell>
-                                                <TableCell className="text-right">${Math.round(tax.total).toLocaleString('es-CL')}</TableCell>
-                                            </TableRow>
+                                            <TableRow key={tax.code}><TableCell>{tax.accountCode} - {tax.name}</TableCell><TableCell className="text-right">${Math.round(tax.total).toLocaleString('es-CL')}</TableCell></TableRow>
                                         ))}
                                         {totalPayable < 0 && (
-                                            <TableRow>
-                                                <TableCell>{selectedCompany?.purchasesInvoicesPayableAccount} - Disminución Proveedores</TableCell>
-                                                <TableCell className="text-right">${Math.round(-totalPayable).toLocaleString('es-CL')}</TableCell>
-                                            </TableRow>
+                                            <TableRow><TableCell>{selectedCompany?.purchasesInvoicesPayableAccount} - Disminución Proveedores</TableCell><TableCell className="text-right">${Math.round(-totalPayable).toLocaleString('es-CL')}</TableCell></TableRow>
                                         )}
                                     </TableBody>
-                                    <TableFooter>
-                                        <TableRow className="font-bold text-base">
-                                            <TableCell>Total Debe</TableCell>
-                                            <TableCell className="text-right">${Math.round(totalDebit).toLocaleString('es-CL')}</TableCell>
-                                        </TableRow>
-                                    </TableFooter>
+                                    <TableFooter><TableRow className="font-bold text-base"><TableCell>Total Debe</TableCell><TableCell className="text-right">${Math.round(totalDebit).toLocaleString('es-CL')}</TableCell></TableRow></TableFooter>
                                 </Table>
                             </div>
                             {/* HABER */}
                              <div className="space-y-2">
                                 <h3 className="font-semibold text-lg">HABER (Abonos)</h3>
                                 <Table>
-                                    <TableHeader>
-                                        <TableRow>
-                                            <TableHead>Cuenta Contable</TableHead>
-                                            <TableHead className="text-right">Monto</TableHead>
-                                        </TableRow>
-                                    </TableHeader>
+                                    <TableHeader><TableRow><TableHead>Cuenta Contable</TableHead><TableHead className="text-right">Monto</TableHead></TableRow></TableHeader>
                                     <TableBody>
                                         {summary.filter(r => r.totalNet < 0).map(row => (
-                                            <TableRow key={row.accountCode}>
-                                                <TableCell>{row.accountCode} - {row.accountName}</TableCell>
-                                                <TableCell className="text-right">${Math.round(-row.totalNet).toLocaleString('es-CL')}</TableCell>
-                                            </TableRow>
+                                            <TableRow key={row.accountCode}><TableCell>{row.accountCode} - {row.accountName}</TableCell><TableCell className="text-right">${Math.round(-row.totalNet).toLocaleString('es-CL')}</TableCell></TableRow>
                                         ))}
                                         {totalIvaCredit < 0 && (
-                                            <TableRow>
-                                                <TableCell>{selectedCompany?.purchasesVatAccount} - Ajuste IVA Crédito</TableCell>
-                                                <TableCell className="text-right">${Math.round(-totalIvaCredit).toLocaleString('es-CL')}</TableCell>
-                                            </TableRow>
+                                            <TableRow><TableCell>{selectedCompany?.purchasesVatAccount} - Ajuste IVA Crédito</TableCell><TableCell className="text-right">${Math.round(-totalIvaCredit).toLocaleString('es-CL')}</TableCell></TableRow>
                                         )}
                                         {otherTaxesSummary.filter(t => t.total < 0).map(tax => (
-                                            <TableRow key={tax.code}>
-                                                <TableCell>{selectedCompany?.purchasesOtherTaxesAccount} - Ajuste {tax.name}</TableCell>
-                                                <TableCell className="text-right">${Math.round(-tax.total).toLocaleString('es-CL')}</TableCell>
-                                            </TableRow>
+                                            <TableRow key={tax.code}><TableCell>{tax.accountCode} - Ajuste {tax.name}</TableCell><TableCell className="text-right">${Math.round(-tax.total).toLocaleString('es-CL')}</TableCell></TableRow>
                                         ))}
                                         {totalPayable > 0 && (
-                                            <TableRow>
-                                                <TableCell>{selectedCompany?.purchasesInvoicesPayableAccount} - Proveedores</TableCell>
-                                                <TableCell className="text-right">${Math.round(totalPayable).toLocaleString('es-CL')}</TableCell>
-                                            </TableRow>
+                                            <TableRow><TableCell>{selectedCompany?.purchasesInvoicesPayableAccount} - Proveedores</TableCell><TableCell className="text-right">${Math.round(totalPayable).toLocaleString('es-CL')}</TableCell></TableRow>
                                         )}
                                     </TableBody>
-                                     <TableFooter>
-                                        <TableRow className="font-bold text-base">
-                                            <TableCell>Total Haber</TableCell>
-                                            <TableCell className="text-right">${Math.round(totalCredit).toLocaleString('es-CL')}</TableCell>
-                                        </TableRow>
-                                    </TableFooter>
+                                     <TableFooter><TableRow className="font-bold text-base"><TableCell>Total Haber</TableCell><TableCell className="text-right">${Math.round(totalCredit).toLocaleString('es-CL')}</TableCell></TableRow></TableFooter>
                                 </Table>
                             </div>
                         </div>
@@ -487,23 +395,12 @@ export default function CentralizePurchasesPage() {
                     </CardContent>
                     <CardFooter className="flex flex-col items-end gap-4 pt-6">
                         <div className="text-right">
-                           <p className={`font-bold ${isBalanced ? 'text-green-600' : 'text-destructive'}`}>
-                                {isBalanced ? 'El asiento está cuadrado.' : 'El asiento no está cuadrado.'}
-                           </p>
-                           <p className="text-sm text-muted-foreground">
-                               Diferencia: ${(Math.round(totalDebit) - Math.round(totalCredit)).toLocaleString('es-CL')}
-                           </p>
+                           <p className={`font-bold ${isBalanced ? 'text-green-600' : 'text-destructive'}`}>{isBalanced ? 'El asiento está cuadrado.' : 'El asiento no está cuadrado.'}</p>
+                           <p className="text-sm text-muted-foreground">Diferencia: ${(Math.round(totalDebit) - Math.round(totalCredit)).toLocaleString('es-CL')}</p>
                         </div>
                         <div className="flex gap-2">
-                             <Button variant="outline" asChild>
-                                <Link href="/dashboard/purchases">Atrás y Corregir</Link>
-                            </Button>
-                            <Button 
-                                onClick={handleCentralize} 
-                                disabled={!isValid || isProcessing}
-                            >
-                                {isProcessing ? "Procesando..." : "Centralizar y Contabilizar"}
-                            </Button>
+                             <Button variant="outline" asChild><Link href="/dashboard/purchases">Atrás y Corregir</Link></Button>
+                            <Button onClick={handleCentralize} disabled={!isValid || isProcessing}>{isProcessing ? "Procesando..." : "Centralizar y Contabilizar"}</Button>
                         </div>
                     </CardFooter>
                 </Card>
@@ -513,26 +410,14 @@ export default function CentralizePurchasesPage() {
                 <DialogContent>
                     <DialogHeader>
                         <DialogTitle>Asignar Cuenta a Documentos Pendientes</DialogTitle>
-                        <DialogDescription>
-                            Selecciona la cuenta de gasto que deseas asignar a los {unassignedDocs.length} documentos sin clasificar.
-                        </DialogDescription>
+                        <DialogDescription>Selecciona la cuenta de gasto que deseas asignar a los {unassignedDocs.length} documentos sin clasificar.</DialogDescription>
                     </DialogHeader>
                     <div className="py-4">
-                       <AccountSearchInput
-                            label="Cuenta de Gasto"
-                            value={bulkAssignAccount || ''}
-                            onValueChange={setBulkAssignAccount}
-                            accounts={accounts || []}
-                            loading={accountsLoading}
-                        />
+                       <AccountSearchInput label="Cuenta de Gasto" value={bulkAssignAccount || ''} onValueChange={setBulkAssignAccount} accounts={accounts || []} loading={accountsLoading} />
                     </div>
                     <DialogFooter>
-                        <DialogClose asChild>
-                            <Button type="button" variant="secondary">Cancelar</Button>
-                        </DialogClose>
-                        <Button type="button" onClick={handleBulkAssignAccount} disabled={!bulkAssignAccount || isProcessing}>
-                            {isProcessing ? 'Guardando...' : 'Guardar y Asignar'}
-                        </Button>
+                        <DialogClose asChild><Button type="button" variant="secondary">Cancelar</Button></DialogClose>
+                        <Button type="button" onClick={handleBulkAssignAccount} disabled={!bulkAssignAccount || isProcessing}>{isProcessing ? 'Guardando...' : 'Guardar y Asignar'}</Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>

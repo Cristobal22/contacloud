@@ -11,8 +11,8 @@ import {
 } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { useCollection, useFirestore } from "@/firebase"
-import { collection, addDoc, writeBatch, doc, Timestamp, query, where } from "firebase/firestore"
-import type { Sale, VoucherEntry, OtherTax } from "@/lib/types";
+import { collection, writeBatch, doc, Timestamp, query, where } from "firebase/firestore"
+import type { Sale, VoucherEntry, TaxAccountMapping } from "@/lib/types";
 import { errorEmitter } from '@/firebase/error-emitter'
 import { FirestorePermissionError } from '@/firebase/errors'
 import { SelectedCompanyContext } from "../../layout";
@@ -29,6 +29,7 @@ type OtherTaxesSummary = {
     code: string;
     name: string;
     total: number;
+    accountCode?: string;
 }
 
 export default function CentralizeSalesPage() {
@@ -61,10 +62,12 @@ export default function CentralizeSalesPage() {
         closedPeriodDocs,
         salesToProcess,
         isValid,
-        isBalanced
+        isBalanced,
+        missingTaxAccounts
     } = React.useMemo(() => {
+        const initialReturn = { totalNet: 0, totalIvaDebit: 0, otherTaxesSummary: [], totalReceivable: 0, totalDebit: 0, totalCredit: 0, closedPeriodDocs: [], salesToProcess: [], isValid: false, isBalanced: false, missingTaxAccounts: [] };
         if (!allSales || !selectedCompany) {
-            return { totalNet: 0, totalIvaDebit: 0, otherTaxesSummary: [], totalReceivable: 0, totalDebit: 0, totalCredit: 0, closedPeriodDocs: [], salesToProcess: [], isValid: false, isBalanced: false };
+            return initialReturn;
         }
         
         const lastClosed = selectedCompany.lastClosedDate ? parseISO(selectedCompany.lastClosedDate) : null;
@@ -94,21 +97,24 @@ export default function CentralizeSalesPage() {
             currentTotalIva += (doc.taxAmount || 0) * sign;
             currentTotalReceivable += doc.total * sign;
 
-            if (doc.otherTaxes) {
-                doc.otherTaxes.forEach(tax => {
-                    const taxTotal = (tax.amount || 0) * sign;
-                    const currentTax = otherTaxesGrouped.get(tax.code) || { name: tax.name, total: 0 };
-                    currentTax.total += taxTotal;
-                    otherTaxesGrouped.set(tax.code, currentTax);
-                });
-            }
+            doc.otherTaxes?.forEach(tax => {
+                const taxTotal = (tax.amount || 0) * sign;
+                const currentTax = otherTaxesGrouped.get(tax.code) || { name: tax.name, total: 0 };
+                currentTax.total += taxTotal;
+                otherTaxesGrouped.set(tax.code, currentTax);
+            });
         });
+
+        const taxAccountMap = new Map(selectedCompany.salesOtherTaxesAccounts?.map(m => [m.taxCode, m.accountCode]));
 
         const otSummary: OtherTaxesSummary[] = Array.from(otherTaxesGrouped.entries()).map(([code, data]) => ({
             code: code,
             name: data.name,
             total: data.total,
+            accountCode: taxAccountMap.get(code)
         }));
+        
+        const missingTaxes = otSummary.filter(tax => tax.total !== 0 && !tax.accountCode);
 
         const totalNetIncome = currentTotalNet + currentTotalExempt;
         const totalOtherTaxes = otSummary.reduce((sum, tax) => sum + tax.total, 0);
@@ -117,12 +123,11 @@ export default function CentralizeSalesPage() {
         const credit = totalNetIncome + currentTotalIva + totalOtherTaxes;
 
         const balanced = Math.round(debit) === Math.round(credit);
-        const hasOtherTaxes = otSummary.some(t => t.total !== 0);
 
         const valid = processableDocs.length > 0 &&
                       !!selectedCompany.salesInvoicesReceivableAccount &&
                       !!selectedCompany.salesVatAccount &&
-                      (!hasOtherTaxes || !!selectedCompany.salesOtherTaxesAccount) &&
+                      missingTaxes.length === 0 &&
                       balanced;
 
         return {
@@ -135,13 +140,14 @@ export default function CentralizeSalesPage() {
             closedPeriodDocs: rejectedDocs,
             salesToProcess: processableDocs,
             isValid: valid,
-            isBalanced: balanced
+            isBalanced: balanced,
+            missingTaxAccounts: missingTaxes
         };
     }, [allSales, selectedCompany]);
 
     const handleCentralize = async () => {
         if (!firestore || !companyId || !selectedCompany || !salesToProcess || !isValid) {
-            toast({ variant: 'destructive', title: 'Error de validación', description: 'No se puede centralizar. Revisa que las cuentas de venta estén configuradas y el asiento cuadrado.' });
+            toast({ variant: 'destructive', title: 'Error de validación', description: 'No se puede centralizar. Revisa que las cuentas de venta estén configuradas, que todos los impuestos tengan su cuenta y que el asiento esté cuadrado.' });
             return;
         }
 
@@ -155,45 +161,23 @@ export default function CentralizeSalesPage() {
 
         // Asiento: Clientes (DEBE) a Ventas, IVA DF y Otros Impuestos (HABER)
         if (totalReceivable !== 0) {
-            entries.push({
-                account: selectedCompany.salesInvoicesReceivableAccount!,
-                description: `Centralización Ventas Clientes`,
-                debit: totalReceivable > 0 ? totalReceivable : 0,
-                credit: totalReceivable < 0 ? -totalReceivable : 0,
-            });
+            entries.push({ account: selectedCompany.salesInvoicesReceivableAccount!, description: `Centralización Ventas Clientes`, debit: totalReceivable > 0 ? totalReceivable : 0, credit: totalReceivable < 0 ? -totalReceivable : 0 });
         }
 
         const defaultIncomeAccount = selectedCompany.profitAccount || '4010110';
         if (totalNet !== 0) {
-            entries.push({
-                account: defaultIncomeAccount, 
-                description: `Ventas del período`,
-                debit: totalNet < 0 ? -totalNet : 0,
-                credit: totalNet > 0 ? totalNet : 0,
-            });
+            entries.push({ account: defaultIncomeAccount,  description: `Ventas del período`, debit: totalNet < 0 ? -totalNet : 0, credit: totalNet > 0 ? totalNet : 0 });
         }
 
         if (totalIvaDebit !== 0 && selectedCompany.salesVatAccount) {
-            entries.push({
-                account: selectedCompany.salesVatAccount,
-                description: 'IVA Débito Fiscal del período',
-                debit: totalIvaDebit < 0 ? -totalIvaDebit : 0,
-                credit: totalIvaDebit > 0 ? totalIvaDebit : 0,
-            });
+            entries.push({ account: selectedCompany.salesVatAccount, description: 'IVA Débito Fiscal del período', debit: totalIvaDebit < 0 ? -totalIvaDebit : 0, credit: totalIvaDebit > 0 ? totalIvaDebit : 0 });
         }
 
-        if (otherTaxesSummary.length > 0 && selectedCompany.salesOtherTaxesAccount) {
-            otherTaxesSummary.forEach(tax => {
-                 if (tax.total !== 0) {
-                    entries.push({
-                        account: selectedCompany.salesOtherTaxesAccount!,
-                        description: tax.name,
-                        debit: tax.total < 0 ? -tax.total : 0,
-                        credit: tax.total > 0 ? tax.total : 0,
-                    });
-                }
-            });
-        }
+        otherTaxesSummary.forEach(tax => {
+            if (tax.total !== 0 && tax.accountCode) {
+                entries.push({ account: tax.accountCode, description: tax.name, debit: tax.total < 0 ? -tax.total : 0, credit: tax.total > 0 ? tax.total : 0 });
+            }
+        });
         
         const finalEntries = entries.filter(e => e.debit !== 0 || e.credit !== 0);
 
@@ -213,23 +197,16 @@ export default function CentralizeSalesPage() {
         batch.set(newVoucherRef, voucherData);
 
         salesToProcess.forEach(sale => {
-            const saleRef = doc(firestore, `companies/${companyId}/sales`, sale.id);
-            batch.update(saleRef, { status: 'Contabilizado', voucherId: newVoucherRef.id });
+            batch.update(doc(firestore, `companies/${companyId}/sales`, sale.id), { status: 'Contabilizado', voucherId: newVoucherRef.id });
         });
         
         try {
             await batch.commit();
-            toast({
-                title: 'Centralización Exitosa',
-                description: 'El comprobante de ventas ha sido generado y las ventas actualizadas.'
-            });
+            toast({ title: 'Centralización Exitosa', description: 'El comprobante de ventas ha sido generado y las ventas actualizadas.' });
             router.push('/dashboard/vouchers');
         } catch (error) {
-             errorEmitter.emit('permission-error', new FirestorePermissionError({
-                path: `companies/${companyId}`,
-                operation: 'update',
-            }));
-            setIsProcessing(false);
+             errorEmitter.emit('permission-error', new FirestorePermissionError({ path: `companies/${companyId}`, operation: 'update' }));
+             setIsProcessing(false);
         }
     };
 
@@ -246,7 +223,7 @@ export default function CentralizeSalesPage() {
             {!loading && allSales && allSales.length === 0 && (
                 <Card>
                     <CardHeader><CardTitle>Sin Documentos Pendientes</CardTitle></CardHeader>
-                    <CardContent><p className="text-muted-foreground">No hay documentos de venta pendientes por centralizar. Vuelve a la página anterior para importar nuevos documentos.</p></CardContent>
+                    <CardContent><p className="text-muted-foreground">No hay documentos de venta pendientes por centralizar.</p></CardContent>
                 </Card>
             )}
 
@@ -256,15 +233,20 @@ export default function CentralizeSalesPage() {
                         <CardTitle>Resumen del Asiento a Generar</CardTitle>
                     </CardHeader>
                     <CardContent>
-                         {(!isValid && isBalanced) && (
-                             <Alert variant="destructive" className="mb-4">
+                         {missingTaxAccounts.length > 0 && (
+                            <Alert variant="destructive" className="mb-4">
                                 <AlertCircle className="h-4 w-4" />
-                                <AlertTitle>Falta Configuración de Cuentas</AlertTitle>
+                                <AlertTitle>Faltan Cuentas de Impuestos Adicionales</AlertTitle>
                                 <AlertDescription>
-                                    <p>Debes definir las cuentas contables para "Facturas por Cobrar", "IVA Débito Fiscal" y/o "Otros Impuestos de Ventas" en la <Link href="/dashboard/companies/settings" className="font-bold underline">configuración de la empresa</Link> antes de poder centralizar.</p>
+                                    <p>Para poder centralizar, debes asignar una cuenta contable a los siguientes impuestos en la <Link href="/dashboard/companies/settings" className="font-bold underline">configuración de la empresa</Link>:</p>
+                                    <ul className="list-disc pl-5 mt-2 text-xs">
+                                        {missingTaxAccounts.map(tax => (
+                                            <li key={tax.code}>{tax.name}</li>
+                                        ))}
+                                    </ul>
                                 </AlertDescription>
                             </Alert>
-                         )}
+                        )}
                          {closedPeriodDocs.length > 0 && (
                              <Alert variant="destructive" className="mb-4">
                                 <AlertCircle className="h-4 w-4" />
@@ -272,9 +254,7 @@ export default function CentralizeSalesPage() {
                                 <AlertDescription>
                                     <p>Estos documentos no serán incluidos en esta centralización y permanecerán pendientes:</p>
                                      <ul className="list-disc pl-5 mt-2 text-xs">
-                                       {closedPeriodDocs.slice(0, 5).map(doc => (
-                                           <li key={doc.id}>Folio {doc.documentNumber} de {doc.customer} (Fecha: {new Date(doc.date).toLocaleDateString('es-CL')})</li>
-                                       ))}
+                                       {closedPeriodDocs.slice(0, 5).map(doc => <li key={doc.id}>Folio {doc.documentNumber} de {doc.customer} (Fecha: {new Date(doc.date).toLocaleDateString('es-CL')})</li>)}
                                         {closedPeriodDocs.length > 5 && <li>... y {closedPeriodDocs.length - 5} más.</li>}
                                     </ul>
                                 </AlertDescription>
@@ -289,36 +269,19 @@ export default function CentralizeSalesPage() {
                                     <TableHeader><TableRow><TableHead>Cuenta Contable</TableHead><TableHead className="text-right">Monto</TableHead></TableRow></TableHeader>
                                     <TableBody>
                                         {totalReceivable > 0 && (
-                                            <TableRow>
-                                                <TableCell>{selectedCompany?.salesInvoicesReceivableAccount} - Clientes</TableCell>
-                                                <TableCell className="text-right">${Math.round(totalReceivable).toLocaleString('es-CL')}</TableCell>
-                                            </TableRow>
+                                            <TableRow><TableCell>{selectedCompany?.salesInvoicesReceivableAccount} - Clientes</TableCell><TableCell className="text-right">${Math.round(totalReceivable).toLocaleString('es-CL')}</TableCell></TableRow>
                                         )}
                                         {totalNet < 0 && (
-                                             <TableRow>
-                                                <TableCell>{selectedCompany?.profitAccount || '4010110'} - Ajuste Ingreso por Ventas</TableCell>
-                                                <TableCell className="text-right">${Math.round(-totalNet).toLocaleString('es-CL')}</TableCell>
-                                            </TableRow>
+                                             <TableRow><TableCell>{selectedCompany?.profitAccount || '4010110'} - Ajuste Ingreso por Ventas</TableCell><TableCell className="text-right">${Math.round(-totalNet).toLocaleString('es-CL')}</TableCell></TableRow>
                                         )}
                                         {totalIvaDebit < 0 && (
-                                            <TableRow>
-                                                <TableCell>{selectedCompany?.salesVatAccount} - Ajuste IVA Débito Fiscal</TableCell>
-                                                <TableCell className="text-right">${Math.round(-totalIvaDebit).toLocaleString('es-CL')}</TableCell>
-                                            </TableRow>
+                                            <TableRow><TableCell>{selectedCompany?.salesVatAccount} - Ajuste IVA Débito Fiscal</TableCell><TableCell className="text-right">${Math.round(-totalIvaDebit).toLocaleString('es-CL')}</TableCell></TableRow>
                                         )}
                                         {otherTaxesSummary.filter(t => t.total < 0).map(tax => (
-                                            <TableRow key={tax.code}>
-                                                <TableCell>{selectedCompany?.salesOtherTaxesAccount} - Ajuste {tax.name}</TableCell>
-                                                <TableCell className="text-right">${Math.round(-tax.total).toLocaleString('es-CL')}</TableCell>
-                                            </TableRow>
+                                            <TableRow key={tax.code}><TableCell>{tax.accountCode} - Ajuste {tax.name}</TableCell><TableCell className="text-right">${Math.round(-tax.total).toLocaleString('es-CL')}</TableCell></TableRow>
                                         ))}
                                     </TableBody>
-                                    <TableFooter>
-                                        <TableRow className="font-bold text-base">
-                                            <TableCell>Total Debe</TableCell>
-                                            <TableCell className="text-right">${Math.round(totalDebit).toLocaleString('es-CL')}</TableCell>
-                                        </TableRow>
-                                    </TableFooter>
+                                    <TableFooter><TableRow className="font-bold text-base"><TableCell>Total Debe</TableCell><TableCell className="text-right">${Math.round(totalDebit).toLocaleString('es-CL')}</TableCell></TableRow></TableFooter>
                                 </Table>
                             </div>
                             {/* HABER */}
@@ -328,36 +291,19 @@ export default function CentralizeSalesPage() {
                                     <TableHeader><TableRow><TableHead>Cuenta Contable</TableHead><TableHead className="text-right">Monto</TableHead></TableRow></TableHeader>
                                     <TableBody>
                                         {totalNet > 0 && (
-                                            <TableRow>
-                                                <TableCell>{selectedCompany?.profitAccount || '4010110'} - Ingreso por Ventas</TableCell>
-                                                <TableCell className="text-right">${Math.round(totalNet).toLocaleString('es-CL')}</TableCell>
-                                            </TableRow>
+                                            <TableRow><TableCell>{selectedCompany?.profitAccount || '4010110'} - Ingreso por Ventas</TableCell><TableCell className="text-right">${Math.round(totalNet).toLocaleString('es-CL')}</TableCell></TableRow>
                                         )}
                                         {totalIvaDebit > 0 && (
-                                            <TableRow>
-                                                <TableCell>{selectedCompany?.salesVatAccount} - IVA Débito Fiscal</TableCell>
-                                                <TableCell className="text-right">${Math.round(totalIvaDebit).toLocaleString('es-CL')}</TableCell>
-                                            </TableRow>
+                                            <TableRow><TableCell>{selectedCompany?.salesVatAccount} - IVA Débito Fiscal</TableCell><TableCell className="text-right">${Math.round(totalIvaDebit).toLocaleString('es-CL')}</TableCell></TableRow>
                                         )}
                                         {otherTaxesSummary.filter(t => t.total > 0).map(tax => (
-                                            <TableRow key={tax.code}>
-                                                <TableCell>{selectedCompany?.salesOtherTaxesAccount} - {tax.name}</TableCell>
-                                                <TableCell className="text-right">${Math.round(tax.total).toLocaleString('es-CL')}</TableCell>
-                                            </TableRow>
+                                            <TableRow key={tax.code}><TableCell>{tax.accountCode} - {tax.name}</TableCell><TableCell className="text-right">${Math.round(tax.total).toLocaleString('es-CL')}</TableCell></TableRow>
                                         ))}
                                         {totalReceivable < 0 && (
-                                            <TableRow>
-                                                <TableCell>{selectedCompany?.salesInvoicesReceivableAccount} - Disminución Clientes</TableCell>
-                                                <TableCell className="text-right">${Math.round(-totalReceivable).toLocaleString('es-CL')}</TableCell>
-                                            </TableRow>
+                                            <TableRow><TableCell>{selectedCompany?.salesInvoicesReceivableAccount} - Disminución Clientes</TableCell><TableCell className="text-right">${Math.round(-totalReceivable).toLocaleString('es-CL')}</TableCell></TableRow>
                                         )}
                                     </TableBody>
-                                     <TableFooter>
-                                        <TableRow className="font-bold text-base">
-                                            <TableCell>Total Haber</TableCell>
-                                            <TableCell className="text-right">${Math.round(totalCredit).toLocaleString('es-CL')}</TableCell>
-                                        </TableRow>
-                                    </TableFooter>
+                                     <TableFooter><TableRow className="font-bold text-base"><TableCell>Total Haber</TableCell><TableCell className="text-right">${Math.round(totalCredit).toLocaleString('es-CL')}</TableCell></TableRow></TableFooter>
                                 </Table>
                             </div>
                         </div>
@@ -365,23 +311,12 @@ export default function CentralizeSalesPage() {
                     </CardContent>
                     <CardFooter className="flex flex-col items-end gap-4 pt-6">
                         <div className="text-right">
-                           <p className={`font-bold ${isBalanced ? 'text-green-600' : 'text-destructive'}`}>
-                                {isBalanced ? 'El asiento está cuadrado.' : 'El asiento no está cuadrado.'}
-                           </p>
-                           <p className="text-sm text-muted-foreground">
-                               Diferencia: ${(Math.round(totalDebit) - Math.round(totalCredit)).toLocaleString('es-CL')}
-                           </p>
+                           <p className={`font-bold ${isBalanced ? 'text-green-600' : 'text-destructive'}`}>{isBalanced ? 'El asiento está cuadrado.' : 'El asiento no está cuadrado.'}</p>
+                           <p className="text-sm text-muted-foreground">Diferencia: ${(Math.round(totalDebit) - Math.round(totalCredit)).toLocaleString('es-CL')}</p>
                         </div>
                         <div className="flex gap-2">
-                             <Button variant="outline" asChild>
-                                <Link href="/dashboard/sales">Atrás</Link>
-                            </Button>
-                            <Button 
-                                onClick={handleCentralize} 
-                                disabled={!isValid || isProcessing}
-                            >
-                                {isProcessing ? "Procesando..." : "Centralizar y Contabilizar"}
-                            </Button>
+                             <Button variant="outline" asChild><Link href="/dashboard/sales">Atrás</Link></Button>
+                            <Button onClick={handleCentralize} disabled={!isValid || isProcessing}>{isProcessing ? "Procesando..." : "Centralizar y Contabilizar"}</Button>
                         </div>
                     </CardFooter>
                 </Card>

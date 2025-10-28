@@ -6,11 +6,12 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import React from 'react';
-import type { Company, Account } from '@/lib/types';
+import type { Company, Account, TaxAccountMapping } from '@/lib/types';
 import { useCollection, useFirestore } from '@/firebase';
 import { SelectedCompanyContext } from '../../layout';
 import { doc, updateDoc } from 'firebase/firestore';
 import { AccountSearchInput } from '@/components/account-search-input';
+import { OtherTaxesSettings } from '@/components/other-taxes-settings';
 import { errorEmitter } from '@/firebase/error-emitter'
 import { FirestorePermissionError } from '@/firebase/errors'
 import { useToast } from "@/hooks/use-toast";
@@ -60,6 +61,13 @@ export default function CompanySettingsPage() {
     const handleInputChange = (field: keyof Company, value: any) => {
         if (company) {
             setCompany({ ...company, [field]: value });
+        }
+    };
+    
+    const handleOtherTaxesChange = (type: 'sales' | 'purchases', newMappings: TaxAccountMapping[]) => {
+        if (company) {
+            const field = type === 'sales' ? 'salesOtherTaxesAccounts' : 'purchasesOtherTaxesAccounts';
+            setCompany({ ...company, [field]: newMappings });
         }
     };
 
@@ -243,7 +251,7 @@ export default function CompanySettingsPage() {
                         value={company.salesVatAccount || ''} 
                         accounts={accounts || []} 
                         loading={accountsLoading}
-                        onValueChange={(value) => handleInputChange('salesVatAccount', value)}
+                        onValue-change={(value) => handleInputChange('salesVatAccount', value)}
                     />
                      <AccountSearchInput 
                         label="IVA Crédito Fiscal (Compras)" 
@@ -267,7 +275,7 @@ export default function CompanySettingsPage() {
 
                 {/* Ventas */}
                 <div className="space-y-4">
-                    <h3 className="text-lg font-medium">Ventas</h3>
+                    <h3 className="text-lg font-medium">Cuentas de Ventas</h3>
                     <AccountSearchInput 
                         label="Facturas por Cobrar" 
                         value={company.salesInvoicesReceivableAccount || ''} 
@@ -282,18 +290,22 @@ export default function CompanySettingsPage() {
                         loading={accountsLoading}
                         onValueChange={(value) => handleInputChange('salesNotesReceivableAccount', value)}
                     />
-                    <AccountSearchInput 
-                        label="Otros Impuestos de Venta" 
-                        value={company.salesOtherTaxesAccount || ''} 
-                        accounts={accounts || []} 
+                </div>
+
+                {/* Otros Impuestos - Ventas */}
+                <div className="space-y-4">
+                    <h3 className="text-lg font-medium">Otros Impuestos y Retenciones (Ventas)</h3>
+                     <OtherTaxesSettings 
+                        accounts={accounts || []}
                         loading={accountsLoading}
-                        onValueChange={(value) => handleInputChange('salesOtherTaxesAccount', value)}
+                        mappings={company.salesOtherTaxesAccounts || []}
+                        onChange={(newMappings) => handleOtherTaxesChange('sales', newMappings)}
                     />
                 </div>
                 
                  {/* Compras */}
                  <div className="space-y-4">
-                    <h3 className="text-lg font-medium">Compras</h3>
+                    <h3 className="text-lg font-medium">Cuentas de Compras</h3>
                     <AccountSearchInput 
                         label="Facturas por Pagar" 
                         value={company.purchasesInvoicesPayableAccount || ''} 
@@ -308,12 +320,16 @@ export default function CompanySettingsPage() {
                         loading={accountsLoading}
                         onValueChange={(value) => handleInputChange('purchasesNotesPayableAccount', value)}
                     />
-                    <AccountSearchInput 
-                        label="Otros Impuestos de Compra" 
-                        value={company.purchasesOtherTaxesAccount || ''} 
-                        accounts={accounts || []} 
+                </div>
+
+                {/* Otros Impuestos - Compras */}
+                <div className="space-y-4">
+                    <h3 className="text-lg font-medium">Otros Impuestos y Retenciones (Compras)</h3>
+                     <OtherTaxesSettings 
+                        accounts={accounts || []}
                         loading={accountsLoading}
-                        onValueChange={(value) => handleInputChange('purchasesOtherTaxesAccount', value)}
+                        mappings={company.purchasesOtherTaxesAccounts || []}
+                        onChange={(newMappings) => handleOtherTaxesChange('purchases', newMappings)}
                     />
                 </div>
 

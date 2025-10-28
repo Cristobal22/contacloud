@@ -25,6 +25,11 @@ export type User = {
   role: 'Admin' | 'Accountant';
 };
 
+export type TaxAccountMapping = {
+  taxCode: string;
+  accountCode: string;
+};
+
 export type Company = {
   id: string;
   name: string;
@@ -43,13 +48,13 @@ export type Company = {
   salesInvoicesReceivableAccount?: string;
   salesNotesReceivableAccount?: string;
   salesVatAccount?: string;
-  salesOtherTaxesAccount?: string;
+  salesOtherTaxesAccounts?: TaxAccountMapping[];
   proportionalVat?: boolean;
   purchasesInvoicesPayableAccount?: string;
   purchasesNotesPayableAccount?: string;
   purchasesVatAccount?: string;
   vatRemanentAccount?: string;
-  purchasesOtherTaxesAccount?: string;
+  purchasesOtherTaxesAccounts?: TaxAccountMapping[];
   feesPayableAccount?: string;
   feesWithholdingAccount?: string;
   incomeFeesReceivableAccount?: string;
