@@ -70,6 +70,28 @@ const getTaxNameFromCode = (code: string) => {
     return taxCodeMap[code] || `Otro Imp. Cód ${code}`;
 }
 
+const parseDate = (dateStr: string): string | null => {
+    if (!dateStr) return null;
+    // SII format is dd/mm/yyyy
+    const parts = dateStr.trim().split('/');
+    if (parts.length !== 3) return null;
+
+    const [day, month, year] = parts;
+    // Basic validation
+    if (day.length !== 2 || month.length !== 2 || year.length !== 4) return null;
+
+    // Reassemble in ISO format (YYYY-MM-DD) which new Date() parses reliably
+    const isoDateString = `${year}-${month}-${day}`;
+    const date = new Date(isoDateString);
+
+    // Check if the created date is valid
+    if (isNaN(date.getTime())) return null;
+    
+    // Return the date part of the ISO string (YYYY-MM-DD)
+    return isoDateString;
+};
+
+
 export default function PurchasesPage() {
     const { selectedCompany } = React.useContext(SelectedCompanyContext) || {};
     const companyId = selectedCompany?.id;
@@ -140,17 +162,16 @@ export default function PurchasesPage() {
                     total: headers.indexOf('Monto Total'),
                 };
 
-                // Check for critical missing headers
-                if (colIdx.docType === -1 || colIdx.docNum === -1 || colIdx.rut === -1 || colIdx.name === -1) {
-                    toast({ variant: 'destructive', title: 'Error de formato', description: 'El archivo CSV no parece ser un Registro de Compras válido. Faltan encabezados críticos.' });
+                if (colIdx.docType === -1 || colIdx.docNum === -1 || colIdx.rut === -1 || colIdx.name === -1 || colIdx.date === -1) {
+                    toast({ variant: 'destructive', title: 'Error de formato', description: 'El archivo CSV no parece ser un Registro de Compras válido. Faltan encabezados críticos (Tipo Doc, Folio, RUT Proveedor, Razon Social, Fecha Docto).' });
                     setIsProcessing(false);
                     return;
                 }
 
                 const otherTaxesHeaders: { codeIndex: number, valueIndex: number }[] = [];
                 headers.forEach((h, i) => {
-                    if (h === 'Codigo Otro Impuesto') { // Exact match
-                        const valueIndex = headers.indexOf('Valor Otro Impuesto', i); // Search after the code
+                    if (h === 'Codigo Otro Impuesto') {
+                        const valueIndex = headers.indexOf('Valor Otro Impuesto', i);
                         if (valueIndex > i) {
                             otherTaxesHeaders.push({ codeIndex: i, valueIndex: valueIndex });
                         }
@@ -170,20 +191,21 @@ export default function PurchasesPage() {
                 const collectionRef = collection(firestore, `companies/${companyId}/purchases`);
                 let count = 0;
                 let hasDateMismatch = false;
+                let invalidDateRows = 0;
                 const workingPeriodMonth = selectedCompany.periodStartDate ? parseISO(selectedCompany.periodStartDate).getMonth() : -1;
                 const workingPeriodYear = selectedCompany.periodStartDate ? parseISO(selectedCompany.periodStartDate).getFullYear() : -1;
 
                 dataLines.forEach(line => {
                     const columns = line.split(';');
 
-                    const parseDate = (dateStr: string) => {
-                        const [day, month, year] = dateStr.split('-');
-                        if (!day || !month || !year) return new Date().toISOString().substring(0, 10);
-                        return new Date(`${year}-${month}-${day}`).toISOString().substring(0, 10);
-                    };
-
-                    const supplierRut = columns[colIdx.rut]?.trim() || '';
                     const documentDateStr = parseDate(columns[colIdx.date]?.trim() || '');
+
+                    if (!documentDateStr) {
+                        invalidDateRows++;
+                        return; // Skip row if date is invalid
+                    }
+                    
+                    const supplierRut = columns[colIdx.rut]?.trim() || '';
                     const documentDate = parseISO(documentDateStr);
 
                     if (workingPeriodMonth !== -1 && (documentDate.getMonth() !== workingPeriodMonth || documentDate.getFullYear() !== workingPeriodYear)) {
@@ -229,6 +251,15 @@ export default function PurchasesPage() {
                         count++;
                     }
                 });
+
+                if (invalidDateRows > 0) {
+                    toast({
+                        variant: 'destructive',
+                        title: 'Advertencia de Fechas',
+                        description: `Se omitieron ${invalidDateRows} filas debido a un formato de fecha no válido. El formato esperado es dd/mm/yyyy.`,
+                        duration: 8000,
+                    });
+                }
 
                 if (count === 0) {
                     toast({ variant: 'destructive', title: 'Error de formato', description: 'No se encontraron documentos válidos en el archivo. Verifica que los datos y encabezados sean correctos.' });
