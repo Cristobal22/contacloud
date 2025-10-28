@@ -59,6 +59,28 @@ const getTaxNameFromCode = (code: string) => {
     return taxCodeMap[code] || `Otro Imp. Cód ${code}`;
 }
 
+const parseDate = (dateStr: string): string | null => {
+    if (!dateStr) return null;
+    // SII format is dd/mm/yyyy
+    const parts = dateStr.trim().split('/');
+    if (parts.length !== 3) return null;
+
+    const [day, month, year] = parts;
+    // Basic validation
+    if (day.length !== 2 || month.length !== 2 || year.length !== 4) return null;
+
+    // Reassemble in ISO format (YYYY-MM-DD) which new Date() parses reliably
+    const isoDateString = `${year}-${month}-${day}`;
+    const date = new Date(isoDateString);
+
+    // Check if the created date is valid
+    if (isNaN(date.getTime())) return null;
+    
+    // Return the date part of the ISO string (YYYY-MM-DD)
+    return isoDateString;
+};
+
+
 export default function SalesPage() {
     const { selectedCompany } = React.useContext(SelectedCompanyContext) || {};
     const companyId = selectedCompany?.id;
@@ -67,6 +89,7 @@ export default function SalesPage() {
     const router = useRouter();
     const fileInputRef = React.useRef<HTMLInputElement>(null);
     const [fileName, setFileName] = React.useState<string | null>(null);
+    const [isProcessing, setIsProcessing] = React.useState(false);
 
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false);
 
@@ -81,6 +104,7 @@ export default function SalesPage() {
         if (!event.target.files || !firestore || !companyId || !selectedCompany) return;
         const file = event.target.files[0];
         if (file) {
+            setIsProcessing(true);
             setFileName(file.name);
             const reader = new FileReader();
             reader.onload = async (e) => {
@@ -88,6 +112,7 @@ export default function SalesPage() {
                 const lines = text.split('\n').filter(line => line.trim() !== '');
                 if (lines.length < 2) {
                     toast({ variant: 'destructive', title: 'Error de archivo', description: 'El archivo CSV está vacío o no contiene un encabezado.' });
+                    setIsProcessing(false);
                     return;
                 }
 
@@ -107,11 +132,18 @@ export default function SalesPage() {
                     total: headers.indexOf('Monto Total'),
                 };
 
+                if (colIdx.docType === -1 || colIdx.docNum === -1 || colIdx.rut === -1 || colIdx.name === -1 || colIdx.date === -1) {
+                    toast({ variant: 'destructive', title: 'Error de formato', description: 'El archivo CSV no parece ser un Registro de Ventas válido. Faltan encabezados críticos (Tipo Doc, Folio, RUT Cliente, Razón Social Cliente, Fecha Docto).'});
+                    setIsProcessing(false);
+                    return;
+                }
+
                 const otherTaxesHeaders: { codeIndex: number, valueIndex: number }[] = [];
                 headers.forEach((h, i) => {
-                    if (h.startsWith('Cód. Otro Imp.')) {
-                        if (headers[i + 2] && headers[i + 2].startsWith('Vlr. Otro Imp.')) {
-                            otherTaxesHeaders.push({ codeIndex: i, valueIndex: i + 2 });
+                    if (h === 'Codigo Otro Impuesto') {
+                        const valueIndex = headers.indexOf('Valor Otro Impuesto', i);
+                        if (valueIndex > i) {
+                            otherTaxesHeaders.push({ codeIndex: i, valueIndex: valueIndex });
                         }
                     }
                 });
@@ -120,19 +152,20 @@ export default function SalesPage() {
                 const collectionRef = collection(firestore, `companies/${companyId}/sales`);
                 let count = 0;
                 let hasDateMismatch = false;
+                let invalidDateRows = 0;
                 const workingPeriodMonth = selectedCompany.periodStartDate ? parseISO(selectedCompany.periodStartDate).getMonth() : -1;
                 const workingPeriodYear = selectedCompany.periodStartDate ? parseISO(selectedCompany.periodStartDate).getFullYear() : -1;
 
                 dataLines.forEach(line => {
                     const columns = line.split(';');
 
-                    const parseDate = (dateStr: string) => {
-                        const [day, month, year] = dateStr.split('-');
-                        if (!day || !month || !year) return new Date().toISOString().substring(0, 10);
-                        return new Date(`${year}-${month}-${day}`).toISOString().substring(0, 10);
-                    };
-
                     const documentDateStr = parseDate(columns[colIdx.date]?.trim() || '');
+
+                    if (!documentDateStr) {
+                        invalidDateRows++;
+                        return; // Skip row if date is invalid
+                    }
+
                     const documentDate = parseISO(documentDateStr);
 
                     if (workingPeriodMonth !== -1 && (documentDate.getMonth() !== workingPeriodMonth || documentDate.getFullYear() !== workingPeriodYear)) {
@@ -173,9 +206,19 @@ export default function SalesPage() {
                         count++;
                     }
                 });
+                
+                if (invalidDateRows > 0) {
+                    toast({
+                        variant: 'destructive',
+                        title: 'Advertencia de Fechas',
+                        description: `Se omitieron ${invalidDateRows} filas debido a un formato de fecha no válido. El formato esperado es dd/mm/yyyy.`,
+                        duration: 8000,
+                    });
+                }
 
                 if (count === 0) {
                     toast({ variant: 'destructive', title: 'Error de formato', description: 'No se encontraron documentos válidos en el archivo.' });
+                    setIsProcessing(false);
                     return;
                 }
 
@@ -195,6 +238,8 @@ export default function SalesPage() {
                         path: `companies/${companyId}/sales`,
                         operation: 'create',
                     }));
+                } finally {
+                    setIsProcessing(false);
                 }
             };
             reader.readAsText(file, 'ISO-8859-1');
@@ -204,6 +249,7 @@ export default function SalesPage() {
 
     const handleDeletePending = async () => {
         if (!firestore || !companyId) return;
+        setIsProcessing(true);
 
         const collectionPath = `companies/${companyId}/sales`;
         const q = query(collection(firestore, collectionPath), where("status", "==", "Pendiente"));
@@ -213,6 +259,7 @@ export default function SalesPage() {
             if (querySnapshot.empty) {
                 toast({ description: "No hay documentos pendientes para eliminar." });
                 setIsDeleteDialogOpen(false);
+                setIsProcessing(false);
                 return;
             }
 
@@ -235,6 +282,7 @@ export default function SalesPage() {
             }));
         } finally {
             setIsDeleteDialogOpen(false);
+            setIsProcessing(false);
         }
     };
 
@@ -253,7 +301,7 @@ export default function SalesPage() {
                         <div className="flex items-center gap-4">
                              <div className="flex items-center gap-2">
                                 <input type="file" ref={fileInputRef} className="hidden" accept=".csv" onChange={handleFileImport} />
-                                <Button size="sm" className="gap-1" onClick={() => fileInputRef.current?.click()} disabled={!companyId}>
+                                <Button size="sm" className="gap-1" onClick={() => fileInputRef.current?.click()} disabled={!companyId || isProcessing}>
                                     <Upload className="h-4 w-4" />
                                     Importar Ventas (CSV)
                                 </Button>
@@ -266,6 +314,7 @@ export default function SalesPage() {
                                         variant="destructive"
                                         className="gap-1" 
                                         onClick={() => setIsDeleteDialogOpen(true)}
+                                        disabled={isProcessing}
                                     >
                                         <Trash2 className="h-4 w-4" />
                                         Eliminar Pendientes
@@ -274,6 +323,7 @@ export default function SalesPage() {
                                         size="sm" 
                                         className="gap-1" 
                                         onClick={() => router.push('/dashboard/sales/centralize')}
+                                        disabled={isProcessing}
                                     >
                                     Ir a Centralizar <ArrowRight className="h-4 w-4" />
                                     </Button>
