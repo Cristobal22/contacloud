@@ -50,10 +50,11 @@ import {
   import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
   import { useCollection, useFirestore } from "@/firebase"
   import { collection, addDoc, setDoc, doc, deleteDoc } from "firebase/firestore"
-  import type { Fee } from "@/lib/types";
+  import type { Account, Fee } from "@/lib/types";
   import { errorEmitter } from '@/firebase/error-emitter'
   import { FirestorePermissionError } from '@/firebase/errors'
 import { SelectedCompanyContext } from "../layout";
+import { AccountSearchInput } from "@/components/account-search-input";
 
   export default function FeesPage() {
     const { selectedCompany } = React.useContext(SelectedCompanyContext) || {};
@@ -63,6 +64,10 @@ import { SelectedCompanyContext } from "../layout";
     const { data: fees, loading } = useCollection<Fee>({ 
       path: companyId ? `companies/${companyId}/fees` : undefined,
       companyId: companyId 
+    });
+    const { data: accounts, loading: accountsLoading } = useCollection<Account>({
+      path: companyId ? `companies/${companyId}/accounts` : undefined,
+      companyId
     });
 
     const [isFormOpen, setIsFormOpen] = React.useState(false);
@@ -74,11 +79,17 @@ import { SelectedCompanyContext } from "../layout";
         setSelectedFee({
             id: `new-${Date.now()}`,
             date: new Date().toISOString().substring(0,10),
+            documentType: 'Boleta de Honorarios',
             documentNumber: '',
             issuer: '',
+            grossAmount: 0,
+            retention: 0.1375, // Default retention
+            netAmount: 0,
             total: 0,
             status: 'Pendiente',
             companyId: companyId,
+            serviceDescription: '',
+            expenseAccount: ''
         });
         setIsFormOpen(true);
     };
@@ -100,13 +111,19 @@ import { SelectedCompanyContext } from "../layout";
         const collectionPath = `companies/${companyId}/fees`;
         const collectionRef = collection(firestore, collectionPath);
         
-        const feeData = {
+        const feeData: Omit<Fee, 'id'> = {
           date: selectedFee.date || new Date().toISOString().substring(0,10),
+          documentType: selectedFee.documentType || 'Boleta de Honorarios',
           documentNumber: selectedFee.documentNumber || '',
           issuer: selectedFee.issuer || '',
+          grossAmount: selectedFee.grossAmount || 0,
+          retention: selectedFee.retention || 0,
+          netAmount: selectedFee.netAmount || 0,
           total: selectedFee.total || 0,
           status: selectedFee.status || 'Pendiente',
-          companyId: companyId
+          companyId: companyId,
+          serviceDescription: selectedFee.serviceDescription || '',
+          expenseAccount: selectedFee.expenseAccount || ''
         };
         
         setIsFormOpen(false);
@@ -151,11 +168,22 @@ import { SelectedCompanyContext } from "../layout";
     };
     
     const handleFieldChange = (field: keyof Fee, value: string | number) => {
-        if (selectedFee) {
-            setSelectedFee({ ...selectedFee, [field]: value });
+      if (selectedFee) {
+        let updatedFee = { ...selectedFee, [field]: value };
+    
+        if (field === 'grossAmount' || field === 'retention') {
+          const grossAmount = field === 'grossAmount' ? Number(value) : updatedFee.grossAmount || 0;
+          const retention = field === 'retention' ? Number(value) : updatedFee.retention || 0;
+          
+          const retentionAmount = Math.round(grossAmount * retention);
+          const netAmount = grossAmount - retentionAmount;
+    
+          updatedFee = { ...updatedFee, netAmount, total: netAmount };
         }
+    
+        setSelectedFee(updatedFee);
+      }
     };
-
 
     return (
       <>
@@ -179,6 +207,9 @@ import { SelectedCompanyContext } from "../layout";
                     <TableHead>Fecha</TableHead>
                     <TableHead>Nº Documento</TableHead>
                     <TableHead>Emisor/Receptor</TableHead>
+                    <TableHead>Monto Bruto</TableHead>
+                    <TableHead>Retención</TableHead>
+                    <TableHead>Monto Líquido</TableHead>
                     <TableHead>Estado</TableHead>
                     <TableHead className="text-right">Total</TableHead>
                     <TableHead>
@@ -189,7 +220,7 @@ import { SelectedCompanyContext } from "../layout";
                 <TableBody>
                 {loading && (
                     <TableRow>
-                        <TableCell colSpan={6} className="text-center">Cargando...</TableCell>
+                        <TableCell colSpan={9} className="text-center">Cargando...</TableCell>
                     </TableRow>
                 )}
                 {!loading && fees?.map((fee) => (
@@ -197,6 +228,9 @@ import { SelectedCompanyContext } from "../layout";
                     <TableCell>{new Date(fee.date).toLocaleDateString('es-CL', { timeZone: 'UTC' })}</TableCell>
                     <TableCell className="font-medium">{fee.documentNumber}</TableCell>
                     <TableCell>{fee.issuer}</TableCell>
+                    <TableCell>${Math.round(fee.grossAmount).toLocaleString('es-CL')}</TableCell>
+                    <TableCell>${Math.round(fee.grossAmount * fee.retention).toLocaleString('es-CL')}</TableCell>
+                    <TableCell>${Math.round(fee.netAmount).toLocaleString('es-CL')}</TableCell>
                     <TableCell>
                         <Badge variant={
                             fee.status === 'Pagada' ? 'default' :
@@ -225,7 +259,7 @@ import { SelectedCompanyContext } from "../layout";
                 ))}
                 {!loading && fees?.length === 0 && (
                     <TableRow>
-                        <TableCell colSpan={6} className="text-center">
+                        <TableCell colSpan={9} className="text-center">
                              {!companyId ? "Selecciona una empresa para ver sus honorarios." : "No se encontraron boletas de honorarios."}
                         </TableCell>
                     </TableRow>
@@ -236,7 +270,7 @@ import { SelectedCompanyContext } from "../layout";
         </Card>
         
         <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
-            <DialogContent className="sm:max-w-[425px]">
+            <DialogContent className="sm:max-w-2xl">
                 <DialogHeader>
                     <DialogTitle>{selectedFee?.id?.startsWith('new-') ? 'Agregar Boleta' : 'Editar Boleta'}</DialogTitle>
                     <DialogDescription>
@@ -244,22 +278,63 @@ import { SelectedCompanyContext } from "../layout";
                     </DialogDescription>
                 </DialogHeader>
                 <div className="grid gap-4 py-4">
-                    <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="date" className="text-right">Fecha</Label>
-                        <Input id="date" type="date" value={selectedFee?.date || ''} onChange={(e) => handleFieldChange('date', e.target.value)} className="col-span-3" />
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                          <Label htmlFor="documentType">Tipo de Documento</Label>
+                          <Select value={selectedFee?.documentType || ''} onValueChange={(value) => handleFieldChange('documentType', value)}>
+                              <SelectTrigger><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                  <SelectItem value="Boleta de Honorarios">Boleta de Honorarios</SelectItem>
+                                  <SelectItem value="Boleta de Prestación de Servicios de Terceros">Boleta de Prestación de Servicios de Terceros</SelectItem>
+                              </SelectContent>
+                          </Select>
+                      </div>
+                      <div className="space-y-2">
+                          <Label htmlFor="date">Fecha</Label>
+                          <Input id="date" type="date" value={selectedFee?.date || ''} onChange={(e) => handleFieldChange('date', e.target.value)} />
+                      </div>
                     </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="documentNumber" className="text-right">Nº Documento</Label>
-                        <Input id="documentNumber" value={selectedFee?.documentNumber || ''} onChange={(e) => handleFieldChange('documentNumber', e.target.value)} className="col-span-3" />
-                    </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="issuer" className="text-right">Emisor/Receptor</Label>
-                        <Input id="issuer" value={selectedFee?.issuer || ''} onChange={(e) => handleFieldChange('issuer', e.target.value)} className="col-span-3" />
-                    </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="total" className="text-right">Total</Label>
-                        <Input id="total" type="number" value={selectedFee?.total ?? ''} onChange={(e) => handleFieldChange('total', parseFloat(e.target.value))} className="col-span-3" />
-                    </div>
+                     <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="documentNumber">Nº Documento</Label>
+                            <Input id="documentNumber" value={selectedFee?.documentNumber || ''} onChange={(e) => handleFieldChange('documentNumber', e.target.value)} />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="issuer">Emisor/Receptor</Label>
+                            <Input id="issuer" value={selectedFee?.issuer || ''} onChange={(e) => handleFieldChange('issuer', e.target.value)} />
+                        </div>
+                     </div>
+                      <div className="space-y-2">
+                          <Label htmlFor="serviceDescription">Descripción del Servicio</Label>
+                          <Input id="serviceDescription" value={selectedFee?.serviceDescription || ''} onChange={(e) => handleFieldChange('serviceDescription', e.target.value)} />
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                              <Label htmlFor="grossAmount">Monto Bruto</Label>
+                              <Input id="grossAmount" type="number" value={selectedFee?.grossAmount ?? ''} onChange={(e) => handleFieldChange('grossAmount', parseFloat(e.target.value))} />
+                          </div>
+                          <div className="space-y-2">
+                              <Label htmlFor="retention">Retención (%)</Label>
+                              <Input id="retention" type="number" step="0.0001" value={selectedFee?.retention ?? ''} onChange={(e) => handleFieldChange('retention', parseFloat(e.target.value))} />
+                          </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                              <Label>Monto Retenido</Label>
+                              <p className="font-medium">${Math.round((selectedFee?.grossAmount || 0) * (selectedFee?.retention || 0)).toLocaleString('es-CL')}</p>
+                          </div>
+                          <div className="space-y-2">
+                              <Label>Monto Líquido</Label>
+                              <p className="font-medium">${Math.round(selectedFee?.netAmount || 0).toLocaleString('es-CL')}</p>
+                          </div>
+                      </div>
+                     <AccountSearchInput 
+                        label="Cuenta de Gasto" 
+                        value={selectedFee?.expenseAccount || ''} 
+                        accounts={accounts || []} 
+                        loading={accountsLoading}
+                        onValueChange={(value) => handleFieldChange('expenseAccount', value)}
+                    />
                     <div className="grid grid-cols-4 items-center gap-4">
                         <Label htmlFor="status" className="text-right">Estado</Label>
                         <Select value={selectedFee?.status || 'Pendiente'} onValueChange={(value) => handleFieldChange('status', value)}>

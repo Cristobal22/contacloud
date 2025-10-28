@@ -24,6 +24,16 @@ import { AlertCircle } from "lucide-react";
 import Link from "next/link";
 import { format, lastDayOfMonth, parseISO, isAfter, isEqual, isBefore } from "date-fns";
 import { es } from "date-fns/locale";
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogDescription,
+    DialogFooter,
+    DialogClose,
+} from "@/components/ui/dialog";
+import { AccountSearchInput } from "@/components/account-search-input";
 
 type SummaryRow = {
     accountCode: string;
@@ -57,6 +67,8 @@ export default function CentralizePurchasesPage() {
     });
 
     const [isProcessing, setIsProcessing] = React.useState(false);
+    const [isAssignAllDialogOpen, setIsAssignAllDialogOpen] = React.useState(false);
+    const [bulkAssignAccount, setBulkAssignAccount] = React.useState<string | null>(null);
 
     const loading = purchasesLoading || accountsLoading || subjectsLoading;
     
@@ -136,6 +148,39 @@ export default function CentralizePurchasesPage() {
             isValid: unassigned.length === 0 && processableDocs.length > 0 && isBalanced,
         };
     }, [allPurchases, accounts, selectedCompany]);
+
+    const handleBulkAssignAccount = async () => {
+        if (!firestore || !companyId || !bulkAssignAccount || !unassignedDocs || unassignedDocs.length === 0) {
+            toast({ variant: 'destructive', title: 'Error', description: 'No hay cuenta seleccionada o no hay documentos que actualizar.' });
+            return;
+        }
+
+        setIsProcessing(true);
+        const batch = writeBatch(firestore);
+        const purchasesCollectionRef = collection(firestore, `companies/${companyId}/purchases`);
+
+        unassignedDocs.forEach(docToUpdate => {
+            const docRef = doc(purchasesCollectionRef, docToUpdate.id);
+            batch.update(docRef, { assignedAccount: bulkAssignAccount });
+        });
+
+        try {
+            await batch.commit();
+            toast({
+                title: 'Actualización Exitosa',
+                description: `Se asignó la cuenta ${bulkAssignAccount} a ${unassignedDocs.length} documentos.`,
+            });
+            setIsAssignAllDialogOpen(false);
+            setBulkAssignAccount(null);
+        } catch (error) {
+            errorEmitter.emit('permission-error', new FirestorePermissionError({
+                path: `companies/${companyId}/purchases`,
+                operation: 'update',
+            }));
+        } finally {
+            setIsProcessing(false);
+        }
+    };
 
     const handleCentralize = async () => {
         if (!firestore || !companyId || !selectedCompany || !purchasesToProcess || !isValid || !existingSubjects) {
@@ -298,14 +343,19 @@ export default function CentralizePurchasesPage() {
                              <Alert variant="destructive" className="mb-4">
                                 <AlertCircle className="h-4 w-4" />
                                 <AlertTitle>Atención Requerida: {unassignedDocs.length} Documento(s) Sin Cuenta Asignada</AlertTitle>
-                                <AlertDescription>
-                                    <p>Debes asignar una cuenta de gasto a todos los documentos. Vuelve a la página anterior para corregir:</p>
-                                    <ul className="list-disc pl-5 mt-2 text-xs">
-                                       {unassignedDocs.slice(0, 5).map(doc => (
-                                           <li key={doc.id}>Folio {doc.documentNumber} de {doc.supplier}</li>
-                                       ))}
-                                        {unassignedDocs.length > 5 && <li>... y {unassignedDocs.length - 5} más.</li>}
-                                    </ul>
+                                <AlertDescription className="flex flex-col gap-2">
+                                    <div>
+                                      <p>Debes asignar una cuenta de gasto a todos los documentos. Puedes volver a la página anterior o asignar una cuenta a todos los documentos pendientes desde aquí.</p>
+                                      <ul className="list-disc pl-5 mt-2 text-xs">
+                                         {unassignedDocs.slice(0, 5).map(doc => (
+                                             <li key={doc.id}>Folio {doc.documentNumber} de {doc.supplier}</li>
+                                         ))}
+                                          {unassignedDocs.length > 5 && <li>... y {unassignedDocs.length - 5} más.</li>}
+                                      </ul>
+                                    </div>
+                                    <Button size="sm" variant="secondary" onClick={() => setIsAssignAllDialogOpen(true)}>
+                                        Asignar Cuenta a Todos
+                                    </Button>
                                 </AlertDescription>
                             </Alert>
                          )}
@@ -428,6 +478,34 @@ export default function CentralizePurchasesPage() {
                     </CardFooter>
                 </Card>
             )}
+
+            <Dialog open={isAssignAllDialogOpen} onOpenChange={setIsAssignAllDialogOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Asignar Cuenta a Documentos Pendientes</DialogTitle>
+                        <DialogDescription>
+                            Selecciona la cuenta de gasto que deseas asignar a los {unassignedDocs.length} documentos sin clasificar.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="py-4">
+                       <AccountSearchInput
+                            label="Cuenta de Gasto"
+                            value={bulkAssignAccount || ''}
+                            onValueChange={setBulkAssignAccount}
+                            accounts={accounts || []}
+                            loading={accountsLoading}
+                        />
+                    </div>
+                    <DialogFooter>
+                        <DialogClose asChild>
+                            <Button type="button" variant="secondary">Cancelar</Button>
+                        </DialogClose>
+                        <Button type="button" onClick={handleBulkAssignAccount} disabled={!bulkAssignAccount || isProcessing}>
+                            {isProcessing ? 'Guardando...' : 'Guardar y Asignar'}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     )
 }

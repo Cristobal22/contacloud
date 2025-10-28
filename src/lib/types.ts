@@ -186,11 +186,17 @@ export type Sale = {
 export type Fee = {
   id: string;
   date: string;
+  documentType: 'Boleta de Honorarios' | 'Boleta de Prestación de Servicios de Terceros';
   documentNumber: string;
   issuer: string;
+  grossAmount: number;
+  retention: number; // This is the withholding percentage
+  netAmount: number;
   total: number;
   status: 'Pendiente' | 'Pagada' | 'Vencida';
   companyId: string;
+  serviceDescription?: string;
+  expenseAccount?: string;
 };
 
 export type Payroll = {
