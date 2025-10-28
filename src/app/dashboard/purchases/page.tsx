@@ -18,7 +18,7 @@ import {
     CardTitle,
 } from "@/components/ui/card"
 import { Button, buttonVariants } from "@/components/ui/button"
-import { Upload, ArrowRight, Trash2 } from "lucide-react"
+import { Upload, ArrowRight, Trash2, Edit } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { useCollection, useFirestore } from "@/firebase"
 import { collection, addDoc, setDoc, doc, writeBatch, query, where, getDocs } from "firebase/firestore"
@@ -40,6 +40,15 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogDescription,
+    DialogFooter,
+    DialogClose,
+} from "@/components/ui/dialog";
 import { parseISO } from "date-fns";
 
 const taxCodeMap: { [key: string]: string } = {
@@ -71,6 +80,9 @@ export default function PurchasesPage() {
     const [fileName, setFileName] = React.useState<string | null>(null);
 
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false);
+    const [isAssignAllDialogOpen, setIsAssignAllDialogOpen] = React.useState(false);
+    const [bulkAssignAccount, setBulkAssignAccount] = React.useState<string | null>(null);
+    const [isProcessing, setIsProcessing] = React.useState(false);
 
     const { data: purchases, loading: purchasesLoading } = useCollection<Purchase>({
         path: companyId ? `companies/${companyId}/purchases` : undefined,
@@ -100,6 +112,7 @@ export default function PurchasesPage() {
         if (!event.target.files || !firestore || !companyId || !selectedCompany) return;
         const file = event.target.files[0];
         if (file) {
+            setIsProcessing(true);
             setFileName(file.name);
             const reader = new FileReader();
             reader.onload = async (e) => {
@@ -107,6 +120,7 @@ export default function PurchasesPage() {
                 const lines = text.split('\n').filter(line => line.trim() !== '');
                 if (lines.length < 2) {
                     toast({ variant: 'destructive', title: 'Error de archivo', description: 'El archivo CSV está vacío o no contiene un encabezado.' });
+                    setIsProcessing(false);
                     return;
                 }
 
@@ -210,6 +224,7 @@ export default function PurchasesPage() {
 
                 if (count === 0) {
                     toast({ variant: 'destructive', title: 'Error de formato', description: 'No se encontraron documentos válidos en el archivo.' });
+                    setIsProcessing(false);
                     return;
                 }
 
@@ -229,6 +244,8 @@ export default function PurchasesPage() {
                         path: `companies/${companyId}/purchases`,
                         operation: 'create',
                     }));
+                } finally {
+                    setIsProcessing(false);
                 }
             };
             reader.readAsText(file, 'ISO-8859-1');
@@ -238,6 +255,7 @@ export default function PurchasesPage() {
 
     const handleDeletePending = async () => {
         if (!firestore || !companyId) return;
+        setIsProcessing(true);
 
         const collectionPath = `companies/${companyId}/purchases`;
         const q = query(collection(firestore, collectionPath), where("status", "==", "Pendiente"));
@@ -247,6 +265,7 @@ export default function PurchasesPage() {
             if (querySnapshot.empty) {
                 toast({ description: "No hay documentos pendientes para eliminar." });
                 setIsDeleteDialogOpen(false);
+                setIsProcessing(false);
                 return;
             }
 
@@ -269,11 +288,46 @@ export default function PurchasesPage() {
             }));
         } finally {
             setIsDeleteDialogOpen(false);
+            setIsProcessing(false);
         }
     };
 
-
     const pendingPurchases = purchases?.filter(p => p.status === 'Pendiente') || [];
+    const unassignedPurchases = pendingPurchases.filter(p => !p.assignedAccount);
+
+    const handleBulkAssignAccount = async () => {
+        if (!firestore || !companyId || !bulkAssignAccount || unassignedPurchases.length === 0) {
+            toast({ variant: 'destructive', title: 'Error', description: 'No hay cuenta seleccionada o no hay documentos que actualizar.' });
+            return;
+        }
+    
+        setIsProcessing(true);
+        const batch = writeBatch(firestore);
+        const purchasesCollectionRef = collection(firestore, `companies/${companyId}/purchases`);
+    
+        unassignedPurchases.forEach(docToUpdate => {
+            const docRef = doc(purchasesCollectionRef, docToUpdate.id);
+            batch.update(docRef, { assignedAccount: bulkAssignAccount });
+        });
+    
+        try {
+            await batch.commit();
+            toast({
+                title: 'Actualización Exitosa',
+                description: `Se asignó la cuenta ${bulkAssignAccount} a ${unassignedPurchases.length} documentos.`,
+            });
+            setIsAssignAllDialogOpen(false);
+            setBulkAssignAccount(null);
+        } catch (error) {
+            errorEmitter.emit('permission-error', new FirestorePermissionError({
+                path: `companies/${companyId}/purchases`,
+                operation: 'update',
+            }));
+        } finally {
+            setIsProcessing(false);
+        }
+    };
+
 
     return (
         <>
@@ -284,15 +338,27 @@ export default function PurchasesPage() {
                             <CardTitle>Centralización de Compras</CardTitle>
                             <CardDescription>Paso 1: Importa documentos y asigna las cuentas de gasto/activo.</CardDescription>
                         </div>
-                        <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-2">
                             <div className="flex items-center gap-2">
                                 <input type="file" ref={fileInputRef} className="hidden" accept=".csv" onChange={handleFileImport} />
-                                <Button size="sm" className="gap-1" onClick={() => fileInputRef.current?.click()} disabled={!companyId}>
+                                <Button size="sm" className="gap-1" onClick={() => fileInputRef.current?.click()} disabled={!companyId || isProcessing}>
                                     <Upload className="h-4 w-4" />
-                                    Importar Compras (CSV)
+                                    Importar CSV
                                 </Button>
                                 {fileName && <span className="text-xs text-muted-foreground">{fileName}</span>}
                             </div>
+                            {unassignedPurchases.length > 0 && (
+                                <Button 
+                                    size="sm" 
+                                    variant="outline"
+                                    className="gap-1" 
+                                    onClick={() => setIsAssignAllDialogOpen(true)}
+                                    disabled={isProcessing}
+                                >
+                                    <Edit className="h-4 w-4" />
+                                    Asignar Cuenta a Todos
+                                </Button>
+                            )}
                             {pendingPurchases.length > 0 && (
                                 <>
                                     <Button 
@@ -300,6 +366,7 @@ export default function PurchasesPage() {
                                         variant="destructive"
                                         className="gap-1" 
                                         onClick={() => setIsDeleteDialogOpen(true)}
+                                        disabled={isProcessing}
                                     >
                                         <Trash2 className="h-4 w-4" />
                                         Eliminar Pendientes
@@ -308,10 +375,11 @@ export default function PurchasesPage() {
                                         size="sm" 
                                         className="gap-1" 
                                         onClick={() => router.push('/dashboard/purchases/centralize')}
+                                        disabled={isProcessing || unassignedPurchases.length > 0}
                                     >
                                     Ir a Centralizar <ArrowRight className="h-4 w-4" />
                                     </Button>
-                                <>
+                                </>
                             )}
                         </div>
                     </div>
@@ -392,6 +460,34 @@ export default function PurchasesPage() {
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
+
+            <Dialog open={isAssignAllDialogOpen} onOpenChange={setIsAssignAllDialogOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Asignar Cuenta a Documentos no Clasificados</DialogTitle>
+                        <DialogDescription>
+                            Selecciona la cuenta de gasto/activo que deseas asignar a los {unassignedPurchases.length} documentos sin cuenta.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="py-4">
+                       <AccountSearchInput
+                            label="Cuenta de Gasto/Activo"
+                            value={bulkAssignAccount || ''}
+                            onValueChange={setBulkAssignAccount}
+                            accounts={accounts || []}
+                            loading={accountsLoading}
+                        />
+                    </div>
+                    <DialogFooter>
+                        <DialogClose asChild>
+                            <Button type="button" variant="secondary">Cancelar</Button>
+                        </DialogClose>
+                        <Button type="button" onClick={handleBulkAssignAccount} disabled={!bulkAssignAccount || isProcessing}>
+                            {isProcessing ? 'Guardando...' : 'Guardar y Asignar'}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </>
     )
 }
