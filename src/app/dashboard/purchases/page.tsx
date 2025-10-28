@@ -131,20 +131,28 @@ export default function PurchasesPage() {
                 const colIdx = {
                     docType: headers.indexOf('Tipo Doc'),
                     docNum: headers.indexOf('Folio'),
-                    rut: headers.indexOf('RUT Emisor'),
-                    name: headers.indexOf('Razón Social Emisor'),
+                    rut: headers.indexOf('RUT Proveedor'),
+                    name: headers.indexOf('Razon Social'),
                     date: headers.indexOf('Fecha Docto'),
                     exempt: headers.indexOf('Monto Exento'),
                     net: headers.indexOf('Monto Neto'),
-                    vat: headers.indexOf('Monto IVA'),
+                    vat: headers.indexOf('Monto IVA Recuperable'),
                     total: headers.indexOf('Monto Total'),
                 };
 
+                // Check for critical missing headers
+                if (colIdx.docType === -1 || colIdx.docNum === -1 || colIdx.rut === -1 || colIdx.name === -1) {
+                    toast({ variant: 'destructive', title: 'Error de formato', description: 'El archivo CSV no parece ser un Registro de Compras válido. Faltan encabezados críticos.' });
+                    setIsProcessing(false);
+                    return;
+                }
+
                 const otherTaxesHeaders: { codeIndex: number, valueIndex: number }[] = [];
                 headers.forEach((h, i) => {
-                    if (h.startsWith('Cód. Otro Imp.')) {
-                        if (headers[i + 2] && headers[i + 2].startsWith('Vlr. Otro Imp.')) {
-                            otherTaxesHeaders.push({ codeIndex: i, valueIndex: i + 2 });
+                    if (h === 'Codigo Otro Impuesto') { // Exact match
+                        const valueIndex = headers.indexOf('Valor Otro Impuesto', i); // Search after the code
+                        if (valueIndex > i) {
+                            otherTaxesHeaders.push({ codeIndex: i, valueIndex: valueIndex });
                         }
                     }
                 });
@@ -223,7 +231,7 @@ export default function PurchasesPage() {
                 });
 
                 if (count === 0) {
-                    toast({ variant: 'destructive', title: 'Error de formato', description: 'No se encontraron documentos válidos en el archivo.' });
+                    toast({ variant: 'destructive', title: 'Error de formato', description: 'No se encontraron documentos válidos en el archivo. Verifica que los datos y encabezados sean correctos.' });
                     setIsProcessing(false);
                     return;
                 }
