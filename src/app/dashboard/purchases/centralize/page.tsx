@@ -537,7 +537,8 @@ export default function CentralizePurchasesPage() {
                             {isProcessing ? 'Guardando...' : 'Guardar y Asignar'}
                         </Button>
                     </DialogFooter>
-                </Dialog>
+                </DialogContent>
+            </Dialog>
         </div>
     )
 }
