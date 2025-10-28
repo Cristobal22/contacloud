@@ -69,9 +69,9 @@ export default function CompanySettingsPage() {
         }
     };
 
-    const handleSaveChanges = () => {
-        if (company && company.id && firestore) {
-            const { id, ...companyData } = company;
+    const handleSaveChanges = (updatedCompanyData: Partial<Company>) => {
+        if (updatedCompanyData && updatedCompanyData.id && firestore) {
+            const { id, ...companyData } = updatedCompanyData;
             const companyRef = doc(firestore, 'companies', id);
             
             updateDoc(companyRef, companyData)
@@ -81,7 +81,7 @@ export default function CompanySettingsPage() {
                         description: "Los cambios han sido guardados exitosamente.",
                     });
                     if (setSelectedCompany) {
-                        setSelectedCompany(company as Company);
+                        setSelectedCompany(updatedCompanyData as Company);
                     }
                 })
                 .catch((error) => {
@@ -128,9 +128,10 @@ export default function CompanySettingsPage() {
             });
         } else {
             setCompany(updatedCompany);
+            handleSaveChanges(updatedCompany);
             toast({
-                title: 'Cuentas Asignadas',
-                description: 'Se han asignado las cuentas predeterminadas. Guarda los cambios para confirmarlos.'
+                title: 'Cuentas Asignadas y Guardadas',
+                description: 'Se han asignado y guardado las cuentas predeterminadas.'
             });
         }
     };
@@ -403,11 +404,9 @@ export default function CompanySettingsPage() {
 
 
                 <div className="flex justify-end">
-                    <Button onClick={handleSaveChanges}>Guardar Cambios</Button>
+                    <Button onClick={() => handleSaveChanges(company)}>Guardar Cambios</Button>
                 </div>
             </CardContent>
         </Card>
     )
 }
-
-    

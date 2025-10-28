@@ -86,11 +86,13 @@ export function AccountSearchInput({ label, value, onValueChange, accounts, load
             className="w-full justify-between font-normal"
             disabled={loading}
             >
-            {loading 
-                ? "Cargando cuentas..." 
-                : value && selectedAccount
-                ? `${selectedAccount.code} - ${selectedAccount.name}`
-                : "Seleccionar cuenta..."}
+            {loading
+                ? 'Cargando cuentas...'
+                : value
+                ? selectedAccount
+                    ? `${selectedAccount.code} - ${selectedAccount.name}`
+                    : value
+                : 'Seleccionar cuenta...'}
             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
             </Button>
         </PopoverTrigger>
