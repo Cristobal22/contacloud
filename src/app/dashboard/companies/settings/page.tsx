@@ -15,6 +15,7 @@ import { OtherTaxesSettings } from '@/components/other-taxes-settings';
 import { errorEmitter } from '@/firebase/error-emitter'
 import { FirestorePermissionError } from '@/firebase/errors'
 import { useToast } from "@/hooks/use-toast";
+import { DeleteCompanyDialog } from '@/components/delete-company-dialog';
 
 const defaultAccountMappings: { [key in keyof Partial<Company>]: string } = {
     profitAccount: '40105', // UTILIDAD BRUTA
@@ -144,7 +145,6 @@ export default function CompanySettingsPage() {
         }
     };
 
-
     if (!company) {
         return (
             <Card>
@@ -251,7 +251,7 @@ export default function CompanySettingsPage() {
                         value={company.salesVatAccount || ''} 
                         accounts={accounts || []} 
                         loading={accountsLoading}
-                        onValue-change={(value) => handleInputChange('salesVatAccount', value)}
+                        onValueChange={(value) => handleInputChange('salesVatAccount', value)}
                     />
                      <AccountSearchInput 
                         label="IVA Crédito Fiscal (Compras)" 
@@ -367,7 +367,7 @@ export default function CompanySettingsPage() {
                         value={company.incomeFeesWithholdingAccount || ''} 
                         accounts={accounts || []} 
                         loading={accountsLoading}
-                        onValueChange={(value) => handleInputChange('incomeFeesWithholdingAccount', value)}
+                        onValue-change={(value) => handleInputChange('incomeFeesWithholdingAccount', value)}
                     />
                 </div>
 
@@ -386,7 +386,7 @@ export default function CompanySettingsPage() {
                         value={company.salariesPayableAccount || ''} 
                         accounts={accounts || []} 
                         loading={accountsLoading}
-                        onValueChange={(value) => handleInputChange('salariesPayableAccount', value)}
+                        onValue-change={(value) => handleInputChange('salariesPayableAccount', value)}
                     />
                     <AccountSearchInput 
                         label="Leyes Sociales por Pagar (AFP)" 
@@ -400,7 +400,7 @@ export default function CompanySettingsPage() {
                         value={company.employerAfpContributionPayableAccount || ''} 
                         accounts={accounts || []} 
                         loading={accountsLoading}
-                        onValueChange={(value) => handleInputChange('employerAfpContributionPayableAccount', value)}
+                        onValue-change={(value) => handleInputChange('employerAfpContributionPayableAccount', value)}
                     />
                     <AccountSearchInput 
                         label="Leyes Sociales por Pagar (Salud)" 
@@ -418,10 +418,28 @@ export default function CompanySettingsPage() {
                     />
                 </div>
 
-
-                <div className="flex justify-end">
-                    <Button onClick={() => handleSaveChanges(company)}>Guardar Cambios</Button>
+                <div className="flex justify-end pt-4">
+                    <Button onClick={() => handleSaveChanges(company!)}>Guardar Cambios</Button>
                 </div>
+
+                {/* Danger Zone */}
+                <div className="space-y-4 pt-8">
+                    <h3 className="text-lg font-medium text-destructive">Zona de Peligro</h3>
+                    <div className="rounded-lg border border-destructive bg-destructive/5 p-4">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <h4 className="font-semibold">Eliminar esta empresa</h4>
+                                <p className="text-sm text-muted-foreground">
+                                    Una vez eliminada, la empresa y todos sus datos se perderán para siempre.
+                                </p>
+                            </div>
+                            <DeleteCompanyDialog 
+                                company={company as Company} 
+                            />
+                        </div>
+                    </div>
+                </div>
+
             </CardContent>
         </Card>
     )

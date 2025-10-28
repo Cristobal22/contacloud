@@ -5,12 +5,14 @@ import React from 'react';
 import type { FirebaseApp } from 'firebase/app';
 import type { Auth } from 'firebase/auth';
 import type { Firestore } from 'firebase/firestore';
+import type { Functions } from 'firebase/functions'; // Import Functions type
 import { FirebaseErrorListener } from '@/components/FirebaseErrorListener';
 
 interface FirebaseContextType {
   firebaseApp: FirebaseApp | null;
   auth: Auth | null;
   firestore: Firestore | null;
+  functions: Functions | null; // Add functions to context
 }
 
 const FirebaseContext = React.createContext<FirebaseContextType | null>(null);
@@ -20,19 +22,22 @@ export function FirebaseProvider({
   firebaseApp,
   auth,
   firestore,
+  functions, // Add functions to props
 }: {
   children: React.ReactNode;
   firebaseApp: FirebaseApp;
   auth: Auth;
   firestore: Firestore;
+  functions: Functions; // Add functions to props type
 }) {
   const contextValue = React.useMemo(
     () => ({
       firebaseApp,
       auth,
       firestore,
+      functions, // Add functions to context value
     }),
-    [firebaseApp, auth, firestore]
+    [firebaseApp, auth, firestore, functions] // Add functions to dependency array
   );
 
   return (
@@ -73,4 +78,13 @@ export const useFirestore = () => {
         throw new Error('useFirestore must be used within a FirebaseProvider');
     }
     return context.firestore;
+}
+
+// Create and export the new useFunctions hook
+export const useFunctions = () => {
+    const context = React.useContext(FirebaseContext);
+    if (!context || !context.functions) {
+        throw new Error('useFunctions must be used within a FirebaseProvider');
+    }
+    return context.functions;
 }

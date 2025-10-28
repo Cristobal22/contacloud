@@ -8,10 +8,10 @@ export function FirebaseClientProvider({
 }: {
   children: React.ReactNode;
 }) {
-  const { firebaseApp, auth, firestore } = initializeFirebase();
+  const { firebaseApp, auth, firestore, functions } = initializeFirebase();
 
   return (
-    <FirebaseProvider firebaseApp={firebaseApp} auth={auth} firestore={firestore}>
+    <FirebaseProvider firebaseApp={firebaseApp} auth={auth} firestore={firestore} functions={functions}>
       {children}
     </FirebaseProvider>
   );
