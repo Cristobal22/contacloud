@@ -23,8 +23,7 @@ service cloud.firestore {
       return isSignedIn() && companyId in getUserCompanyIds();
     }
 
-    // --- Public/Admin Collections (MOVED UP) ---
-    // These rules need to be evaluated BEFORE the general collection group rule.
+    // --- Public/Admin Collections ---
     match /economic-indicators/{id} { allow get, list: if true; allow write: if isAdmin(); }
     match /health-entities/{id} { allow get, list: if true; allow write: if isAdmin(); }
     match /afp-entities/{id} { allow get, list: if true; allow write: if isAdmin(); }
@@ -43,15 +42,19 @@ service cloud.firestore {
       allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
       allow update, delete: if isOwner(resource.data.ownerId);
 
-      // This rule is a fallback for direct path access.
-      match /{subcollection}/{docId} {
+      // Explicit rules for subcollections. This is more specific and reliable
+      // than a generic wildcard or a collection group rule for direct path queries.
+      match /employees/{employeeId} {
+        allow read, write: if isUserAssociatedWithCompany(companyId);
+      }
+      match /payrolls/{payrollId} {
         allow read, write: if isUserAssociatedWithCompany(companyId);
       }
     }
 
-    // --- Collection Group Rule (THE KEY FIX) ---
-    // This rule allows queries across all sub-collections (e.g., 'employees')
-    // It is now placed later so that specific public collection rules are matched first.
+    // --- Collection Group Rule ---
+    // This rule is intended for collection group queries (e.g., across all 'employees' collections).
+    // It's less specific than the path-specific rules above.
     match /{path=**}/{subcollection}/{docId} {
         allow read, write: if isSignedIn() && resource.data.companyId in getUserCompanyIds();
     }
