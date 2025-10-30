@@ -207,7 +207,7 @@ export function PayrollDetailDialog({ isOpen, onClose, data }: PayrollDetailDial
                                                 
                                                 <TableRow><TableCell className="pl-6 text-gray-500">Impuesto según tramo ({iutFactorDisplay})</TableCell><TableCell className="text-right text-gray-500">{formatCurrency(taxAmountPreRebate)}</TableCell></TableRow>
                                                 <TableRow><TableCell className="pl-6 text-gray-500">(-) Rebaja por tramo</TableCell><TableCell className="text-right text-gray-500">{formatCurrency(rebateAmount)}</TableCell></TableRow>
-                                                <TableRow className="font-medium"><TableCell>Impuesto Único a Pagar</TableCell><TableCell className="text-right font-medium">{formatCurrency(payroll.iut || 0)}</TableCell></TableRow>
+                                                <TableRow className="font-medium"><TableCell>Impuesto Único a Pagar</TableCell><TableCell className="text-right font-medium">{formatCurrency( payroll.iut || 0)}</TableCell></TableRow>
                                             </TableBody>
                                             <TableFooter>
                                                 <TableRow className="bg-gray-100 font-bold text-base">
@@ -239,6 +239,15 @@ export function PayrollDetailDialog({ isOpen, onClose, data }: PayrollDetailDial
                             </div>
                         </div>
                     )}
+                </div>
+                
+                <div className="px-6 pb-6">
+                    <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                        <div className="flex justify-between items-center">
+                            <h4 className="text-sm font-semibold text-blue-800">Base para Indemnización (Uso Interno)</h4>
+                            <p className="text-lg font-bold text-blue-900">{formatCurrency(payroll.baseIndemnizacion || payroll.taxableEarnings)}</p>
+                        </div>
+                    </div>
                 </div>
 
                 <DialogFooter className="p-6 pt-0">

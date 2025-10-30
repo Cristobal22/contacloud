@@ -209,6 +209,7 @@ export default function PayrollPage() {
                 baseSalary: baseSalary,
                 gratification: gratification,
                 taxableEarnings: taxableEarnings,
+                baseIndemnizacion: taxableEarnings, // New field
                 nonTaxableEarnings: nonTaxableEarnings,
                 otherTaxableEarnings: 0, 
                 totalEarnings: totalEarnings,

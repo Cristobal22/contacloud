@@ -226,6 +226,7 @@ export type Payroll = {
   baseSalary: number;
   gratification: number;
   taxableEarnings: number;
+  baseIndemnizacion: number;
   nonTaxableEarnings: number;
   otherTaxableEarnings: number;
   totalEarnings: number;
@@ -307,7 +308,3 @@ export type SelectedCompanyContextType = {
     selectedCompany: Company | null;
     setSelectedCompany: (company: Company | null) => void;
 };
-
-    
-
-    
