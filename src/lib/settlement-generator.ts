@@ -1,4 +1,3 @@
-'''
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import { generarTextoFiniquito } from '@/templates/finiquito';
 import { NumeroALetras } from 'numero-a-letras';
@@ -108,4 +107,3 @@ export async function generateSettlementPDF(
   const pdfBytes = await pdfDoc.save();
   return pdfBytes;
 }
-'''
