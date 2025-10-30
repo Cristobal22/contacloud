@@ -1,4 +1,3 @@
-'''
 'use client';
 
 import React from 'react';
@@ -309,7 +308,7 @@ export default function FiniquitoGeneratorPage() {
                     <div className="space-y-2">
                         <Label>Fecha de Pago</Label>
                         <Popover>
-                            <PopoverTrigger asChild><Button variant={"outline"} className={cn("w-full justify-start text-left font-normal", !formData.fechaPago && "text-muted-foreground")}><CalendarIcon className="mr-2 h-4 w-4" />{formData.fechaPago ? format(formData.fechaPago, "PPP", { locale: es }) : <span>Seleccionar fecha</span>}</Button></PopoverTrigger>
+                            <PopoverTrigger asChild><Button variant={"outline"} className={cn("w-full justify-start text-left font-normal", !formData.fechaPago && "text-muted-foreground")}><CalendarIcon className="mr-2 h-4 w-4" />{formData.fechaPago ? format(formData.fechaPago, "PPP", { es }) : <span>Seleccionar fecha</span>}</Button></PopoverTrigger>
                             <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={formData.fechaPago} onSelect={date => handleInputChange('fechaPago', date)} initialFocus /></PopoverContent>
                         </Popover>
                     </div>
@@ -335,4 +334,3 @@ export default function FiniquitoGeneratorPage() {
         </div>
     );
 }
-'''
