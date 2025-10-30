@@ -142,14 +142,18 @@ export default function EmployeeFormPage() {
 
     const handleSaveChanges = () => {
         if (!firestore || !companyId || !employee) return;
-        
+    
         const collectionPath = `companies/${companyId}/employees`;
         const collectionRef = collection(firestore, collectionPath);
-        
-        const employeeData = { ...employee, companyId: companyId };
-
+    
+        // FIX: The 'dependentes' array (if it exists on the state object) is for UI purposes
+        // and is not part of the 'employees' collection schema.
+        // We destructure it here to exclude it from the data sent to Firestore, preventing the crash.
+        const { dependentes, ...employeeFields } = employee;
+        const employeeData = { ...employeeFields, companyId };
+    
         router.push('/dashboard/employees');
-
+    
         if (isNew) {
             addDoc(collectionRef, employeeData)
                 .catch(err => {
