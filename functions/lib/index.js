@@ -31,6 +31,7 @@ const firestore_1 = require("firebase-admin/firestore");
 admin.initializeApp();
 const db = (0, firestore_1.getFirestore)();
 exports.getLatestPayrollSalary = (0, https_1.onCall)(async (request) => {
+    var _a, _b;
     // Check if the user is authenticated
     if (!request.auth) {
         throw new Error("Authentication required.");
@@ -53,11 +54,14 @@ exports.getLatestPayrollSalary = (0, https_1.onCall)(async (request) => {
         const snapshot = await query.get();
         if (snapshot.empty) {
             // It's not an error if no payroll is found, just return null
-            return { taxableEarnings: null };
+            return { baseIndemnizacion: null };
         }
         const lastPayroll = snapshot.docs[0].data();
-        // Return only the necessary data
-        return { taxableEarnings: lastPayroll.taxableEarnings || 0 };
+        // Prioritize the new 'baseIndemnizacion' field.
+        // Fallback to 'taxableEarnings' for older documents.
+        const suggestedValue = (_b = (_a = lastPayroll.baseIndemnizacion) !== null && _a !== void 0 ? _a : lastPayroll.taxableEarnings) !== null && _b !== void 0 ? _b : 0;
+        // Return the suggested value under the new key
+        return { baseIndemnizacion: suggestedValue };
     }
     catch (error) {
         console.error("Error fetching latest payroll:", error);

@@ -32,7 +32,7 @@ import { useCollection, useDoc, useFirestore } from '@/firebase';
 import type { Employee, CostCenter, AfpEntity, HealthEntity, EconomicIndicator, LegalDocument } from '@/lib/types';
 import { DOCUMENT_TEMPLATES } from '@/lib/document-templates';
 import { SelectedCompanyContext } from '@/app/dashboard/layout';
-import { doc, setDoc, addDoc, collection, where, DocumentReference, Timestamp } from 'firebase/firestore';
+import { doc, setDoc, addDoc, collection, where, DocumentReference, Timestamp, DocumentData } from 'firebase/firestore';
 import { useRouter, useParams } from 'next/navigation';
 import { ArrowLeft, FileText, Eye } from 'lucide-react';
 import Link from 'next/link';
@@ -197,14 +197,15 @@ export default function EmployeeFormPage() {
         const employeeData: Partial<Employee> = { ...employeeFields, companyId };
 
         // Convert date strings back to Timestamps before saving
-        if (employeeData.birthDate) employeeData.birthDate = Timestamp.fromDate(new Date(employeeData.birthDate));
-        if (employeeData.contractStartDate) employeeData.contractStartDate = Timestamp.fromDate(new Date(employeeData.contractStartDate));
-        if (employeeData.contractEndDate) employeeData.contractEndDate = Timestamp.fromDate(new Date(employeeData.contractEndDate));
-    
-        router.push('/dashboard/employees');
+        if (employeeData.birthDate) employeeData.birthDate = Timestamp.fromDate(new Date(employeeData.birthDate as string));
+        if (employeeData.contractStartDate) employeeData.contractStartDate = Timestamp.fromDate(new Date(employeeData.contractStartDate as string));
+        if (employeeData.contractEndDate) employeeData.contractEndDate = Timestamp.fromDate(new Date(employeeData.contractEndDate as string));
     
         if (isNew) {
             addDoc(collectionRef, employeeData)
+                .then(() => {
+                    router.push('/dashboard/employees');
+                })
                 .catch(err => {
                     errorEmitter.emit('permission-error', new FirestorePermissionError({
                         path: collectionPath,
@@ -215,6 +216,9 @@ export default function EmployeeFormPage() {
         } else {
             const docRef = doc(firestore, collectionPath, id);
             setDoc(docRef, employeeData, { merge: true })
+                .then(() => {
+                    router.push('/dashboard/employees');
+                })
                  .catch(err => {
                     errorEmitter.emit('permission-error', new FirestorePermissionError({
                         path: docRef.path,
