@@ -1,107 +1,116 @@
-
 'use client';
+import { useEffect, useState } from 'react';
+import {
+    collection,
+    onSnapshot,
+    query,
+    orderBy,
+    Query,
+    DocumentData,
+    CollectionReference,
+    FirestoreDataConverter,
+    QueryConstraint,
+} from 'firebase/firestore';
+import { useFirestore } from '@/firebase';
 
-import { useState, useEffect, useMemo } from 'react';
-import { onSnapshot, collection, query, Query, CollectionReference, DocumentData } from 'firebase/firestore';
-import { useFirestore } from '../provider';
-import { errorEmitter } from '../error-emitter';
-import { FirestorePermissionError } from '../errors';
+const getConverter = <T extends { id: string },>(): FirestoreDataConverter<T> => ({
+    toFirestore: (data: Partial<T>): DocumentData => {
+        const { id, ...rest } = data as any;
+        return rest as DocumentData;
+    },
+    fromFirestore: (snapshot: any, options: any): T => {
+        const data = snapshot.data(options);
+        return { ...data, id: snapshot.id } as T;
+    },
+});
 
-type UseCollectionProps<T> = {
-    path?: string;
-    companyId?: string | null;
-    query?: Query<T> | CollectionReference<T> | Query<DocumentData> | CollectionReference<DocumentData> | null;
+interface UseCollectionOptions {
+    path?: string; // Path to the collection
+    query?: Query<DocumentData> | QueryConstraint[] | null; // Can be a full query object or an array of constraints
     disabled?: boolean;
-};
-
-// Helper function to generate a stable key from a query
-function getQueryKey(q: Query | CollectionReference | null | undefined): string {
-    if (!q) return 'null';
-    if ('path' in q) { // It's a CollectionReference
-        return q.path;
-    }
-    // It's a Query, build a key from its internal properties
-    const internalQuery = (q as any)._query;
-    if (!internalQuery || !internalQuery.path) {
-        return 'invalid-query';
-    }
-    
-    const queryParts: string[] = [internalQuery.path.segments.join('/')];
-    internalQuery.explicitOrderBy.forEach((orderBy: any) => {
-        queryParts.push(`orderBy:${orderBy.field.segments.join('.')}:${orderBy.dir}`);
-    });
-    internalQuery.filters.forEach((filter: any) => {
-        const filterStr = `${filter.field.segments.join('.')}${filter.op}${filter.value}`;
-        queryParts.push(`filter:${filterStr}`);
-    });
-    return queryParts.join('|');
+    orderBy?: any;
 }
 
+export const useCollection = <T extends { id: string },>(options: UseCollectionOptions) => {
+    const { path, query: queryOrConstraints, disabled, orderBy: orderByConstraint } = options;
+    const [data, setData] = useState<T[] | null>(null);
+    const [loading, setLoading] = useState(true);
+    const firestore = useFirestore();
 
-export function useCollection<T>({ path, companyId, query: manualQuery, disabled = false }: UseCollectionProps<T>) {
-  const firestore = useFirestore();
-  const [data, setData] = useState<T[] | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
+    const optionsString = JSON.stringify(options);
 
-  const finalQuery = useMemo(() => {
-    if (disabled) return null;
-    if (manualQuery) return manualQuery;
-    if (!firestore || !path) return null;
-    // If the path needs a companyId but it's not provided, don't create the query.
-    if (path.includes('{companyId}') && !companyId) {
-        return null; 
-    }
-    // Make sure we don't have dangling 'undefined' in paths.
-    const resolvedPath = path.replace('{companyId}', companyId || '');
-    if (resolvedPath.includes('undefined')) {
-        return null;
-    }
-    return collection(firestore, resolvedPath) as Query<T>;
-  }, [disabled, manualQuery, firestore, path, companyId]);
+    useEffect(() => {
+        if (disabled || !firestore) {
+            setData(null);
+            setLoading(false);
+            return;
+        }
 
-  // Use a serialized key of the query for the useEffect dependency
-  const queryKey = useMemo(() => getQueryKey(finalQuery as Query | CollectionReference | null | undefined), [finalQuery]);
+        let finalQuery: Query<T> | null = null;
+        const converter = getConverter<T>();
 
-  useEffect(() => {
-    // If there's no valid query, set state to empty and not loading.
-    if (!finalQuery) {
-        setData([]);
-        setLoading(false);
-        return;
-    }
+        try {
+            // --- FINAL, ROBUST IMPLEMENTATION ---
+            // Case 1: A full, pre-constructed Query object is provided.
+            // This is used by the CompaniesPage.
+            if (queryOrConstraints && typeof (queryOrConstraints as any).withConverter === 'function') {
+                finalQuery = (queryOrConstraints as Query<DocumentData>).withConverter(converter);
+            }
+            // Case 2: A path is provided, with or without an array of constraints.
+            // This is used by the EmployeeFormPage.
+            else if (path) {
+                const collectionRef = collection(firestore, path);
+                const allConstraints: QueryConstraint[] = [];
 
-    setLoading(true);
+                if (Array.isArray(queryOrConstraints)) {
+                    allConstraints.push(...queryOrConstraints);
+                }
 
-    const unsubscribe = onSnapshot(
-      finalQuery as Query,
-      (querySnapshot) => {
-        const items = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as unknown as T));
-        setData(items);
-        setError(null);
-        setLoading(false);
-      },
-      (err) => {
-        setError(err);
-        setLoading(false);
-        
-        let queryPath = 'unknown path';
-        if ('path' in finalQuery) {
-          queryPath = (finalQuery as CollectionReference).path;
-        } else if ((finalQuery as any)._query) {
-           queryPath = (finalQuery as any)._query.path.segments.join('/');
+                if (orderByConstraint) {
+                    if (Array.isArray(orderByConstraint) && orderByConstraint.length > 0) {
+                        allConstraints.push(orderBy(orderByConstraint[0], orderByConstraint[1]));
+                    } else if (typeof orderByConstraint === 'string') {
+                        allConstraints.push(orderBy(orderByConstraint));
+                    }
+                }
+                finalQuery = query(collectionRef, ...allConstraints).withConverter(converter);
+            }
+            // --- END OF FIX ---
+
+        } catch (e: any) {
+            console.error("Error building Firestore query:", e);
+            setData(null);
+            setLoading(false);
+            return;
+        }
+
+        if (!finalQuery) {
+            setData(null);
+            setLoading(false);
+            return;
         }
         
-        errorEmitter.emit('permission-error', new FirestorePermissionError({
-          path: queryPath,
-          operation: 'list',
-        }));
-      }
-    );
+        const unsubscribe = onSnapshot(finalQuery, (snapshot) => {
+            const dataMap = new Map<string, T>();
+            snapshot.docs.forEach(doc => {
+                const docData = doc.data();
+                if (docData) {
+                   dataMap.set(doc.id, docData);
+                }
+            });
+            const result = Array.from(dataMap.values());
 
-    return () => unsubscribe();
-    // Re-run effect only if the stable query key changes
-  }, [queryKey]); 
+            setData(result);
+            setLoading(false);
+        }, (error) => {
+            console.error(`Error fetching collection:`, error);
+            setData(null);
+            setLoading(false);
+        });
 
-  return { data, loading, error };
-}
+        return () => unsubscribe();
+
+    }, [firestore, disabled, optionsString]);
+
+    return { data, loading };
+};

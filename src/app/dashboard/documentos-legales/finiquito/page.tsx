@@ -16,27 +16,31 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, ChevronsUpDown, Check } from "lucide-react";
+import { CalendarIcon, ChevronsUpDown, Check, AlertTriangle } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { useCollection, useFirestore } from '@/firebase';
-import type { Employee, Company } from '@/lib/types';
+import { Timestamp, collection, query, where, orderBy, limit, getDocs, doc, getDoc } from 'firebase/firestore';
+import type { Employee, Company, Payroll, EconomicIndicator } from '@/lib/types';
 import { SelectedCompanyContext } from '@/app/dashboard/layout';
 import { cn } from '@/lib/utils';
-import { format } from 'date-fns';
+import { format, getYear, getMonth } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { generateSettlementPDF, type FiniquitoFormData } from '@/lib/settlement-generator';
 import { useToast } from '@/hooks/use-toast';
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 const formatCurrency = (value: number) => new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(value);
 
 export default function FiniquitoGeneratorPage() {
     const { selectedCompany } = React.useContext(SelectedCompanyContext) || {};
+    const db = useFirestore();
     const { data: employees, loading: employeesLoading } = useCollection<Employee>({ path: selectedCompany ? `companies/${selectedCompany.id}/employees` : undefined });
     const [selectedEmployeeId, setSelectedEmployeeId] = React.useState<string | null>(null);
     const [isEmployeeSelectorOpen, setEmployeeSelectorOpen] = React.useState(false);
-
     const { toast } = useToast();
+
+    const [formErrors, setFormErrors] = React.useState<string[]>([]);
 
     const [formData, setFormData] = React.useState<Partial<FiniquitoFormData>>({
         nombreTrabajador: '',
@@ -72,89 +76,109 @@ export default function FiniquitoGeneratorPage() {
 
     React.useEffect(() => {
         if (selectedCompany) {
-            setFormData(prev => ({
-                ...prev,
-                nombreEmpleador: selectedCompany.name,
-                rutEmpleador: selectedCompany.rut,
-                ciudadFirma: selectedCompany.commune || '',
-            }));
+            setFormData(prev => ({ ...prev, nombreEmpleador: selectedCompany.name, rutEmpleador: selectedCompany.rut, ciudadFirma: selectedCompany.commune || '' }));
         }
     }, [selectedCompany]);
 
-    const selectedEmployee = React.useMemo(() => 
-        employees?.find(e => e.id === selectedEmployeeId) || null,
-    [employees, selectedEmployeeId]);
+    const selectedEmployee = React.useMemo(() => employees?.find(e => e.id === selectedEmployeeId) || null, [employees, selectedEmployeeId]);
 
     React.useEffect(() => {
         if (selectedEmployee) {
-            setFormData(prev => ({
-                ...prev,
-                nombreTrabajador: `${selectedEmployee.firstName} ${selectedEmployee.lastName}`,
-                rutTrabajador: selectedEmployee.rut,
-                fechaInicio: selectedEmployee.startDate ? new Date(selectedEmployee.startDate) : undefined,
-            }));
+            let startDate: Date | undefined = undefined;
+            if (selectedEmployee.contractStartDate && (selectedEmployee.contractStartDate as any) instanceof Timestamp) {
+                startDate = (selectedEmployee.contractStartDate as any).toDate();
+            }
+            let endDate: Date = new Date();
+            if (selectedEmployee.contractEndDate && (selectedEmployee.contractEndDate as any) instanceof Timestamp) {
+                endDate = (selectedEmployee.contractEndDate as any).toDate();
+            }
+            setFormData(prev => ({ ...prev, nombreTrabajador: `${selectedEmployee.firstName} ${selectedEmployee.lastName}`, rutTrabajador: selectedEmployee.rut, fechaInicio: startDate, fechaTermino: endDate }));
+        } else {
+            setFormData(prev => ({ ...prev, nombreTrabajador: '', rutTrabajador: '', fechaInicio: undefined, fechaTermino: new Date(), baseIndemnizacion: 0 }));
         }
     }, [selectedEmployee]);
 
+    // --- LÓGICA DE PROPUESTA DE SUELDO BASE ---
     React.useEffect(() => {
+        const suggestBaseSalary = async () => {
+            if (!db || !selectedCompany || !selectedEmployee || !formData.fechaTermino || (formData.baseIndemnizacion !== 0 && formData.baseIndemnizacion !== undefined)) {
+                return;
+            }
+
+            // 1. Fetch latest payroll
+            const payrollsRef = collection(db, `companies/${selectedCompany.id}/payrolls`);
+            const q = query(payrollsRef, where("employeeId", "==", selectedEmployee.id), orderBy("year", "desc"), orderBy("month", "desc"), limit(1));
+            const payrollSnapshot = await getDocs(q);
+
+            if (payrollSnapshot.empty) {
+                console.log("No previous payroll found for employee.");
+                return; // No payroll, no suggestion
+            }
+            const lastPayroll = payrollSnapshot.docs[0].data() as Payroll;
+            const taxableEarnings = lastPayroll.taxableEarnings || 0;
+
+            // 2. Fetch UF value for the termination month
+            const terminationDate = formData.fechaTermino;
+            const year = getYear(terminationDate);
+            const month = getMonth(terminationDate) + 1; // 0-indexed
+            const indicatorId = `${year}-${String(month).padStart(2, '0')}`;
+            
+            const indicatorRef = doc(db, `economicIndicators`, indicatorId);
+            const indicatorSnap = await getDoc(indicatorRef);
+
+            let suggestedValue = taxableEarnings;
+
+            if (indicatorSnap.exists()) {
+                const indicator = indicatorSnap.data() as EconomicIndicator;
+                if (indicator.uf) {
+                    const cap = 90 * indicator.uf;
+                    suggestedValue = Math.min(taxableEarnings, cap);
+                }
+            }
+
+            // 3. Update form data
+            handleInputChange('baseIndemnizacion', Math.round(suggestedValue));
+        };
+
+        suggestBaseSalary();
+    }, [selectedEmployee, formData.fechaTermino, db, selectedCompany]);
+
+    React.useEffect(() => {
+        const errors: string[] = [];
+        if (!selectedEmployeeId) { errors.push("Debes seleccionar un empleado para iniciar el cálculo."); }
+        if (!formData.fechaInicio) { errors.push("La fecha de inicio del contrato es necesaria para los cálculos."); }
+        if (!formData.fechaTermino) { errors.push("La fecha de término del contrato es necesaria para los cálculos."); }
+        if (!formData.baseIndemnizacion || formData.baseIndemnizacion <= 0) { errors.push("El sueldo base para indemnización debe ser un valor mayor a cero."); }
+
+        setFormErrors(errors);
+
+        if (errors.length > 0) {
+            setCalculated({ indemnizacionAnos: 0, indemnizacionSustitutiva: 0, feriadoLegal: 0, totalHaberes: 0, totalDescuentos: 0, totalAPagar: 0 });
+            return;
+        }
+
         const base = formData.baseIndemnizacion || 0;
         const anos = formData.anosServicio || 0;
         const diasFeriado = formData.diasFeriado || 0;
-
         const indemnizacionAnos = base * anos;
         const indemnizacionSustitutiva = formData.incluyeMesAviso ? base : 0;
         const feriadoLegal = (base / 30) * diasFeriado;
-
         const totalHaberes = indemnizacionAnos + indemnizacionSustitutiva + feriadoLegal + (formData.remuneracionesPendientes || 0) + (formData.otrosHaberes || 0);
         const totalDescuentos = (formData.descuentosPrevisionales || 0) + (formData.otrosDescuentos || 0);
         const totalAPagar = totalHaberes - totalDescuentos;
-
-        setCalculated({
-            indemnizacionAnos,
-            indemnizacionSustitutiva,
-            feriadoLegal,
-            totalHaberes,
-            totalDescuentos,
-            totalAPagar,
-        });
-    }, [formData]);
+        setCalculated({ indemnizacionAnos, indemnizacionSustitutiva, feriadoLegal, totalHaberes, totalDescuentos, totalAPagar });
+    }, [formData, selectedEmployeeId]);
 
     const handleInputChange = (field: keyof FiniquitoFormData, value: any) => {
         setFormData(prev => ({ ...prev, [field]: value }));
     };
     
     const handleGeneratePDF = async () => {
-        if (!selectedEmployee || !selectedCompany) {
-            toast({ title: "Error", description: "Debes seleccionar una empresa y un empleado.", variant: "destructive" });
+        if (formErrors.length > 0) {
+            toast({ title: "Formulario Incompleto", description: "Por favor, corrige los errores indicados antes de generar el PDF.", variant: "destructive" });
             return;
         }
-
-        const finalFormData: FiniquitoFormData = {
-            ...formData,
-            ...calculated,
-            // Ensure all fields have a default value to satisfy the type
-            nombreTrabajador: formData.nombreTrabajador || '',
-            rutTrabajador: formData.rutTrabajador || '',
-            nombreEmpleador: formData.nombreEmpleador || '',
-            rutEmpleador: formData.rutEmpleador || '',
-            fechaInicio: formData.fechaInicio || new Date(),
-            fechaTermino: formData.fechaTermino || new Date(),
-            causalTermino: formData.causalTermino || '',
-            baseIndemnizacion: formData.baseIndemnizacion || 0,
-            anosServicio: formData.anosServicio || 0,
-            diasFeriado: formData.diasFeriado || 0,
-            incluyeMesAviso: formData.incluyeMesAviso || false,
-            remuneracionesPendientes: formData.remuneracionesPendientes || 0,
-            otrosHaberes: formData.otrosHaberes || 0,
-            descuentosPrevisionales: formData.descuentosPrevisionales || 0,
-            otrosDescuentos: formData.otrosDescuentos || 0,
-            causalHechos: formData.causalHechos || '',
-            formaPago: formData.formaPago || '',
-            fechaPago: formData.fechaPago || new Date(),
-            ciudadFirma: formData.ciudadFirma || '',
-            ministroDeFe: formData.ministroDeFe || '',
-        };
-
+        const finalFormData: FiniquitoFormData = { ...formData, ...calculated, nombreTrabajador: formData.nombreTrabajador || '', rutTrabajador: formData.rutTrabajador || '', nombreEmpleador: formData.nombreEmpleador || '', rutEmpleador: formData.rutEmpleador || '', fechaInicio: formData.fechaInicio || new Date(), fechaTermino: formData.fechaTermino || new Date(), causalTermino: formData.causalTermino || '', baseIndemnizacion: formData.baseIndemnizacion || 0, anosServicio: formData.anosServicio || 0, diasFeriado: formData.diasFeriado || 0, incluyeMesAviso: formData.incluyeMesAviso || false, remuneracionesPendientes: formData.remuneracionesPendientes || 0, otrosHaberes: formData.otrosHaberes || 0, descuentosPrevisionales: formData.descuentosPrevisionales || 0, otrosDescuentos: formData.otrosDescuentos || 0, causalHechos: formData.causalHechos || '', formaPago: formData.formaPago || '', fechaPago: formData.fechaPago || new Date(), ciudadFirma: formData.ciudadFirma || '', ministroDeFe: formData.ministroDeFe || '' };
         try {
             const pdfBytes = await generateSettlementPDF(finalFormData, selectedEmployee, selectedCompany);
             const blob = new Blob([pdfBytes], { type: 'application/pdf' });
@@ -181,7 +205,17 @@ export default function FiniquitoGeneratorPage() {
                     <CardDescription>Completa los datos para generar el documento de finiquito de un trabajador.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
-                    {/* Employee Selector */}
+                    {formErrors.length > 0 && (
+                        <Alert variant="destructive">
+                            <AlertTriangle className="h-4 w-4" />
+                            <AlertTitle>Faltan Datos para el Cálculo</AlertTitle>
+                            <AlertDescription>
+                                <ul className="list-disc pl-5">
+                                    {formErrors.map((error, index) => <li key={index}>{error}</li>)}
+                                </ul>
+                            </AlertDescription>
+                        </Alert>
+                    )}
                     <div className="space-y-2">
                          <Label>Seleccionar Persona</Label>
                          <Popover open={isEmployeeSelectorOpen} onOpenChange={setEmployeeSelectorOpen}>
@@ -200,10 +234,7 @@ export default function FiniquitoGeneratorPage() {
                                             {employeesLoading && <CommandItem>Cargando...</CommandItem>}
                                             {employees?.map(employee => (
                                                 <CommandItem key={employee.id} value={`${employee.firstName} ${employee.lastName} ${employee.rut}`}
-                                                    onSelect={() => {
-                                                        setSelectedEmployeeId(employee.id!);
-                                                        setEmployeeSelectorOpen(false);
-                                                    }}>
+                                                    onSelect={() => { setSelectedEmployeeId(employee.id!); setEmployeeSelectorOpen(false); }}>
                                                     <Check className={cn("mr-2 h-4 w-4", selectedEmployeeId === employee.id ? "opacity-100" : "opacity-0")} />
                                                     {employee.firstName} {employee.lastName} <span className='text-muted-foreground ml-2'>{employee.rut}</span>
                                                 </CommandItem>
@@ -214,15 +245,16 @@ export default function FiniquitoGeneratorPage() {
                             </PopoverContent>
                         </Popover>
                     </div>
-
-                    {/* Main Form Data */}
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {/* Filled by employee selection */}
                         <div className="space-y-2"><Label>Nombre del Trabajador</Label><Input value={formData.nombreTrabajador} disabled /></div>
                         <div className="space-y-2"><Label>RUT del Trabajador</Label><Input value={formData.rutTrabajador} disabled /></div>
-                        <div className="space-y-2"><Label>Fecha de Inicio</Label><Input value={formData.fechaInicio ? format(formData.fechaInicio, 'PPP', { locale: es }) : ''} disabled /></div>
-                        
-                        {/* Termination data */}
+                        <div className="space-y-2">
+                            <Label>Fecha de Inicio</Label>
+                            <Popover>
+                                <PopoverTrigger asChild><Button variant={"outline"} className={cn("w-full justify-start text-left font-normal", !formData.fechaInicio && "text-muted-foreground")}><CalendarIcon className="mr-2 h-4 w-4" />{formData.fechaInicio ? format(formData.fechaInicio, "PPP", { locale: es }) : <span>Seleccionar fecha</span>}</Button></PopoverTrigger>
+                                <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={formData.fechaInicio} onSelect={date => handleInputChange('fechaInicio', date)} initialFocus /></PopoverContent>
+                            </Popover>
+                        </div>
                         <div className="space-y-2">
                             <Label>Fecha de Término</Label>
                             <Popover>
@@ -249,23 +281,17 @@ export default function FiniquitoGeneratorPage() {
                             <Label>Hechos que Fundamentan la Causal</Label>
                             <Textarea value={formData.causalHechos} onChange={e => handleInputChange('causalHechos', e.target.value)} placeholder="Describe los hechos que justifican la causal de término de contrato..." />
                         </div>
-
-                         {/* Calculation base */}
                         <div className="space-y-2"><Label>Sueldo Base para Indemnización</Label><Input type="number" value={formData.baseIndemnizacion} onChange={e => handleInputChange('baseIndemnizacion', parseFloat(e.target.value))} placeholder="0" /></div>
                         <div className="space-y-2"><Label>Años de Servicio a Indemnizar</Label><Input type="number" value={formData.anosServicio} onChange={e => handleInputChange('anosServicio', parseInt(e.target.value))} placeholder="0" /></div>
                         <div className="space-y-2"><Label>Días de Feriado Proporcional</Label><Input type="number" value={formData.diasFeriado} onChange={e => handleInputChange('diasFeriado', parseFloat(e.target.value))} placeholder="0" /></div>
                     </div>
-                    
                     <div className="flex items-center space-x-2">
                         <Checkbox id="incluyeMesAviso" checked={formData.incluyeMesAviso} onCheckedChange={checked => handleInputChange('incluyeMesAviso', checked)} />
                         <Label htmlFor="incluyeMesAviso">Incluir Indemnización Sustitutiva del Aviso Previo (Mes de Aviso)</Label>
                     </div>
-
                 </CardContent>
             </Card>
-
             <div className="grid md:grid-cols-2 gap-6">
-                {/* Haberes */}
                 <Card>
                     <CardHeader><CardTitle>Haberes</CardTitle></CardHeader>
                     <CardContent className="space-y-4">
@@ -277,8 +303,6 @@ export default function FiniquitoGeneratorPage() {
                     </CardContent>
                     <CardFooter className="font-bold text-lg flex justify-between items-center"><p>Total Haberes</p><p className="font-mono">{formatCurrency(calculated.totalHaberes)}</p></CardFooter>
                 </Card>
-
-                {/* Descuentos */}
                 <Card>
                     <CardHeader><CardTitle>Descuentos</CardTitle></CardHeader>
                     <CardContent className="space-y-4">
@@ -288,11 +312,8 @@ export default function FiniquitoGeneratorPage() {
                     <CardFooter className="font-bold text-lg flex justify-between items-center"><p>Total Descuentos</p><p className="font-mono">{formatCurrency(calculated.totalDescuentos)}</p></CardFooter>
                 </Card>
             </div>
-
             <Card>
-                 <CardHeader>
-                    <CardTitle>Finalización y Pago</CardTitle>
-                </CardHeader>
+                 <CardHeader><CardTitle>Finalización y Pago</CardTitle></CardHeader>
                 <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                      <div className="space-y-2">
                         <Label>Forma de Pago</Label>
@@ -319,14 +340,13 @@ export default function FiniquitoGeneratorPage() {
                     </div>
                 </CardContent>
             </Card>
-
             <Card className="bg-green-50 border-green-200 dark:bg-green-950">
                 <CardHeader className="flex-row items-center justify-between">
                     <CardTitle className="text-2xl text-green-800 dark:text-green-200">Total a Pagar</CardTitle>
                     <p className="text-3xl font-bold font-mono text-green-700 dark:text-green-300">{formatCurrency(calculated.totalAPagar)}</p>
                 </CardHeader>
                 <CardFooter>
-                    <Button size="lg" className="w-full gap-2" onClick={handleGeneratePDF} disabled={!selectedEmployee}>
+                    <Button size="lg" className="w-full gap-2" onClick={handleGeneratePDF}>
                         Generar PDF del Finiquito
                     </Button>
                 </CardFooter>

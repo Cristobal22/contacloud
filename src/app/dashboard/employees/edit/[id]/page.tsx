@@ -1,4 +1,3 @@
-
 'use client';
 
 import React from 'react';
@@ -78,6 +77,28 @@ export default function EmployeeFormPage() {
         path: 'health-entities',
     });
 
+    const uniqueAfpEntities = React.useMemo(() => {
+        if (!afpEntities) return [];
+        const uniqueMap = new Map<string, AfpEntity>();
+        afpEntities.forEach(entity => {
+            if (!uniqueMap.has(entity.name)) {
+                uniqueMap.set(entity.name, entity);
+            }
+        });
+        return Array.from(uniqueMap.values());
+    }, [afpEntities]);
+
+    const uniqueHealthEntities = React.useMemo(() => {
+        if (!healthEntities) return [];
+        const uniqueMap = new Map<string, HealthEntity>();
+        healthEntities.forEach(entity => {
+            if (!uniqueMap.has(entity.name)) {
+                uniqueMap.set(entity.name, entity);
+            }
+        });
+        return Array.from(uniqueMap.values());
+    }, [healthEntities]);
+
     const { data: economicIndicators, loading: indicatorsLoading } = useCollection<EconomicIndicator>({
         path: 'economic-indicators',
     });
@@ -95,6 +116,16 @@ export default function EmployeeFormPage() {
         return Math.round((4.75 * latestIndicator.minWage) / 12);
     }, [economicIndicators]);
 
+    // Helper function to convert Firestore Timestamps to YYYY-MM-DD strings
+    const formatDateForInput = (timestamp: any): string => {
+        if (!timestamp) return '';
+        const date = timestamp.toDate();
+        const year = date.getFullYear();
+        const month = (date.getMonth() + 1).toString().padStart(2, '0');
+        const day = date.getDate().toString().padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    };
+
     React.useEffect(() => {
         if (isNew) {
             setEmployee({ 
@@ -106,10 +137,26 @@ export default function EmployeeFormPage() {
                 gratificationType: 'Manual',
             });
         } else if (existingEmployee) {
-            setEmployee(existingEmployee);
-            if (existingEmployee.region) {
-                setAvailableCommunes(communesByRegion[existingEmployee.region] || []);
+            const employeeData = { ...existingEmployee };
+
+            // Convert date fields for display
+            if (employeeData.birthDate) employeeData.birthDate = formatDateForInput(employeeData.birthDate as any);
+            if (employeeData.contractStartDate) employeeData.contractStartDate = formatDateForInput(employeeData.contractStartDate as any);
+            if (employeeData.contractEndDate) employeeData.contractEndDate = formatDateForInput(employeeData.contractEndDate as any);
+
+            const communesForRegion = employeeData.region ? communesByRegion[employeeData.region] || [] : [];
+            
+            if (employeeData.region) {
+                setAvailableCommunes(communesForRegion);
+                if (employeeData.commune && !communesForRegion.includes(employeeData.commune)) {
+                    employeeData.commune = ''; 
+                }
+            } else {
+                setAvailableCommunes([]);
+                employeeData.commune = '';
             }
+            
+            setEmployee(employeeData);
         }
     }, [isNew, existingEmployee, companyId]);
 
@@ -146,11 +193,13 @@ export default function EmployeeFormPage() {
         const collectionPath = `companies/${companyId}/employees`;
         const collectionRef = collection(firestore, collectionPath);
     
-        // FIX: The 'dependentes' array (if it exists on the state object) is for UI purposes
-        // and is not part of the 'employees' collection schema.
-        // We destructure it here to exclude it from the data sent to Firestore, preventing the crash.
         const { dependentes, ...employeeFields } = employee;
-        const employeeData = { ...employeeFields, companyId };
+        const employeeData: Partial<Employee> = { ...employeeFields, companyId };
+
+        // Convert date strings back to Timestamps before saving
+        if (employeeData.birthDate) employeeData.birthDate = Timestamp.fromDate(new Date(employeeData.birthDate));
+        if (employeeData.contractStartDate) employeeData.contractStartDate = Timestamp.fromDate(new Date(employeeData.contractStartDate));
+        if (employeeData.contractEndDate) employeeData.contractEndDate = Timestamp.fromDate(new Date(employeeData.contractEndDate));
     
         router.push('/dashboard/employees');
     
@@ -160,7 +209,7 @@ export default function EmployeeFormPage() {
                     errorEmitter.emit('permission-error', new FirestorePermissionError({
                         path: collectionPath,
                         operation: 'create',
-                        requestResourceData: employeeData,
+                        requestResourceData: employeeData as DocumentData,
                     }));
                 });
         } else {
@@ -170,7 +219,7 @@ export default function EmployeeFormPage() {
                     errorEmitter.emit('permission-error', new FirestorePermissionError({
                         path: docRef.path,
                         operation: 'update',
-                        requestResourceData: employeeData,
+                        requestResourceData: employeeData as DocumentData,
                     }));
                 });
         }
@@ -220,7 +269,7 @@ export default function EmployeeFormPage() {
                         <div className="space-y-2"><Label>RUT</Label><Input value={employee.rut || ''} onChange={(e) => handleFieldChange('rut', e.target.value)} /></div>
                         <div className="space-y-2"><Label>Nombres</Label><Input value={employee.firstName || ''} onChange={(e) => handleFieldChange('firstName', e.target.value)} /></div>
                         <div className="space-y-2"><Label>Apellidos</Label><Input value={employee.lastName || ''} onChange={(e) => handleFieldChange('lastName', e.target.value)} /></div>
-                        <div className="space-y-2"><Label>Fecha de Nacimiento</Label><Input type="date" value={employee.birthDate || ''} onChange={(e) => handleFieldChange('birthDate', e.target.value)} /></div>
+                        <div className="space-y-2"><Label>Fecha de Nacimiento</Label><Input type="date" value={employee.birthDate as string || ''} onChange={(e) => handleFieldChange('birthDate', e.target.value)} /></div>
                         <div className="space-y-2">
                             <Label>Nacionalidad</Label>
                             <Select value={employee.nationality} onValueChange={(v) => handleFieldChange('nationality', v)}>
@@ -276,6 +325,8 @@ export default function EmployeeFormPage() {
                 <section className="space-y-4">
                     <h3 className="text-lg font-medium border-b pb-2">Datos Contractuales y de Remuneración</h3>
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                        <div className="space-y-2"><Label>Fecha de Inicio</Label><Input type="date" value={employee.contractStartDate as string || ''} onChange={(e) => handleFieldChange('contractStartDate', e.target.value)} /></div>
+                        <div className="space-y-2"><Label>Fecha de Término</Label><Input type="date" value={employee.contractEndDate as string || ''} onChange={(e) => handleFieldChange('contractEndDate', e.target.value)} /></div>
                          <div className="space-y-2"><Label>Sueldo Base</Label><Input type="number" value={employee.baseSalary ?? ''} onChange={(e) => handleFieldChange('baseSalary', parseFloat(e.target.value) || 0)} /></div>
                         
                         <div className="space-y-2">
@@ -329,7 +380,7 @@ export default function EmployeeFormPage() {
                             <Select value={employee.healthSystem} onValueChange={(v) => handleFieldChange('healthSystem', v)} disabled={healthLoading}>
                                 <SelectTrigger><SelectValue placeholder="Selecciona..."/></SelectTrigger>
                                 <SelectContent>
-                                    {healthEntities?.map(entity => <SelectItem key={entity.id} value={entity.name}>{entity.name}</SelectItem>)}
+                                    {uniqueHealthEntities.map(entity => <SelectItem key={entity.id} value={entity.name}>{entity.name}</SelectItem>)}
                                 </SelectContent>
                             </Select>
                         </div>
@@ -350,7 +401,7 @@ export default function EmployeeFormPage() {
                              <Select value={employee.afp} onValueChange={(v) => handleFieldChange('afp', v)} disabled={afpLoading}>
                                  <SelectTrigger><SelectValue placeholder="Selecciona..."/></SelectTrigger>
                                  <SelectContent>
-                                    {afpEntities?.map(entity => <SelectItem key={entity.id} value={entity.name}>{entity.name}</SelectItem>)}
+                                    {uniqueAfpEntities.map(entity => <SelectItem key={entity.id} value={entity.name}>{entity.name}</SelectItem>)}
                                 </SelectContent>
                             </Select>
                         </div>

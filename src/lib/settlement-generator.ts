@@ -1,6 +1,7 @@
+
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import { generarTextoFiniquito } from '@/templates/finiquito';
-import { NumeroALetras } from 'numero-a-letras';
+import NumeroALetras from 'numero-a-letras';
 import type { Company, Employee } from '@/lib/types';
 
 // NOTE: This interface must be kept in sync with the form in finiquito/page.tsx

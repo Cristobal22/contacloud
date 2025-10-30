@@ -20,7 +20,7 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Printer, Edit, X, Save, Loader2, FileDown } from 'lucide-react';
 import { useCollection, useFirestore, useDoc } from '@/firebase';
-import { collection, addDoc, doc, setDoc, serverTimestamp, DocumentReference } from 'firebase/firestore';
+import { collection, addDoc, doc, setDoc, serverTimestamp, DocumentReference, Timestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { Employee, LegalDocument } from '@/lib/types';
@@ -32,6 +32,26 @@ import { saveAs } from 'file-saver';
 interface FormData {
   [key: string]: string;
 }
+
+// Helper to format dates for display in the template (e.g., "15 de Julio de 2024")
+const formatDateForTemplate = (date: Date): string => {
+    if (!date) return '';
+    const day = date.getDate();
+    const month = date.toLocaleString('es-CL', { month: 'long' });
+    const year = date.getFullYear();
+    return `${day} de ${month} de ${year}`;
+};
+
+// Helper to format dates for input fields (YYYY-MM-DD)
+const formatDateForInput = (timestamp: any): string => {
+    if (!timestamp) return '';
+    const date = timestamp.toDate();
+    const year = date.getFullYear();
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const day = date.getDate().toString().padStart(2, '0');
+    return `${year}-${month}-${day}`;
+};
+
 
 const formSections = {
   'carta-renuncia-voluntaria': [
@@ -232,6 +252,8 @@ export default function DocumentEditorPage() {
       representante_legal_nombre: company.legalRepresentativeName ?? '',
       representante_legal_rut: company.legalRepresentativeRut ?? '',
       direccion_empresa: company.address ?? '',
+      comuna_empresa: company.commune ?? '',
+      email_empresa: company.email ?? '',
     };
 
     if (slug === 'contrato-casa-particular-puertas-adentro' || slug === 'contrato-casa-particular-puertas-afuera') {
@@ -248,34 +270,41 @@ export default function DocumentEditorPage() {
   useEffect(() => {
     if (docId || !employees) return;
 
-    const employeeFieldKeys = [
-      'nombre_trabajador', 'rut_trabajador', 'nacionalidad_trabajador',
-      'fecha_nacimiento_trabajador', 'direccion_trabajador', 'comuna_trabajador',
-      'email_trabajador', 'nombre_estudiante', 'rut_estudiante'
-    ];
+    const employee = employees.find(e => e.id === selectedEmployeeId);
 
-    if (selectedEmployeeId) {
-      const employee = employees.find(e => e.id === selectedEmployeeId);
-      if (employee) {
-        const employeeData: Partial<FormData> = {
-          nombre_trabajador: `${employee.firstName} ${employee.lastName}` ?? '',
-          rut_trabajador: employee.rut ?? '',
-          nacionalidad_trabajador: employee.nationality ?? '',
-          fecha_nacimiento_trabajador: employee.birthDate ?? '',
-          direccion_trabajador: employee.address ?? '',
-          comuna_trabajador: employee.commune ?? '',
-          email_trabajador: employee.email ?? '',
-          nombre_estudiante: `${employee.firstName} ${employee.lastName}` ?? '',
-          rut_estudiante: employee.rut ?? '',
-        };
-        setFormData(prev => ({ ...prev, ...employeeData }));
-      }
+    if (employee) {
+      const birthDate = employee.birthDate && employee.birthDate instanceof Timestamp ? formatDateForTemplate(employee.birthDate.toDate()) : '';
+      const contractStartDate = employee.contractStartDate && employee.contractStartDate instanceof Timestamp ? formatDateForTemplate(employee.contractStartDate.toDate()) : '';
+      const contractEndDateForInput = employee.contractEndDate && employee.contractEndDate instanceof Timestamp ? formatDateForInput(employee.contractEndDate) : '';
+
+      const employeeData: Partial<FormData> = {
+        nombre_trabajador: `${employee.firstName} ${employee.lastName}`,
+        rut_trabajador: employee.rut ?? '',
+        nacionalidad_trabajador: employee.nationality ?? '',
+        fecha_nacimiento_trabajador: birthDate,
+        direccion_trabajador: employee.address ?? '',
+        comuna_trabajador: employee.commune ?? '',
+        email_trabajador: employee.email ?? '',
+        cargo: employee.position ?? '',
+        fecha_ingreso: contractStartDate,
+        fecha_termino_contrato: contractEndDateForInput, // Populate the form field
+        sueldo_base_monto: employee.baseSalary?.toString() ?? '',
+        afp: employee.afp ?? '',
+        sistema_salud: employee.healthSystem ?? '',
+        // For practice agreement
+        nombre_estudiante: `${employee.firstName} ${employee.lastName}`,
+        rut_estudiante: employee.rut ?? '',
+      };
+      setFormData(prev => ({ ...prev, ...employeeData }));
     } else {
-      const fieldsToClear: Partial<FormData> = {};
-      for (const key of employeeFieldKeys) {
-        fieldsToClear[key] = '';
-      }
-      setFormData(prev => ({ ...prev, ...fieldsToClear }));
+       // If no employee is selected, clear the fields
+        const fieldsToClear: Partial<FormData> = {
+            nombre_trabajador: '', rut_trabajador: '', nacionalidad_trabajador: '', 
+            fecha_nacimiento_trabajador: '', direccion_trabajador: '', comuna_trabajador: '', 
+            email_trabajador: '', cargo: '', fecha_ingreso: '', fecha_termino_contrato: '',
+            sueldo_base_monto: '', afp: '', sistema_salud: '', nombre_estudiante: '', rut_estudiante: ''
+        };
+        setFormData(prev => ({ ...prev, ...fieldsToClear }));
     }
   }, [selectedEmployeeId, employees, docId]);
 

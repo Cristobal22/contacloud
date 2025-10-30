@@ -25,7 +25,8 @@ import {
     DropdownMenuLabel,
     DropdownMenuTrigger,
   } from "@/components/ui/dropdown-menu"
-  import { useCollection } from "@/firebase"
+  import { useCollection, useFirestore } from "@/firebase"
+  import { query, collection, where } from 'firebase/firestore';
   import type { Employee, CostCenter } from "@/lib/types"
   import Link from "next/link"
   import React from "react"
@@ -35,16 +36,29 @@ import {
   export default function EmployeesPage() {
     const { selectedCompany } = React.useContext(SelectedCompanyContext) || {};
     const companyId = selectedCompany?.id;
+    const firestore = useFirestore();
 
     const [selectedEmployeeForHistory, setSelectedEmployeeForHistory] = React.useState<Employee | null>(null);
 
-    const { data: employees, loading: employeesLoading } = useCollection<Employee>({ 
-      path: companyId ? `companies/${companyId}/employees` : undefined,
-      companyId: companyId 
+    const employeesQuery = React.useMemo(() => {
+        if (!firestore || !companyId) return null;
+        const collectionRef = collection(firestore, `companies/${companyId}/employees`);
+        return query(collectionRef, where("companyId", "==", companyId));
+    }, [firestore, companyId]);
+
+    const costCentersQuery = React.useMemo(() => {
+        if (!firestore || !companyId) return null;
+        const collectionRef = collection(firestore, `companies/${companyId}/cost-centers`);
+        return query(collectionRef, where("companyId", "==", companyId));
+    }, [firestore, companyId]);
+
+    const { data: employees, loading: employeesLoading } = useCollection<Employee>({
+        query: employeesQuery,
+        disabled: !employeesQuery,
     });
     const { data: costCenters, loading: costCentersLoading } = useCollection<CostCenter>({
-        path: companyId ? `companies/${companyId}/cost-centers` : undefined,
-        companyId: companyId,
+        query: costCentersQuery,
+        disabled: !costCentersQuery,
     });
 
     const costCenterMap = React.useMemo(() => {
