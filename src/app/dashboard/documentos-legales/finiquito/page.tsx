@@ -20,7 +20,7 @@ import { CalendarIcon, ChevronsUpDown, Check, AlertTriangle } from "lucide-react
 import { Calendar } from "@/components/ui/calendar";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { useCollection, useFirestore } from '@/firebase';
-import { functions } from '@/firebase/config'; // <-- THE REAL FIX: Import directly from the correct config file
+import { functions } from '@/firebase/config'; 
 import { Timestamp, doc, getDoc } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import type { Employee, EconomicIndicator } from '@/lib/types';
@@ -120,8 +120,8 @@ export default function FiniquitoGeneratorPage() {
                 const getLatestPayrollSalary = httpsCallable(functions, 'getLatestPayrollSalary');
                 const result: any = await getLatestPayrollSalary({ companyId: selectedCompany.id, employeeId: selectedEmployee.id });
 
-                const taxableEarnings = result.data.taxableEarnings as number | null;
-                if (taxableEarnings === null) {
+                const baseIndemnizacion = result.data.baseIndemnizacion as number | null;
+                if (baseIndemnizacion === null) {
                     console.log("No previous payroll found for employee.");
                     return; // No payroll found, do nothing
                 }
@@ -133,12 +133,12 @@ export default function FiniquitoGeneratorPage() {
                 const indicatorRef = doc(db, `economicIndicators`, indicatorId);
                 const indicatorSnap = await getDoc(indicatorRef);
 
-                let suggestedValue = taxableEarnings;
+                let suggestedValue = baseIndemnizacion;
                 if (indicatorSnap.exists()) {
                     const indicator = indicatorSnap.data() as EconomicIndicator;
                     if (indicator.uf) {
                         const cap = 90 * indicator.uf;
-                        suggestedValue = Math.min(taxableEarnings, cap);
+                        suggestedValue = Math.min(baseIndemnizacion, cap);
                     }
                 }
 

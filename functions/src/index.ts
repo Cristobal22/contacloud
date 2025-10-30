@@ -36,13 +36,17 @@ export const getLatestPayrollSalary = onCall(async (request) => {
 
     if (snapshot.empty) {
       // It's not an error if no payroll is found, just return null
-      return { taxableEarnings: null };
+      return { baseIndemnizacion: null };
     }
 
     const lastPayroll = snapshot.docs[0].data();
 
-    // Return only the necessary data
-    return { taxableEarnings: lastPayroll.taxableEarnings || 0 };
+    // Prioritize the new 'baseIndemnizacion' field.
+    // Fallback to 'taxableEarnings' for older documents.
+    const suggestedValue = lastPayroll.baseIndemnizacion ?? lastPayroll.taxableEarnings ?? 0;
+
+    // Return the suggested value under the new key
+    return { baseIndemnizacion: suggestedValue };
   } catch (error) {
     console.error("Error fetching latest payroll:", error);
     // Throw a generic error to the client
