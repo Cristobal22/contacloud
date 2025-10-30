@@ -1,4 +1,3 @@
-
 # BaseImponible.cl
 
 BaseImponible.cl es una moderna aplicación de contabilidad multi-tenant diseñada para que los contadores gestionen las finanzas de múltiples empresas de forma segura y eficiente. Esta aplicación está construida como un prototipo robusto utilizando Next.js, Firebase y shadcn/ui, mostrando una experiencia de usuario completa e interactiva.
@@ -9,110 +8,100 @@ BaseImponible.cl es una moderna aplicación de contabilidad multi-tenant diseña
 - **Lenguaje**: TypeScript
 - **Base de Datos**: [Firebase Firestore](https://firebase.google.com/docs/firestore)
 - **Autenticación**: [Firebase Authentication](https://firebase.google.com/docs/auth)
-- **Hosting**: [Firebase App Hosting](https://firebase.google.com/docs/hosting)
+- **Funciones Serverless**: [Firebase Cloud Functions](https://firebase.google.com/docs/functions)
+- **Hosting**: [Firebase App Hosting](https://firebase.google.com/docs/app-hosting)
 - **Estilos**: [Tailwind CSS](https://tailwindcss.com/)
 - **Componentes UI**: [shadcn/ui](https://ui.shadcn.com/)
-- **IA Generativa**: [Genkit](https://firebase.google.com/docs/genkit)
 
-## Key Features
+## ⚠️ Configuración Crítica del Entorno
 
-- **Arquitectura Multi-Tenant Segura**:
-    - **Roles de Usuario**: El sistema distingue entre `Admin` (para la gestión de la plataforma y los contadores) y `Accountant` (para la gestión contable de sus propias empresas).
-    - **Aislamiento de Datos**: Un contador solo puede ver y gestionar las empresas que él mismo ha creado. El rol `Admin` está limitado a la gestión de usuarios y no tiene acceso a los datos de las empresas.
-    - **Gestión de Usuarios**: Los administradores pueden crear nuevos usuarios contadores directamente desde su panel de control.
+Para que la aplicación funcione, es **esencial** configurar correctamente el entorno de Firebase y las variables locales. Los errores de configuración son la causa más común de problemas.
 
-- **Integración con Firebase**:
-    - **Firestore**: Base de datos en tiempo real para todos los datos contables y de la aplicación.
-    - **Firebase Authentication**: Registro y login de usuarios seguro con proveedores de Email/Contraseña y Google.
-    - **Reglas de Seguridad**: Reglas robustas en Firestore que garantizan que un usuario solo pueda acceder a los datos que le corresponden.
-    - **Firebase App Hosting**: Despliegue continuo integrado con GitHub Actions.
+### 1. Prerrequisitos
 
-- **Módulos Contables Completos**:
-    - **Dashboard Interactivo**: Una visión general de las métricas financieras clave.
-    - **Plan de Cuentas Jerárquico**: Permite cargar un plan predeterminado, crearlo desde cero o importarlo. La interfaz visualiza la estructura anidada de las cuentas.
-    - **Gestión de Comprobantes Profesional**: Flujo de trabajo completo con estados "Borrador" y "Contabilizado". Un comprobante contabilizado puede ser editado, pero se revierte a "Borrador" para garantizar la integridad de los informes.
-    - **Módulos de Compras y Ventas**: Importación de documentos desde los registros del SII y centralización automática para generar los asientos contables correspondientes.
-    - **Tesorería Inteligente**: Módulo para gestionar los pagos a proveedores y cobros a clientes, generando automáticamente los comprobantes de egreso e ingreso.
-    - **Informes Precisos**: Libro Diario, Libro Mayor, Balances y Estado de Resultados que **solo** consideran comprobantes contabilizados, asegurando la fiabilidad de los datos.
-    - **Gestión de Remuneraciones**: Módulo completo para la gestión de empleados y el procesamiento de liquidaciones de sueldo.
-    - **Datos Maestros Centralizados**: Los administradores pueden actualizar datos esenciales como entidades de AFP, Salud, parámetros de IUT y Asignación Familiar directamente desde la interfaz de usuario.
+- **Node.js**: **v20.0.0 o superior**.
+- **npm** o **yarn**.
+- Una cuenta de Google.
 
-- **Procesos Críticos Asistidos por IA**:
-    - **Centralización de Remuneraciones**: Genera automáticamente el asiento contable de centralización de sueldos a partir de las liquidaciones procesadas.
+### 2. Configuración del Proyecto Firebase
 
-- **UI Moderna y Responsiva**:
-    - Interfaz profesional construida con **shadcn/ui** y **Tailwind CSS**.
-    - **Menú de Comandos (Cmd+K)**: Un buscador global para navegar rápidamente por la aplicación.
-    - **Modo Oscuro**: Apariencia personalizable para comodidad del usuario.
+1.  **Crear Proyecto**: Ve a la [Consola de Firebase](https://console.firebase.google.com/) y crea un nuevo proyecto.
+2.  **Activar Facturación**: En la configuración del proyecto, selecciona el plan **Blaze (pago por uso)**. Esto es **obligatorio** para poder desplegar Cloud Functions.
+3.  **Crear App Web**:
+    - En la "Configuración del proyecto" > "General", crea una nueva **Aplicación web**.
+    - Nómbrala y registra la aplicación.
+    - Firebase te mostrará un objeto `firebaseConfig`. Copia estos valores.
 
-## Getting Started
+### 3. Configuración de Variables de Entorno
 
-### Prerequisites
+1.  En la raíz de este proyecto, crea un nuevo archivo llamado **`.env.local`**.
+2.  Copia el contenido del archivo `.env.example` y pégalo en tu nuevo archivo `.env.local`.
+3.  Rellena los valores con las claves que obtuviste de la configuración de tu App Web en Firebase. El archivo `.env.local` se verá así y **no debe ser subido a GitHub**:
 
-- Node.js (v18 o superior recomendado)
-- npm o yarn
-- Un proyecto de Firebase con la **facturación activada** (necesario para Genkit y servicios de Google Cloud).
-
-### 1. Firebase Setup
-
-1.  Crea un proyecto en la [Firebase Console](https://console.firebase.google.com/).
-2.  En tu proyecto, ve a **Configuración del proyecto** > **General**.
-3.  En "Tus apps", crea una nueva **Aplicación web**.
-4.  Copia los valores del objeto `firebaseConfig`.
-5.  En este proyecto, crea un archivo `.env` en la raíz (puedes renombrar `.env.example`).
-6.  Pega tus valores de configuración en el `.env`, asegurándote de que coincidan con las variables `NEXT_PUBLIC_`.
-
-### 2. Crear el Primer Usuario Administrador (Flujo Simplificado)
-
-El primer usuario `Admin` es indispensable para empezar a crear las cuentas de los contadores y gestionar los parámetros.
-
-1.  **Regístrate en la aplicación**: Usa la página de login para crear tu primera cuenta (con Google o Email/Contraseña). Por defecto, se creará con el rol `Accountant`.
-2.  **Ejecuta el Script de Admin**: Abre una terminal en la raíz del proyecto y ejecuta el siguiente comando:
     ```bash
-    npm run init-admin
+    # Variables de entorno para el cliente Next.js
+    NEXT_PUBLIC_FIREBASE_API_KEY="AIzaSy...YOUR_KEY"
+    NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN="your-project.firebaseapp.com"
+    NEXT_PUBLIC_FIREBASE_PROJECT_ID="your-project-id"
+    NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET="your-project.appspot.com"
+    NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID="1234567890"
+    NEXT_PUBLIC_FIREBASE_APP_ID="1:12345:web:abcdef123"
+    NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID="G-ABCDEF123"
     ```
-3.  El script te pedirá el email del usuario que acabas de registrar. Ingrésalo y el script lo promoverá a `Admin`.
-4.  **Cierra y vuelve a iniciar sesión**: ¡Este paso es esencial! Cierra sesión en la aplicación y vuelve a iniciarla para que tus nuevos permisos de administrador surtan efecto.
 
-¡Listo! Ahora tendrás privilegios de `Admin` y podrás gestionar usuarios y parámetros.
+### 4. Configuración de Cloud Functions y Permisos
 
-### 3. Actualizar Parámetros Globales (Tarea de Admin)
+El proyecto utiliza una Cloud Function (`getLatestPayrollSalary`) para sugerir el sueldo base. Para que funcione, necesita una configuración específica:
 
-Con el tiempo, los parámetros económicos y previsionales (UTM, sueldo mínimo, tablas de impuestos, etc.) cambian. Para mantener la aplicación al día, un administrador debe seguir estos pasos:
+1.  **Región de la Función**: Al desplegar la función (o si ya existe), asegúrate de que esté configurada en la región **`us-central1`**.
+2.  **Runtime de la Función**: La función debe usar el entorno de ejecución **Node.js 20**.
+3.  **Permisos de Invocación**:
+    - Ve a la [Consola de Google Cloud](https://console.cloud.google.com/) y selecciona tu proyecto.
+    - Navega a "Cloud Functions".
+    - Selecciona la función `getLatestPayrollSalary`.
+    - Ve a la pestaña "Permisos".
+    - Haz clic en "Conceder acceso".
+    - En el campo "Principales nuevas", escribe `allUsers`.
+    - En el campo "Seleccionar un rol", elige **`Cloud Functions`** > **`Invocador de Cloud Functions`**.
+    - Guarda los cambios.
 
-1.  **Asegúrate de tener los datos actualizados en el código**: Un desarrollador debe primero actualizar los valores en el archivo `src/lib/seed-data.ts`.
-2.  **Inicia Sesión como Admin**: Accede a la aplicación con tu cuenta de administrador.
-3.  **Navega a la Página de Parámetros**: Ve a la sección correspondiente (ej. Remuneraciones > Parámetros IUT).
-4.  **Selecciona el Período**: Elige el mes y año que deseas actualizar.
-5.  **Carga los Nuevos Datos**: Haz clic en el botón **"Cargar Parámetros Predeterminados"**. Esto leerá los nuevos datos del archivo `seed-data.ts` y los guardará en la base de datos para el período seleccionado.
-
-### 4. Running the Development Server
+### 5. Instalación y Ejecución Local
 
 1.  **Instala las dependencias**:
     ```bash
     npm install
     ```
-2.  **Ejecuta la aplicación**:
+2.  **Ejecuta el servidor de desarrollo**:
     ```bash
     npm run dev
     ```
-La aplicación estará disponible en `http://localhost:9002`.
+    La aplicación estará disponible en `http://localhost:9003`.
 
-## Flujo de Trabajo
+### 6. Creación del Primer Usuario Administrador
 
-- **Rol Admin**: Crea y gestiona las cuentas de los `Accountant` desde la sección "Gestión de Usuarios". Actualiza los parámetros globales del sistema desde las páginas de parámetros correspondientes (ej. Parámetros IUT, AFP, etc.).
-- **Rol Accountant**:
-    1. Inicia sesión y navega a **Empresas** para crear una nueva ficha de cliente.
-    2. Al crear la empresa, se le redirige a la configuración para cargar el **Plan de Cuentas Predeterminado** o empezar uno desde cero.
-    3. Una vez configurada, puede empezar a gestionar los módulos de contabilidad, remuneraciones e informes para esa empresa.
+El sistema necesita un usuario `Admin` para gestionar contadores y parámetros.
 
-## Project Structure
+1.  **Regístrate en la aplicación**: Usa la página de login para crear tu primera cuenta. Por defecto, tendrá el rol `Accountant`.
+2.  **Promover a Admin**: Abre una terminal en la raíz del proyecto y ejecuta:
+    ```bash
+    npm run init-admin
+    ```
+3.  El script te pedirá el email del usuario que acabas de registrar. Ingrésalo.
+4.  **¡Importante!**: Cierra sesión en la aplicación y vuelve a iniciarla para que los nuevos permisos de `Admin` surtan efecto.
+
+## Despliegue (Deployment)
+
+Este proyecto está configurado para **Firebase App Hosting**, no para el servicio de *Hosting Clásico*. Esto se debe a que utiliza las funciones de servidor de Next.js.
+
+- El repositorio incluye un workflow de GitHub Actions (`.github/workflows/firebase-hosting-pull-request.yml`) que despliega automáticamente las vistas previas de los Pull Requests.
+- Para desplegar a producción, sigue la [guía oficial de Firebase App Hosting](https://firebase.google.com/docs/app-hosting).
+
+## Estructura del Proyecto
 
 - `src/app/`: Páginas y layouts (App Router).
 - `src/components/`: Componentes de React, incluyendo UI de shadcn.
-- `src/firebase/`: Configuración y hooks para interactuar con Firebase.
+- `src/firebase/`: Configuración y hooks para interactuar con Firebase. El archivo clave es `config.ts`, donde se define la región de las Functions.
 - `src/lib/`: Funciones de utilidad, tipos de datos y datos de inicialización (`seed-data.ts`).
-- `src/ai/`: Flujos de Genkit para funcionalidades de IA.
+- `functions/`: Código fuente de las Cloud Functions. El CLI de Firebase puede generar aquí sus propios archivos `.env.*` para gestionar las variables del backend.
 - `firestore.rules`: Reglas de seguridad para Firestore.
-- `.github/workflows/`: Workflows de CI/CD para despliegue automático.
 - `init-admin.mjs`: Script para inicializar el primer usuario administrador.
