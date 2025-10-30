@@ -1,4 +1,3 @@
-
 'use client';
 
 import { DOCUMENT_TEMPLATES } from '@/lib/document-templates';
@@ -31,8 +30,6 @@ export default function DocumentsPage() {
     );
   }
 
-  // CORRECT, FINAL, DEFINITIVE FIX: The user profile stores the plan ID in the 'plan' field.
-  // We must compare it against the plan's 'id' property.
   const userPlan = plans.find(plan => 
     plan.id.toLowerCase() === (userProfile.plan?.toLowerCase() ?? '')
   );

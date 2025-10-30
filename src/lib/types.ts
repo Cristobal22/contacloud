@@ -72,7 +72,7 @@ export type Account = {
   id:string;
   code: string;
   name: string;
-  type: 'Activo' | 'Pasivo' | 'Patrimonio' | 'Resultado';
+  type: 'Activo' | 'Pasivo' | 'Patrimonio' | 'Ingreso' | 'Gasto';
   balance: number;
   companyId: string;
 };

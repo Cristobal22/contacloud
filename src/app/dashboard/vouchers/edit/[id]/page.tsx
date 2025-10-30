@@ -1,4 +1,3 @@
-
 'use client';
 
 import React from 'react';
@@ -20,7 +19,7 @@ import {
     TableRow,
     TableFooter
 } from "@/components/ui/table";
-import { PlusCircle, Trash2, ArrowLeft, ChevronsUpDown, Check } from "lucide-react";
+import { PlusCircle, Trash2, ArrowLeft, ChevronsUpDown, Check, AlertCircle } from "lucide-react";
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -57,6 +56,21 @@ import { es } from 'date-fns/locale';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 
+const ValidationChecklist = ({ items }: { items: string[] }) => {
+    if (items.length === 0) return null;
+    return (
+        <div className="text-sm text-muted-foreground space-y-2 mr-auto">
+            {items.map((item, index) => (
+                <div key={index} className="flex items-center gap-2">
+                    <AlertCircle className="h-4 w-4 text-amber-500" />
+                    <span>{item}</span>
+                </div>
+            ))}
+        </div>
+    );
+};
+
+
 export default function VoucherEditPage() {
     const params = useParams();
     const id = params.id as string;
@@ -74,6 +88,7 @@ export default function VoucherEditPage() {
     const [entries, setEntries] = React.useState<Partial<VoucherEntry>[]>([]);
     const [dateError, setDateError] = React.useState<string | null>(null);
     const [openPopovers, setOpenPopovers] = React.useState<Record<string, boolean>>({});
+    const [validationErrors, setValidationErrors] = React.useState<string[]>([]);
 
 
     const { data: accounts, loading: accountsLoading } = useCollection<Account>({
@@ -107,10 +122,9 @@ export default function VoucherEditPage() {
 
 
     const handleAddEntry = () => {
-        setEntries([
-            ...entries,
-            { id: `new-entry-${Date.now()}-${Math.random()}`, account: '', description: '', debit: 0, credit: 0 }
-        ]);
+        const newId = `new-entry-${Date.now()}-${Math.random()}`;
+        setEntries([...entries, { id: newId, account: '', description: '', debit: 0, credit: 0 }]);
+        setOpenPopovers(prev => ({ ...prev, [newId]: false }));
     };
 
     const handleRemoveEntry = (entryId: string) => {
@@ -169,11 +183,34 @@ export default function VoucherEditPage() {
 
     const totalDebit = entries.reduce((sum, entry) => sum + Number(entry.debit || 0), 0);
     const totalCredit = entries.reduce((sum, entry) => sum + Number(entry.credit || 0), 0);
-    const isBalanced = totalDebit === totalCredit && totalDebit > 0;
+    const isBalanced = Math.round(totalDebit) === Math.round(totalCredit) && totalDebit > 0;
     const canSave = isBalanced && !dateError && entries.length > 0 && !!voucher?.description && entries.every(e => e.account);
-    
-    const handleSaveClick = () => {
-       if (!firestore || !companyId || !voucher || !canSave) return;
+
+    React.useEffect(() => {
+        const errors: string[] = [];
+        if (!voucher?.description) {
+            errors.push("Falta la descripción general del comprobante.");
+        }
+        if (entries.length === 0) {
+            errors.push("El comprobante debe tener al menos un asiento.");
+        }
+        if (!entries.every(e => e.account)) {
+            errors.push("Hay uno o más asientos sin una cuenta contable asignada.");
+        }
+        if (dateError) {
+            errors.push(dateError);
+        }
+        if (totalDebit === 0 && entries.length > 0) {
+             errors.push("Los totales no pueden ser cero.");
+        } else if (Math.round(totalDebit) !== Math.round(totalCredit)) {
+            errors.push("Los totales del Debe y el Haber no cuadran.");
+        }
+        setValidationErrors(errors);
+    }, [voucher, entries, dateError, totalDebit, totalCredit]);
+
+
+    const handleSaveClick = async () => {
+        if (!firestore || !companyId || !voucher || !canSave) return;
         
         let statusToSave = voucher.status;
         if (voucher.status === 'Contabilizado') {
@@ -183,7 +220,6 @@ export default function VoucherEditPage() {
                 description: "Se han guardado cambios en un comprobante contabilizado. Su estado ha sido revertido a 'Borrador' y debe ser contabilizado nuevamente."
             });
         }
-
 
         const collectionPath = `companies/${companyId}/vouchers`;
         const collectionRef = collection(firestore, collectionPath);
@@ -204,27 +240,34 @@ export default function VoucherEditPage() {
           companyId: companyId
         };
 
-        router.push('/dashboard/vouchers');
-        
-        if (isNew) {
-            addDoc(collectionRef, voucherData)
-                .catch(err => {
-                    errorEmitter.emit('permission-error', new FirestorePermissionError({
-                        path: collectionPath,
-                        operation: 'create',
-                        requestResourceData: voucherData,
-                    }));
+        try {
+            if (isNew) {
+                await addDoc(collectionRef, voucherData);
+                toast({
+                    title: "Éxito",
+                    description: "El comprobante ha sido creado.",
                 });
-        } else {
-            const docRef = doc(firestore, collectionPath, id);
-            setDoc(docRef, voucherData, { merge: true })
-                .catch(err => {
-                    errorEmitter.emit('permission-error', new FirestorePermissionError({
-                        path: docRef.path,
-                        operation: 'update',
-                        requestResourceData: voucherData,
-                    }));
+            } else {
+                const docRef = doc(firestore, collectionPath, id);
+                await setDoc(docRef, voucherData, { merge: true });
+                toast({
+                    title: "Éxito",
+                    description: "El comprobante ha sido actualizado.",
                 });
+            }
+            router.push('/dashboard/vouchers');
+        } catch (err) {
+            toast({
+                title: "Error al guardar",
+                description: "No se pudo guardar el comprobante. Por favor, intenta de nuevo.",
+                variant: "destructive",
+            });
+            const errorPath = isNew ? collectionPath : `companies/${companyId}/vouchers/${id}`;
+            errorEmitter.emit('permission-error', new FirestorePermissionError({
+                path: errorPath,
+                operation: isNew ? 'create' : 'update',
+                requestResourceData: voucherData,
+            }));
         }
     };
     
@@ -238,8 +281,8 @@ export default function VoucherEditPage() {
         : "Aún no hay períodos cerrados.";
 
     const togglePopover = (entryId: string) => {
-        setOpenPopovers(prev => ({...prev, [entryId]: !prev[entryId]}));
-    }
+        setOpenPopovers(prev => ({ ...prev, [entryId]: !prev[entryId] }));
+    };
 
     return (
         <div className="grid gap-6">
@@ -320,12 +363,12 @@ export default function VoucherEditPage() {
                             {entries.map(entry => (
                                 <TableRow key={entry.id}>
                                     <TableCell>
-                                        <Popover open={openPopovers[entry.id!]} onOpenChange={() => togglePopover(entry.id!)}>
+                                        <Popover open={openPopovers[entry.id!] || false} onOpenChange={() => togglePopover(entry.id!)}>
                                             <PopoverTrigger asChild>
                                                 <Button
                                                     variant="outline"
                                                     role="combobox"
-                                                    aria-expanded={openPopovers[entry.id!]}
+                                                    aria-expanded={openPopovers[entry.id!] || false}
                                                     className="w-full justify-between font-normal"
                                                     disabled={accountsLoading || !periodIsDefined}
                                                 >
@@ -427,8 +470,9 @@ export default function VoucherEditPage() {
                         </TableFooter>
                     </Table>
                 </CardContent>
-                <CardFooter className="flex justify-end gap-2 pt-6">
-                     <Button variant="outline" asChild>
+                <CardFooter className="flex justify-end items-center gap-2 pt-6">
+                    {!canSave && <ValidationChecklist items={validationErrors} />}
+                    <Button variant="outline" asChild>
                         <Link href="/dashboard/vouchers">Cancelar</Link>
                     </Button>
                     <Button disabled={!canSave} onClick={handleSaveClick}>Guardar Comprobante</Button>

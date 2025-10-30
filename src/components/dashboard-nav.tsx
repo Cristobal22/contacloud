@@ -1,4 +1,3 @@
-
 'use client';
 
 import Link from 'next/link';
@@ -83,7 +82,7 @@ const accountantNavSections = [
         links: [
             { href: '/dashboard/journal', label: 'Libro Diario', icon: BookOpen },
             { href: '/dashboard/ledger', label: 'Libro Mayor', icon: BookCopy },
-            { href: '/dashboard/balances', label: 'Balances', icon: Scale },
+            { href: '/dashboard/reports/eight-column-balance', label: 'Balance 8 Columnas', icon: Library },
             { href: '/dashboard/general-balance', label: 'Balance General', icon: Scale },
             { href: '/dashboard/vat-summary', label: 'Resumen Mensual IVA', icon: FileText },
             { href: '/dashboard/cash-flow', label: 'Flujo de Caja', icon: DollarSign },
@@ -106,6 +105,7 @@ const documentsSection = {
     icon: File,
     links: [
         { href: '/dashboard/documents', label: 'Plantillas de Documentos', icon: FileText },
+        { href: '/dashboard/documentos-legales/finiquito', label: 'Generador de Finiquitos', icon: FileCog },
     ]
 };
 
