@@ -1,4 +1,3 @@
-
 'use client';
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -27,6 +26,7 @@ const defaultAccountMappings: { [key in keyof Partial<Company>]: string } = {
     purchasesNotesPayableAccount: '2010201', // PROVEEDORES (same as invoices)
     purchasesVatAccount: '1010802', // IVA CREDITO FISCAL
     vatRemanentAccount: '1010803', // IVA REMANENTE CREDITO FISCAL
+    feesExpenseAccount: '4010820', // GASTOS DE HONORARIOS
     feesPayableAccount: '2010220', // HONORARIOS POR PAGAR
     feesWithholdingAccount: '2010930', // RETENCION IMPUESTO HONORARIOS
     incomeFeesReceivableAccount: '1010415', // HONORARIOS POR COBRAR
@@ -336,6 +336,13 @@ export default function CompanySettingsPage() {
                 {/* Honorarios */}
                 <div className="space-y-4">
                     <h3 className="text-lg font-medium">Honorarios</h3>
+                     <AccountSearchInput 
+                        label="Cuenta de Gasto (Honorarios)" 
+                        value={company.feesExpenseAccount || ''} 
+                        accounts={accounts || []} 
+                        loading={accountsLoading}
+                        onValueChange={(value) => handleInputChange('feesExpenseAccount', value)}
+                    />
                     <AccountSearchInput 
                         label="Honorarios por Pagar" 
                         value={company.feesPayableAccount || ''} 

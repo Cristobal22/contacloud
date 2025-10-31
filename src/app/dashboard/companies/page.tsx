@@ -1,4 +1,3 @@
-
 'use client';
 
 import React from 'react';
@@ -25,7 +24,6 @@ import {
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuLabel,
-    DropdownMenuSeparator,
     DropdownMenuTrigger,
   } from "@/components/ui/dropdown-menu"
    import {
@@ -78,23 +76,19 @@ import {
     const companiesQuery = React.useMemo(() => {
         if (!firestore || !userProfile) return null;
 
-        // Admins should not see any companies. Return null to prevent any query.
         if (userProfile.role === 'Admin') {
             return null;
         }
 
-        // Accountants see only their assigned companies.
         if (userProfile.role === 'Accountant' && userProfile.companyIds && userProfile.companyIds.length > 0) {
-            // Firestore 'in' queries are limited to 30 elements. We slice to stay within limits.
             return query(collection(firestore, 'companies'), where(documentId(), 'in', userProfile.companyIds.slice(0, 30)));
         }
 
-        return null; // For accountants with no companies or if no role is matched
+        return null;
     }, [firestore, userProfile]);
 
-    const { data: companies, loading: companiesLoading, error } = useCollection<Company>({ 
+    const { data: companies, loading: companiesLoading } = useCollection<Company>({ 
       query: companiesQuery,
-      // Disable query if the user profile is loading or if there's no valid query
       disabled: profileLoading || !companiesQuery
     });
     
@@ -133,6 +127,7 @@ import {
         setIsDeleteDialogOpen(true);
     };
 
+    // Correctly navigates to the detailed settings page
     const handleGoToSettings = (company: Company) => {
       if (setSelectedCompany) {
         setSelectedCompany(company);
@@ -161,29 +156,20 @@ import {
     const handleSave = async () => {
         if (!firestore || !user || !selectedCompanyLocal || !userProfile) return;
 
-        const isNew = selectedCompanyLocal.id?.startsWith('new-');
+        const isNew = !!selectedCompanyLocal.id?.startsWith('new-');
 
         if(isNew) {
             const currentPlan = userProfile.plan || 'Individual';
             const limit = planLimits[currentPlan];
-            const currentCompanyCount = userProfile.companyIds?.length || 0;
-            if (currentCompanyCount >= limit) {
-                 toast({
-                    variant: "destructive",
-                    title: "Límite Alcanzado",
-                    description: `No puedes agregar más empresas con tu plan actual.`,
-                });
+            if ((userProfile.companyIds?.length || 0) >= limit) {
+                 toast({ variant: "destructive", title: "Límite Alcanzado" });
                 setIsFormOpen(false);
                 return;
             }
         }
 
         if (!selectedCompanyLocal.name || !selectedCompanyLocal.rut) {
-            toast({
-                variant: "destructive",
-                title: "Campos requeridos",
-                description: "Por favor, complete al menos el Nombre y el RUT de la empresa.",
-            });
+            toast({ variant: "destructive", title: "Campos requeridos" });
             return;
         }
 
@@ -192,7 +178,7 @@ import {
         const companyData: Omit<Company, 'id'> = {
             name: selectedCompanyLocal.name,
             rut: selectedCompanyLocal.rut,
-            active: true,
+            active: selectedCompanyLocal.active ?? true,
             giro: selectedCompanyLocal.giro || "No especificado",
             address: selectedCompanyLocal.address || '',
             ownerId: user.uid,
@@ -202,24 +188,16 @@ import {
             try {
                 const batch = writeBatch(firestore);
                 const newCompanyRef = doc(collection(firestore, 'companies'));
-
-                // Set the company data in the batch
                 batch.set(newCompanyRef, companyData);
                 
-                // If creator is an accountant, add company to their list
                 if (userProfile?.role === 'Accountant') {
                     const userProfileRef = doc(firestore, 'users', user.uid);
-                    batch.update(userProfileRef, {
-                        companyIds: arrayUnion(newCompanyRef.id)
-                    });
+                    batch.update(userProfileRef, { companyIds: arrayUnion(newCompanyRef.id) });
                 }
                 
                 await batch.commit();
 
-                toast({
-                    title: "Empresa Creada",
-                    description: `${companyData.name} ha sido creada. Redirigiendo a configuración...`,
-                });
+                toast({ title: "Empresa Creada", description: `${companyData.name} ha sido creada.` });
                 
                 const newCompany: Company = { id: newCompanyRef.id, ...companyData };
                 
@@ -229,11 +207,7 @@ import {
                 router.push('/dashboard/companies/settings');
 
             } catch (err) {
-                 errorEmitter.emit('permission-error', new FirestorePermissionError({
-                    path: 'companies',
-                    operation: 'create',
-                    requestResourceData: companyData,
-                }));
+                 errorEmitter.emit('permission-error', new FirestorePermissionError({ path: 'companies', operation: 'create' }));
             }
         } else if (selectedCompanyLocal.id) {
             const docRef = doc(firestore, 'companies', selectedCompanyLocal.id);
@@ -241,14 +215,10 @@ import {
 
             setDoc(docRef, updateData, { merge: true })
                 .then(() => {
-                    toast({ title: "Empresa actualizada", description: "Los cambios han sido guardados."});
+                    toast({ title: "Empresa actualizada" });
                 })
                 .catch(err => {
-                     errorEmitter.emit('permission-error', new FirestorePermissionError({
-                        path: docRef.path,
-                        operation: 'update',
-                        requestResourceData: updateData,
-                    }));
+                     errorEmitter.emit('permission-error', new FirestorePermissionError({ path: docRef.path, operation: 'update' }));
                 });
         }
         setSelectedCompanyLocal(null);
@@ -295,13 +265,9 @@ import {
               </TableHeader>
               <TableBody>
                 {loading ? (
-                  <TableRow>
-                      <TableCell colSpan={5} className="text-center">Cargando...</TableCell>
-                  </TableRow>
+                  <TableRow><TableCell colSpan={5} className="text-center">Cargando...</TableCell></TableRow>
                 ) : userProfile?.role === 'Admin' ? (
-                   <TableRow>
-                      <TableCell colSpan={5} className="text-center">La gestión de empresas no está disponible para administradores.</TableCell>
-                  </TableRow>
+                   <TableRow><TableCell colSpan={5} className="text-center">La gestión de empresas no está disponible para administradores.</TableCell></TableRow>
                 ) : companies && companies.length > 0 ? (
                   companies.map((company) => (
                       <TableRow key={company.id}>
@@ -327,15 +293,14 @@ import {
                               <DropdownMenuItem onClick={() => handleGoToSettings(company)}>
                                 Configuración
                               </DropdownMenuItem>
+                              <DropdownMenuItem className="text-red-600" onClick={() => handleOpenDeleteDialog(company)}>Eliminar</DropdownMenuItem>
                           </DropdownMenuContent>
                           </DropdownMenu>
                       </TableCell>
                       </TableRow>
                   ))
                 ) : (
-                  <TableRow>
-                      <TableCell colSpan={5} className="text-center">No se encontraron empresas.</TableCell>
-                  </TableRow>
+                  <TableRow><TableCell colSpan={5} className="text-center">No se encontraron empresas.</TableCell></TableRow>
                 )}
               </TableBody>
             </Table>
@@ -363,7 +328,6 @@ import {
                         <Label htmlFor="giro">Giro o Actividad Comercial</Label>
                         <Input id="giro" value={selectedCompanyLocal?.giro || ''} onChange={(e) => handleFieldChange('giro', e.target.value)} />
                     </div>
-                    {/* Hide detailed fields on creation dialog */}
                     {!selectedCompanyLocal?.id?.startsWith('new-') && (
                         <>
                             <div className="space-y-2">
@@ -391,7 +355,7 @@ import {
                 <AlertDialogHeader>
                     <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
                     <AlertDialogDescription>
-                        Esta acción no se puede deshacer. Esto eliminará permanentemente la empresa <span className="font-bold">{companyToDelete?.name}</span> y todos sus datos asociados (cuentas, comprobantes, etc.).
+                        Esta acción no se puede deshacer. Esto eliminará permanentemente la empresa <span className="font-bold">{companyToDelete?.name}</span>.
                     </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
