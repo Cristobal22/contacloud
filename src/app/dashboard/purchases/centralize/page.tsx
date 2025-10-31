@@ -79,7 +79,7 @@ export default function CentralizePurchasesPage() {
 
     React.useEffect(() => {
         if (allPurchases) {
-            setEditablePurchases(allPurchases.map(p => ({ ...p, id: p.id || doc(collection(firestore!, 'purchases')).id }))); // Ensure ID
+            setEditablePurchases(allPurchases.map(p => ({ ...p, id: p.id || doc(collection(firestore!, 'purchases')).id })));
         }
     }, [allPurchases, firestore]);
 
@@ -364,7 +364,7 @@ export default function CentralizePurchasesPage() {
                                 <p>Para poder centralizar, debes asignar una cuenta contable a los siguientes impuestos en la <Link href="/dashboard/companies/settings" className="font-bold underline">configuración de la empresa</Link>:</p>
                                 <ul className="list-disc pl-5 mt-2 text-xs">
                                     {missingTaxAccounts.map(tax => (
-                                        <li key={tax.code}>{tax.name}</li>
+                                        <li key={tax.code}>{tax.name} (Código: {tax.code})</li>
                                     ))}
                                 </ul>
                             </AlertDescription>
