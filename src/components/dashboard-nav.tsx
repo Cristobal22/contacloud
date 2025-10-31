@@ -73,7 +73,7 @@ const accountantNavSections = [
         links: [
             { href: '/dashboard/purchases', label: 'Compras', icon: ShoppingCart },
             { href: '/dashboard/sales', label: 'Ventas', icon: Receipt },
-            { href: '/dashboard/fees', label: 'Honorarios', icon: FileText },
+            { href: '/dashboard/purchases/fees', label: 'Honorarios Recibidos', icon: FileText },
         ]
     },
     {
