@@ -1,5 +1,4 @@
 
-
 import { z } from 'zod';
 
 export const UserProfileSchema = z.object({
@@ -56,6 +55,7 @@ export type Company = {
   purchasesVatAccount?: string;
   vatRemanentAccount?: string;
   purchasesOtherTaxesAccounts?: TaxAccountMapping[];
+  feesExpenseAccount?: string;
   feesPayableAccount?: string;
   feesWithholdingAccount?: string;
   incomeFeesReceivableAccount?: string;
@@ -101,9 +101,9 @@ export type Employee = {
   region?: string;
   phone?: string;
   email?: string;
-  gender?: 'Masculino' | 'Femenino' | 'Otro';
-  civilStatus?: 'Soltero/a' | 'Casado/a' | 'Viudo/a' | 'Divorciado/a' | 'Conviviente Civil';
-  contractType?: 'Indefinido' | 'Plazo Fijo' | 'Por Obra o Faena' | 'Part-Time' | 'Honorarios';
+  gender: 'Masculino' | 'Femenino' | 'Otro';
+  civilStatus: 'Soltero/a' | 'Casado/a' | 'Viudo/a' | 'Divorciado/a' | 'Conviviente Civil';
+  contractType: 'Indefinido' | 'Plazo Fijo' | 'Por Obra o Faena' | 'Part-Time' | 'Honorarios';
   position: string;
   contractStartDate?: string;
   contractEndDate?: string;
@@ -112,15 +112,15 @@ export type Employee = {
   gratification?: number;
   mobilization?: number;
   collation?: number;
-  healthSystem?: 'Fonasa' | 'Consalud' | 'CruzBlanca' | 'Colmena' | 'Banmédica' | 'Vida Tres' | 'Nueva Masvida';
-  healthContributionType?: 'Porcentaje' | 'Monto Fijo';
+  healthSystem: 'Fonasa' | 'Consalud' | 'CruzBlanca' | 'Colmena' | 'Banmédica' | 'Vida Tres' | 'Nueva Masvida';
+  healthContributionType: 'Porcentaje' | 'Monto Fijo';
   healthContributionValue?: number;
-  afp?: 'Capital' | 'Cuprum' | 'Habitat' | 'Modelo' | 'Planvital' | 'Provida' | 'Uno';
-  unemploymentInsuranceType?: 'Indefinido' | 'Plazo Fijo';
-  hasUnemploymentInsurance?: boolean;
-  paymentMethod?: 'Transferencia Bancaria' | 'Cheque' | 'Efectivo';
-  bank?: 'Banco de Chile' | 'Banco Internacional' | 'Scotiabank Chile' | 'BCI' | 'Banco Bice' | 'HSBC Bank (Chile)' | 'Banco Santander-Chile' | 'Itaú Corpbanca' | 'Banco Security' | 'Banco Falabella' | 'Banco Ripley' | 'Banco Consorcio' | 'Scotiabank Azul (Ex-BBVA)' | 'BancoEstado';
-  accountType?: 'Cuenta Corriente' | 'Cuenta Vista' | 'Cuenta de Ahorro';
+  afp: 'Capital' | 'Cuprum' | 'Habitat' | 'Modelo' | 'Planvital' | 'Provida' | 'Uno';
+  unemploymentInsuranceType: 'Indefinido' | 'Plazo Fijo';
+  hasUnemploymentInsurance: boolean;
+  paymentMethod: 'Transferencia Bancaria' | 'Cheque' | 'Efectivo';
+  bank: 'Banco de Chile' | 'Banco Internacional' | 'Scotiabank Chile' | 'BCI' | 'Banco Bice' | 'HSBC Bank (Chile)' | 'Banco Santander-Chile' | 'Itaú Corpbanca' | 'Banco Security' | 'Banco Falabella' | 'Banco Ripley' | 'Banco Consorcio' | 'Scotiabank Azul (Ex-BBVA)' | 'BancoEstado';
+  accountType: 'Cuenta Corriente' | 'Cuenta Vista' | 'Cuenta de Ahorro';
   accountNumber?: string;
   costCenterId?: string;
   status: 'Active' | 'Inactive';
@@ -196,25 +196,27 @@ export type Sale = {
   total: number;
   status: 'Pendiente' | 'Contabilizado' | 'Cobrado';
   companyId: string;
+  isSummary?: boolean;
   voucherId?: string;
   collectionVoucherId?: string;
 };
 
-export type Fee = {
+export type Honorarium = {
   id: string;
-  date: string;
-  documentType: 'Boleta de Honorarios' | 'Boleta de Prestación de Servicios de Terceros';
-  documentNumber: string;
-  issuer: string;
-  grossAmount: number;
-  retention: number; // This is the withholding percentage
-  netAmount: number;
-  total: number;
-  status: 'Pendiente' | 'Pagada' | 'Vencida';
   companyId: string;
-  serviceDescription?: string;
-  expenseAccount?: string;
+  date: string; // Fecha de la boleta
+  documentNumber: string; // Folio de la boleta
+  issuerRut: string; // RUT del emisor
+  issuerName: string; // Nombre del emisor
+  isProfessionalSociety: boolean; // Soc. Prof.
+  grossAmount: number; // Monto Bruto
+  retentionAmount: number; // Monto Retenido
+  netAmount: number; // Monto Pagado/Líquido
+  status: 'Vigente' | 'NULA'; // Estado de la boleta
+  accountingPeriod: string; // Ej: '2025-02'
+  voucherId?: string; // ID del comprobante de centralización
 };
+
 
 export type Payroll = {
   id: string;
