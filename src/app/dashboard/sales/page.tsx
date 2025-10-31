@@ -195,9 +195,9 @@ export default function SalesPage() {
                         <div className="flex items-center space-x-4">
                             <DocumentMagnifyingGlassIcon className="h-10 w-10 text-gray-500" />
                             <div>
-                                <h3 className="text-lg font-medium">Cargar Libro de Ventas (RCV)</h3>
+                                <h3 className="text-lg font-medium">Cargar Libro de Ventas (archivo DETALLES RCV)</h3>
                                 <p className="text-sm text-muted-foreground">
-                                    Sube el archivo CSV exportado desde el SII para importar tus ventas.
+                                    Sube el archivo "Detalles RCV" en formato CSV exportado desde el SII para importar tus ventas.
                                 </p>
                             </div>
                         </div>
