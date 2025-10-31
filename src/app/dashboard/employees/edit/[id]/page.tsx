@@ -32,7 +32,7 @@ import { useCollection, useDoc, useFirestore } from '@/firebase';
 import type { Employee, CostCenter, AfpEntity, HealthEntity, EconomicIndicator, LegalDocument } from '@/lib/types';
 import { DOCUMENT_TEMPLATES } from '@/lib/document-templates';
 import { SelectedCompanyContext } from '@/app/dashboard/layout';
-import { doc, setDoc, addDoc, collection, where, DocumentReference, Timestamp, DocumentData } from 'firebase/firestore';
+import { doc, setDoc, addDoc, collection, where, DocumentReference, Timestamp, DocumentData, updateDoc } from 'firebase/firestore';
 import { useRouter, useParams } from 'next/navigation';
 import { ArrowLeft, FileText, Eye } from 'lucide-react';
 import Link from 'next/link';
@@ -116,13 +116,14 @@ export default function EmployeeFormPage() {
         return Math.round((4.75 * latestIndicator.minWage) / 12);
     }, [economicIndicators]);
 
-    // Helper function to convert Firestore Timestamps to YYYY-MM-DD strings
     const formatDateForInput = (timestamp: any): string => {
         if (!timestamp) return '';
         const date = timestamp.toDate();
-        const year = date.getFullYear();
-        const month = (date.getMonth() + 1).toString().padStart(2, '0');
-        const day = date.getDate().toString().padStart(2, '0');
+        // Adjust for timezone offset to get the correct date in the local timezone
+        const adjustedDate = new Date(date.getTime() + (date.getTimezoneOffset() * 60000));
+        const year = adjustedDate.getFullYear();
+        const month = (adjustedDate.getMonth() + 1).toString().padStart(2, '0');
+        const day = adjustedDate.getDate().toString().padStart(2, '0');
         return `${year}-${month}-${day}`;
     };
 
@@ -191,18 +192,30 @@ export default function EmployeeFormPage() {
         if (!firestore || !companyId || !employee) return;
     
         const collectionPath = `companies/${companyId}/employees`;
-        const collectionRef = collection(firestore, collectionPath);
     
         const { dependentes, ...employeeFields } = employee;
         const employeeData: Partial<Employee> = { ...employeeFields, companyId };
 
+        // Helper to convert string to Timestamp, adjusting for timezone
+        const toTimestamp = (dateString: string | undefined | null) => {
+            if (!dateString) return null;
+            // Create a date object from the string. This will be in the local timezone
+            // but interpreted as UTC midnight. We need to correct this.
+            const date = new Date(dateString);
+            // Create a new date that accounts for the timezone offset, effectively making it
+            // a local midnight date.
+            const adjustedDate = new Date(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
+            return Timestamp.fromDate(adjustedDate);
+        };
+
         // Convert date strings back to Timestamps before saving
-        if (employeeData.birthDate) employeeData.birthDate = Timestamp.fromDate(new Date(employeeData.birthDate as string));
-        if (employeeData.contractStartDate) employeeData.contractStartDate = Timestamp.fromDate(new Date(employeeData.contractStartDate as string));
-        if (employeeData.contractEndDate) employeeData.contractEndDate = Timestamp.fromDate(new Date(employeeData.contractEndDate as string));
-    
+        if (employeeData.birthDate) employeeData.birthDate = toTimestamp(employeeData.birthDate as string);
+        if (employeeData.contractStartDate) employeeData.contractStartDate = toTimestamp(employeeData.contractStartDate as string);
+        // For contractEndDate, allow it to be null if the string is empty
+        employeeData.contractEndDate = toTimestamp(employeeData.contractEndDate as string);
+
         if (isNew) {
-            addDoc(collectionRef, employeeData)
+            addDoc(collection(firestore, collectionPath), employeeData)
                 .then(() => {
                     router.push('/dashboard/employees');
                 })
@@ -215,7 +228,8 @@ export default function EmployeeFormPage() {
                 });
         } else {
             const docRef = doc(firestore, collectionPath, id);
-            setDoc(docRef, employeeData, { merge: true })
+            // Use updateDoc for existing records for safer and more intentional updates.
+            updateDoc(docRef, employeeData as DocumentData)
                 .then(() => {
                     router.push('/dashboard/employees');
                 })
