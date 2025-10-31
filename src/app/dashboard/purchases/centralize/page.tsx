@@ -78,10 +78,30 @@ export default function CentralizePurchasesPage() {
     const [bulkAssignAccount, setBulkAssignAccount] = React.useState<string | null>(null);
 
     React.useEffect(() => {
-        if (allPurchases) {
-            setEditablePurchases(allPurchases.map(p => ({ ...p, id: p.id || doc(collection(firestore!, 'purchases')).id })));
+        if (allPurchases && existingSubjects && allPurchases.length > 0) {
+            const subjectAccountMap = new Map(existingSubjects.map(s => [s.rut, s.lastAssignedAccount]));
+            let autoAssignedCount = 0;
+
+            const updatedPurchases = allPurchases.map(p => {
+                if (!p.assignedAccount && p.supplierRut) {
+                    const lastAccount = subjectAccountMap.get(p.supplierRut);
+                    if (lastAccount) {
+                        autoAssignedCount++;
+                        return { ...p, id: p.id || doc(collection(firestore!, 'purchases')).id, assignedAccount: lastAccount };
+                    }
+                }
+                return { ...p, id: p.id || doc(collection(firestore!, 'purchases')).id };
+            });
+
+            setEditablePurchases(updatedPurchases);
+
+            if (autoAssignedCount > 0) {
+                toast({ title: 'Asignación Automática', description: `Se asignó una cuenta a ${autoAssignedCount} documento(s) basado en el historial del proveedor.` });
+            }
+        } else if (allPurchases) {
+             setEditablePurchases(allPurchases.map(p => ({ ...p, id: p.id || doc(collection(firestore!, 'purchases')).id })));
         }
-    }, [allPurchases, firestore]);
+    }, [allPurchases, existingSubjects, firestore, toast]);
 
     const handleAccountChange = (purchaseId: string, newAccountCode: string) => {
         setEditablePurchases(prevPurchases => 
@@ -224,14 +244,31 @@ export default function CentralizePurchasesPage() {
         setIsProcessing(true);
         const batch = writeBatch(firestore);
 
-        const existingSubjectRuts = new Set(existingSubjects.map(s => s.rut));
+        // --- Supplier Creation & Update Logic ---
+        const subjectMapByRut = new Map(existingSubjects.map(s => [s.rut, s]));
         const newSuppliers = new Map<string, { rut: string; name: string }>();
+        const supplierAccountUpdates = new Map<string, { subjectId: string; account: string }>();
+
         purchasesToProcess.forEach(p => {
-            if (p.supplierRut && !existingSubjectRuts.has(p.supplierRut) && !newSuppliers.has(p.supplierRut)) {
-                newSuppliers.set(p.supplierRut, { rut: p.supplierRut, name: p.supplier });
+            if (p.supplierRut) {
+                // Check if supplier is new
+                if (!subjectMapByRut.has(p.supplierRut) && !newSuppliers.has(p.supplierRut)) {
+                    newSuppliers.set(p.supplierRut, { rut: p.supplierRut, name: p.supplier });
+                }
+                // Track account used for this supplier for future auto-assignment
+                if (p.assignedAccount) {
+                    const subject = subjectMapByRut.get(p.supplierRut);
+                    if (subject && subject.id) {
+                         // Check if the assigned account is different from the last one
+                        if (subject.lastAssignedAccount !== p.assignedAccount) {
+                           supplierAccountUpdates.set(p.supplierRut, { subjectId: subject.id, account: p.assignedAccount });
+                        }
+                    }
+                }
             }
         });
-
+        
+        // Batch create new suppliers
         if (newSuppliers.size > 0) {
             const subjectsCollectionRef = collection(firestore, `companies/${companyId}/subjects`);
             newSuppliers.forEach(supplier => {
@@ -240,6 +277,12 @@ export default function CentralizePurchasesPage() {
             });
         }
         
+        // Batch update suppliers' last used account
+        supplierAccountUpdates.forEach(update => {
+            batch.update(doc(firestore, `companies/${companyId}/subjects`, update.subjectId), { lastAssignedAccount: update.account });
+        });
+        // --- End Supplier Logic ---
+
         const periodDate = selectedCompany.periodStartDate ? parseISO(selectedCompany.periodStartDate) : new Date();
         const lastDay = lastDayOfMonth(periodDate);
         const monthName = format(periodDate, 'MMMM', { locale: es });
@@ -283,7 +326,7 @@ export default function CentralizePurchasesPage() {
         
         try {
             await batch.commit();
-            toast({ title: 'Centralización Exitosa', description: `El comprobante ha sido generado, ${newSuppliers.size > 0 ? `${newSuppliers.size} nuevos proveedores creados.` : ''}` });
+            toast({ title: 'Centralización Exitosa', description: `El comprobante ha sido generado. ${supplierAccountUpdates.size} preferencia(s) de proveedor guardada(s). ${newSuppliers.size > 0 ? `${newSuppliers.size} nuevos proveedores creados.` : ''}` });
             router.push('/dashboard/vouchers');
         } catch (error) {
              errorEmitter.emit('permission-error', new FirestorePermissionError({ path: `companies/${companyId}`, operation: 'update' }));
@@ -292,7 +335,7 @@ export default function CentralizePurchasesPage() {
     };
 
     if (loading) {
-        return <p>Cargando documentos pendientes...</p>;
+        return <p>Cargando y asignando cuentas...</p>;
     }
 
     if (!allPurchases || allPurchases.length === 0) {
@@ -309,7 +352,7 @@ export default function CentralizePurchasesPage() {
             <Card>
                 <CardHeader>
                     <CardTitle>1. Asignar Cuentas de Gasto</CardTitle>
-                    <CardDescription>Revisa cada documento y asigna la cuenta contable de gasto o costo que corresponda. Los cambios se reflejarán en el resumen de abajo.</CardDescription>
+                    <CardDescription>Revisa cada documento y asigna la cuenta contable de gasto o costo que corresponda. El sistema ha asignado cuentas automáticamente basado en centralizaciones anteriores.</CardDescription>
                 </CardHeader>
                 <CardContent>
                     <Table>
