@@ -36,11 +36,6 @@ service cloud.firestore {
       allow update: if isExistingOwner(resource.data.ownerId);
       allow delete: if isExistingOwner(resource.data.ownerId);
     }
-    
-    match /workers/{workerId} {
-        allow get, list: if isUserAssociatedWithCompany(resource.data.companyId);
-        allow create, update, delete: if isUserAssociatedWithCompany(request.resource.data.companyId);
-    }
 
     match /companies/{companyId}/accounts/{accountId} {
       allow get, list: if isUserAssociatedWithCompany(companyId);
