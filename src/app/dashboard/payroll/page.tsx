@@ -1,8 +1,7 @@
-
-
 'use client';
 
 import React from 'react';
+import { useRouter } from 'next/navigation';
 import {
     Table,
     TableBody,
@@ -17,406 +16,297 @@ import {
     CardDescription,
     CardHeader,
     CardTitle,
-    CardFooter,
+    CardFooter
   } from "@/components/ui/card"
-  import { Button, buttonVariants } from "@/components/ui/button"
-  import { Eye, MoreHorizontal, Trash2 } from "lucide-react"
-  import { useCollection, useFirestore, useUser } from '@/firebase';
-  import type { Employee, AfpEntity, HealthEntity, Payroll, EconomicIndicator, TaxParameter, TaxableCap } from '@/lib/types';
+  import { Button } from "@/components/ui/button"
+  import { Input } from "@/components/ui/input"
+  import { useCollection, useFirestore } from '@/firebase';
+  import type { Employee, AfpEntity, HealthEntity, Payroll, EconomicIndicator, TaxableCap } from '@/lib/types';
 import { SelectedCompanyContext } from '../layout';
-import { PayrollDetailDialog } from '@/components/payroll-detail-dialog';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { addDoc, collection, doc, deleteDoc, writeBatch } from 'firebase/firestore';
-import { errorEmitter } from '@/firebase/error-emitter';
-import { FirestorePermissionError } from '@/firebase/errors';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuLabel,
-    DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+import { collection, doc, writeBatch, getDocs, query } from 'firebase/firestore';
 import { es } from 'date-fns/locale';
-import { format, parseISO } from 'date-fns';
+import { format } from 'date-fns';
 import { initialTaxParameters } from '@/lib/seed-data';
+
+// Represents the monthly variable data for an employee
+type PayrollDraft = Partial<Payroll> & { employeeId: string; employeeName: string; baseSalary: number; };
+
+const formatCurrency = (value: number) => new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(Math.round(value));
 
 export default function PayrollPage() {
     const { selectedCompany } = React.useContext(SelectedCompanyContext) || {};
     const companyId = selectedCompany?.id;
     const firestore = useFirestore();
+    const router = useRouter();
     const { toast } = useToast();
-    const { user } = useUser();
 
-    const [selectedPayroll, setSelectedPayroll] = React.useState<{ payroll: Payroll, employee: Employee } | null>(null);
     const [isProcessing, setIsProcessing] = React.useState(false);
-
-    const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false);
-    const [payrollToDelete, setPayrollToDelete] = React.useState<Payroll | null>(null);
+    const [isLoadingDrafts, setIsLoadingDrafts] = React.useState(false);
 
     const currentYear = new Date().getFullYear();
     const currentMonth = new Date().getMonth() + 1;
     const [year, setYear] = React.useState(currentYear);
     const [month, setMonth] = React.useState(currentMonth);
+    
+    const [payrollDrafts, setPayrollDrafts] = React.useState<PayrollDraft[]>([]);
 
-    React.useEffect(() => {
-        if (selectedCompany?.periodStartDate) {
-            const startDate = parseISO(selectedCompany.periodStartDate);
-            setYear(startDate.getFullYear());
-            setMonth(startDate.getMonth() + 1);
-        } else {
-            setYear(currentYear);
-            setMonth(currentMonth);
-        }
-    }, [selectedCompany, currentYear, currentMonth]);
-
-
-    const { data: employees, loading: employeesLoading } = useCollection<Employee>({ 
-      path: companyId ? `companies/${companyId}/employees` : undefined,
-      companyId: companyId 
-    });
-     const { data: payrolls, loading: payrollsLoading } = useCollection<Payroll>({ 
-      path: companyId ? `companies/${companyId}/payrolls` : undefined,
-      companyId: companyId 
-    });
+    // Data hooks
+    const { data: employees, loading: employeesLoading } = useCollection<Employee>({ path: companyId ? `companies/${companyId}/employees` : undefined });
     const { data: afpEntities, loading: afpLoading } = useCollection<AfpEntity>({ path: 'afp-entities' });
     const { data: healthEntities, loading: healthLoading } = useCollection<HealthEntity>({ path: 'health-entities' });
-
-    const { data: globalIndicators, loading: globalIndicatorsLoading } = useCollection<EconomicIndicator>({ path: 'economic-indicators' });
-    const { data: companyIndicators, loading: companyIndicatorsLoading } = useCollection<EconomicIndicator>({ path: companyId ? `companies/${companyId}/economic-indicators` : undefined });
+    const { data: globalIndicators, loading: indicatorsLoading } = useCollection<EconomicIndicator>({ path: 'economic-indicators' });
     const { data: taxableCaps, loading: capsLoading } = useCollection<TaxableCap>({ path: 'taxable-caps' });
 
-    const loading = employeesLoading || afpLoading || healthLoading || payrollsLoading || globalIndicatorsLoading || companyIndicatorsLoading || capsLoading;
-    
-    const handleProcessPayrolls = async () => {
-        if (!employees || !afpEntities || !healthEntities || !companyId || !firestore || !selectedCompany || !taxableCaps) {
-            toast({ variant: 'destructive', title: 'Faltan datos', description: 'No se pueden procesar las liquidaciones sin empleados o parámetros económicos/tributarios.'});
-            return;
-        }
+    const loading = employeesLoading || afpLoading || healthLoading || indicatorsLoading || capsLoading;
 
-        if (!selectedCompany.periodStartDate) {
-            toast({ variant: 'destructive', title: 'Período no definido', description: 'Por favor, define un período de trabajo en la configuración de la empresa antes de procesar.'});
-            return;
-        }
-        
-        const periodStartDate = parseISO(selectedCompany.periodStartDate);
-        if(periodStartDate.getFullYear() !== year || periodStartDate.getMonth() + 1 !== month) {
-             toast({ variant: 'destructive', title: 'Período no coincide', description: 'El período seleccionado no coincide con el período de trabajo activo de la empresa.'});
-            return;
-        }
+    React.useEffect(() => {
+        if (!companyId || !firestore || !employees) return;
 
+        const loadOrCreateDrafts = async () => {
+            setIsLoadingDrafts(true);
+            const periodId = `${year}-${String(month).padStart(2, '0')}`;
+            const draftsRef = collection(firestore, `companies/${companyId}/payrollPeriods/${periodId}/drafts`);
+            const existingDraftsSnap = await getDocs(draftsRef);
+
+            let drafts: PayrollDraft[] = [];
+            if (!existingDraftsSnap.empty) {
+                existingDraftsSnap.forEach(doc => {
+                    drafts.push({ id: doc.id, ...doc.data() } as PayrollDraft);
+                });
+            } else {
+                const activeEmployees = employees.filter(e => e.status === 'Active' && e.baseSalary);
+                drafts = activeEmployees.map(emp => ({
+                    employeeId: emp.id,
+                    employeeName: `${emp.firstName} ${emp.lastName}`,
+                    baseSalary: emp.baseSalary || 0,
+                    year,
+                    month,
+                }));
+            }
+            
+            setPayrollDrafts(drafts.map(d => calculatePayroll(d, employees, afpEntities, globalIndicators, taxableCaps, year, month)));
+            setIsLoadingDrafts(false);
+        };
+
+        loadOrCreateDrafts();
+
+    }, [year, month, companyId, firestore, employees, afpEntities, globalIndicators, taxableCaps]);
+
+
+    const handleDraftChange = (employeeId: string, field: keyof PayrollDraft, value: any) => {
+        setPayrollDrafts(prevDrafts =>
+            prevDrafts.map(draft => {
+                if (draft.employeeId === employeeId) {
+                    const updatedDraft = { ...draft, [field]: value };
+                    return calculatePayroll(updatedDraft, employees, afpEntities, globalIndicators, taxableCaps, year, month);
+                }
+                return draft;
+            })
+        );
+    };
+
+    const handleSaveDrafts = async () => {
+        if (!companyId || !firestore) return false;
         setIsProcessing(true);
-        
-        const periodIndicatorId = `${year}-${month.toString().padStart(2, '0')}`;
-        const companyIndicator = companyIndicators?.find(i => i.id === periodIndicatorId);
-        const globalIndicator = globalIndicators?.find(i => i.id === periodIndicatorId);
-        const periodIndicator = companyIndicator || globalIndicator;
-        
-        if (!periodIndicator?.minWage || !periodIndicator?.utm || !periodIndicator?.uf) {
-            toast({ variant: 'destructive', title: 'Faltan Parámetros', description: `No se encontraron los parámetros económicos (sueldo mínimo, UTM, UF) para ${month}/${year}.`});
-            setIsProcessing(false);
-            return;
-        }
-
-        const currentTaxableCaps = taxableCaps.find(c => c.year === year);
-        if (!currentTaxableCaps) {
-             toast({ variant: 'destructive', title: 'Faltan Topes Imponibles', description: `No se encontraron los topes imponibles para el año ${year}.`});
-            setIsProcessing(false);
-            return;
-        }
-        
-        const GRATIFICATION_CAP_MONTHLY = Math.round((4.75 * periodIndicator.minWage) / 12);
-        const period = format(new Date(year, month - 1), 'MMMM yyyy', { locale: es });
-        const afpMap = new Map(afpEntities.filter(e => e.year === year && e.month === month).map(afp => [afp.name, afp.mandatoryContribution]));
-        const utmValue = periodIndicator.utm;
-
+        const periodId = `${year}-${String(month).padStart(2, '0')}`;
         const batch = writeBatch(firestore);
 
-        const activeEmployees = employees.filter(emp => emp.status === 'Active' && emp.baseSalary);
-        if (activeEmployees.length === 0) {
-            toast({ title: 'Sin empleados', description: 'No hay empleados activos con sueldo base para procesar.'});
-            setIsProcessing(false);
-            return;
-        }
-
-        activeEmployees.forEach(emp => {
-            const baseSalary = emp.baseSalary || 0;
-            let gratification = emp.gratification || 0;
-            if (emp.gratificationType === 'Automatico') {
-                const calculatedGratification = baseSalary * 0.25;
-                gratification = Math.min(calculatedGratification, GRATIFICATION_CAP_MONTHLY);
-            }
-
-            const taxableIncomeAFP = Math.min(baseSalary + gratification, currentTaxableCaps.afpCap * periodIndicator.uf!);
-            const taxableIncomeAFC = Math.min(baseSalary + gratification, currentTaxableCaps.afcCap * periodIndicator.uf!);
-
-            const taxableEarnings = baseSalary + gratification;
-            const nonTaxableEarnings = (emp.mobilization || 0) + (emp.collation || 0);
-            const totalEarnings = taxableEarnings + nonTaxableEarnings;
-
-            const afpPercentage = emp.afp ? (afpMap.get(emp.afp) || 10) / 100 : 0;
-            let healthDiscount = 0;
-            if (emp.healthSystem === 'Fonasa') {
-                healthDiscount = taxableIncomeAFP * 0.07;
-            } else if (emp.healthContributionType === 'Porcentaje') {
-                healthDiscount = taxableIncomeAFP * ((emp.healthContributionValue || 7) / 100);
-            } else { 
-                healthDiscount = (emp.healthContributionValue || 0) * (periodIndicator.uf || 37000); 
-            }
-            
-            const afpDiscount = taxableIncomeAFP * afpPercentage;
-
-            let unemploymentInsuranceDiscount = 0;
-            if (emp.hasUnemploymentInsurance && emp.unemploymentInsuranceType === 'Indefinido') {
-                unemploymentInsuranceDiscount = taxableIncomeAFC * 0.006;
-            }
-            
-            const taxBaseCLP = taxableEarnings - afpDiscount - healthDiscount - unemploymentInsuranceDiscount;
-            const taxBaseUTM = taxBaseCLP / utmValue;
-            
-            const taxBracket = initialTaxParameters.find(t => taxBaseUTM > t.desdeUTM && taxBaseUTM <= t.hastaUTM);
-
-            let iut = 0;
-            let iutFactor = 0;
-            let iutRebajaInCLP = 0;
-            if (taxBracket) {
-                iutFactor = taxBracket.factor;
-                iutRebajaInCLP = taxBracket.rebajaUTM * utmValue;
-                iut = (taxBaseCLP * iutFactor) - iutRebajaInCLP;
-                if (iut < 0) iut = 0;
-            }
-
-            const totalDiscounts = afpDiscount + healthDiscount + iut + unemploymentInsuranceDiscount;
-            const netSalary = totalEarnings - totalDiscounts;
-            
-            const newPayroll: Omit<Payroll, 'id'> = {
-                employeeId: emp.id,
-                employeeName: `${emp.firstName} ${emp.lastName}`,
-                period: period,
-                year: year,
-                month: month,
-                baseSalary: baseSalary,
-                gratification: gratification,
-                taxableEarnings: taxableEarnings,
-                baseIndemnizacion: taxableEarnings, // New field
-                nonTaxableEarnings: nonTaxableEarnings,
-                otherTaxableEarnings: 0, 
-                totalEarnings: totalEarnings,
-                afpDiscount: afpDiscount,
-                healthDiscount: healthDiscount,
-                unemploymentInsuranceDiscount: unemploymentInsuranceDiscount,
-                iut: iut,
-                iutFactor: iutFactor,
-                iutRebajaInCLP: iutRebajaInCLP,
-                otherDiscounts: 0,
-                totalDiscounts: totalDiscounts,
-                netSalary: netSalary,
-                companyId: companyId,
-            };
-            const payrollRef = doc(collection(firestore, `companies/${companyId}/payrolls`));
-            batch.set(payrollRef, newPayroll);
+        payrollDrafts.forEach(draft => {
+            const { id, ...draftData } = draft;
+            const docRef = doc(firestore, `companies/${companyId}/payrollPeriods/${periodId}/drafts`, draft.employeeId);
+            batch.set(docRef, draftData);
         });
 
         try {
             await batch.commit();
-            toast({ title: 'Proceso Exitoso', description: `Se guardaron ${activeEmployees.length} liquidaciones para el período ${period}.`});
+            toast({ title: 'Borradores Guardados', description: 'Las novedades del mes han sido guardadas exitosamente.' });
+            return true;
         } catch (error) {
-             console.error("Error saving payrolls:", error);
-             errorEmitter.emit('permission-error', new FirestorePermissionError({
-                path: `companies/${companyId}/payrolls`,
-                operation: 'create',
-            }));
+            console.error("Error saving drafts:", error);
+            toast({ variant: 'destructive', title: 'Error al Guardar', description: 'No se pudieron guardar los borradores.' });
+            return false;
         } finally {
             setIsProcessing(false);
         }
     };
-    
-    const handleViewDetails = (payroll: Payroll) => {
-        const employee = employees?.find(e => e.id === payroll.employeeId);
-        if (employee) {
-            setSelectedPayroll({ payroll, employee });
-        }
-    }
 
-    const handleOpenDeleteDialog = (payroll: Payroll) => {
-        setPayrollToDelete(payroll);
-        setIsDeleteDialogOpen(true);
-    };
-
-    const handleDelete = async () => {
-        if (!firestore || !companyId || !payrollToDelete) return;
-        const docRef = doc(firestore, `companies/${companyId}/payrolls`, payrollToDelete.id);
-        
-        try {
-            await deleteDoc(docRef);
-            toast({ title: "Liquidación Anulada", description: "El registro de la liquidación ha sido eliminado." });
-        } catch (error) {
-             errorEmitter.emit('permission-error', new FirestorePermissionError({
-                path: docRef.path,
-                operation: 'delete',
-            }));
-        } finally {
-            setIsDeleteDialogOpen(false);
-            setPayrollToDelete(null);
+    const handleReviewAndProcess = async () => {
+        const saved = await handleSaveDrafts();
+        if (saved) {
+            router.push(`/dashboard/payroll/process?year=${year}&month=${month}`);
         }
     };
-
-    const filteredPayrolls = React.useMemo(() => {
-        return payrolls?.filter(p => p.year === year && p.month === month) || [];
-    }, [payrolls, year, month]);
-
-    const canProcess = companyId && selectedCompany?.periodStartDate;
 
     return (
-        <>
-             <div className="grid gap-6">
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Procesar Liquidaciones de Sueldo</CardTitle>
-                        <CardDescription>
-                            Selecciona un período para calcular y guardar las liquidaciones de todos los empleados activos.
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="flex flex-col sm:flex-row gap-4 items-end max-w-lg">
-                            <div className="flex-1 grid grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <Label htmlFor="month">Mes</Label>
-                                    <Select value={month.toString()} onValueChange={(val) => setMonth(parseInt(val))}>
-                                        <SelectTrigger id="month"><SelectValue /></SelectTrigger>
-                                        <SelectContent>
-                                            {Array.from({ length: 12 }, (_, i) => (
-                                                <SelectItem key={i + 1} value={(i + 1).toString()}>
-                                                    {format(new Date(0, i), 'MMMM', { locale: es })}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                                <div className="space-y-2">
-                                    <Label htmlFor="year">Año</Label>
-                                     <Select value={year.toString()} onValueChange={(val) => setYear(parseInt(val))}>
-                                        <SelectTrigger id="year"><SelectValue /></SelectTrigger>
-                                        <SelectContent>
-                                            {Array.from({ length: 5 }, (_, i) => (
-                                                <SelectItem key={currentYear - i} value={(currentYear - i).toString()}>
-                                                    {currentYear - i}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                </div>
+        <div className="space-y-6">
+            <Card>
+                <CardHeader>
+                    <CardTitle>Novedades del Mes para Liquidaciones</CardTitle>
+                    <CardDescription>Selecciona el período e ingresa las variables del mes para cada trabajador antes de procesar la nómina.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                     <div className="flex flex-col sm:flex-row gap-4 items-end max-w-lg">
+                        <div className="flex-1 grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <Label htmlFor="month">Mes</Label>
+                                <Select value={month.toString()} onValueChange={(val) => setMonth(parseInt(val))}>
+                                    <SelectTrigger id="month"><SelectValue /></SelectTrigger>
+                                    <SelectContent>
+                                        {Array.from({ length: 12 }, (_, i) => <SelectItem key={i + 1} value={(i + 1).toString()}>{format(new Date(0, i), 'MMMM', { locale: es })}</SelectItem>)}
+                                    </SelectContent>
+                                </Select>
                             </div>
-                            <Button onClick={handleProcessPayrolls} disabled={loading || isProcessing || !canProcess}>
-                                {loading ? 'Cargando...' : isProcessing ? 'Procesando...' : 'Procesar Liquidaciones'}
-                            </Button>
+                            <div className="space-y-2">
+                                <Label htmlFor="year">Año</Label>
+                                <Select value={year.toString()} onValueChange={(val) => setYear(parseInt(val))}>
+                                    <SelectTrigger id="year"><SelectValue /></SelectTrigger>
+                                    <SelectContent>
+                                       {Array.from({ length: 5 }, (_, i) => <SelectItem key={currentYear - i} value={(currentYear - i).toString()}>{currentYear - i}</SelectItem>)}
+                                    </SelectContent>
+                                </Select>
+                            </div>
                         </div>
-                         {!canProcess && companyId && (
-                            <p className="text-sm text-destructive mt-2">
-                                Por favor, define un período de trabajo en la configuración de la empresa para poder procesar las liquidaciones.
-                            </p>
-                        )}
-                    </CardContent>
-                </Card>
+                    </div>
+                </CardContent>
+            </Card>
 
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Liquidaciones Procesadas</CardTitle>
-                        <CardDescription>Liquidaciones guardadas para el período seleccionado.</CardDescription>
-                    </CardHeader>
-                    <CardContent>
+            <Card>
+                <CardHeader>
+                    <CardTitle>Detalle de Liquidaciones</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <div className="overflow-x-auto">
                         <Table>
                             <TableHeader>
                                 <TableRow>
-                                    <TableHead>Empleado</TableHead>
-                                    <TableHead>Período</TableHead>
+                                    <TableHead className="min-w-[200px]">Empleado</TableHead>
                                     <TableHead className="text-right">Sueldo Base</TableHead>
-                                    <TableHead className="text-right">Descuentos</TableHead>
-                                    <TableHead className="text-right">Impuesto Único</TableHead>
+                                    <TableHead className="w-[120px] text-right">Días Ausencia</TableHead>
+                                    <TableHead className="w-[120px] text-right">Bonos</TableHead>
+                                    <TableHead className="w-[120px] text-right">Horas Extra</TableHead>
+                                    <TableHead className="w-[120px] text-right">Anticipos</TableHead>
                                     <TableHead className="text-right font-bold">Sueldo Líquido</TableHead>
-                                    <TableHead className="text-center">Acciones</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                            {loading ? (
-                                <TableRow><TableCell colSpan={7} className="text-center">Cargando datos...</TableCell></TableRow>
-                            ) : filteredPayrolls.length > 0 ? (
-                                filteredPayrolls.map((payroll) => (
-                                    <TableRow key={payroll.id}>
-                                        <TableCell className="font-medium">{payroll.employeeName}</TableCell>
-                                        <TableCell>{payroll.period}</TableCell>
-                                        <TableCell className="text-right">${Math.round(payroll.baseSalary).toLocaleString('es-CL')}</TableCell>
-                                        <TableCell className="text-right text-destructive">-${Math.round(payroll.afpDiscount + payroll.healthDiscount).toLocaleString('es-CL')}</TableCell>
-                                        <TableCell className="text-right text-destructive">-${Math.round(payroll.iut || 0).toLocaleString('es-CL')}</TableCell>
-                                        <TableCell className="text-right font-bold">${Math.round(payroll.netSalary).toLocaleString('es-CL')}</TableCell>
-                                        <TableCell className="text-center">
-                                            <DropdownMenu>
-                                                <DropdownMenuTrigger asChild>
-                                                    <Button aria-haspopup="true" size="icon" variant="ghost">
-                                                        <MoreHorizontal className="h-4 w-4" />
-                                                        <span className="sr-only">Acciones</span>
-                                                    </Button>
-                                                </DropdownMenuTrigger>
-                                                <DropdownMenuContent align="end">
-                                                    <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-                                                    <DropdownMenuItem onSelect={() => handleViewDetails(payroll)}>
-                                                        <Eye className="mr-2 h-4 w-4" /> Ver Detalle
-                                                    </DropdownMenuItem>
-                                                    <DropdownMenuItem className="text-destructive" onSelect={() => handleOpenDeleteDialog(payroll)}>
-                                                        <Trash2 className="mr-2 h-4 w-4" /> Anular Liquidación
-                                                    </DropdownMenuItem>
-                                                </DropdownMenuContent>
-                                            </DropdownMenu>
-                                        </TableCell>
-                                    </TableRow>
-                                ))
-                            ) : (
-                                <TableRow><TableCell colSpan={7} className="text-center">
-                                    {!companyId ? "Selecciona una empresa para ver sus liquidaciones." : "No se encontraron liquidaciones para este período."}
-                                </TableCell></TableRow>
-                            )}
+                                {(loading || isLoadingDrafts) ? (
+                                    <TableRow><TableCell colSpan={7} className="text-center h-24">Cargando empleados y borradores...</TableCell></TableRow>
+                                ) : payrollDrafts.length > 0 ? (
+                                    payrollDrafts.map(draft => (
+                                        <TableRow key={draft.employeeId}>
+                                            <TableCell className="font-medium">{draft.employeeName}</TableCell>
+                                            <TableCell className="text-right">{formatCurrency(draft.baseSalary)}</TableCell>
+                                            <TableCell><Input type="number" className="text-right" value={draft.diasAusencia || ''} onChange={e => handleDraftChange(draft.employeeId, 'diasAusencia', parseInt(e.target.value) || 0)} /></TableCell>
+                                            <TableCell><Input type="number" className="text-right" value={draft.bonos || ''} onChange={e => handleDraftChange(draft.employeeId, 'bonos', parseInt(e.target.value) || 0)} /></TableCell>
+                                            <TableCell><Input type="number" className="text-right" value={draft.horasExtra || ''} onChange={e => handleDraftChange(draft.employeeId, 'horasExtra', parseInt(e.target.value) || 0)} /></TableCell>
+                                            <TableCell><Input type="number" className="text-right" value={draft.anticipos || ''} onChange={e => handleDraftChange(draft.employeeId, 'anticipos', parseInt(e.target.value) || 0)} /></TableCell>
+                                            <TableCell className="text-right font-bold text-lg">{formatCurrency(draft.netSalary || 0)}</TableCell>
+                                        </TableRow>
+                                    ))
+                                ) : (
+                                    <TableRow><TableCell colSpan={7} className="text-center h-24">No hay empleados activos para procesar en esta empresa.</TableCell></TableRow>
+                                )}
                             </TableBody>
                         </Table>
-                    </CardContent>
-                </Card>
-            </div>
+                    </div>
+                </CardContent>
+                 <CardFooter className="flex justify-end gap-2 pt-6">
+                    <Button variant="outline" onClick={handleSaveDrafts} disabled={isProcessing || loading || isLoadingDrafts}>Guardar Borradores</Button>
+                    <Button onClick={handleReviewAndProcess} disabled={isProcessing || loading || isLoadingDrafts}>Revisar y Procesar Nómina</Button>
+                </CardFooter>
+            </Card>
+        </div>
+    );
+}
 
-            <PayrollDetailDialog 
-                isOpen={!!selectedPayroll}
-                onClose={() => setSelectedPayroll(null)}
-                data={selectedPayroll}
-            />
+// --- Calculation Logic ---
+function calculatePayroll(
+    draft: PayrollDraft, 
+    employees: Employee[] | null, 
+    afpEntities: AfpEntity[] | null,
+    indicators: EconomicIndicator[] | null,
+    taxableCaps: TaxableCap[] | null,
+    year: number,
+    month: number
+): PayrollDraft {
+    const employee = employees?.find(e => e.id === draft.employeeId);
+    if (!employee) return { ...draft, netSalary: 0 };
 
-            <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-                <AlertDialogContent>
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                            Esta acción no se puede deshacer. Esto anulará permanentemente la liquidación de <span className="font-bold">{payrollToDelete?.employeeName}</span> para el período <span className="font-bold">{payrollToDelete?.period}</span>.
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                        <AlertDialogAction
-                            className={buttonVariants({ variant: "destructive" })}
-                            onClick={handleDelete}
-                        >
-                            Sí, anular
-                        </AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
-        </>
-    )
+    const indicator = indicators?.find(i => i.id === `${year}-${String(month).padStart(2, '0')}`);
+    const caps = taxableCaps?.find(c => c.year === year);
+    if (!indicator?.minWage || !indicator?.utm || !indicator?.uf || !caps) {
+        return { ...draft, netSalary: 0 }; // Missing economic data
+    }
+
+    const daysInMonth = 30;
+    const absences = draft.diasAusencia || 0;
+    const workedDays = daysInMonth - absences;
+    const baseSalary = employee.baseSalary || 0;
+    const proportionalBaseSalary = (baseSalary / daysInMonth) * workedDays;
+
+    const GRATIFICATION_CAP_MONTHLY = Math.round((4.75 * indicator.minWage) / 12);
+    let gratification = 0;
+    if (employee.gratificationType === 'Automatico') {
+        gratification = Math.min(proportionalBaseSalary * 0.25, GRATIFICATION_CAP_MONTHLY);
+    }
+
+    const otherTaxableEarnings = (draft.horasExtra || 0) + (draft.bonos || 0);
+    const taxableEarnings = proportionalBaseSalary + gratification + otherTaxableEarnings;
+    const nonTaxableEarnings = (employee.mobilization || 0) + (employee.collation || 0);
+    const totalEarnings = taxableEarnings + nonTaxableEarnings;
+
+    const taxableIncomeAFP = Math.min(taxableEarnings, caps.afpCap * indicator.uf);
+    const taxableIncomeAFC = Math.min(taxableEarnings, caps.afcCap * indicator.uf);
+
+    const afpMap = new Map(afpEntities?.filter(e => e.year === year && e.month === month).map(afp => [afp.name, afp.mandatoryContribution]));
+    const afpPercentage = employee.afp ? (afpMap.get(employee.afp) || 0) / 100 : 0;
+    const afpDiscount = taxableIncomeAFP * afpPercentage;
+
+    let healthDiscount = 0;
+    if (employee.healthSystem === 'Fonasa') {
+        healthDiscount = taxableIncomeAFP * 0.07;
+    } else if (employee.healthContributionType === 'Porcentaje') {
+        healthDiscount = taxableIncomeAFP * ((employee.healthContributionValue || 7) / 100);
+    } else { 
+        healthDiscount = (employee.healthContributionValue || 0) * indicator.uf; 
+    }
+
+    let unemploymentInsuranceDiscount = 0;
+    if (employee.hasUnemploymentInsurance && employee.unemploymentInsuranceType === 'Indefinido') {
+        unemploymentInsuranceDiscount = taxableIncomeAFC * 0.006;
+    }
+
+    const taxBaseCLP = taxableEarnings - afpDiscount - healthDiscount - unemploymentInsuranceDiscount;
+    const taxBaseUTM = taxBaseCLP / indicator.utm;
+    const taxBracket = initialTaxParameters.find(t => taxBaseUTM > t.desdeUTM && taxBaseUTM <= t.hastaUTM);
+    
+    let iut = 0;
+    if (taxBracket) {
+        const iutAmount = (taxBaseCLP * taxBracket.factor) - (taxBracket.rebajaUTM * indicator.utm);
+        iut = iutAmount > 0 ? iutAmount : 0;
+    }
+
+    const otherDiscounts = draft.anticipos || 0;
+    const totalDiscounts = afpDiscount + healthDiscount + iut + unemploymentInsuranceDiscount + otherDiscounts;
+    const netSalary = totalEarnings - totalDiscounts;
+
+    return {
+        ...draft,
+        sueldoBaseProporcional: proportionalBaseSalary,
+        baseSalary: baseSalary,
+        gratification,
+        taxableEarnings,
+        nonTaxableEarnings,
+        totalEarnings,
+        afpDiscount,
+        healthDiscount,
+        unemploymentInsuranceDiscount,
+        iut,
+        otherDiscounts,
+        totalDiscounts,
+        netSalary,
+    };
 }

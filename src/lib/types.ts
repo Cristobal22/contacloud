@@ -241,6 +241,13 @@ export type Payroll = {
   companyId: string;
   iutFactor?: number;
   iutRebajaInCLP?: number;
+  // --- Novedades del mes ---
+  diasAusencia?: number;
+  diasLicencia?: number;
+  sueldoBaseProporcional?: number;
+  horasExtra?: number;
+  bonos?: number;
+  anticipos?: number;
 };
 
 

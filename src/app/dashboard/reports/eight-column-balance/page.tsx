@@ -15,6 +15,7 @@ import { es } from 'date-fns/locale';
 import { useToast } from '@/hooks/use-toast';
 
 const formatCurrency = (value: number) => {
+    if (value === 0) return '-';
     return new Intl.NumberFormat('es-CL', {
         style: 'currency',
         currency: 'CLP',
@@ -80,6 +81,8 @@ export default function EightColumnBalancePage() {
     };
 
     const periodIsDefined = selectedCompany?.periodStartDate && selectedCompany?.periodEndDate;
+    const resultado = balanceData?.resultadoDelEjercicio ?? 0;
+    const esUtilidad = resultado >= 0;
 
     return (
         <div className="space-y-6">
@@ -122,8 +125,8 @@ export default function EightColumnBalancePage() {
                         <Table>
                             <TableHeader>
                                 <TableRow>
-                                    <TableHead rowSpan={2} className="align-bottom">Código</TableHead>
-                                    <TableHead rowSpan={2} className="align-bottom">Cuenta Contable</TableHead>
+                                    <TableHead rowSpan={2} className="align-bottom sticky left-0 bg-background z-10">Código</TableHead>
+                                    <TableHead rowSpan={2} className="align-bottom sticky left-[80px] bg-background z-10">Cuenta Contable</TableHead>
                                     <TableHead colSpan={2} className="text-center">Sumas</TableHead>
                                     <TableHead colSpan={2} className="text-center">Saldos</TableHead>
                                     <TableHead colSpan={2} className="text-center">Inventario</TableHead>
@@ -143,8 +146,8 @@ export default function EightColumnBalancePage() {
                             <TableBody>
                                 {balanceData.rows.map(row => (
                                     <TableRow key={row.code}>
-                                        <TableCell className="font-mono text-xs">{row.code}</TableCell>
-                                        <TableCell>{row.name}</TableCell>
+                                        <TableCell className="font-mono text-xs sticky left-0 bg-background z-10">{row.code}</TableCell>
+                                        <TableCell className="sticky left-[80px] bg-background z-10">{row.name}</TableCell>
                                         <TableCell className="text-right">{formatCurrency(row.sumasDebe)}</TableCell>
                                         <TableCell className="text-right">{formatCurrency(row.sumasHaber)}</TableCell>
                                         <TableCell className="text-right font-medium">{formatCurrency(row.saldoDeudor)}</TableCell>
@@ -157,40 +160,46 @@ export default function EightColumnBalancePage() {
                                 ))}
                             </TableBody>
                             <TableFooter>
-                                <TableRow className="font-bold">
-                                    <TableCell colSpan={2}>Totales</TableCell>
+                                <TableRow className="font-bold bg-muted/50">
+                                    <TableCell colSpan={2}>Sub-Totales</TableCell>
                                     <TableCell className="text-right">{formatCurrency(balanceData.totals.sumasDebe)}</TableCell>
                                     <TableCell className="text-right">{formatCurrency(balanceData.totals.sumasHaber)}</TableCell>
                                     <TableCell className="text-right">{formatCurrency(balanceData.totals.saldoDeudor)}</TableCell>
                                     <TableCell className="text-right">{formatCurrency(balanceData.totals.saldoAcreedor)}</TableCell>
-                                    <TableCell className="text-right">{formatCurrency(balanceData.totals.activo - balanceData.resultadoDelEjercicio)}</TableCell>
-                                    <TableCell className="text-right">{formatCurrency(balanceData.totals.pasivo + balanceData.resultadoDelEjercicio)}</TableCell>
+                                    <TableCell className="text-right">{formatCurrency(balanceData.totals.activo)}</TableCell>
+                                    <TableCell className="text-right">{formatCurrency(balanceData.totals.pasivo)}</TableCell>
                                     <TableCell className="text-right">{formatCurrency(balanceData.totals.perdida)}</TableCell>
                                     <TableCell className="text-right">{formatCurrency(balanceData.totals.ganancia)}</TableCell>
                                 </TableRow>
-                                <TableRow className="bg-muted/50 font-bold">
-                                    <TableCell colSpan={6}></TableCell>
-                                    <TableCell className="text-right">Resultado del Ejercicio</TableCell>
-                                    <TableCell className="text-right">{formatCurrency(balanceData.resultadoDelEjercicio)}</TableCell>
-                                    <TableCell colSpan={2}></TableCell>
+                                <TableRow className="font-bold">
+                                     <TableCell colSpan={6}></TableCell>
+                                     <TableCell >{esUtilidad ? 'Utilidad del Ejercicio' : 'Pérdida del Ejercicio'}</TableCell>
+                                     <TableCell className="text-right">{formatCurrency(Math.abs(resultado))}</TableCell>
+                                     <TableCell className="text-right">{formatCurrency(esUtilidad ? Math.abs(resultado) : 0)}</TableCell>
+                                     <TableCell className="text-right">{formatCurrency(!esUtilidad ? Math.abs(resultado) : 0)}</TableCell>
                                 </TableRow>
                                 <TableRow className="bg-secondary font-extrabold text-secondary-foreground">
                                      <TableCell colSpan={6}></TableCell>
                                      <TableCell colSpan={2} className="text-center">Sumas Iguales</TableCell>
-                                     <TableCell className="text-right">{formatCurrency(balanceData.totals.perdida + (balanceData.resultadoDelEjercicio > 0 ? balanceData.resultadoDelEjercicio : 0))}</TableCell>
-                                     <TableCell className="text-right">{formatCurrency(balanceData.totals.ganancia + (balanceData.resultadoDelEjercicio < 0 ? -balanceData.resultadoDelEjercicio : 0))}</TableCell>
+                                     <TableCell className="text-right">{formatCurrency(balanceData.totals.activo)}</TableCell>
+                                     <TableCell className="text-right">{formatCurrency(balanceData.totals.pasivo + resultado)}</TableCell>
+                                </TableRow>
+                                 <TableRow className="bg-secondary font-extrabold text-secondary-foreground">
+                                     <TableCell colSpan={8}></TableCell>
+                                     <TableCell className="text-right">{formatCurrency(balanceData.totals.perdida + (esUtilidad ? resultado : 0))}</TableCell>
+                                     <TableCell className="text-right">{formatCurrency(balanceData.totals.ganancia + (!esUtilidad ? resultado : 0))}</TableCell>
                                 </TableRow>
                             </TableFooter>
                         </Table>
                     </CardContent>
-                     <CardFooter className="flex justify-center">
-                         <Card className="w-fit p-6">
+                     <CardFooter className="flex justify-center pt-8">
+                         <Card className="w-fit p-6 shadow-lg">
                             <p className="text-center text-lg font-semibold">Resultado del Ejercicio</p>
-                            <p className={`text-center text-3xl font-bold ${balanceData.resultadoDelEjercicio >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                {formatCurrency(balanceData.resultadoDelEjercicio)}
+                            <p className={`text-center text-3xl font-bold ${esUtilidad ? 'text-green-600' : 'text-red-600'}`}>
+                                {formatCurrency(resultado)}
                             </p>
                             <p className="text-center text-sm text-muted-foreground">
-                                {balanceData.resultadoDelEjercicio >= 0 ? "(Utilidad)" : "(Pérdida)"}
+                                {esUtilidad ? "(Utilidad)" : "(Pérdida)"}
                             </p>
                         </Card>
                     </CardFooter>

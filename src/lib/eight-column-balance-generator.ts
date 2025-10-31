@@ -1,4 +1,3 @@
-
 import type { Account, Voucher } from './types';
 
 export interface BalanceRow {
@@ -26,23 +25,17 @@ export function generateEightColumnBalance(
 ): EightColumnBalanceData {
     const balanceMap = new Map<string, BalanceRow>();
 
-    // 1. Initialize map with all accounts to ensure every account appears in the balance.
+    // 1. Initialize map with all accounts.
     for (const account of accounts) {
         balanceMap.set(account.code, {
             code: account.code,
             name: account.name,
-            sumasDebe: 0,
-            sumasHaber: 0,
-            saldoDeudor: 0,
-            saldoAcreedor: 0,
-            activo: 0,
-            pasivo: 0,
-            perdida: 0,
-            ganancia: 0,
+            sumasDebe: 0, sumasHaber: 0, saldoDeudor: 0, saldoAcreedor: 0,
+            activo: 0, pasivo: 0, perdida: 0, ganancia: 0,
         });
     }
 
-    // 2. Process all vouchers to calculate Debit and Credit sums.
+    // 2. Process vouchers to calculate Debit and Credit sums.
     for (const voucher of vouchers) {
         if (voucher.status !== 'Contabilizado') continue;
         for (const entry of voucher.entries) {
@@ -54,31 +47,32 @@ export function generateEightColumnBalance(
         }
     }
 
-    // 3. Determine balances and classify them into the final four columns.
+    // 3. Determine balances and classify them robustly.
     for (const account of accounts) {
         const row = balanceMap.get(account.code);
         if (row) {
             const balance = row.sumasDebe - row.sumasHaber;
-
             if (balance > 0) {
                 row.saldoDeudor = balance;
             } else if (balance < 0) {
                 row.saldoAcreedor = -balance;
             }
 
+            // Robust classification based on account type and balances.
+            // This handles "unnatural" balances correctly.
             switch (account.type) {
                 case 'Activo':
-                    row.activo = row.saldoDeudor;
+                    row.activo = row.saldoDeudor - row.saldoAcreedor;
                     break;
                 case 'Pasivo':
                 case 'Patrimonio':
-                    row.pasivo = row.saldoAcreedor;
+                    row.pasivo = row.saldoAcreedor - row.saldoDeudor;
                     break;
                 case 'Gasto':
-                    row.perdida = row.saldoDeudor;
+                    row.perdida = row.saldoDeudor - row.saldoAcreedor;
                     break;
                 case 'Ingreso':
-                    row.ganancia = row.saldoAcreedor;
+                    row.ganancia = row.saldoAcreedor - row.saldoDeudor;
                     break;
             }
         }
@@ -106,7 +100,7 @@ export function generateEightColumnBalance(
     const resultadoDelEjercicio = totals.ganancia - totals.perdida;
 
     return {
-        rows: rows.filter(row => row.sumasDebe !== 0 || row.sumasHaber !== 0), // Only show rows with movement
+        rows: rows.filter(row => row.sumasDebe !== 0 || row.sumasHaber !== 0),
         totals,
         resultadoDelEjercicio,
     };

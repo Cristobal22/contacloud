@@ -14,15 +14,19 @@ export function useDoc<T>(docRef: DocumentReference<T> | null) {
   const docPath = useMemo(() => docRef?.path, [docRef]);
 
   useEffect(() => {
-    if (!docRef) {
+    // Robust Guard: Only proceed if docPath is a valid, non-empty string.
+    // This prevents attempts to listen to undefined, null, or empty paths,
+    // which is the likely cause of the internal Firestore error.
+    if (!docPath) {
       setData(null);
       setLoading(false);
-      return;
+      return; // Stop execution, no subscription is made, no cleanup needed.
     }
 
+    // If docPath is valid, docRef must have been valid to create it.
     setLoading(true);
     const unsubscribe = onSnapshot(
-      docRef,
+      docRef!, // We can safely assert docRef is not null here because docPath is valid.
       (docSnap) => {
         setLoading(false);
         if (docSnap.exists()) {
@@ -36,12 +40,13 @@ export function useDoc<T>(docRef: DocumentReference<T> | null) {
         setError(err);
         setLoading(false);
         errorEmitter.emit('permission-error', new FirestorePermissionError({
-          path: docRef.path,
+          path: docRef!.path,
           operation: 'get',
         }));
       }
     );
 
+    // This cleanup function is only registered if a subscription was successfully created.
     return () => unsubscribe();
   }, [docPath]); // Re-run effect only if the document path string changes
 
