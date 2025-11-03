@@ -43,7 +43,7 @@ import { useCollection, useDoc, useFirestore } from '@/firebase';
 import type { Employee, CostCenter, AfpEntity, HealthEntity, EconomicIndicator, LegalDocument } from '@/lib/types';
 import { DOCUMENT_TEMPLATES } from '@/lib/document-templates';
 import { SelectedCompanyContext } from '@/app/dashboard/layout';
-import { doc, setDoc, addDoc, collection, where, DocumentReference, Timestamp, DocumentData, updateDoc } from 'firebase/firestore';
+import { doc, setDoc, addDoc, collection, where, DocumentReference, Timestamp, DocumentData, updateDoc, query } from 'firebase/firestore';
 import { useRouter, useParams } from 'next/navigation';
 import { ArrowLeft, FileText, Eye, Trash2, Loader2, ShieldAlert } from 'lucide-react';
 import Link from 'next/link';
@@ -181,9 +181,15 @@ export default function EmployeeFormPage() {
 
     const { data: existingEmployee, loading: employeeLoading } = useDoc<Employee>(employeeRef);
     
+    const legalDocumentsQuery = React.useMemo(() => {
+        if (!firestore || !companyId || isNew) return null;
+        const documentsCollection = collection(firestore, `companies/${companyId}/documents`);
+        return query(documentsCollection, where('employeeId', '==', id));
+    }, [firestore, companyId, isNew, id]);
+
     const { data: legalDocuments, loading: documentsLoading } = useCollection<LegalDocument>({
-        path: companyId ? `companies/${companyId}/documents` : undefined,
-        query: companyId && !isNew ? [where('employeeId', '==', id)] : undefined,
+        query: legalDocumentsQuery,
+        disabled: !legalDocumentsQuery,
     });
 
     const [employee, setEmployee] = React.useState<Partial<Employee> | null>(null);
@@ -245,7 +251,7 @@ export default function EmployeeFormPage() {
 
     React.useEffect(() => {
         if (isNew) {
-            setEmployee({ status: 'Active', hasUnemploymentInsurance: true, companyId, healthContributionType: 'Porcentaje', healthContributionValue: 7, gratificationType: 'Manual' });
+            setEmployee({ status: 'Active', hasUnemploymentInsurance: true, hasFamilyAllowance: true, companyId, healthContributionType: 'Porcentaje', healthContributionValue: 7, gratificationType: 'Manual' });
         } else if (existingEmployee) {
             const employeeData = { ...existingEmployee };
             if (employeeData.birthDate) employeeData.birthDate = formatDateForInput(employeeData.birthDate as any);
@@ -356,6 +362,7 @@ export default function EmployeeFormPage() {
                 <section className="space-y-4">
                     <h3 className="text-lg font-medium border-b pb-2">Datos Contractuales y de Remuneración</h3>
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                        <div className="space-y-2"><Label>Cargo</Label><Input value={employee.jobTitle || ''} onChange={(e) => handleFieldChange('jobTitle', e.target.value)} /></div>
                         <div className="space-y-2"><Label>Fecha de Inicio</Label><Input type="date" value={employee.contractStartDate as string || ''} onChange={(e) => handleFieldChange('contractStartDate', e.target.value)} /></div>
                         <div className="space-y-2"><Label>Fecha de Término</Label><Input type="date" value={employee.contractEndDate as string || ''} onChange={(e) => handleFieldChange('contractEndDate', e.target.value)} /></div>
                         <div className="space-y-2"><Label>Sueldo Base</Label><Input type="number" value={employee.baseSalary ?? ''} onChange={(e) => handleFieldChange('baseSalary', parseFloat(e.target.value) || 0)} /></div>
@@ -377,6 +384,18 @@ export default function EmployeeFormPage() {
                          <div className="space-y-2 col-span-2"><Label>AFP</Label><Select value={employee.afp} onValueChange={(v) => handleFieldChange('afp', v)} disabled={afpLoading}><SelectTrigger><SelectValue placeholder="Selecciona..."/></SelectTrigger><SelectContent>{uniqueAfpEntities.map(entity => <SelectItem key={entity.id} value={entity.name}>{entity.name}</SelectItem>)}</SelectContent></Select></div>
                         <div className="space-y-2"><Label>Tipo Contrato (Seg. Cesantía)</Label><Select value={employee.unemploymentInsuranceType} onValueChange={(v) => handleFieldChange('unemploymentInsuranceType', v)}><SelectTrigger><SelectValue placeholder="Selecciona..."/></SelectTrigger><SelectContent><SelectItem value="Indefinido">Indefinido</SelectItem><SelectItem value="Plazo Fijo">Plazo Fijo</SelectItem></SelectContent></Select></div>
                         <div className="flex items-center space-x-2 pt-6"><Checkbox id="hasUnemploymentInsurance" checked={!!employee.hasUnemploymentInsurance} onCheckedChange={(checked) => handleFieldChange('hasUnemploymentInsurance', !!checked)} /><Label htmlFor="hasUnemploymentInsurance">Acogido a Seguro de Cesantía</Label></div>
+                    </div>
+                    <h4 className="text-md font-medium border-b pb-2 pt-4">Asignación Familiar</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-center">
+                        <div className="flex items-center space-x-2 pt-2"><Checkbox id="hasFamilyAllowance" checked={!!employee.hasFamilyAllowance} onCheckedChange={(checked) => handleFieldChange('hasFamilyAllowance', !!checked)} /><Label htmlFor="hasFamilyAllowance">Aplica Asignación Familiar</Label></div>
+                        <div className="space-y-2"><Label>Cargas Familiares</Label><Input type="number" value={employee.familyDependents ?? ''} onChange={(e) => handleFieldChange('familyDependents', parseInt(e.target.value, 10) || 0)} disabled={!employee.hasFamilyAllowance} /></div>
+                        <div className="space-y-2"><Label>Tramo Asignación Familiar</Label><Select value={employee.familyAllowanceBracket} onValueChange={(v) => handleFieldChange('familyAllowanceBracket', v)} disabled={!employee.hasFamilyAllowance}><SelectTrigger><SelectValue placeholder="Automático..." /></SelectTrigger><SelectContent><SelectItem value="A">Tramo A</SelectItem><SelectItem value="B">Tramo B</SelectItem><SelectItem value="C">Tramo C</SelectItem><SelectItem value="D">Tramo D</SelectItem></SelectContent></Select></div>
+                    </div>
+                    <h4 className="text-md font-medium border-b pb-2 pt-4">Ahorro Previsional Voluntario (APV)</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="space-y-2"><Label>Institución APV</Label><Input value={employee.apvInstitution || ''} onChange={(e) => handleFieldChange('apvInstitution', e.target.value)} /></div>
+                        <div className="space-y-2"><Label>Monto APV</Label><Input type="number" value={employee.apvAmount ?? ''} onChange={(e) => handleFieldChange('apvAmount', parseFloat(e.target.value) || 0)} /></div>
+                        <div className="space-y-2"><Label>Régimen APV</Label><Select value={employee.apvRegime} onValueChange={(v) => handleFieldChange('apvRegime', v)}><SelectTrigger><SelectValue placeholder="Selecciona..." /></SelectTrigger><SelectContent><SelectItem value="A">Régimen A</SelectItem><SelectItem value="B">Régimen B</SelectItem></SelectContent></Select></div>
                     </div>
                 </section>
                 {/* Legal Documents */}

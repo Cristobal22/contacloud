@@ -7,22 +7,13 @@ export const UserProfileSchema = z.object({
   displayName: z.string().optional().nullable(),
   photoURL: z.string().optional().nullable(),
   role: z.enum(['Admin', 'Accountant']),
-  plan: z.string().optional(), // "Individual", "Team", "Enterprise"
-  subscriptionEndDate: z.string().optional(), // The date until which the user's subscription is active.
-  companyIds: z.array(z.string()).optional(),
-  createdBy: z.string().optional(), // Added to track who created the user
+  plan: z.string().optional(),
+  subscriptionEndDate: z.string().optional(),
+  companyIds: z.union([z.array(z.string()), z.record(z.boolean())]).optional(),
+  createdBy: z.string().optional(),
 });
 
 export type UserProfile = z.infer<typeof UserProfileSchema>;
-
-
-export type User = {
-  id: string;
-  name: string;
-  email: string;
-  avatarUrl: string;
-  role: 'Admin' | 'Accountant';
-};
 
 export type TaxAccountMapping = {
   taxCode: string;
@@ -103,21 +94,18 @@ export type Employee = {
   email?: string;
   gender: 'Masculino' | 'Femenino' | 'Otro';
   civilStatus: 'Soltero/a' | 'Casado/a' | 'Viudo/a' | 'Divorciado/a' | 'Conviviente Civil';
-  // Contractual Data
-  position?: string;
+  jobTitle?: string;
   contractType?: 'Indefinido' | 'Plazo Fijo' | 'Por Obra o Faena';
   workdayType?: 'Completa' | 'Parcial';
-  isHeavyWork?: boolean; // Trabajo pesado
+  isHeavyWork?: boolean;
   contractStartDate?: string;
   contractEndDate?: string;
-  unionized?: boolean; // Sindicalizado
-  // Remuneration
+  unionized?: boolean;
   baseSalary?: number;
   gratificationType?: 'Automatico' | 'Manual' | 'Sin Gratificacion';
   gratification?: number;
   mobilization?: number;
   collation?: number;
-  // Social Security
   healthSystem?: string;
   healthContributionType?: 'Porcentaje' | 'Monto Fijo';
   healthContributionValue?: number;
@@ -125,27 +113,17 @@ export type Employee = {
   isPensioner?: boolean;
   unemploymentInsuranceType?: 'Indefinido' | 'Plazo Fijo' | 'Más de 11 años';
   hasUnemploymentInsurance?: boolean;
-  // Family Allowances
-  familyAllowancesNormal?: number; // Cargas normales
-  familyAllowancesMaternal?: number; // Cargas maternales
-  familyAllowancesInvalid?: number; // Cargas de invalidez
-  // APV
-  hasApvi?: boolean; // Tiene APV Individual
-  apviInstitution?: string; // Institución APV
-  apviContributionType?: 'Pesos' | 'UF';
-  apviAmount?: number;
-  hasApvc?: boolean; // Tiene APV Colectivo
-  apvcInstitution?: string;
-  apvcContributionType?: 'Pesos' | 'UF';
-  apvcAmount?: number;
-  // Other Discounts
+  familyDependents?: number;
+  hasFamilyAllowance?: boolean;
+  familyAllowanceBracket?: 'A' | 'B' | 'C' | 'D';
+  apvInstitution?: string;
+  apvAmount?: number;
+  apvRegime?: 'A' | 'B';
   otherDiscounts?: { description: string; amount: number }[];
-  // Payment Method
   paymentMethod?: 'Transferencia Bancaria' | 'Cheque' | 'Efectivo';
   bank?: string;
   accountType?: 'Cuenta Corriente' | 'Cuenta Vista' | 'Cuenta de Ahorro';
   accountNumber?: string;
-  // Other
   costCenterId?: string;
   status: 'Active' | 'Inactive';
   companyId: string;
@@ -199,9 +177,9 @@ export type Purchase = {
   otherTaxes?: OtherTax[];
   total: number;
   status: 'Pendiente' | 'Contabilizado' | 'Pagado';
-  assignedAccount?: string; // Cuenta de gasto/activo asignada
-  voucherId?: string; // ID del comprobante de centralización
-  paymentVoucherId?: string; // ID del comprobante de pago
+  assignedAccount?: string;
+  voucherId?: string;
+  paymentVoucherId?: string;
   companyId: string;
 };
 
@@ -228,17 +206,17 @@ export type Sale = {
 export type Honorarium = {
   id: string;
   companyId: string;
-  date: string; // Fecha de la boleta
-  documentNumber: string; // Folio de la boleta
-  issuerRut: string; // RUT del emisor
-  issuerName: string; // Nombre del emisor
-  isProfessionalSociety: boolean; // Soc. Prof.
-  grossAmount: number; // Monto Bruto
-  retentionAmount: number; // Monto Retenido
-  netAmount: number; // Monto Pagado/Líquido
-  status: 'Vigente' | 'NULA'; // Estado de la boleta
-  accountingPeriod: string; // Ej: '2025-02'
-  voucherId?: string; // ID del comprobante de centralización
+  date: string;
+  documentNumber: string;
+  issuerRut: string;
+  issuerName: string;
+  isProfessionalSociety: boolean;
+  grossAmount: number;
+  retentionAmount: number;
+  netAmount: number;
+  status: 'Vigente' | 'NULA';
+  accountingPeriod: string;
+  voucherId?: string;
 };
 
 
@@ -260,14 +238,13 @@ export type Payroll = {
   healthDiscount: number;
   unemploymentInsuranceDiscount: number;
   employerAfpContribution?: number;
-  iut?: number; // Impuesto Único a los Trabajadores
+  iut?: number;
   otherDiscounts: number;
   totalDiscounts: number;
   netSalary: number;
   companyId: string;
   iutFactor?: number;
   iutRebajaInCLP?: number;
-  // --- Novedades del mes ---
   diasAusencia?: number;
   diasLicencia?: number;
   sueldoBaseProporcional?: number;
@@ -332,15 +309,15 @@ export type EconomicIndicator = {
 export type TaxableCap = {
     id: string; // YYYY
     year: number;
-    afpCap: number; // Tope para AFP, Salud y SIS en UF
-    afcCap: number; // Tope para Seguro de Cesantía en UF
+    afpCap: number;
+    afcCap: number;
 };
 
 export type LegalDocument = {
     id: string;
     templateSlug: string;
     employeeId: string;
-    lastSaved?: any; // Consider using a more specific type like firebase.firestore.Timestamp
+    lastSaved?: any;
 };
 
 

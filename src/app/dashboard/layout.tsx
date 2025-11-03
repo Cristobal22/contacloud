@@ -9,7 +9,7 @@ import {
   Briefcase,
   Calendar as CalendarIcon,
 } from "lucide-react"
-import { collection, query, where, documentId, doc, updateDoc } from "firebase/firestore"
+import { collection, query, where, documentId, doc, updateDoc, Query } from "firebase/firestore"
 import { format, startOfMonth, endOfMonth, parseISO, isAfter, differenceInDays } from 'date-fns';
 import { es } from 'date-fns/locale';
 
@@ -30,7 +30,8 @@ import { DashboardNav } from "@/components/dashboard-nav"
 import { UserNav } from "@/components/user-nav"
 import { Logo } from "@/components/logo"
 import type { Company, SelectedCompanyContextType } from "@/lib/types"
-import { useUser, useFirestore, useCollection } from "@/firebase"
+import { useUser, useFirestore } from "@/firebase"
+import { useCollection } from "@/firebase/firestore/use-collection"
 import { useUserProfile } from "@/firebase/auth/use-user-profile"
 import { useToast } from "@/hooks/use-toast"
 import { CommandMenu } from "@/components/command-menu"
@@ -63,19 +64,24 @@ function AccountantDashboardLayout({ children }: { children: React.ReactNode }) 
         if (!firestore || !userProfile || userProfile.role !== 'Accountant' || !userProfile.companyIds) {
             return null;
         }
-        // Convert the companyIds map to an array of keys
-        const companyIdArray = Object.keys(userProfile.companyIds);
+        
+        let companyIdArray: string[];
+        if (Array.isArray(userProfile.companyIds)) {
+            companyIdArray = userProfile.companyIds;
+        } else {
+            companyIdArray = Object.keys(userProfile.companyIds);
+        }
 
         if (companyIdArray.length === 0) {
             return null;
         }
-        // Firestore 'in' queries are limited to 30 elements in an array.
-        return query(collection(firestore, 'companies'), where(documentId(), 'in', companyIdArray.slice(0, 30)));
+
+        return query(collection(firestore, 'companies'), where(documentId(), 'in', companyIdArray.slice(0, 30))) as Query<Company>;
     }, [firestore, userProfile]);
 
     const { data: companies, loading: companiesLoading } = useCollection<Company>({ 
       query: companiesQuery,
-      disabled: profileLoading || !companiesQuery || userProfile?.role !== 'Accountant'
+      disabled: profileLoading || !companiesQuery
     });
     
     React.useEffect(() => {
@@ -178,7 +184,7 @@ function AccountantDashboardLayout({ children }: { children: React.ReactNode }) 
                         <SidebarLogo />
                     </SidebarHeader>
                     <SidebarContent>
-                        <DashboardNav role="Accountant" planId={userProfile?.planId} />
+                        <DashboardNav role="Accountant" planId={userProfile?.plan} />
                     </SidebarContent>
                 </Sidebar>
                 <SidebarInset>

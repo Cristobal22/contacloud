@@ -48,8 +48,9 @@ import {
   import { Input } from "@/components/ui/input"
   import { Label } from "@/components/ui/label"
   import { Switch } from "@/components/ui/switch"
-  import { useFirestore, useUser, useCollection } from "@/firebase"
-  import { collection, addDoc, setDoc, doc, deleteDoc, updateDoc, arrayUnion, query, where, documentId, writeBatch } from "firebase/firestore"
+  import { useFirestore, useUser } from "@/firebase"
+  import { useCollection } from "@/firebase/firestore/use-collection"
+  import { collection, addDoc, setDoc, doc, deleteDoc, updateDoc, query, where, documentId, writeBatch, Query } from "firebase/firestore"
   import type { Company } from "@/lib/types"
   import { useRouter } from 'next/navigation'
   import { SelectedCompanyContext } from '../layout'
@@ -79,10 +80,13 @@ import {
         if (userProfile.role === 'Admin') {
             return null;
         }
-
-        const companyIds = userProfile.companyIds || [];
-        if (userProfile.role === 'Accountant' && companyIds.length > 0) {
-            return query(collection(firestore, 'companies'), where(documentId(), 'in', companyIds.slice(0, 30)));
+        
+        // When user is Accountant, companyIds is a map/object.
+        if (userProfile.role === 'Accountant' && userProfile.companyIds) {
+            const companyIdArray = Object.keys(userProfile.companyIds);
+            if (companyIdArray.length > 0) {
+                return query(collection(firestore, 'companies'), where(documentId(), 'in', companyIdArray.slice(0, 30))) as Query<Company>;
+            }
         }
 
         return null;
@@ -102,8 +106,8 @@ import {
 
     const handleCreateNew = () => {
         const currentPlan = userProfile?.plan || 'Individual';
-        const limit = planLimits[currentPlan];
-        const currentCompanyCount = userProfile.companyIds?.length || 0;
+        const limit = planLimits[currentPlan] || 5;
+        const currentCompanyCount = userProfile?.companyIds ? Object.keys(userProfile.companyIds).length : 0;
 
         if (currentCompanyCount >= limit) {
             toast({
@@ -128,7 +132,6 @@ import {
         setIsDeleteDialogOpen(true);
     };
 
-    // Correctly navigates to the detailed settings page
     const handleGoToSettings = (company: Company) => {
       if (setSelectedCompany) {
         setSelectedCompany(company);
@@ -136,22 +139,36 @@ import {
       }
     };
 
-    const handleDelete = () => {
-        if (!firestore || !companyToDelete) return;
-        const docRef = doc(firestore, 'companies', companyToDelete.id);
+    const handleDelete = async () => {
+        if (!firestore || !companyToDelete || !user) return;
+        const companyId = companyToDelete.id;
         
-        deleteDoc(docRef)
-            .then(() => {
-                toast({ title: "Empresa eliminada", description: "La empresa ha sido eliminada exitosamente." });
-                setIsDeleteDialogOpen(false);
-                setCompanyToDelete(null);
-            })
-            .catch(err => {
-                errorEmitter.emit('permission-error', new FirestorePermissionError({
-                    path: docRef.path,
-                    operation: 'delete',
-                }));
+        try {
+            const batch = writeBatch(firestore);
+            
+            // Reference to the company document to be deleted
+            const companyDocRef = doc(firestore, 'companies', companyId);
+            batch.delete(companyDocRef);
+
+            // Reference to the user profile to update the companyIds map
+            const userProfileRef = doc(firestore, 'users', user.uid);
+            batch.update(userProfileRef, {
+                [`companyIds.${companyId}`]: deleteField()
             });
+
+            await batch.commit();
+
+            toast({ title: "Empresa eliminada", description: "La empresa ha sido eliminada exitosamente." });
+        
+        } catch (err) {
+            errorEmitter.emit('permission-error', new FirestorePermissionError({
+                path: `companies/${companyId}`,
+                operation: 'delete',
+            }));
+        } finally {
+            setIsDeleteDialogOpen(false);
+            setCompanyToDelete(null);
+        }
     };
 
     const handleSave = async () => {
@@ -161,8 +178,8 @@ import {
 
         if(isNew) {
             const currentPlan = userProfile.plan || 'Individual';
-            const limit = planLimits[currentPlan];
-            const currentCompanyCount = userProfile.companyIds?.length || 0;
+            const limit = planLimits[currentPlan] || 5;
+            const currentCompanyCount = userProfile.companyIds ? Object.keys(userProfile.companyIds).length : 0;
             if (currentCompanyCount >= limit) {
                  toast({ variant: "destructive", title: "Límite Alcanzado" });
                 setIsFormOpen(false);
@@ -194,7 +211,11 @@ import {
                 
                 if (userProfile?.role === 'Accountant') {
                     const userProfileRef = doc(firestore, 'users', user.uid);
-                    batch.update(userProfileRef, { companyIds: arrayUnion(newCompanyRef.id) });
+                    // Use dot notation to add a new key to the map without overwriting it.
+                    const newCompanyId = newCompanyRef.id;
+                    batch.update(userProfileRef, {
+                        [`companyIds.${newCompanyId}`]: true
+                    });
                 }
                 
                 await batch.commit();
