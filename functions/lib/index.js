@@ -53,16 +53,19 @@ exports.getLatestPayrollSalary = (0, https_1.onCall)(async (request) => {
             .limit(1);
         const snapshot = await query.get();
         if (snapshot.empty) {
+            // ALWAYS return the same shape
             return { baseIndemnizacion: null };
         }
         const lastPayroll = snapshot.docs[0].data();
         // Fallback logic for data consistency
         const suggestedValue = (_b = (_a = lastPayroll.baseIndemnizacion) !== null && _a !== void 0 ? _a : lastPayroll.taxableEarnings) !== null && _b !== void 0 ? _b : 0;
+        // ALWAYS return the same shape
         return { baseIndemnizacion: suggestedValue };
     }
     catch (error) {
-        console.error("Error fetching latest payroll:", error);
+        console.error("Error fetching latest payroll for employee:", employeeId, "in company:", companyId, error);
         // Log the detailed error on the server, but throw a generic one to the client
+        // This helps debugging without exposing implementation details.
         throw new https_1.HttpsError("internal", "An internal error occurred while fetching payroll data.");
     }
 });

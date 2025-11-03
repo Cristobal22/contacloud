@@ -32,13 +32,17 @@ function AccountantDashboardContent({ companyId }: { companyId: string }) {
     const { userProfile, loading: profileLoading } = useUserProfile(user?.uid);
 
     const companiesQuery = React.useMemo(() => {
-        if (!firestore || !userProfile || userProfile.role !== 'Accountant' || !userProfile.companyIds || userProfile.companyIds.length === 0) {
+        if (!firestore || !userProfile || userProfile.role !== 'Accountant' || !userProfile.companyIds) {
             return null;
         }
-        return query(collection(firestore, 'companies'), where(documentId(), 'in', userProfile.companyIds.slice(0, 30))) as Query<Company>;
+        const companyIdArray = Object.keys(userProfile.companyIds);
+        if (companyIdArray.length === 0) {
+            return null;
+        }
+        return query(collection(firestore, 'companies'), where(documentId(), 'in', companyIdArray.slice(0, 30))) as Query<Company>;
     }, [firestore, userProfile]);
 
-    const { data: companies, loading: companiesLoading } = useCollection<Company>({ query: companiesQuery });
+    const { data: companies, loading: companiesLoading } = useCollection<Company>({ query: companiesQuery, disabled: !companiesQuery });
     
     const { data: accounts, loading: accountsLoading } = useCollection<Account>({
         path: `companies/${companyId}/accounts`,

@@ -60,10 +60,17 @@ function AccountantDashboardLayout({ children }: { children: React.ReactNode }) 
     const [isLoadingCompany, setIsLoadingCompany] = React.useState(true);
 
     const companiesQuery = React.useMemo(() => {
-        if (!firestore || !userProfile || userProfile.role !== 'Accountant' || !userProfile.companyIds || userProfile.companyIds.length === 0) {
+        if (!firestore || !userProfile || userProfile.role !== 'Accountant' || !userProfile.companyIds) {
             return null;
         }
-        return query(collection(firestore, 'companies'), where(documentId(), 'in', userProfile.companyIds.slice(0, 30)));
+        // Convert the companyIds map to an array of keys
+        const companyIdArray = Object.keys(userProfile.companyIds);
+
+        if (companyIdArray.length === 0) {
+            return null;
+        }
+        // Firestore 'in' queries are limited to 30 elements in an array.
+        return query(collection(firestore, 'companies'), where(documentId(), 'in', companyIdArray.slice(0, 30)));
     }, [firestore, userProfile]);
 
     const { data: companies, loading: companiesLoading } = useCollection<Company>({ 

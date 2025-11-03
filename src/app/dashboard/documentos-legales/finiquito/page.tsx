@@ -131,11 +131,17 @@ export default function FiniquitoGeneratorPage() {
             try {
                 const getLatestPayrollSalary = httpsCallable(functions, 'getLatestPayrollSalary');
                 const result: any = await getLatestPayrollSalary({ companyId: selectedCompany.id, employeeId: selectedEmployee.id });
+                
+                // *** CORRECTION STARTS HERE ***
+                // Safely access the data, providing a default of null if properties don't exist
+                const baseIndemnizacion = result?.data?.baseIndemnizacion ?? null;
+                // *** CORRECTION ENDS HERE ***
 
-                const baseIndemnizacion = result.data.baseIndemnizacion as number | null;
                 if (baseIndemnizacion === null) {
-                    console.log("No previous payroll found for employee.");
-                    return; // No payroll found, do nothing
+                    console.log("No previous payroll found for employee or function returned null.");
+                    // Set a sensible default or simply don't update
+                    handleInputChange('baseIndemnizacion', 0); 
+                    return; 
                 }
 
                 const terminationDate = formData.fechaTermino || new Date();

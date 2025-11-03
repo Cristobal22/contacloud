@@ -49,7 +49,7 @@ import {
   import { Label } from "@/components/ui/label"
   import { Switch } from "@/components/ui/switch"
   import { useFirestore, useUser, useCollection } from "@/firebase"
-  import { collection, addDoc, setDoc, doc, deleteDoc, updateDoc, query, where, documentId, writeBatch } from "firebase/firestore"
+  import { collection, addDoc, setDoc, doc, deleteDoc, updateDoc, arrayUnion, query, where, documentId, writeBatch } from "firebase/firestore"
   import type { Company } from "@/lib/types"
   import { useRouter } from 'next/navigation'
   import { SelectedCompanyContext } from '../layout'
@@ -80,7 +80,7 @@ import {
             return null;
         }
 
-        const companyIds = Object.keys(userProfile.companyIds || {});
+        const companyIds = userProfile.companyIds || [];
         if (userProfile.role === 'Accountant' && companyIds.length > 0) {
             return query(collection(firestore, 'companies'), where(documentId(), 'in', companyIds.slice(0, 30)));
         }
@@ -103,7 +103,7 @@ import {
     const handleCreateNew = () => {
         const currentPlan = userProfile?.plan || 'Individual';
         const limit = planLimits[currentPlan];
-        const currentCompanyCount = userProfile.companyIds ? Object.keys(userProfile.companyIds).length : 0;
+        const currentCompanyCount = userProfile.companyIds?.length || 0;
 
         if (currentCompanyCount >= limit) {
             toast({
@@ -162,7 +162,7 @@ import {
         if(isNew) {
             const currentPlan = userProfile.plan || 'Individual';
             const limit = planLimits[currentPlan];
-            const currentCompanyCount = userProfile.companyIds ? Object.keys(userProfile.companyIds).length : 0;
+            const currentCompanyCount = userProfile.companyIds?.length || 0;
             if (currentCompanyCount >= limit) {
                  toast({ variant: "destructive", title: "Límite Alcanzado" });
                 setIsFormOpen(false);
@@ -194,7 +194,7 @@ import {
                 
                 if (userProfile?.role === 'Accountant') {
                     const userProfileRef = doc(firestore, 'users', user.uid);
-                    batch.update(userProfileRef, { [`companyIds.${newCompanyRef.id}`]: true });
+                    batch.update(userProfileRef, { companyIds: arrayUnion(newCompanyRef.id) });
                 }
                 
                 await batch.commit();

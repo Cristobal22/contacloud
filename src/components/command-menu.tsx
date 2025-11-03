@@ -40,10 +40,17 @@ export function CommandMenu() {
   const companyId = selectedCompany?.id;
 
   const companiesQuery = React.useMemo(() => {
-    if (!firestore || !userProfile || userProfile.role !== 'Accountant' || !userProfile.companyIds || userProfile.companyIds.length === 0) {
+    if (!firestore || !userProfile || userProfile.role !== 'Accountant' || !userProfile.companyIds) {
+      return null;
+    }
+    // Convert the companyIds map to an array of keys
+    const companyIdArray = Object.keys(userProfile.companyIds);
+
+    if (companyIdArray.length === 0) {
         return null;
     }
-    return query(collection(firestore, 'companies'), where(documentId(), 'in', userProfile.companyIds.slice(0, 30))) as Query<Company>;
+    // Firestore 'in' queries are limited to 30 elements in an array.
+    return query(collection(firestore, 'companies'), where(documentId(), 'in', companyIdArray.slice(0, 30))) as Query<Company>;
   }, [firestore, userProfile]);
 
   const employeesQuery = React.useMemo(() => {
