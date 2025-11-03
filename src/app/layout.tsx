@@ -2,7 +2,7 @@
 import type { Metadata } from 'next';
 import './globals.css';
 import './print.css';
-import { ClientProviders } from '@/components/client-providers';
+import { AppBody } from '@/components/app-body';
 
 export const metadata: Metadata = {
   title: 'BaseImponible.cl',
@@ -23,9 +23,7 @@ export default function RootLayout({
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
       </head>
       <body className="font-body antialiased">
-        <ClientProviders>
-          {children}
-        </ClientProviders>
+        <AppBody>{children}</AppBody>
       </body>
     </html>
   );
