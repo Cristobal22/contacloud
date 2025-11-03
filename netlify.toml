@@ -1,3 +1,4 @@
+# Forzar reconstrucción
 [build]
   command = "npm run build"
   publish = ".next"
