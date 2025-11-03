@@ -37,24 +37,23 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
   } from "@/components/ui/alert-dialog"
-  import { useCollection, useFirestore } from "@/firebase"
-  import { doc, updateDoc, deleteDoc, writeBatch, collection, query, where, getDocs } from "firebase/firestore"
+  import { useCollection } from "@/firebase/firestore/use-collection"
+  import { doc, updateDoc, deleteDoc, writeBatch, collection, query, where, getDocs, Timestamp } from "firebase/firestore"
   import type { Voucher, Purchase } from "@/lib/types"
   import Link from "next/link"
   import { errorEmitter } from '@/firebase/error-emitter'
   import { FirestorePermissionError } from '@/firebase/errors'
-import { SelectedCompanyContext } from "../layout"
+import { SelectedCompanyContext } from "../../layout"
 import { useToast } from "@/hooks/use-toast"
+import { db } from "@/firebase/config"
   
   export default function VouchersPage() {
     const { selectedCompany } = React.useContext(SelectedCompanyContext) || {};
     const companyId = selectedCompany?.id;
 
-    const firestore = useFirestore();
     const { toast } = useToast();
     const { data: vouchers, loading } = useCollection<Voucher>({ 
       path: companyId ? `companies/${companyId}/vouchers` : undefined,
-      companyId: companyId 
     });
 
     const [isContabilizarDialogOpen, setIsContabilizarDialogOpen] = React.useState(false);
@@ -82,9 +81,9 @@ import { useToast } from "@/hooks/use-toast"
     };
 
     const handleContabilizarVoucher = () => {
-        if (!firestore || !companyId || !voucherToContabilizar) return;
+        if (!companyId || !voucherToContabilizar) return;
 
-        const docRef = doc(firestore, `companies/${companyId}/vouchers`, voucherToContabilizar.id);
+        const docRef = doc(db, `companies/${companyId}/vouchers`, voucherToContabilizar.id);
         const updateData = { status: 'Contabilizado' };
 
         setIsContabilizarDialogOpen(false);
@@ -101,8 +100,8 @@ import { useToast } from "@/hooks/use-toast"
     };
 
     const handleDelete = () => {
-        if (!firestore || !companyId || !voucherToDelete) return;
-        const docRef = doc(firestore, `companies/${companyId}/vouchers`, voucherToDelete.id);
+        if (!companyId || !voucherToDelete) return;
+        const docRef = doc(db, `companies/${companyId}/vouchers`, voucherToDelete.id);
 
         setIsDeleteDialogOpen(false);
         setVoucherToDelete(null);
@@ -117,24 +116,24 @@ import { useToast } from "@/hooks/use-toast"
     };
 
     const handleUndoCentralization = async () => {
-        if (!firestore || !companyId || !voucherToUndo) return;
+        if (!companyId || !voucherToUndo) return;
 
-        const voucherRef = doc(firestore, `companies/${companyId}/vouchers`, voucherToUndo.id);
+        const voucherRef = doc(db, `companies/${companyId}/vouchers`, voucherToUndo.id);
         const isPurchase = voucherToUndo.description.includes('Compras');
         const collectionName = isPurchase ? 'purchases' : 'sales';
         
         try {
             const docsQuery = query(
-                collection(firestore, `companies/${companyId}/${collectionName}`),
+                collection(db, `companies/${companyId}/${collectionName}`),
                 where('voucherId', '==', voucherToUndo.id)
             );
             const docsSnapshot = await getDocs(docsQuery);
 
-            const batch = writeBatch(firestore);
+            const batch = writeBatch(db);
 
             // Revert associated documents status
             docsSnapshot.forEach(docToUpdate => {
-                const docRef = doc(firestore, `companies/${companyId}/${collectionName}`, docToUpdate.id);
+                const docRef = doc(db, `companies/${companyId}/${collectionName}`, docToUpdate.id);
                 batch.update(docRef, { status: 'Pendiente', voucherId: '' });
             });
 
@@ -157,6 +156,12 @@ import { useToast } from "@/hooks/use-toast"
         }
     };
 
+    const formatDate = (date: any) => {
+      if (date instanceof Timestamp) {
+        return date.toDate().toLocaleDateString('es-CL', { timeZone: 'UTC' });
+      }
+      return new Date(date).toLocaleDateString('es-CL', { timeZone: 'UTC' });
+    }
 
     return (
       <>
@@ -200,7 +205,7 @@ import { useToast } from "@/hooks/use-toast"
 
                   return (
                     <TableRow key={voucher.id}>
-                        <TableCell>{new Date(voucher.date).toLocaleDateString('es-CL', { timeZone: 'UTC' })}</TableCell>
+                        <TableCell>{formatDate(voucher.date)}</TableCell>
                         <TableCell>
                           <Badge variant={
                               voucher.type === 'Ingreso' ? 'default' : 

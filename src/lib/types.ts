@@ -103,25 +103,49 @@ export type Employee = {
   email?: string;
   gender: 'Masculino' | 'Femenino' | 'Otro';
   civilStatus: 'Soltero/a' | 'Casado/a' | 'Viudo/a' | 'Divorciado/a' | 'Conviviente Civil';
-  contractType: 'Indefinido' | 'Plazo Fijo' | 'Por Obra o Faena' | 'Part-Time' | 'Honorarios';
-  position: string;
+  // Contractual Data
+  position?: string;
+  contractType?: 'Indefinido' | 'Plazo Fijo' | 'Por Obra o Faena';
+  workdayType?: 'Completa' | 'Parcial';
+  isHeavyWork?: boolean; // Trabajo pesado
   contractStartDate?: string;
   contractEndDate?: string;
+  unionized?: boolean; // Sindicalizado
+  // Remuneration
   baseSalary?: number;
-  gratificationType?: 'Automatico' | 'Manual';
+  gratificationType?: 'Automatico' | 'Manual' | 'Sin Gratificacion';
   gratification?: number;
   mobilization?: number;
   collation?: number;
-  healthSystem: 'Fonasa' | 'Consalud' | 'CruzBlanca' | 'Colmena' | 'Banmédica' | 'Vida Tres' | 'Nueva Masvida';
-  healthContributionType: 'Porcentaje' | 'Monto Fijo';
+  // Social Security
+  healthSystem?: string;
+  healthContributionType?: 'Porcentaje' | 'Monto Fijo';
   healthContributionValue?: number;
-  afp: 'Capital' | 'Cuprum' | 'Habitat' | 'Modelo' | 'Planvital' | 'Provida' | 'Uno';
-  unemploymentInsuranceType: 'Indefinido' | 'Plazo Fijo';
-  hasUnemploymentInsurance: boolean;
-  paymentMethod: 'Transferencia Bancaria' | 'Cheque' | 'Efectivo';
-  bank: 'Banco de Chile' | 'Banco Internacional' | 'Scotiabank Chile' | 'BCI' | 'Banco Bice' | 'HSBC Bank (Chile)' | 'Banco Santander-Chile' | 'Itaú Corpbanca' | 'Banco Security' | 'Banco Falabella' | 'Banco Ripley' | 'Banco Consorcio' | 'Scotiabank Azul (Ex-BBVA)' | 'BancoEstado';
-  accountType: 'Cuenta Corriente' | 'Cuenta Vista' | 'Cuenta de Ahorro';
+  afp?: string;
+  isPensioner?: boolean;
+  unemploymentInsuranceType?: 'Indefinido' | 'Plazo Fijo' | 'Más de 11 años';
+  hasUnemploymentInsurance?: boolean;
+  // Family Allowances
+  familyAllowancesNormal?: number; // Cargas normales
+  familyAllowancesMaternal?: number; // Cargas maternales
+  familyAllowancesInvalid?: number; // Cargas de invalidez
+  // APV
+  hasApvi?: boolean; // Tiene APV Individual
+  apviInstitution?: string; // Institución APV
+  apviContributionType?: 'Pesos' | 'UF';
+  apviAmount?: number;
+  hasApvc?: boolean; // Tiene APV Colectivo
+  apvcInstitution?: string;
+  apvcContributionType?: 'Pesos' | 'UF';
+  apvcAmount?: number;
+  // Other Discounts
+  otherDiscounts?: { description: string; amount: number }[];
+  // Payment Method
+  paymentMethod?: 'Transferencia Bancaria' | 'Cheque' | 'Efectivo';
+  bank?: string;
+  accountType?: 'Cuenta Corriente' | 'Cuenta Vista' | 'Cuenta de Ahorro';
   accountNumber?: string;
+  // Other
   costCenterId?: string;
   status: 'Active' | 'Inactive';
   companyId: string;
@@ -310,6 +334,13 @@ export type TaxableCap = {
     year: number;
     afpCap: number; // Tope para AFP, Salud y SIS en UF
     afcCap: number; // Tope para Seguro de Cesantía en UF
+};
+
+export type LegalDocument = {
+    id: string;
+    templateSlug: string;
+    employeeId: string;
+    lastSaved?: any; // Consider using a more specific type like firebase.firestore.Timestamp
 };
 
 

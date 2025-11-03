@@ -335,11 +335,11 @@ export default function UserManagement() {
                         </div>
                         <div className="grid grid-cols-4 items-center gap-4">
                             <Label htmlFor="new-email" className="text-right">Email</Label>
-                            <Input id="new-email" type="email" value={newUser.email} onChange={(e) => handleNewUserFieldChange('email', e.target.value)} className="col-span-3" placeholder="usuario@contador.com" />
+                            <Input id="new-email" type="email" value={newUser.email || ''} onChange={(e) => handleNewUserFieldChange('email', e.target.value)} className="col-span-3" placeholder="usuario@contador.com" />
                         </div>
                          <div className="grid grid-cols-4 items-center gap-4">
                             <Label htmlFor="new-plan" className="text-right">Plan</Label>
-                            <Select value={newUser.plan} onValueChange={(value) => handleNewUserFieldChange('plan', value)}>
+                            <Select value={newUser.plan || ''} onValueChange={(value) => handleNewUserFieldChange('plan', value)}>
                                 <SelectTrigger id="new-plan" className="col-span-3">
                                     <SelectValue />
                                 </SelectTrigger>
@@ -353,7 +353,7 @@ export default function UserManagement() {
                         </div>
                         <div className="grid grid-cols-4 items-center gap-4">
                             <Label htmlFor="subscription-duration" className="text-right">Duración</Label>
-                            <Select value={subscriptionDuration} onValueChange={setSubscriptionDuration}>
+                            <Select value={subscriptionDuration || ''} onValueChange={setSubscriptionDuration}>
                                 <SelectTrigger id="subscription-duration" className="col-span-3">
                                     <SelectValue />
                                 </SelectTrigger>
@@ -370,7 +370,7 @@ export default function UserManagement() {
                                 <Input
                                     id="custom-date"
                                     type="date"
-                                    value={customSubscriptionDate}
+                                    value={customSubscriptionDate || ''}
                                     onChange={(e) => setCustomSubscriptionDate(e.target.value)}
                                     className="col-span-3"
                                 />

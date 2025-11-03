@@ -304,7 +304,7 @@ export default function FiniquitoGeneratorPage() {
                             </div>
                             <div className="space-y-2">
                                 <Label>Causal de Término</Label>
-                                <Select value={formData.causalTermino} onValueChange={value => handleInputChange('causalTermino', value, true)}>
+                                <Select value={formData.causalTermino || ''} onValueChange={value => handleInputChange('causalTermino', value, true)}>
                                     <SelectTrigger><SelectValue /></SelectTrigger>
                                     <SelectContent>
                                         <SelectItem value="Artículo 159, n° 1: Mutuo acuerdo de las partes.">Art. 159, N°1: Mutuo acuerdo</SelectItem>
@@ -362,11 +362,11 @@ export default function FiniquitoGeneratorPage() {
                                 </div>
                                  <div className="flex justify-between items-center">
                                     <div className="flex items-center"><Label htmlFor="remuneracionesPendientes">Remuneraciones Pendientes</Label><InfoTooltip>Incluye días trabajados en el mes del despido, comisiones, bonos u otros pagos adeudados.</InfoTooltip></div>
-                                    <Input id="remuneracionesPendientes" className="h-8 max-w-[150px] text-right" type="number" value={formData.remuneracionesPendientes || ''} onChange={e => handleInputChange('remuneracionesPendientes', parseFloat(e.target.value), true)} />
+                                    <Input id="remuneracionesPendientes" className="h-8 max-w-[150px] text-right" type="number" value={formData.remuneracionesPendientes ?? 0} onChange={e => handleInputChange('remuneracionesPendientes', parseFloat(e.target.value), true)} />
                                 </div>
                                 <div className="flex justify-between items-center">
                                     <div className="flex items-center"><Label htmlFor="otrosHaberes">Otros Haberes</Label><InfoTooltip>Utiliza este campo para añadir cualquier otro monto a favor del trabajador que no esté en las otras categorías.</InfoTooltip></div>
-                                    <Input id="otrosHaberes" className="h-8 max-w-[150px] text-right" type="number" value={formData.otrosHaberes || ''} onChange={e => handleInputChange('otrosHaberes', parseFloat(e.target.value), true)} />
+                                    <Input id="otrosHaberes" className="h-8 max-w-[150px] text-right" type="number" value={formData.otrosHaberes ?? 0} onChange={e => handleInputChange('otrosHaberes', parseFloat(e.target.value), true)} />
                                 </div>
                             </div>
                             <div className="flex justify-between items-center font-bold pt-2"><p>TOTAL HABERES</p><p>{formatCurrency(calculated.totalHaberes)}</p></div>
@@ -375,11 +375,11 @@ export default function FiniquitoGeneratorPage() {
                             <div className="pl-4 border-l-2 space-y-3">
                                  <div className="flex justify-between items-center">
                                      <div className="flex items-center"><Label htmlFor="descuentosPrevisionales">Aporte Previsional sobre Indemnizaciones</Label><InfoTooltip>Descuento que realiza la AFC del saldo de la Cuenta Individual de Cesantía (CIC) del trabajador, cuando la causal es Necesidades de la Empresa.</InfoTooltip></div>
-                                    <Input id="descuentosPrevisionales" className="h-8 max-w-[150px] text-right" type="number" value={formData.descuentosPrevisionales || ''} onChange={e => handleInputChange('descuentosPrevisionales', parseFloat(e.target.value), true)} />
+                                    <Input id="descuentosPrevisionales" className="h-8 max-w-[150px] text-right" type="number" value={formData.descuentosPrevisionales ?? 0} onChange={e => handleInputChange('descuentosPrevisionales', parseFloat(e.target.value), true)} />
                                 </div>
                                 <div className="flex justify-between items-center">
                                      <div className="flex items-center"><Label htmlFor="otrosDescuentos">Otros Descuentos</Label><InfoTooltip>Utiliza este campo para descuentos como préstamos del empleador, anticipos no descontados, etc. Deben estar debidamente justificados.</InfoTooltip></div>
-                                    <Input id="otrosDescuentos" className="h-8 max-w-[150px] text-right" type="number" value={formData.otrosDescuentos || ''} onChange={e => handleInputChange('otrosDescuentos', parseFloat(e.target.value), true)} />
+                                    <Input id="otrosDescuentos" className="h-8 max-w-[150px] text-right" type="number" value={formData.otrosDescuentos ?? 0} onChange={e => handleInputChange('otrosDescuentos', parseFloat(e.target.value), true)} />
                                 </div>
                             </div>
                             <div className="flex justify-between items-center font-bold pt-2"><p>TOTAL DESCUENTOS</p><p>{formatCurrency(calculated.totalDescuentos)}</p></div>

@@ -1,4 +1,3 @@
-
 'use client';
 import {
     Card,
@@ -45,7 +44,8 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
   } from "@/components/ui/alert-dialog"
-import { MoreVertical } from "lucide-react";
+import { MoreVertical, PlusCircle, Edit } from "lucide-react";
+import { EditIndicatorDialog } from '@/components/admin/edit-indicator-dialog'; // Importar el nuevo componente
 
   export default function MonthlyParametersPage() {
     const { selectedCompany } = React.useContext(SelectedCompanyContext) || {};
@@ -66,14 +66,17 @@ import { MoreVertical } from "lucide-react";
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false);
     const [isDeleteAllDialogOpen, setIsDeleteAllDialogOpen] = React.useState(false);
     const [isLoadAllDialogOpen, setIsLoadAllDialogOpen] = React.useState(false);
+    const [isAddIndicatorDialogOpen, setIsAddIndicatorDialogOpen] = React.useState(false);
+    const [isEditIndicatorDialogOpen, setIsEditIndicatorDialogOpen] = React.useState(false);
+    const [newIndicatorData, setNewIndicatorData] = React.useState<Partial<EconomicIndicator>>({
+      year: currentYear, month: currentMonth, uf: 0, utm: 0, minWage: 0
+    });
 
 
     const indicatorId = `${year}-${month.toString().padStart(2, '0')}`;
 
-    // Fetch all global indicators for the history table
     const { data: allGlobalIndicators, loading: allGlobalsLoading } = useCollection<EconomicIndicator>({ path: 'economic-indicators' });
 
-    // Reference to the company-specific override for the selected period
     const companyIndicatorRef = React.useMemo(() =>
         firestore && companyId ? doc(firestore, `companies/${companyId}/economic-indicators/${indicatorId}`) : null,
     [firestore, companyId, indicatorId]);
@@ -260,6 +263,83 @@ import { MoreVertical } from "lucide-react";
     const handleFieldChange = (field: keyof EconomicIndicator, value: string) => {
         setIndicator(prev => ({ ...(prev || {id: indicatorId, year, month}), [field]: value }));
     };
+
+    const handleNewIndicatorFieldChange = (field: keyof EconomicIndicator, value: string | number) => {
+      setNewIndicatorData(prev => ({ ...prev, [field]: value }));
+    };
+
+    const handleAddIndicator = async () => {
+      if (!firestore || !userProfile || userProfile.role !== 'Admin') {
+        toast({ variant: 'destructive', title: 'Permiso denegado' });
+        return;
+      }
+
+      const { year: newYear, month: newMonth, uf, utm, minWage } = newIndicatorData;
+
+      if (!newYear || !newMonth || uf === undefined || utm === undefined || minWage === undefined) {
+        toast({ variant: 'destructive', title: 'Datos Incompletos', description: 'Por favor, completa todos los campos del indicador.' });
+        return;
+      }
+
+      setIsLoading(true);
+      const id = `${newYear}-${newMonth.toString().padStart(2, '0')}`;
+      const uta = (Number(utm) || 0) * 12;
+      const gratificationCap = Number(minWage) ? Math.round((4.75 * Number(minWage)) / 12) : 0;
+      const docRef = doc(firestore, 'economic-indicators', id);
+
+      try {
+        await setDoc(docRef, { id, year: Number(newYear), month: Number(newMonth), uf: Number(uf), utm: Number(utm), minWage: Number(minWage), uta, gratificationCap }, { merge: true });
+        toast({ title: 'Indicador Agregado', description: `El indicador para ${newMonth}/${newYear} ha sido guardado.` });
+        setIsAddIndicatorDialogOpen(false);
+        setNewIndicatorData({ year: currentYear, month: currentMonth, uf: 0, utm: 0, minWage: 0 });
+      } catch (error) {
+        console.error("Error adding new indicator:", error);
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+          path: 'economic-indicators',
+          operation: 'create',
+          requestResourceData: { id, year: Number(newYear), month: Number(newMonth), uf: Number(uf), utm: Number(utm), minWage: Number(minWage) },
+        }));
+        toast({ variant: "destructive", title: "Error", description: "No se pudo agregar el indicador económico." });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    const handleUpdateIndicator = async (updatedIndicator: Partial<EconomicIndicator>) => {
+      if (!firestore || !userProfile || userProfile.role !== 'Admin' || !updatedIndicator) {
+        toast({ variant: 'destructive', title: 'Permiso denegado' });
+        return;
+      }
+
+      const { year: updatedYear, month: updatedMonth, uf, utm, minWage } = updatedIndicator;
+
+      if (!updatedYear || !updatedMonth || uf === undefined || utm === undefined || minWage === undefined) {
+        toast({ variant: 'destructive', title: 'Datos Incompletos', description: 'Por favor, completa todos los campos del indicador.' });
+        return;
+      }
+
+      setIsLoading(true);
+      const id = `${updatedYear}-${updatedMonth.toString().padStart(2, '0')}`;
+      const uta = (Number(utm) || 0) * 12;
+      const gratificationCap = Number(minWage) ? Math.round((4.75 * Number(minWage)) / 12) : 0;
+      const docRef = doc(firestore, 'economic-indicators', id);
+
+      try {
+        await setDoc(docRef, { ...updatedIndicator, uta, gratificationCap }, { merge: true });
+        toast({ title: 'Indicador Actualizado', description: `El indicador para ${updatedMonth}/${updatedYear} ha sido actualizado.` });
+        setIsEditIndicatorDialogOpen(false);
+      } catch (error) {
+        console.error("Error updating indicator:", error);
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+          path: 'economic-indicators',
+          operation: 'update',
+          requestResourceData: updatedIndicator,
+        }));
+        toast({ variant: "destructive", title: "Error", description: "No se pudo actualizar el indicador económico." });
+      } finally {
+        setIsLoading(false);
+      }
+    };
     
     return (
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -283,6 +363,12 @@ import { MoreVertical } from "lucide-react";
                                 <DropdownMenuContent align="end">
                                     <DropdownMenuLabel>Acciones de Admin</DropdownMenuLabel>
                                     <DropdownMenuSeparator />
+                                    <DropdownMenuItem onSelect={() => setIsAddIndicatorDialogOpen(true)} disabled={isLoading}>
+                                        <PlusCircle className="mr-2 h-4 w-4" /> Añadir Nuevo Mes
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onSelect={() => setIsEditIndicatorDialogOpen(true)} disabled={isLoading || !isGlobalDataForPeriod}>
+                                        <Edit className="mr-2 h-4 w-4" /> Modificar Mes Seleccionado
+                                    </DropdownMenuItem>
                                     <DropdownMenuItem onSelect={handleLoadDefaults} disabled={isLoading}>
                                         Cargar Predeterminados para {month}/{year}
                                     </DropdownMenuItem>
@@ -347,7 +433,7 @@ import { MoreVertical } from "lucide-react";
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                              <div className="space-y-2">
                                 <Label htmlFor="month">Mes</Label>
-                                <Select value={month.toString()} onValueChange={val => setMonth(Number(val))}>
+                                <Select value={month.toString()} onValueChange={(val: string) => setMonth(Number(val))}>
                                     <SelectTrigger id="month">
                                         <SelectValue />
                                     </SelectTrigger>
@@ -362,7 +448,7 @@ import { MoreVertical } from "lucide-react";
                             </div>
                             <div className="space-y-2">
                                 <Label htmlFor="year">Año</Label>
-                                <Select value={year.toString()} onValueChange={val => setYear(Number(val))}>
+                                <Select value={year.toString()} onValueChange={(val: string) => setYear(Number(val))}>
                                     <SelectTrigger id="year">
                                         <SelectValue />
                                     </SelectTrigger>
@@ -464,6 +550,75 @@ import { MoreVertical } from "lucide-react";
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
+
+            <AlertDialog open={isAddIndicatorDialogOpen} onOpenChange={setIsAddIndicatorDialogOpen}>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Añadir Nuevo Indicador Económico</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Introduce los valores para el nuevo período de indicadores económicos.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <div className="grid gap-4 py-4">
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="new-year" className="text-right">Año</Label>
+                    <Select value={newIndicatorData.year?.toString()} onValueChange={(val: string) => handleNewIndicatorFieldChange('year', Number(val))}>
+                      <SelectTrigger id="new-year" className="col-span-3">
+                        <SelectValue placeholder="Selecciona el año" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Array.from({ length: 5 }, (_, i) => currentYear + i - 2).map(y => (
+                          <SelectItem key={y} value={y.toString()}>{y}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="new-month" className="text-right">Mes</Label>
+                    <Select value={newIndicatorData.month?.toString()} onValueChange={(val: string) => handleNewIndicatorFieldChange('month', Number(val))}>
+                      <SelectTrigger id="new-month" className="col-span-3">
+                        <SelectValue placeholder="Selecciona el mes" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
+                          <SelectItem key={m} value={m.toString()}>
+                            {format(new Date(0, m - 1), 'MMMM', { locale: es })}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="new-uf" className="text-right">Valor UF</Label>
+                    <Input id="new-uf" type="number" value={newIndicatorData.uf ?? ''} onChange={e => handleNewIndicatorFieldChange('uf', parseFloat(e.target.value) || 0)} className="col-span-3" />
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="new-utm" className="text-right">Valor UTM</Label>
+                    <Input id="new-utm" type="number" value={newIndicatorData.utm ?? ''} onChange={e => handleNewIndicatorFieldChange('utm', parseFloat(e.target.value) || 0)} className="col-span-3" />
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="new-minWage" className="text-right">Sueldo Mínimo</Label>
+                    <Input id="new-minWage" type="number" value={newIndicatorData.minWage ?? ''} onChange={e => handleNewIndicatorFieldChange('minWage', parseFloat(e.target.value) || 0)} className="col-span-3" />
+                  </div>
+                </div>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleAddIndicator} disabled={isLoading}>
+                    {isLoading ? "Guardando..." : "Guardar Indicador"}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+            
+            {indicator && (
+              <EditIndicatorDialog
+                isOpen={isEditIndicatorDialogOpen}
+                onOpenChange={setIsEditIndicatorDialogOpen}
+                indicator={indicator}
+                onSave={handleUpdateIndicator}
+                isLoading={isLoading}
+              />
+            )}
       </div>
   )
 }
