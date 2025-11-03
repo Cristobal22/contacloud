@@ -27,23 +27,23 @@ exports.getLatestPayrollSalary = void 0;
 const admin = __importStar(require("firebase-admin"));
 const https_1 = require("firebase-functions/v2/https");
 const firestore_1 = require("firebase-admin/firestore");
-// Initialize Firebase Admin SDK
-admin.initializeApp();
+// Securely initialize the Firebase Admin SDK only once
+if (admin.apps.length === 0) {
+    admin.initializeApp();
+}
 const db = (0, firestore_1.getFirestore)();
 exports.getLatestPayrollSalary = (0, https_1.onCall)(async (request) => {
     var _a, _b;
-    // Check if the user is authenticated
+    // 1. Check for authentication
     if (!request.auth) {
-        throw new Error("Authentication required.");
+        throw new https_1.HttpsError("unauthenticated", "Authentication required.");
     }
+    // 2. Validate input data
     const { companyId, employeeId } = request.data;
     if (!companyId || !employeeId) {
-        throw new Error("Missing companyId or employeeId.");
+        throw new https_1.HttpsError("invalid-argument", "Missing companyId or employeeId.");
     }
-    // NOTE: We don't need to check user's company association here
-    // because this function is designed to be called only from trusted client code
-    // that has already verified user's access to the company.
-    // The primary goal is to bypass complex query security rules.
+    // 3. Perform the database query
     try {
         const payrollsRef = db.collection(`companies/${companyId}/payrolls`);
         const query = payrollsRef
@@ -53,20 +53,17 @@ exports.getLatestPayrollSalary = (0, https_1.onCall)(async (request) => {
             .limit(1);
         const snapshot = await query.get();
         if (snapshot.empty) {
-            // It's not an error if no payroll is found, just return null
             return { baseIndemnizacion: null };
         }
         const lastPayroll = snapshot.docs[0].data();
-        // Prioritize the new 'baseIndemnizacion' field.
-        // Fallback to 'taxableEarnings' for older documents.
+        // Fallback logic for data consistency
         const suggestedValue = (_b = (_a = lastPayroll.baseIndemnizacion) !== null && _a !== void 0 ? _a : lastPayroll.taxableEarnings) !== null && _b !== void 0 ? _b : 0;
-        // Return the suggested value under the new key
         return { baseIndemnizacion: suggestedValue };
     }
     catch (error) {
         console.error("Error fetching latest payroll:", error);
-        // Throw a generic error to the client
-        throw new Error("An internal error occurred while fetching payroll data.");
+        // Log the detailed error on the server, but throw a generic one to the client
+        throw new https_1.HttpsError("internal", "An internal error occurred while fetching payroll data.");
     }
 });
 //# sourceMappingURL=index.js.map

@@ -1,29 +1,27 @@
 
 import * as admin from "firebase-admin";
-import { onCall } from "firebase-functions/v2/https";
+import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { getFirestore } from "firebase-admin/firestore";
 
-// Initialize Firebase Admin SDK
-admin.initializeApp();
+// Securely initialize the Firebase Admin SDK only once
+if (admin.apps.length === 0) {
+  admin.initializeApp();
+}
 const db = getFirestore();
 
 export const getLatestPayrollSalary = onCall(async (request) => {
-  // Check if the user is authenticated
+  // 1. Check for authentication
   if (!request.auth) {
-    throw new Error("Authentication required.");
+    throw new HttpsError("unauthenticated", "Authentication required.");
   }
 
+  // 2. Validate input data
   const { companyId, employeeId } = request.data;
-
   if (!companyId || !employeeId) {
-    throw new Error("Missing companyId or employeeId.");
+    throw new HttpsError("invalid-argument", "Missing companyId or employeeId.");
   }
 
-  // NOTE: We don't need to check user's company association here
-  // because this function is designed to be called only from trusted client code
-  // that has already verified user's access to the company.
-  // The primary goal is to bypass complex query security rules.
-
+  // 3. Perform the database query
   try {
     const payrollsRef = db.collection(`companies/${companyId}/payrolls`);
     const query = payrollsRef
@@ -35,21 +33,18 @@ export const getLatestPayrollSalary = onCall(async (request) => {
     const snapshot = await query.get();
 
     if (snapshot.empty) {
-      // It's not an error if no payroll is found, just return null
       return { baseIndemnizacion: null };
     }
 
     const lastPayroll = snapshot.docs[0].data();
 
-    // Prioritize the new 'baseIndemnizacion' field.
-    // Fallback to 'taxableEarnings' for older documents.
+    // Fallback logic for data consistency
     const suggestedValue = lastPayroll.baseIndemnizacion ?? lastPayroll.taxableEarnings ?? 0;
 
-    // Return the suggested value under the new key
     return { baseIndemnizacion: suggestedValue };
   } catch (error) {
     console.error("Error fetching latest payroll:", error);
-    // Throw a generic error to the client
-    throw new Error("An internal error occurred while fetching payroll data.");
+    // Log the detailed error on the server, but throw a generic one to the client
+    throw new HttpsError("internal", "An internal error occurred while fetching payroll data.");
   }
 });
