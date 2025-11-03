@@ -23,11 +23,16 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      allow get: if isOwner(userId);
-      allow list: if false;
-      allow create: if isOwner(userId) && request.resource.data.uid == userId;
-      allow update: if isExistingOwner(userId) && request.resource.data.uid == resource.data.uid;
-      allow delete: if isExistingOwner(userId);
+      // Un usuario puede ver su propio perfil, O si es un admin.
+      allow get: if isOwner(userId) || isAdmin();
+      // SOLO un admin puede listar todos los usuarios.
+      allow list: if isAdmin();
+      // Un usuario puede crear su propio perfil, O un admin puede crear usuarios.
+      allow create: if (isOwner(userId) && request.resource.data.uid == userId) || isAdmin();
+      // Un usuario puede actualizar su propio perfil, O un admin puede actualizar a otros.
+      allow update: if isExistingOwner(userId) || isAdmin();
+      // Un usuario puede borrar su propia cuenta, O un admin puede borrar a otros.
+      allow delete: if isExistingOwner(userId) || isAdmin();
     }
 
     match /companies/{companyId} {
@@ -73,6 +78,13 @@ service cloud.firestore {
     }
 
     match /companies/{companyId}/payrolls/{payrollId} {
+      allow get, list: if isUserAssociatedWithCompany(companyId);
+      allow create: if isUserAssociatedWithCompany(companyId);
+      allow update: if isUserAssociatedWithCompany(companyId) && resource != null;
+      allow delete: if isUserAssociatedWithCompany(companyId) && resource != null;
+    }
+
+    match /companies/{companyId}/documents/{documentId} {
       allow get, list: if isUserAssociatedWithCompany(companyId);
       allow create: if isUserAssociatedWithCompany(companyId);
       allow update: if isUserAssociatedWithCompany(companyId) && resource != null;

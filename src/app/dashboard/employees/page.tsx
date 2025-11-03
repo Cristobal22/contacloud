@@ -43,7 +43,7 @@ import {
     const employeesQuery = React.useMemo(() => {
         if (!firestore || !companyId) return null;
         const collectionRef = collection(firestore, `companies/${companyId}/employees`);
-        return query(collectionRef, where("companyId", "==", companyId));
+        return query(collectionRef, where("companyId", "==", companyId), where("status", "==", "Active"));
     }, [firestore, companyId]);
 
     const costCentersQuery = React.useMemo(() => {

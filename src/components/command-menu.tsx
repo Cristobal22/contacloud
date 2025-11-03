@@ -46,9 +46,15 @@ export function CommandMenu() {
     return query(collection(firestore, 'companies'), where(documentId(), 'in', userProfile.companyIds.slice(0, 30))) as Query<Company>;
   }, [firestore, userProfile]);
 
+  const employeesQuery = React.useMemo(() => {
+    if (!firestore || !companyId) return null;
+    const collectionRef = collection(firestore, `companies/${companyId}/employees`);
+    return query(collectionRef, where("status", "==", "Active"));
+  }, [firestore, companyId]);
+
   const { data: companies } = useCollection<Company>({ query: companiesQuery, disabled: !companiesQuery });
-  const { data: accounts } = useCollection<Account>({ path: companyId ? `companies/${companyId}/accounts` : undefined });
-  const { data: employees } = useCollection<Employee>({ path: companyId ? `companies/${companyId}/employees` : undefined });
+  const { data: accounts } = useCollection<Account>({ path: companyId ? `companies/${companyId}/accounts` : undefined, disabled: !companyId });
+  const { data: employees } = useCollection<Employee>({ query: employeesQuery, disabled: !employeesQuery });
 
   React.useEffect(() => {
     const down = (e: KeyboardEvent) => {

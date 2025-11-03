@@ -70,7 +70,6 @@ export default function UserManagement() {
     const { user: authUser } = useUser();
     const { userProfile, loading: profileLoading } = useUserProfile(authUser?.uid);
 
-    // Admins solo ven a los usuarios que ellos mismos han creado.
     const usersQuery = React.useMemo(() => {
         if (!firestore || !authUser || userProfile?.role !== 'Admin') return null;
         return query(collection(firestore, 'users'), where('createdBy', '==', authUser.uid));
@@ -140,8 +139,6 @@ export default function UserManagement() {
                 subscriptionEndDate = customSubscriptionDate;
             }
 
-
-            // This password is temporary. The user will be forced to reset it.
             const tempPassword = Math.random().toString(36).slice(-8) + 'A1!';
             const userCredential = await createUserWithEmailAndPassword(auth, newUser.email, tempPassword);
             const user = userCredential.user;
@@ -154,12 +151,11 @@ export default function UserManagement() {
                 plan: newUser.plan,
                 subscriptionEndDate: subscriptionEndDate,
                 photoURL: `https://i.pravatar.cc/150?u=${user.uid}`,
-                companyIds: [],
-                createdBy: authUser.uid, // Set the creator
+                companyIds: {},
+                createdBy: authUser.uid,
             };
 
             await setDoc(doc(firestore, 'users', user.uid), newUserProfile);
-            // Send a password reset email immediately
             await sendPasswordResetEmail(auth, user.email!);
 
             toast({
@@ -188,7 +184,6 @@ export default function UserManagement() {
         const userRef = doc(firestore, 'users', selectedUser.uid);
 
         try {
-            // Admin can update displayName and plan
             await updateDoc(userRef, {
                 displayName: selectedUser.displayName,
                 plan: selectedUser.plan,
@@ -211,8 +206,6 @@ export default function UserManagement() {
         const userRef = doc(firestore, 'users', userToDelete.uid);
 
         try {
-            // Note: This deletes the Firestore document, not the Firebase Auth user.
-            // That needs to be done manually in the Firebase console for security reasons.
             await deleteDoc(userRef);
             toast({ title: "Perfil de usuario eliminado", description: `El perfil de ${userToDelete.displayName} ha sido eliminado de la aplicación.` });
             setIsDeleteDialogOpen(false);
@@ -229,7 +222,7 @@ export default function UserManagement() {
         setNewUser(prev => ({...prev, [field]: value}));
     };
 
-     const handleSelectedUserFieldChange = (field: keyof UserProfile, value: string | string[]) => {
+     const handleSelectedUserFieldChange = (field: keyof UserProfile, value: string) => {
         setSelectedUser(prev => prev ? ({...prev, [field]: value}) : null);
     };
     

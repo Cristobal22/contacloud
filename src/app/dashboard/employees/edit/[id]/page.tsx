@@ -45,25 +45,42 @@ import { DOCUMENT_TEMPLATES } from '@/lib/document-templates';
 import { SelectedCompanyContext } from '@/app/dashboard/layout';
 import { doc, setDoc, addDoc, collection, where, DocumentReference, Timestamp, DocumentData, updateDoc } from 'firebase/firestore';
 import { useRouter, useParams } from 'next/navigation';
-import { ArrowLeft, FileText, Eye, Trash2 } from 'lucide-react';
+import { ArrowLeft, FileText, Eye, Trash2, Loader2, ShieldAlert } from 'lucide-react';
 import Link from 'next/link';
 import { errorEmitter } from '@/firebase/error-emitter'
 import { FirestorePermissionError } from '@/firebase/errors'
 import { nationalities, regions, communesByRegion } from '@/lib/geographical-data';
-import { deleteEmployee } from '@/lib/actions/employees'; // Import the server action
+import { checkEmployeeHistory, softDeleteEmployee, permanentlyDeleteEmployee } from '@/lib/actions/employees';
 import { useToast } from "@/hooks/use-toast"
 
-// A new component for the delete button and its dialog
-function DeleteEmployeeButton({ companyId, employeeId, employeeName }: { companyId: string; employeeId: string; employeeName: string }) {
+// Componente de lógica de eliminación "Inteligente"
+function DeleteEmployeeManager({ companyId, employeeId, employeeName }: { companyId: string; employeeId: string; employeeName: string }) {
     const router = useRouter();
     const { toast } = useToast();
-    const [isDeleting, setIsDeleting] = React.useState(false);
+    const [isLoading, setIsLoading] = React.useState(false);
+    const [isChecking, setIsChecking] = React.useState(false);
+    const [hasHistory, setHasHistory] = React.useState<boolean | null>(null);
+    const [dialogOpen, setDialogOpen] = React.useState(false);
 
-    const handleDelete = async () => {
-        setIsDeleting(true);
-        const result = await deleteEmployee(companyId, employeeId);
-        setIsDeleting(false);
+    const handleCheckHistory = async () => {
+        setIsChecking(true);
+        setHasHistory(null);
+        const result = await checkEmployeeHistory(companyId, employeeId);
+        if (result.error) {
+            toast({ title: "Error", description: result.error, variant: "destructive" });
+            setIsChecking(false);
+            return;
+        }
+        setHasHistory(result.hasHistory);
+        setIsChecking(false);
+        setDialogOpen(true);
+    };
 
+    const handleSoftDelete = async () => {
+        setIsLoading(true);
+        const result = await softDeleteEmployee(companyId, employeeId);
+        setIsLoading(false);
+        setDialogOpen(false);
         if (result.success) {
             toast({ title: "Éxito", description: result.message });
             router.push('/dashboard/employees');
@@ -72,27 +89,79 @@ function DeleteEmployeeButton({ companyId, employeeId, employeeName }: { company
         }
     };
 
-    return (
-        <AlertDialog>
-            <AlertDialogTrigger asChild>
-                <Button variant="destructive" disabled={isDeleting}>
-                    <Trash2 className="mr-2 h-4 w-4" />
-                    {isDeleting ? 'Eliminando...' : 'Eliminar Empleado'}
-                </Button>
-            </AlertDialogTrigger>
+    const handlePermanentDelete = async () => {
+        setIsLoading(true);
+        const result = await permanentlyDeleteEmployee(companyId, employeeId);
+        setIsLoading(false);
+        setDialogOpen(false);
+        if (result.success) {
+            toast({ title: "Éxito", description: result.message });
+            router.push('/dashboard/employees');
+        } else {
+            toast({ title: "Error", description: result.message, variant: "destructive" });
+        }
+    };
+
+    const renderDialogContent = () => {
+        if (hasHistory === null) {
+            return null; // No debería mostrarse
+        }
+
+        if (hasHistory) {
+            return (
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>¿Desactivar a {employeeName}?</AlertDialogTitle>
+                        <AlertDialogDescription className='space-y-4'>
+                            <div className='p-3 bg-yellow-50 border border-yellow-200 rounded-md flex items-start gap-3'>
+                                <ShieldAlert className="h-5 w-5 text-yellow-600 mt-1"/>
+                                <p className='text-yellow-800'>Este empleado tiene un historial de datos (documentos o liquidaciones). Para mantener la integridad de los reportes, no puede ser eliminado permanentemente. Solo puede ser desactivado.</p>
+                            </div>
+                           <p>Esta acción cambiará el estado del empleado a <span className='font-bold'>Inactivo</span> y no se podrá seleccionar para nuevas operaciones. ¿Deseas continuar?</p>
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleSoftDelete} disabled={isLoading}>
+                            {isLoading ? 'Desactivando...' : 'Sí, desactivar'}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            );
+        }
+
+        return (
             <AlertDialogContent>
                 <AlertDialogHeader>
-                    <AlertDialogTitle>¿Estás absolutamente seguro?</AlertDialogTitle>
+                    <AlertDialogTitle>¿Eliminar a {employeeName}?</AlertDialogTitle>
                     <AlertDialogDescription>
-                        Esta acción no se puede deshacer. Esto eliminará permanentemente la ficha de <span className='font-bold'>{employeeName}</span> y todos sus datos asociados.
-                        Si el empleado tiene un usuario en el sistema, también será eliminado.
+                       Este empleado no tiene datos históricos asociados. Puedes desactivarlo (acción reversible) o eliminarlo permanentemente (acción irreversible).
                     </AlertDialogDescription>
                 </AlertDialogHeader>
-                <AlertDialogFooter>
+                <AlertDialogFooter className="gap-2 sm:gap-0">
                     <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                    <AlertDialogAction onClick={handleDelete}>Continuar</AlertDialogAction>
+                    <Button variant="outline" onClick={handleSoftDelete} disabled={isLoading}>
+                        {isLoading ? 'Desactivando...' : 'Desactivar'}
+                    </Button>
+                    <AlertDialogAction
+                        className="bg-red-600 hover:bg-red-700 dark:bg-red-700 dark:hover:bg-red-800"
+                        onClick={handlePermanentDelete} 
+                        disabled={isLoading}
+                    >
+                        {isLoading ? 'Eliminando...' : 'Eliminar Permanentemente'}
+                    </AlertDialogAction>
                 </AlertDialogFooter>
             </AlertDialogContent>
+        );
+    };
+
+    return (
+        <AlertDialog open={dialogOpen} onOpenChange={setDialogOpen}>
+            <Button variant="destructive" onClick={handleCheckHistory} disabled={isChecking}>
+                {isChecking ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
+                {isChecking ? 'Verificando...' : 'Eliminar Empleado'}
+            </Button>
+            {renderDialogContent()}
         </AlertDialog>
     );
 }
@@ -151,9 +220,25 @@ export default function EmployeeFormPage() {
         return Math.round((4.75 * latestIndicator.minWage) / 12);
     }, [economicIndicators]);
 
-    const formatDateForInput = (timestamp: any): string => {
-        if (!timestamp) return '';
-        const date = timestamp.toDate();
+    const formatDateForInput = (dateValue: any): string => {
+        if (!dateValue) return '';
+
+        let date: Date;
+        // Comprobar si es un objeto Timestamp de Firestore
+        if (dateValue.toDate && typeof dateValue.toDate === 'function') {
+            date = dateValue.toDate();
+        }
+        // Comprobar si es un string de fecha (ej: '2024-07-29') o un objeto Date
+        else {
+            date = new Date(dateValue);
+        }
+
+        // Comprobar si el objeto Date es válido
+        if (isNaN(date.getTime())) {
+            return '';
+        }
+
+        // Ajustar la zona horaria para evitar errores de un día
         const adjustedDate = new Date(date.getTime() + (date.getTimezoneOffset() * 60000));
         return adjustedDate.toISOString().split('T')[0];
     };
@@ -328,10 +413,10 @@ export default function EmployeeFormPage() {
              <CardFooter className="flex justify-between">
                 <div>
                     {!isNew && companyId && (
-                        <DeleteEmployeeButton 
-                            companyId={companyId} 
-                            employeeId={id} 
-                            employeeName={`${employee.firstName} ${employee.lastName}`}
+                        <DeleteEmployeeManager
+                            companyId={companyId}
+                            employeeId={id}
+                            employeeName={`${employee.firstName || ''} ${employee.lastName || ''}`.trim()}
                         />
                     )}
                 </div>
