@@ -1,18 +1,18 @@
 
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import type { FirebaseApp } from 'firebase/app';
-import type { Auth } from 'firebase/auth';
+import type { Auth, onAuthStateChanged } from 'firebase/auth';
 import type { Firestore } from 'firebase/firestore';
-import type { Functions } from 'firebase/functions'; // Import Functions type
+import type { Functions } from 'firebase/functions';
 import { FirebaseErrorListener } from '@/components/FirebaseErrorListener';
 
 interface FirebaseContextType {
   firebaseApp: FirebaseApp | null;
   auth: Auth | null;
   firestore: Firestore | null;
-  functions: Functions | null; // Add functions to context
+  functions: Functions | null;
 }
 
 const FirebaseContext = React.createContext<FirebaseContextType | null>(null);
@@ -22,23 +22,35 @@ export function FirebaseProvider({
   firebaseApp,
   auth,
   firestore,
-  functions, // Add functions to props
+  functions,
 }: {
   children: React.ReactNode;
   firebaseApp: FirebaseApp;
   auth: Auth;
   firestore: Firestore;
-  functions: Functions; // Add functions to props type
+  functions: Functions;
 }) {
+  const [loading, setLoading] = useState(true);
   const contextValue = React.useMemo(
     () => ({
       firebaseApp,
       auth,
       firestore,
-      functions, // Add functions to context value
+      functions,
     }),
-    [firebaseApp, auth, firestore, functions] // Add functions to dependency array
+    [firebaseApp, auth, firestore, functions]
   );
+
+  useEffect(() => {
+    const unsubscribe = (auth as any as { onAuthStateChanged: typeof onAuthStateChanged }).onAuthStateChanged(user => {
+      setLoading(false);
+    });
+    return () => unsubscribe();
+  }, [auth]);
+
+  if (loading) {
+    return <div>Loading...</div>;
+  }
 
   return (
     <FirebaseContext.Provider value={contextValue}>
@@ -80,7 +92,6 @@ export const useFirestore = () => {
     return context.firestore;
 }
 
-// Create and export the new useFunctions hook
 export const useFunctions = () => {
     const context = React.useContext(FirebaseContext);
     if (!context || !context.functions) {

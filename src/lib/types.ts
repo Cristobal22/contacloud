@@ -1,327 +1,218 @@
+// src/lib/types.ts
 
-import { z } from 'zod';
+import type { Timestamp } from 'firebase/firestore';
 
-export const UserProfileSchema = z.object({
-  uid: z.string(),
-  email: z.string().email(),
-  displayName: z.string().optional().nullable(),
-  photoURL: z.string().optional().nullable(),
-  role: z.enum(['Admin', 'Accountant']),
-  plan: z.string().optional(),
-  subscriptionEndDate: z.string().optional(),
-  companyIds: z.union([z.array(z.string()), z.record(z.boolean())]).optional(),
-  createdBy: z.string().optional(),
-});
+export interface UserProfile {
+  id: string;
+  email: string;
+  role: 'Admin' | 'Accountant';
+  companyIds: { [key: string]: boolean };
+  displayName?: string;
+  photoURL?: string;
+  subscriptionStatus?: string;
+  subscriptionEndDate?: string;
+  plan?: string;
+}
 
-export type UserProfile = z.infer<typeof UserProfileSchema>;
-
-export type TaxAccountMapping = {
-  taxCode: string;
-  name: string;
-  accountCode: string;
-};
-
-export type Company = {
+export interface Company {
   id: string;
   name: string;
   rut: string;
-  address: string;
-  giro: string;
-  active: boolean;
   ownerId: string;
-  isDistributor?: boolean;
-  startYear?: number;
-  periodStartDate?: string;
+  periodStartDate?: string; 
   periodEndDate?: string;
-  lastClosedDate?: string;
-  profitAccount?: string;
-  lossAccount?: string;
-  salesInvoicesReceivableAccount?: string;
-  salesNotesReceivableAccount?: string;
-  salesVatAccount?: string;
-  salesOtherTaxesAccounts?: TaxAccountMapping[];
-  proportionalVat?: boolean;
-  purchasesInvoicesPayableAccount?: string;
-  purchasesNotesPayableAccount?: string;
-  purchasesVatAccount?: string;
-  vatRemanentAccount?: string;
-  purchasesOtherTaxesAccounts?: TaxAccountMapping[];
-  feesExpenseAccount?: string;
-  feesPayableAccount?: string;
-  feesWithholdingAccount?: string;
-  incomeFeesReceivableAccount?: string;
-  incomeFeesWithholdingAccount?: string;
-  remunerationExpenseAccount?: string;
-  salariesPayableAccount?: string;
-  afpPayableAccount?: string;
-  healthPayableAccount?: string;
-  unemploymentInsurancePayableAccount?: string;
-  employerAfpContributionPayableAccount?: string;
-};
-
-export type Account = {
-  id:string;
-  code: string;
-  name: string;
-  type: 'Activo' | 'Pasivo' | 'Patrimonio' | 'Ingreso' | 'Gasto';
-  balance: number;
-  companyId: string;
-};
-
-export type AccountGroup = {
-    id: string;
-    name: string;
-};
-
-export type CostCenter = {
-    id: string;
-    name: string;
-    description: string;
-    companyId: string;
-};
-
-export type Employee = {
-  id: string;
-  rut: string;
-  firstName: string;
-  lastName: string;
-  birthDate?: string;
-  nationality?: string;
   address?: string;
   commune?: string;
+  city?: string;
   region?: string;
-  phone?: string;
-  email?: string;
-  gender: 'Masculino' | 'Femenino' | 'Otro';
-  civilStatus: 'Soltero/a' | 'Casado/a' | 'Viudo/a' | 'Divorciado/a' | 'Conviviente Civil';
-  jobTitle?: string;
-  contractType?: 'Indefinido' | 'Plazo Fijo' | 'Por Obra o Faena';
-  workdayType?: 'Completa' | 'Parcial';
-  isHeavyWork?: boolean;
-  contractStartDate?: string;
-  contractEndDate?: string;
-  unionized?: boolean;
-  baseSalary?: number;
-  gratificationType?: 'Automatico' | 'Manual' | 'Sin Gratificacion';
-  gratification?: number;
-  mobilization?: number;
-  collation?: number;
-  healthSystem?: string;
-  healthContributionType?: 'Porcentaje' | 'Monto Fijo';
-  healthContributionValue?: number;
-  afp?: string;
-  isPensioner?: boolean;
-  unemploymentInsuranceType?: 'Indefinido' | 'Plazo Fijo' | 'Más de 11 años';
-  hasUnemploymentInsurance?: boolean;
-  familyDependents?: number;
-  hasFamilyAllowance?: boolean;
-  familyAllowanceBracket?: 'A' | 'B' | 'C' | 'D';
-  apvInstitution?: string;
-  apvAmount?: number;
-  apvRegime?: 'A' | 'B';
-  otherDiscounts?: { description: string; amount: number }[];
-  paymentMethod?: 'Transferencia Bancaria' | 'Cheque' | 'Efectivo';
-  bank?: string;
-  accountType?: 'Cuenta Corriente' | 'Cuenta Vista' | 'Cuenta de Ahorro';
-  accountNumber?: string;
-  costCenterId?: string;
-  status: 'Active' | 'Inactive';
-  companyId: string;
-};
+  mutual?: string;
+  compensationFund?: string;
+}
 
+export interface Bono {
+  glosa: string;
+  monto: number;
+}
 
-export type Subject = {
-  id: string;
-  name: string;
-  rut: string;
-  type: 'Cliente' | 'Proveedor' | 'Otro';
-  status: 'Active' | 'Inactive';
-  companyId: string;
-};
-
-export type Voucher = {
-  id: string;
-  date: string;
-  type: 'Ingreso' | 'Egreso' | 'Traspaso';
-  description: string;
-  status: 'Borrador' | 'Contabilizado';
-  total: number;
-  entries: VoucherEntry[];
-  companyId: string;
-};
-
-export type VoucherEntry = {
+export interface Account {
     id: string;
-    account: string;
+    code: number;
+    name: string;
+    type: 'Activo' | 'Pasivo' | 'Patrimonio' | 'Ingreso' | 'Costo' | 'Gasto';
+    category: string;
+    isAuxiliary: boolean;
+    parentAccountId?: string;
+    companyId: string;
+}
+
+export interface Voucher {
+    id: string;
+    companyId: string;
+    date: string;
+    type: 'Ingreso' | 'Egreso' | 'Traspaso';
     description: string;
+    entries: VoucherEntry[];
+    isCentralization?: boolean;
+}
+
+export interface VoucherEntry {
+    accountId: string;
     debit: number;
     credit: number;
-};
+}
 
-export type OtherTax = {
-  code: string;
-  name: string;
-  amount: number;
-};
-
-export type Purchase = {
-  id: string;
-  date: string;
-  documentType: string;
-  documentNumber: string;
-  supplierRut: string;
-  supplier: string;
-  exemptAmount: number;
-  netAmount: number;
-  taxAmount: number;
-  otherTaxes?: OtherTax[];
-  total: number;
-  status: 'Pendiente' | 'Contabilizado' | 'Pagado';
-  assignedAccount?: string;
-  voucherId?: string;
-  paymentVoucherId?: string;
-  companyId: string;
-};
-
-
-export type Sale = {
-  id: string;
-  date: string;
-  documentType: string;
-  documentNumber: string;
-  customer: string;
-  customerRut: string;
-  exemptAmount: number;
-  netAmount: number;
-  taxAmount: number;
-  otherTaxes?: OtherTax[];
-  total: number;
-  status: 'Pendiente' | 'Contabilizado' | 'Cobrado';
-  companyId: string;
-  isSummary?: boolean;
-  voucherId?: string;
-  collectionVoucherId?: string;
-};
-
-export type Honorarium = {
-  id: string;
-  companyId: string;
-  date: string;
-  documentNumber: string;
-  issuerRut: string;
-  issuerName: string;
-  isProfessionalSociety: boolean;
-  grossAmount: number;
-  retentionAmount: number;
-  netAmount: number;
-  status: 'Vigente' | 'NULA';
-  accountingPeriod: string;
-  voucherId?: string;
-};
-
-
-export type Payroll = {
-  id: string;
-  employeeId: string;
-  employeeName: string;
-  period: string;
-  year: number;
-  month: number;
-  baseSalary: number;
-  gratification: number;
-  taxableEarnings: number;
-  baseIndemnizacion: number;
-  nonTaxableEarnings: number;
-  otherTaxableEarnings: number;
-  totalEarnings: number;
-  afpDiscount: number;
-  healthDiscount: number;
-  unemploymentInsuranceDiscount: number;
-  employerAfpContribution?: number;
-  iut?: number;
-  otherDiscounts: number;
-  totalDiscounts: number;
-  netSalary: number;
-  companyId: string;
-  iutFactor?: number;
-  iutRebajaInCLP?: number;
-  diasAusencia?: number;
-  diasLicencia?: number;
-  sueldoBaseProporcional?: number;
-  horasExtra?: number;
-  bonos?: number;
-  anticipos?: number;
-};
-
-
-export type FamilyAllowanceParameter = {
+export interface Subject {
     id: string;
-    year: number;
-    month: number;
-    tramo: string;
-    desde: number;
-    hasta: number;
-    monto: number;
-};
-
-export type TaxParameter = {
-    id: string;
-    tramo: string;
-    desdeUTM: number;
-    hastaUTM: number;
-    factor: number;
-    rebajaUTM: number;
-};
-
-export type HealthEntity = {
-    id: string;
-    year: number;
-    month: number;
+    companyId: string;
+    rut: string;
     name: string;
-    mandatoryContribution: number;
-    previredCode: string;
-    dtCode: string;
-};
+    address: string;
+    commune: string;
+    city: string;
+    region: string;
+    phone?: string;
+    email?: string;
+    type: 'Cliente' | 'Proveedor';
+}
 
-export type AfpEntity = {
+export interface CostCenter {
     id: string;
-    year: number;
-    month: number;
+    companyId: string;
     name: string;
-    mandatoryContribution: number;
-    employerContribution?: number;
-    previredCode: string;
-    provisionalRegime: string;
-    dtCode: string;
-};
+    description?: string;
+}
 
-export type EconomicIndicator = {
-    id: string; // YYYY-MM
-    year: number;
-    month: number;
-    uf?: number;
-    utm?: number;
-    uta?: number;
-    minWage?: number;
-    gratificationCap?: number;
-};
-
-export type TaxableCap = {
-    id: string; // YYYY
-    year: number;
-    afpCap: number;
-    afcCap: number;
-};
-
-export type LegalDocument = {
+export interface Employee {
     id: string;
-    templateSlug: string;
+    companyId: string;
+    firstName: string;
+    lastName: string;
+    rut: string;
+    nationality: string;
+    birthDate: Timestamp;
+    gender: 'Masculino' | 'Femenino' | 'Otro';
+    address: string;
+    commune: string;
+    city: string;
+    phone: string;
+    email: string;
+    maritalStatus: 'Soltero(a)' | 'Casado(a)' | 'Divorciado(a)' | 'Viudo(a)';
+    emergencyContactName: string;
+    emergencyContactPhone: string;
+    
+    position: string;
+    contractType: 'Indefinido' | 'Plazo Fijo' | 'Por Obra o Faena';
+    contractStartDate: Timestamp;
+    contractEndDate?: Timestamp;
+    weeklyHours: number;
+    workday: 'Completa' | 'Parcial';
+    costCenterId?: string;
+    
+    baseSalary: number;
+    bonosFijos?: Bono[];
+    collation: number;
+    mobilization: number;
+    gratificationType: 'Sin Gratificación' | 'Tope Legal' | 'Automatico';
+    
+    afp: string;
+    healthSystem: 'Fonasa' | 'Isapre';
+    healthContributionType?: 'Porcentaje' | 'Monto Fijo';
+    healthContributionValue?: number;
+    hasUnemploymentInsurance: boolean;
+    unemploymentInsuranceType?: 'Indefinido' | 'Plazo Fijo';
+
+    // Restored Fields
+    hasFamilyAllowance?: boolean;
+    familyDependents?: number;
+    familyAllowanceBracket?: 'A' | 'B' | 'C' | 'D';
+    apvInstitution?: string;
+    apvAmount?: number;
+    apvRegime?: 'A' | 'B';
+
+    // Payment Details
+    paymentMethod?: 'Transferencia Bancaria' | 'Cheque' | 'Efectivo';
+    bank?: string;
+    accountType?: 'Cuenta Corriente' | 'Cuenta Vista' | 'Cuenta de Ahorro';
+    accountNumber?: string;
+
+    status: 'Active' | 'Inactive';
+}
+
+export interface Payroll {
+    id: string;
+    companyId: string;
     employeeId: string;
-    lastSaved?: any;
-};
+    employeeName: string;
+    year: number;
+    month: number;
+    period: string;
 
+    baseSalary: number;
+    sueldoBaseProporcional?: number;
+    gratification?: number;
+    
+    bonos?: (Bono & { tipo: 'fijo' | 'variable' })[]; 
+    
+    overtimeHours50?: number;
+    overtimeHours100?: number;
+    otherTaxableEarnings?: number;
+    taxableEarnings?: number;
+    nonTaxableEarnings?: number;
+    totalEarnings?: number;
+    
+    afpDiscount?: number;
+    healthDiscount?: number;
+    unemploymentInsuranceDiscount?: number;
+    iut?: number;
+    iutFactor?: number;
+    iutRebajaInCLP?: number;
+    advances?: number;
+    otherDiscounts?: number;
+    totalDiscounts?: number;
+    
+    netSalary?: number;
+    absentDays?: number;
+}
 
-export type SelectedCompanyContextType = {
-    selectedCompany: Company | null;
-    setSelectedCompany: (company: Company | null) => void;
-};
+export interface AfpEntity {
+    id: string;
+    name: string;
+    mandatoryContribution: number;
+    sisContribution: number;
+    year: number;
+    month: number;
+}
+
+export interface HealthEntity {
+    id: string;
+    name: string;
+}
+
+export interface EconomicIndicator {
+    id: string; // YYYY-MM
+    uf: number;
+    utm: number;
+    minWage: number;
+    cpi?: number;
+}
+
+export interface TaxableCap {
+    id: string;
+    year: number;
+    afpCap: number; // In UF
+    afcCap: number; // In UF
+}
+
+export interface SelectedCompanyContextType {
+  selectedCompany: Company | null;
+  setSelectedCompany: (company: Company) => void;
+}
+
+export interface LegalDocument {
+    id: string;
+    companyId: string;
+    employeeId: string;
+    templateSlug: string;
+    formData: any;
+    lastSaved: Timestamp;
+}

@@ -53,7 +53,7 @@ function SidebarLogo() {
 function AccountantDashboardLayout({ children }: { children: React.ReactNode }) {
     const firestore = useFirestore();
     const { user, loading: userLoading } = useUser();
-    const { userProfile, loading: profileLoading } = useUserProfile(user?.uid);
+    const { userProfile, loading: profileLoading, refetchUserProfile } = useUserProfile(user?.uid);
     const { toast } = useToast();
     const router = useRouter();
     
@@ -129,6 +129,7 @@ function AccountantDashboardLayout({ children }: { children: React.ReactNode }) 
     const handleCompanyChange = (company: Company) => {
         setSelectedCompany(company);
         localStorage.setItem('selectedCompanyId', company.id);
+        refetchUserProfile();
     };
     
     const handlePeriodChange = async (year: number, month: number) => {

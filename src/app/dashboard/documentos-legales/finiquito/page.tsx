@@ -46,6 +46,31 @@ const InfoTooltip = ({ children }: { children: React.ReactNode }) => (
     </Tooltip>
 );
 
+// Define a default state object to ensure all fields are controlled from the start.
+const defaultFormData: Partial<FiniquitoFormData> = {
+    nombreTrabajador: '',
+    rutTrabajador: '',
+    nombreEmpleador: '',
+    rutEmpleador: '',
+    fechaInicio: undefined,
+    fechaTermino: new Date(),
+    causalTermino: 'Artículo 161, inciso primero: Necesidades de la empresa.', // Always initialized
+    baseIndemnizacion: 0,
+    anosServicio: 0,
+    diasFeriado: 0,
+    incluyeMesAviso: true,
+    remuneracionesPendientes: 0,
+    otrosHaberes: 0,
+    descuentosPrevisionales: 0,
+    otrosDescuentos: 0,
+    causalHechos: '',
+    formaPago: 'Transferencia Electrónica',
+    fechaPago: new Date(),
+    ciudadFirma: '',
+    ministroDeFe: 'Notario Público de [Ciudad del Notario]',
+};
+
+
 export default function FiniquitoGeneratorPage() {
     const { selectedCompany } = React.useContext(SelectedCompanyContext) || {};
     const db = useFirestore();
@@ -57,28 +82,8 @@ export default function FiniquitoGeneratorPage() {
     const [formErrors, setFormErrors] = React.useState<string[]>([]);
     const [userModifiedFields, setUserModifiedFields] = React.useState<Set<string>>(new Set());
 
-    const [formData, setFormData] = React.useState<Partial<FiniquitoFormData>>({
-        nombreTrabajador: '',
-        rutTrabajador: '',
-        nombreEmpleador: selectedCompany?.name || '',
-        rutEmpleador: selectedCompany?.rut || '',
-        fechaInicio: undefined,
-        fechaTermino: new Date(),
-        causalTermino: 'Artículo 161, inciso primero: Necesidades de la empresa.',
-        baseIndemnizacion: 0,
-        anosServicio: 0,
-        diasFeriado: 0,
-        incluyeMesAviso: true,
-        remuneracionesPendientes: 0,
-        otrosHaberes: 0,
-        descuentosPrevisionales: 0,
-        otrosDescuentos: 0,
-        causalHechos: '',
-        formaPago: 'Transferencia Electrónica',
-        fechaPago: new Date(),
-        ciudadFirma: selectedCompany?.commune || '',
-        ministroDeFe: 'Notario Público de [Ciudad del Notario]',
-    });
+    // Use the default state object for initialization.
+    const [formData, setFormData] = React.useState<Partial<FiniquitoFormData>>(defaultFormData);
 
     const [calculated, setCalculated] = React.useState({
         indemnizacionAnos: 0,
@@ -91,14 +96,19 @@ export default function FiniquitoGeneratorPage() {
 
     React.useEffect(() => {
         if (selectedCompany) {
-            setFormData(prev => ({ ...prev, nombreEmpleador: selectedCompany.name, rutEmpleador: selectedCompany.rut, ciudadFirma: selectedCompany.commune || '' }));
+            setFormData(prev => ({ 
+                ...prev, 
+                nombreEmpleador: selectedCompany.name, 
+                rutEmpleador: selectedCompany.rut, 
+                ciudadFirma: selectedCompany.commune || '' 
+            }));
         }
     }, [selectedCompany]);
 
     const selectedEmployee = React.useMemo(() => employees?.find(e => e.id === selectedEmployeeId) || null, [employees, selectedEmployeeId]);
 
     React.useEffect(() => {
-        setUserModifiedFields(new Set()); // Reset on employee change
+        setUserModifiedFields(new Set()); 
         if (selectedEmployee) {
             let startDate: Date | undefined = undefined;
             if (selectedEmployee.contractStartDate && (selectedEmployee.contractStartDate as any) instanceof Timestamp) {
@@ -108,18 +118,27 @@ export default function FiniquitoGeneratorPage() {
             if (selectedEmployee.contractEndDate && (selectedEmployee.contractEndDate as any) instanceof Timestamp) {
                 endDate = (selectedEmployee.contractEndDate as any).toDate();
             }
+            // Reset to a known-good state when employee changes
             setFormData(prev => ({ 
-                ...prev, 
+                ...defaultFormData, // Start with defaults
+                nombreEmpleador: selectedCompany?.name || '',
+                rutEmpleador: selectedCompany?.rut || '',
+                ciudadFirma: selectedCompany?.commune || '',
                 nombreTrabajador: `${selectedEmployee.firstName} ${selectedEmployee.lastName}`, 
                 rutTrabajador: selectedEmployee.rut, 
                 fechaInicio: startDate, 
-                fechaTermino: endDate, 
-                baseIndemnizacion: 0, anosServicio: 0, diasFeriado: 0 
+                fechaTermino: endDate,
             }));
         } else {
-             setFormData(prev => ({ ...prev, nombreTrabajador: '', rutTrabajador: '', fechaInicio: undefined, fechaTermino: new Date(), baseIndemnizacion: 0, anosServicio: 0, diasFeriado: 0 }));
+             // When no employee is selected, reset to company defaults
+             setFormData(prev => ({
+                ...defaultFormData,
+                nombreEmpleador: selectedCompany?.name || '',
+                rutEmpleador: selectedCompany?.rut || '',
+                ciudadFirma: selectedCompany?.commune || '',
+             }));
         }
-    }, [selectedEmployee]);
+    }, [selectedEmployee, selectedCompany]);
 
     // --- SUGGEST BASE SALARY USING CLOUD FUNCTION ---
     React.useEffect(() => {
@@ -132,14 +151,9 @@ export default function FiniquitoGeneratorPage() {
                 const getLatestPayrollSalary = httpsCallable(functions, 'getLatestPayrollSalary');
                 const result: any = await getLatestPayrollSalary({ companyId: selectedCompany.id, employeeId: selectedEmployee.id });
                 
-                // *** CORRECTION STARTS HERE ***
-                // Safely access the data, providing a default of null if properties don't exist
                 const baseIndemnizacion = result?.data?.baseIndemnizacion ?? null;
-                // *** CORRECTION ENDS HERE ***
 
                 if (baseIndemnizacion === null) {
-                    console.log("No previous payroll found for employee or function returned null.");
-                    // Set a sensible default or simply don't update
                     handleInputChange('baseIndemnizacion', 0); 
                     return; 
                 }

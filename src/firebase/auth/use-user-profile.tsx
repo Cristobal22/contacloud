@@ -14,7 +14,7 @@ export function useUserProfile(uid: string | undefined) {
     return doc(firestore, 'users', uid);
   }, [uid, firestore]);
     
-  const { data: userProfile, loading } = useDoc<UserProfile>(userProfileRef);
+  const { data: userProfile, loading, refetch } = useDoc<UserProfile>(userProfileRef);
 
-  return { userProfile, loading };
+  return { userProfile, loading, refetchUserProfile: refetch };
 }

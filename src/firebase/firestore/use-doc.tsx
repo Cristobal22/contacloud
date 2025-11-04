@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { onSnapshot, DocumentReference } from 'firebase/firestore';
 import { errorEmitter } from '../error-emitter';
 import { FirestorePermissionError } from '../errors';
@@ -9,24 +9,24 @@ export function useDoc<T>(docRef: DocumentReference<T> | null) {
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+  const [refetchToggle, setRefetchToggle] = useState(false);
 
-  // Use the path as a stable dependency key
   const docPath = useMemo(() => docRef?.path, [docRef]);
 
+  const refetch = useCallback(() => {
+    setRefetchToggle(prev => !prev);
+  }, []);
+
   useEffect(() => {
-    // Robust Guard: Only proceed if docPath is a valid, non-empty string.
-    // This prevents attempts to listen to undefined, null, or empty paths,
-    // which is the likely cause of the internal Firestore error.
     if (!docPath) {
       setData(null);
       setLoading(false);
-      return; // Stop execution, no subscription is made, no cleanup needed.
+      return;
     }
 
-    // If docPath is valid, docRef must have been valid to create it.
     setLoading(true);
     const unsubscribe = onSnapshot(
-      docRef!, // We can safely assert docRef is not null here because docPath is valid.
+      docRef!,
       (docSnap) => {
         setLoading(false);
         if (docSnap.exists()) {
@@ -46,9 +46,8 @@ export function useDoc<T>(docRef: DocumentReference<T> | null) {
       }
     );
 
-    // This cleanup function is only registered if a subscription was successfully created.
     return () => unsubscribe();
-  }, [docPath]); // Re-run effect only if the document path string changes
+  }, [docPath, refetchToggle]);
 
-  return { data, loading, error };
+  return { data, loading, error, refetch };
 }

@@ -10,10 +10,6 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    function isExistingOwner(userId) {
-      return isOwner(userId) && resource != null;
-    }
-
     function isAdmin() {
       return isSignedIn() && (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Admin');
     }
@@ -26,141 +22,44 @@ service cloud.firestore {
       allow get: if isOwner(userId) || isAdmin();
       allow list: if isAdmin();
       allow create: if (isOwner(userId) && request.resource.data.uid == userId) || isAdmin();
-      allow update: if isExistingOwner(userId) || isAdmin();
-      allow delete: if isExistingOwner(userId) || isAdmin();
+      allow update: if isOwner(userId) || isAdmin();
+      allow delete: if isOwner(userId) || isAdmin();
     }
 
     match /companies/{companyId} {
       allow get, list: if isUserAssociatedWithCompany(companyId);
       allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
-      allow update: if isExistingOwner(resource.data.ownerId);
-      allow delete: if isExistingOwner(resource.data.ownerId);
+      allow update: if isUserAssociatedWithCompany(companyId);
+      allow delete: if isUserAssociatedWithCompany(companyId);
     }
 
-    match /companies/{companyId}/accounts/{accountId} {
-      allow get, list: if isUserAssociatedWithCompany(companyId);
-      allow create: if isUserAssociatedWithCompany(companyId);
-      allow update: if isUserAssociatedWithCompany(companyId) && resource != null;
-      allow delete: if isUserAssociatedWithCompany(companyId) && resource != null;
-    }
-
-    match /companies/{companyId}/vouchers/{voucherId} {
-      allow get, list: if isUserAssociatedWithCompany(companyId);
-      allow create: if isUserAssociatedWithCompany(companyId);
-      allow update: if isUserAssociatedWithCompany(companyId) && resource != null;
-      allow delete: if isUserAssociatedWithCompany(companyId) && resource != null;
-    }
-
-    match /companies/{companyId}/subjects/{subjectId} {
-      allow get, list: if isUserAssociatedWithCompany(companyId);
-      allow create: if isUserAssociatedWithCompany(companyId);
-      allow update: if isUserAssociatedWithCompany(companyId) && resource != null;
-      allow delete: if isUserAssociatedWithCompany(companyId) && resource != null;
-    }
-
-    match /companies/{companyId}/cost-centers/{costCenterId} {
-      allow get, list: if isUserAssociatedWithCompany(companyId);
-      allow create: if isUserAssociatedWithCompany(companyId);
-      allow update: if isUserAssociatedWithCompany(companyId) && resource != null;
-      allow delete: if isUserAssociatedWithCompany(companyId) && resource != null;
-    }
-
-    match /companies/{companyId}/employees/{employeeId} {
-      allow get, list: if isUserAssociatedWithCompany(companyId);
-      allow create: if isUserAssociatedWithCompany(companyId);
-      allow update: if isUserAssociatedWithCompany(companyId) && resource != null;
-      allow delete: if isUserAssociatedWithCompany(companyId) && resource != null;
-    }
-
-    match /companies/{companyId}/payrolls/{payrollId} {
-      allow get, list: if isUserAssociatedWithCompany(companyId);
-      allow create: if isUserAssociatedWithCompany(companyId);
-      allow update: if isUserAssociatedWithCompany(companyId) && resource != null;
-      allow delete: if isUserAssociatedWithCompany(companyId) && resource != null;
-    }
-
-    match /companies/{companyId}/documents/{documentId} {
-      allow get, list: if isUserAssociatedWithCompany(companyId);
-      allow create: if isUserAssociatedWithCompany(companyId);
-      allow update: if isUserAssociatedWithCompany(companyId) && resource != null;
-      allow delete: if isUserAssociatedWithCompany(companyId) && resource != null;
-    }
-
-    match /companies/{companyId}/purchases/{purchaseId} {
-      allow get, list: if isUserAssociatedWithCompany(companyId);
-      allow create: if isUserAssociatedWithCompany(companyId);
-      allow update: if isUserAssociatedWithCompany(companyId) && resource != null;
-      allow delete: if isUserAssociatedWithCompany(companyId) && resource != null;
-    }
-
-    match /companies/{companyId}/sales/{saleId} {
-      allow get, list: if isUserAssociatedWithCompany(companyId);
-      allow create: if isUserAssociatedWithCompany(companyId);
-      allow update: if isUserAssociatedWithCompany(companyId) && resource != null;
-      allow delete: if isUserAssociatedWithCompany(companyId) && resource != null;
-    }
-
-    match /companies/{companyId}/fees/{feeId} {
-      allow get, list: if isUserAssociatedWithCompany(companyId);
-      allow create: if isUserAssociatedWithCompany(companyId);
-      allow update: if isUserAssociatedWithCompany(companyId) && resource != null;
-      allow delete: if isUserAssociatedWithCompany(companyId) && resource != null;
-    }
+    // Explicit rules for all company subcollections
+    match /companies/{companyId}/accounts/{docId} { allow read, write: if isUserAssociatedWithCompany(companyId); }
+    match /companies/{companyId}/vouchers/{docId} { allow read, write: if isUserAssociatedWithCompany(companyId); }
+    match /companies/{companyId}/subjects/{docId} { allow read, write: if isUserAssociatedWithCompany(companyId); }
+    match /companies/{companyId}/cost-centers/{docId} { allow read, write: if isUserAssociatedWithCompany(companyId); }
+    match /companies/{companyId}/employees/{docId} { allow read, write: if isUserAssociatedWithCompany(companyId); }
+    match /companies/{companyId}/payrolls/{docId} { allow read, write: if isUserAssociatedWithCompany(companyId); }
+    match /companies/{companyId}/documents/{docId} { allow read, write: if isUserAssociatedWithCompany(companyId); }
+    match /companies/{companyId}/purchases/{docId} { allow read, write: if isUserAssociatedWithCompany(companyId); }
+    match /companies/{companyId}/sales/{docId} { allow read, write: if isUserAssociatedWithCompany(companyId); }
+    match /companies/{companyId}/fees/{docId} { allow read, write: if isUserAssociatedWithCompany(companyId); }
 
     match /companies/{companyId}/economic-indicators/{indicatorId} {
-        allow get, list: if isUserAssociatedWithCompany(companyId);
-        allow create: if isAdmin();
-        allow update: if isAdmin() && resource != null;
-        allow delete: if isAdmin() && resource != null;
+      allow get, list: if isUserAssociatedWithCompany(companyId);
+      allow create, update, delete: if isAdmin();
     }
 
     match /users/{userId}/account-groups/{accountGroupId} {
-      allow get, list: if isOwner(userId);
-      allow create: if isOwner(userId);
-      allow update: if isExistingOwner(userId);
-      allow delete: if isExistingOwner(userId);
+      allow read, write: if isOwner(userId);
     }
 
-    match /economic-indicators/{indicatorId} {
-      allow get, list: if true;
-      allow create: if isAdmin();
-      allow update: if isAdmin() && resource != null;
-      allow delete: if isAdmin() && resource != null;
-    }
-
-    match /health-entities/{entityId} {
-      allow get, list: if true;
-      allow create: if isAdmin();
-      allow update: if isAdmin() && resource != null;
-      allow delete: if isAdmin() && resource != null;
-    }
-
-    match /afp-entities/{entityId} {
-      allow get, list: if true;
-      allow create: if isAdmin();
-      allow update: if isAdmin() && resource != null;
-      allow delete: if isAdmin() && resource != null;
-    }
-
-    match /family-allowance-parameters/{paramId} {
-      allow get, list: if true;
-      allow create: if isAdmin();
-      allow update: if isAdmin() && resource != null;
-      allow delete: if isAdmin() && resource != null;
-    }
-
-    match /tax-parameters/{paramId} {
-      allow get, list: if true;
-      allow create: if isAdmin();
-      allow update: if isAdmin() && resource != null;
-      allow delete: if isAdmin() && resource != null;
-    }
-
-    match /taxable-caps/{capId} {
-      allow get, list: if true;
-      allow create: if isAdmin();
-      allow update: if isAdmin() && resource != null;
-      allow delete: if isAdmin() && resource != null;
-    }
+    // Public or Admin-only collections
+    match /economic-indicators/{indicatorId} { allow get, list: if true; allow create, update, delete: if isAdmin(); }
+    match /health-entities/{entityId} { allow get, list: if true; allow create, update, delete: if isAdmin(); }
+    match /afp-entities/{entityId} { allow get, list: if true; allow create, update, delete: if isAdmin(); }
+    match /family-allowance-parameters/{paramId} { allow get, list: if true; allow create, update, delete: if isAdmin(); }
+    match /tax-parameters/{paramId} { allow get, list: if true; allow create, update, delete: if isAdmin(); }
+    match /taxable-caps/{capId} { allow get, list: if true; allow create, update, delete: if isAdmin(); }
   }
 }

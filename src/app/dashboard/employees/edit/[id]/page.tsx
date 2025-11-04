@@ -26,8 +26,15 @@ import {
     AlertDialogFooter,
     AlertDialogHeader,
     AlertDialogTitle,
-    AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button";
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -40,20 +47,66 @@ import {
   } from "@/components/ui/select"
 import { Checkbox } from '@/components/ui/checkbox';
 import { useCollection, useDoc, useFirestore } from '@/firebase';
-import type { Employee, CostCenter, AfpEntity, HealthEntity, EconomicIndicator, LegalDocument } from '@/lib/types';
+import type { Employee, CostCenter, AfpEntity, HealthEntity, Bono, LegalDocument, EconomicIndicator } from '@/lib/types';
 import { DOCUMENT_TEMPLATES } from '@/lib/document-templates';
 import { SelectedCompanyContext } from '@/app/dashboard/layout';
 import { doc, setDoc, addDoc, collection, where, DocumentReference, Timestamp, DocumentData, updateDoc, query } from 'firebase/firestore';
 import { useRouter, useParams } from 'next/navigation';
-import { ArrowLeft, FileText, Eye, Trash2, Loader2, ShieldAlert } from 'lucide-react';
+import { ArrowLeft, FileText, Eye, Trash2, Loader2, ShieldAlert, PlusCircle } from 'lucide-react';
 import Link from 'next/link';
-import { errorEmitter } from '@/firebase/error-emitter'
-import { FirestorePermissionError } from '@/firebase/errors'
 import { nationalities, regions, communesByRegion } from '@/lib/geographical-data';
 import { checkEmployeeHistory, softDeleteEmployee, permanentlyDeleteEmployee } from '@/lib/actions/employees';
-import { useToast } from "@/hooks/use-toast"
+import { useToast } from "@/hooks/use-toast";
 
-// Componente de lógica de eliminación "Inteligente"
+const formatCurrency = (value: number) => new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(Math.round(value));
+
+const defaultEmployeeState: Partial<Employee> & { gratification?: number } = {
+    rut: '',
+    firstName: '',
+    lastName: '',
+    birthDate: '',
+    nationality: '',
+    address: '',
+    region: '',
+    commune: '',
+    phone: '',
+    email: '',
+    gender: undefined,
+    maritalStatus: undefined,
+    emergencyContactName: '',
+    emergencyContactPhone: '',
+    position: '',
+    contractType: undefined,
+    contractStartDate: '',
+    contractEndDate: '',
+    weeklyHours: 45,
+    workday: 'Completa',
+    costCenterId: '',
+    status: 'Active',
+    baseSalary: 0,
+    mobilization: 0,
+    collation: 0,
+    gratificationType: 'Automatico',
+    gratification: 0,
+    bonosFijos: [],
+    healthSystem: undefined,
+    healthContributionType: 'Porcentaje',
+    healthContributionValue: 7,
+    afp: undefined,
+    unemploymentInsuranceType: undefined,
+    hasUnemploymentInsurance: true,
+    hasFamilyAllowance: false,
+    familyDependents: 0,
+    familyAllowanceBracket: undefined,
+    apvInstitution: '',
+    apvAmount: 0,
+    apvRegime: undefined,
+    paymentMethod: undefined,
+    bank: undefined,
+    accountType: undefined,
+    accountNumber: '',
+};
+
 function DeleteEmployeeManager({ companyId, employeeId, employeeName }: { companyId: string; employeeId: string; employeeName: string }) {
     const router = useRouter();
     const { toast } = useToast();
@@ -64,13 +117,7 @@ function DeleteEmployeeManager({ companyId, employeeId, employeeName }: { compan
 
     const handleCheckHistory = async () => {
         setIsChecking(true);
-        setHasHistory(null);
         const result = await checkEmployeeHistory(companyId, employeeId);
-        if (result.error) {
-            toast({ title: "Error", description: result.error, variant: "destructive" });
-            setIsChecking(false);
-            return;
-        }
         setHasHistory(result.hasHistory);
         setIsChecking(false);
         setDialogOpen(true);
@@ -79,89 +126,50 @@ function DeleteEmployeeManager({ companyId, employeeId, employeeName }: { compan
     const handleSoftDelete = async () => {
         setIsLoading(true);
         const result = await softDeleteEmployee(companyId, employeeId);
-        setIsLoading(false);
-        setDialogOpen(false);
         if (result.success) {
             toast({ title: "Éxito", description: result.message });
             router.push('/dashboard/employees');
         } else {
             toast({ title: "Error", description: result.message, variant: "destructive" });
         }
+        setIsLoading(false);
+        setDialogOpen(false);
     };
 
     const handlePermanentDelete = async () => {
         setIsLoading(true);
         const result = await permanentlyDeleteEmployee(companyId, employeeId);
-        setIsLoading(false);
-        setDialogOpen(false);
         if (result.success) {
             toast({ title: "Éxito", description: result.message });
             router.push('/dashboard/employees');
         } else {
             toast({ title: "Error", description: result.message, variant: "destructive" });
         }
-    };
-
-    const renderDialogContent = () => {
-        if (hasHistory === null) {
-            return null; // No debería mostrarse
-        }
-
-        if (hasHistory) {
-            return (
-                <AlertDialogContent>
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>¿Desactivar a {employeeName}?</AlertDialogTitle>
-                        <AlertDialogDescription className='space-y-4'>
-                            <div className='p-3 bg-yellow-50 border border-yellow-200 rounded-md flex items-start gap-3'>
-                                <ShieldAlert className="h-5 w-5 text-yellow-600 mt-1"/>
-                                <p className='text-yellow-800'>Este empleado tiene un historial de datos (documentos o liquidaciones). Para mantener la integridad de los reportes, no puede ser eliminado permanentemente. Solo puede ser desactivado.</p>
-                            </div>
-                           <p>Esta acción cambiará el estado del empleado a <span className='font-bold'>Inactivo</span> y no se podrá seleccionar para nuevas operaciones. ¿Deseas continuar?</p>
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                        <AlertDialogAction onClick={handleSoftDelete} disabled={isLoading}>
-                            {isLoading ? 'Desactivando...' : 'Sí, desactivar'}
-                        </AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            );
-        }
-
-        return (
-            <AlertDialogContent>
-                <AlertDialogHeader>
-                    <AlertDialogTitle>¿Eliminar a {employeeName}?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                       Este empleado no tiene datos históricos asociados. Puedes desactivarlo (acción reversible) o eliminarlo permanentemente (acción irreversible).
-                    </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter className="gap-2 sm:gap-0">
-                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                    <Button variant="outline" onClick={handleSoftDelete} disabled={isLoading}>
-                        {isLoading ? 'Desactivando...' : 'Desactivar'}
-                    </Button>
-                    <AlertDialogAction
-                        className="bg-red-600 hover:bg-red-700 dark:bg-red-700 dark:hover:bg-red-800"
-                        onClick={handlePermanentDelete} 
-                        disabled={isLoading}
-                    >
-                        {isLoading ? 'Eliminando...' : 'Eliminar Permanentemente'}
-                    </AlertDialogAction>
-                </AlertDialogFooter>
-            </AlertDialogContent>
-        );
+        setIsLoading(false);
+        setDialogOpen(false);
     };
 
     return (
         <AlertDialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <Button variant="destructive" onClick={handleCheckHistory} disabled={isChecking}>
                 {isChecking ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
-                {isChecking ? 'Verificando...' : 'Eliminar Empleado'}
+                {isChecking ? 'Verificando...' : 'Eliminar'}
             </Button>
-            {renderDialogContent()}
+            {hasHistory !== null && (
+                hasHistory ? (
+                    <AlertDialogContent>
+                        <AlertDialogHeader><AlertDialogTitle>¿Desactivar a {employeeName}?</AlertDialogTitle>
+                        <AlertDialogDescription>Este empleado tiene historial y solo puede ser desactivado.</AlertDialogDescription></AlertDialogHeader>
+                        <AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction onClick={handleSoftDelete} disabled={isLoading}>Desactivar</AlertDialogAction></AlertDialogFooter>
+                    </AlertDialogContent>
+                ) : (
+                    <AlertDialogContent>
+                        <AlertDialogHeader><AlertDialogTitle>¿Eliminar a {employeeName}?</AlertDialogTitle>
+                        <AlertDialogDescription>Puedes desactivarlo (reversible) o eliminarlo permanentemente (irreversible).</AlertDialogDescription></AlertDialogHeader>
+                        <AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><Button variant="outline" onClick={handleSoftDelete}>Desactivar</Button><AlertDialogAction onClick={handlePermanentDelete}>Eliminar</AlertDialogAction></AlertDialogFooter>
+                    </AlertDialogContent>
+                )
+            )}
         </AlertDialog>
     );
 }
@@ -174,158 +182,103 @@ export default function EmployeeFormPage() {
     const companyId = selectedCompany?.id;
     const firestore = useFirestore();
     const router = useRouter();
+    const { toast } = useToast();
 
-    const employeeRef = React.useMemo(() => 
-        !isNew && firestore && companyId ? doc(firestore, `companies/${companyId}/employees`, id) as DocumentReference<Employee> : null
-    , [isNew, firestore, companyId, id]);
-
+    const employeeRef = React.useMemo(() => !isNew && firestore && companyId ? doc(firestore, `companies/${companyId}/employees`, id) as DocumentReference<Employee> : null, [isNew, firestore, companyId, id]);
     const { data: existingEmployee, loading: employeeLoading } = useDoc<Employee>(employeeRef);
-    
-    const legalDocumentsQuery = React.useMemo(() => {
-        if (!firestore || !companyId || isNew) return null;
-        const documentsCollection = collection(firestore, `companies/${companyId}/documents`);
-        return query(documentsCollection, where('employeeId', '==', id));
-    }, [firestore, companyId, isNew, id]);
+    const { data: legalDocuments, loading: documentsLoading } = useCollection<LegalDocument>({ query: !isNew && firestore && companyId ? query(collection(firestore, `companies/${companyId}/documents`), where('employeeId', '==', id)) : null });
 
-    const { data: legalDocuments, loading: documentsLoading } = useCollection<LegalDocument>({
-        query: legalDocumentsQuery,
-        disabled: !legalDocumentsQuery,
-    });
-
-    const [employee, setEmployee] = React.useState<Partial<Employee> | null>(null);
+    const [employee, setEmployee] = React.useState(defaultEmployeeState);
     const [availableCommunes, setAvailableCommunes] = React.useState<string[]>([]);
-
-    const { data: costCenters, loading: costCentersLoading } = useCollection<CostCenter>({
-        path: companyId ? `companies/${companyId}/cost-centers` : undefined,
-        companyId: companyId
-    });
+    const [bonoDialogState, setBonoDialogState] = React.useState<{ isOpen: boolean; bono: Partial<Bono>; index: number | null }>({ isOpen: false, bono: { glosa: '', monto: 0 }, index: null });
 
     const { data: afpEntities, loading: afpLoading } = useCollection<AfpEntity>({ path: 'afp-entities' });
     const { data: healthEntities, loading: healthLoading } = useCollection<HealthEntity>({ path: 'health-entities' });
-
-    const uniqueAfpEntities = React.useMemo(() => {
-        if (!afpEntities) return [];
-        const uniqueMap = new Map<string, AfpEntity>();
-        afpEntities.forEach(entity => { if (!uniqueMap.has(entity.name)) uniqueMap.set(entity.name, entity); });
-        return Array.from(uniqueMap.values());
-    }, [afpEntities]);
-
-    const uniqueHealthEntities = React.useMemo(() => {
-        if (!healthEntities) return [];
-        const uniqueMap = new Map<string, HealthEntity>();
-        healthEntities.forEach(entity => { if (!uniqueMap.has(entity.name)) uniqueMap.set(entity.name, entity); });
-        return Array.from(uniqueMap.values());
-    }, [healthEntities]);
-
     const { data: economicIndicators, loading: indicatorsLoading } = useCollection<EconomicIndicator>({ path: 'economic-indicators' });
+    const { data: costCenters, loading: costCentersLoading } = useCollection<CostCenter>({ path: companyId ? `companies/${companyId}/cost-centers` : undefined });
+
+    const uniqueAfpEntities = React.useMemo(() => afpEntities ? [...new Map(afpEntities.map(e => [e.name, e])).values()] : [], [afpEntities]);
+    const uniqueHealthEntities = React.useMemo(() => healthEntities ? [...new Map(healthEntities.map(e => [e.name, e])).values()] : [], [healthEntities]);
 
     const gratificationCapMonthly = React.useMemo(() => {
-        if (!economicIndicators || economicIndicators.length === 0) return 0;
-        const latestIndicator = economicIndicators.filter(i => i.minWage).sort((a, b) => b.id.localeCompare(a.id))[0];
-        if (!latestIndicator || !latestIndicator.minWage) return 0;
-        return Math.round((4.75 * latestIndicator.minWage) / 12);
+        if (!economicIndicators?.length) return 0;
+        const latest = economicIndicators.filter(i => i.minWage).sort((a, b) => b.id.localeCompare(a.id))[0];
+        return latest?.minWage ? Math.round((4.75 * latest.minWage) / 12) : 0;
     }, [economicIndicators]);
 
-    const formatDateForInput = (dateValue: any): string => {
-        if (!dateValue) return '';
-
-        let date: Date;
-        // Comprobar si es un objeto Timestamp de Firestore
-        if (dateValue.toDate && typeof dateValue.toDate === 'function') {
-            date = dateValue.toDate();
+    React.useEffect(() => {
+        if (!employee) return;
+        let value = 0;
+        if (employee.gratificationType === 'Automatico' && employee.baseSalary && gratificationCapMonthly > 0) {
+            value = Math.round(Math.min(employee.baseSalary * 0.25, gratificationCapMonthly));
+        } else if (employee.gratificationType === 'Tope Legal') {
+            value = gratificationCapMonthly;
         }
-        // Comprobar si es un string de fecha (ej: '2024-07-29') o un objeto Date
-        else {
-            date = new Date(dateValue);
-        }
+        if (employee.gratification !== value) handleFieldChange('gratification', value);
+    }, [employee?.baseSalary, employee?.gratificationType, gratificationCapMonthly]);
 
-        // Comprobar si el objeto Date es válido
-        if (isNaN(date.getTime())) {
-            return '';
-        }
-
-        // Ajustar la zona horaria para evitar errores de un día
-        const adjustedDate = new Date(date.getTime() + (date.getTimezoneOffset() * 60000));
-        return adjustedDate.toISOString().split('T')[0];
-    };
+    const formatDateForInput = (d: any) => d ? new Date(d.toDate ? d.toDate() : d).toISOString().split('T')[0] : '';
 
     React.useEffect(() => {
         if (isNew) {
-            setEmployee({ status: 'Active', hasUnemploymentInsurance: true, hasFamilyAllowance: true, companyId, healthContributionType: 'Porcentaje', healthContributionValue: 7, gratificationType: 'Manual' });
+            setEmployee({ ...defaultEmployeeState, companyId });
         } else if (existingEmployee) {
-            const employeeData = { ...existingEmployee };
-            if (employeeData.birthDate) employeeData.birthDate = formatDateForInput(employeeData.birthDate as any);
-            if (employeeData.contractStartDate) employeeData.contractStartDate = formatDateForInput(employeeData.contractStartDate as any);
-            if (employeeData.contractEndDate) employeeData.contractEndDate = formatDateForInput(employeeData.contractEndDate as any);
-            const communesForRegion = employeeData.region ? communesByRegion[employeeData.region] || [] : [];
-            if (employeeData.region) {
-                setAvailableCommunes(communesForRegion);
-                if (employeeData.commune && !communesForRegion.includes(employeeData.commune)) employeeData.commune = '';
-            } else {
-                setAvailableCommunes([]);
-                employeeData.commune = '';
-            }
-            setEmployee(employeeData);
+            const data = { ...defaultEmployeeState, ...existingEmployee };
+            data.birthDate = formatDateForInput(data.birthDate);
+            data.contractStartDate = formatDateForInput(data.contractStartDate);
+            data.contractEndDate = formatDateForInput(data.contractEndDate);
+            if (data.region) setAvailableCommunes(communesByRegion[data.region] || []);
+            setEmployee(data);
         }
     }, [isNew, existingEmployee, companyId]);
 
-    const handleFieldChange = (field: keyof Employee, value: string | number | boolean | undefined) => {
-        if (employee) {
-            const updatedEmployee = { ...employee, [field]: value };
-            if (field === 'region' && typeof value === 'string') {
-                setAvailableCommunes(communesByRegion[value] || []);
-                updatedEmployee.commune = '';
+    const handleFieldChange = (field: keyof typeof employee, value: any) => {
+        setEmployee(prev => {
+            const updated = { ...prev, [field]: value };
+            if (field === 'region') {
+                updated.commune = '';
+                setAvailableCommunes(communesByRegion[value as string] || []);
             }
-            setEmployee(updatedEmployee);
-        }
+            return updated;
+        });
     };
-    
-    React.useEffect(() => {
-        if (employee?.gratificationType === 'Automatico' && employee.baseSalary && gratificationCapMonthly > 0) {
-            const calculatedGratification = employee.baseSalary * 0.25;
-            const finalGratification = Math.min(calculatedGratification, gratificationCapMonthly);
-            setEmployee(prev => prev ? {...prev, gratification: Math.round(finalGratification)} : null);
-        } else if (employee?.gratificationType === 'Manual') {
-            // Manual logic
-        } else if (employee?.gratificationType === 'Automatico' && !employee.baseSalary) {
-             setEmployee(prev => prev ? {...prev, gratification: 0} : null);
-        }
-    }, [employee?.baseSalary, employee?.gratificationType, gratificationCapMonthly]);
+
+    const handleSaveBono = () => {
+        if (!bonoDialogState.bono.glosa || !bonoDialogState.bono.monto) return;
+        const current = employee.bonosFijos || [];
+        const newBonos = bonoDialogState.index !== null ? current.map((b, i) => i === bonoDialogState.index ? bonoDialogState.bono as Bono : b) : [...current, bonoDialogState.bono as Bono];
+        handleFieldChange('bonosFijos', newBonos);
+        setBonoDialogState({ isOpen: false, bono: { glosa: '', monto: 0 }, index: null });
+    };
+
+    const handleRemoveBono = (i: number) => handleFieldChange('bonosFijos', (employee.bonosFijos || []).filter((_, idx) => idx !== i));
 
     const handleSaveChanges = () => {
         if (!firestore || !companyId || !employee) return;
-        const collectionPath = `companies/${companyId}/employees`;
-        const { ...employeeFields } = employee;
-        const employeeData: Partial<Employee> = { ...employeeFields, companyId };
+        const toTimestamp = (d: any) => d ? Timestamp.fromDate(new Date(d)) : null;
 
-        const toTimestamp = (dateString: string | undefined | null) => {
-            if (!dateString) return null;
-            const date = new Date(dateString);
-            const adjustedDate = new Date(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
-            return Timestamp.fromDate(adjustedDate);
-        };
+        const { gratification, ...employeeData } = employee;
+        
+        const cleanedData = Object.entries(employeeData).reduce((acc, [key, value]) => ({...acc, [key]: value === undefined ? null : value}), {} as any);
 
-        if (employeeData.birthDate) employeeData.birthDate = toTimestamp(employeeData.birthDate as string);
-        if (employeeData.contractStartDate) employeeData.contractStartDate = toTimestamp(employeeData.contractStartDate as string);
-        employeeData.contractEndDate = toTimestamp(employeeData.contractEndDate as string);
+        const finalData = { ...cleanedData, companyId };
+        finalData.birthDate = toTimestamp(finalData.birthDate);
+        finalData.contractStartDate = toTimestamp(finalData.contractStartDate);
+        finalData.contractEndDate = toTimestamp(finalData.contractEndDate);
+        
+        const docRef = isNew ? doc(collection(firestore, `companies/${companyId}/employees`)) : doc(firestore, `companies/${companyId}/employees`, id);
+        const action = isNew ? setDoc(docRef, finalData) : updateDoc(docRef, finalData as DocumentData);
 
-        if (isNew) {
-            addDoc(collection(firestore, collectionPath), employeeData)
-                .then(() => { router.push('/dashboard/employees'); })
-                .catch(err => { errorEmitter.emit('permission-error', new FirestorePermissionError({ path: collectionPath, operation: 'create', requestResourceData: employeeData as DocumentData })); });
-        } else {
-            const docRef = doc(firestore, collectionPath, id);
-            updateDoc(docRef, employeeData as DocumentData)
-                .then(() => { router.push('/dashboard/employees'); })
-                .catch(err => { errorEmitter.emit('permission-error', new FirestorePermissionError({ path: docRef.path, operation: 'update', requestResourceData: employeeData as DocumentData })); });
-        }
+        action.then(() => {
+            toast({ title: "Éxito", description: "Ficha de personal guardada." });
+            router.push('/dashboard/employees');
+        }).catch(err => {
+            console.error("Firestore Error:", err);
+            toast({ title: "Error", description: err.message, variant: "destructive" });
+        });
     };
     
-    const getDocumentName = (slug: string) => DOCUMENT_TEMPLATES.find(t => t.slug === slug)?.name || 'Documento Desconocido';
-    const formatDate = (timestamp: Timestamp) => !timestamp ? 'N/A' : new Date(timestamp.seconds * 1000).toLocaleDateString('es-CL');
-
-    if (employeeLoading || indicatorsLoading) return <p>Cargando empleado...</p>;
-    if (!isNew && !employee && !employeeLoading) return <p>No se encontró el empleado.</p>;
+    if (employeeLoading || indicatorsLoading) return <p>Cargando...</p>;
     if (!employee) return null;
 
     return (
@@ -335,112 +288,132 @@ export default function EmployeeFormPage() {
                     <Button variant="outline" size="icon" asChild><Link href="/dashboard/employees"><ArrowLeft className="h-4 w-4" /></Link></Button>
                     <div>
                         <CardTitle>{isNew ? 'Agregar Nuevo Empleado' : `Editar Ficha de ${employee.firstName} ${employee.lastName}`}</CardTitle>
-                        <CardDescription>Completa la información detallada del empleado.</CardDescription>
+                        <CardDescription>Completa todos los campos de la ficha del empleado.</CardDescription>
                     </div>
                 </div>
             </CardHeader>
-            <CardContent className="space-y-8">
-                {/* Personal Data Section */}
-                <section className="space-y-4">
-                    <h3 className="text-lg font-medium border-b pb-2">Datos Personales</h3>
+            <CardContent className="space-y-8 pt-6">
+                
+                <section id="personal-data" className="space-y-4">
+                    <h3 className="text-lg font-medium border-b pb-2">1. Datos Personales</h3>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div className="space-y-2"><Label>RUT</Label><Input value={employee.rut || ''} onChange={(e) => handleFieldChange('rut', e.target.value)} /></div>
-                        <div className="space-y-2"><Label>Nombres</Label><Input value={employee.firstName || ''} onChange={(e) => handleFieldChange('firstName', e.target.value)} /></div>
-                        <div className="space-y-2"><Label>Apellidos</Label><Input value={employee.lastName || ''} onChange={(e) => handleFieldChange('lastName', e.target.value)} /></div>
-                        <div className="space-y-2"><Label>Fecha de Nacimiento</Label><Input type="date" value={employee.birthDate as string || ''} onChange={(e) => handleFieldChange('birthDate', e.target.value)} /></div>
-                        <div className="space-y-2"><Label>Nacionalidad</Label><Select value={employee.nationality} onValueChange={(v) => handleFieldChange('nationality', v)}><SelectTrigger><SelectValue placeholder="Selecciona..." /></SelectTrigger><SelectContent>{nationalities.map(n => <SelectItem key={n} value={n}>{n}</SelectItem>)}</SelectContent></Select></div>
-                        <div className="space-y-2"><Label>Dirección</Label><Input value={employee.address || ''} onChange={(e) => handleFieldChange('address', e.target.value)} /></div>
-                        <div className="space-y-2"><Label>Región</Label><Select value={employee.region} onValueChange={(v) => handleFieldChange('region', v)}><SelectTrigger><SelectValue placeholder="Selecciona..." /></SelectTrigger><SelectContent>{regions.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent></Select></div>
-                        <div className="space-y-2"><Label>Comuna</Label><Select value={employee.commune} onValueChange={(v) => handleFieldChange('commune', v)} disabled={!employee.region}><SelectTrigger><SelectValue placeholder="Selecciona una región primero..." /></SelectTrigger><SelectContent>{availableCommunes.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent></Select></div>
-                        <div className="space-y-2"><Label>Teléfono</Label><Input value={employee.phone || ''} onChange={(e) => handleFieldChange('phone', e.target.value)} /></div>
-                        <div className="space-y-2"><Label>Email</Label><Input type="email" value={employee.email || ''} onChange={(e) => handleFieldChange('email', e.target.value)} /></div>
-                        <div className="space-y-2"><Label>Género</Label><Select value={employee.gender} onValueChange={(v) => handleFieldChange('gender', v)}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent><SelectItem value="Masculino">Masculino</SelectItem><SelectItem value="Femenino">Femenino</SelectItem><SelectItem value="Otro">Otro</SelectItem></SelectContent></Select></div>
-                        <div className="space-y-2"><Label>Estado Civil</Label><Select value={employee.civilStatus} onValueChange={(v) => handleFieldChange('civilStatus', v)}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent><SelectItem value="Soltero/a">Soltero/a</SelectItem><SelectItem value="Casado/a">Casado/a</SelectItem><SelectItem value="Viudo/a">Viudo/a</SelectItem><SelectItem value="Divorciado/a">Divorciado/a</SelectItem><SelectItem value="Conviviente Civil">Conviviente Civil</SelectItem></SelectContent></Select></div>
+                        <div className="space-y-2"><Label>RUT</Label><Input value={employee.rut} onChange={e => handleFieldChange('rut', e.target.value)} /></div>
+                        <div className="space-y-2"><Label>Nombres</Label><Input value={employee.firstName} onChange={e => handleFieldChange('firstName', e.target.value)} /></div>
+                        <div className="space-y-2"><Label>Apellidos</Label><Input value={employee.lastName} onChange={e => handleFieldChange('lastName', e.target.value)} /></div>
+                        <div className="space-y-2"><Label>Fecha de Nacimiento</Label><Input type="date" value={employee.birthDate} onChange={e => handleFieldChange('birthDate', e.target.value)} /></div>
+                        <div className="space-y-2"><Label>Nacionalidad</Label><Select value={employee.nationality} onValueChange={v => handleFieldChange('nationality', v)}><SelectTrigger><SelectValue placeholder="Selecciona..." /></SelectTrigger><SelectContent>{nationalities.map(n => <SelectItem key={n} value={n}>{n}</SelectItem>)}</SelectContent></Select></div>
+                        <div className="space-y-2"><Label>Dirección</Label><Input value={employee.address} onChange={e => handleFieldChange('address', e.target.value)} /></div>
+                        <div className="space-y-2"><Label>Región</Label><Select value={employee.region} onValueChange={v => handleFieldChange('region', v)}><SelectTrigger><SelectValue placeholder="Selecciona..." /></SelectTrigger><SelectContent>{regions.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent></Select></div>
+                        <div className="space-y-2"><Label>Comuna</Label><Select value={employee.commune} onValueChange={v => handleFieldChange('commune', v)} disabled={!employee.region}><SelectTrigger><SelectValue placeholder="Selecciona..." /></SelectTrigger><SelectContent>{availableCommunes.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent></Select></div>
+                        <div className="space-y-2"><Label>Teléfono</Label><Input value={employee.phone} onChange={e => handleFieldChange('phone', e.target.value)} /></div>
+                        <div className="space-y-2"><Label>Email</Label><Input type="email" value={employee.email} onChange={e => handleFieldChange('email', e.target.value)} /></div>
+                        <div className="space-y-2"><Label>Género</Label><Select value={employee.gender} onValueChange={v => handleFieldChange('gender', v)}><SelectTrigger><SelectValue placeholder="Selecciona..." /></SelectTrigger><SelectContent><SelectItem value="Masculino">Masculino</SelectItem><SelectItem value="Femenino">Femenino</SelectItem><SelectItem value="Otro">Otro</SelectItem></SelectContent></Select></div>
+                        <div className="space-y-2"><Label>Estado Civil</Label><Select value={employee.maritalStatus} onValueChange={v => handleFieldChange('maritalStatus', v)}><SelectTrigger><SelectValue placeholder="Selecciona..." /></SelectTrigger><SelectContent><SelectItem value="Soltero(a)">Soltero(a)</SelectItem><SelectItem value="Casado(a)">Casado(a)</SelectItem><SelectItem value="Viudo(a)">Viudo(a)</SelectItem><SelectItem value="Divorciado(a)">Divorciado(a)</SelectItem></SelectContent></Select></div>
+                        <div className="space-y-2"><Label>Nombre Contacto Emergencia</Label><Input value={employee.emergencyContactName} onChange={e => handleFieldChange('emergencyContactName', e.target.value)} /></div>
+                        <div className="space-y-2"><Label>Teléfono Contacto Emergencia</Label><Input value={employee.emergencyContactPhone} onChange={e => handleFieldChange('emergencyContactPhone', e.target.value)} /></div>
                     </div>
                 </section>
-                {/* Contractual & Remuneration Data */}
-                <section className="space-y-4">
-                    <h3 className="text-lg font-medium border-b pb-2">Datos Contractuales y de Remuneración</h3>
+
+                <section id="contract-data" className="space-y-4">
+                    <h3 className="text-lg font-medium border-b pb-2">2. Datos Contractuales y de Remuneración</h3>
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
-                        <div className="space-y-2"><Label>Cargo</Label><Input value={employee.jobTitle || ''} onChange={(e) => handleFieldChange('jobTitle', e.target.value)} /></div>
-                        <div className="space-y-2"><Label>Fecha de Inicio</Label><Input type="date" value={employee.contractStartDate as string || ''} onChange={(e) => handleFieldChange('contractStartDate', e.target.value)} /></div>
-                        <div className="space-y-2"><Label>Fecha de Término</Label><Input type="date" value={employee.contractEndDate as string || ''} onChange={(e) => handleFieldChange('contractEndDate', e.target.value)} /></div>
-                        <div className="space-y-2"><Label>Sueldo Base</Label><Input type="number" value={employee.baseSalary ?? ''} onChange={(e) => handleFieldChange('baseSalary', parseFloat(e.target.value) || 0)} /></div>
-                        <div className="space-y-2"><Label>Gratificación Legal</Label><Select value={employee.gratificationType} onValueChange={(v) => handleFieldChange('gratificationType', v)}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent><SelectItem value="Manual">Manual</SelectItem><SelectItem value="Automatico">Automático (25% con tope)</SelectItem></SelectContent></Select></div>
-                        <div className="space-y-2"><Label>Monto Gratificación</Label><Input type="number" value={employee.gratification ?? ''} onChange={(e) => handleFieldChange('gratification', parseFloat(e.target.value) || 0)} disabled={employee.gratificationType === 'Automatico'}/></div>
-                        <div className="space-y-2"><Label>Movilización</Label><Input type="number" value={employee.mobilization ?? ''} onChange={(e) => handleFieldChange('mobilization', parseFloat(e.target.value) || 0)} /></div>
-                        <div className="space-y-2"><Label>Colación</Label><Input type="number" value={employee.collation ?? ''} onChange={(e) => handleFieldChange('collation', parseFloat(e.target.value) || 0)} /></div>
-                        <div className="space-y-2"><Label>Centro de Costo</Label><Select value={employee.costCenterId || ''} onValueChange={(v) => handleFieldChange('costCenterId', v)} disabled={costCentersLoading}><SelectTrigger><SelectValue placeholder="Selecciona..." /></SelectTrigger><SelectContent>{costCenters?.map(cc => <SelectItem key={cc.id} value={cc.id}>{cc.name}</SelectItem>)}</SelectContent></Select></div>
-                        <div className="space-y-2"><Label>Estado</Label><Select value={employee.status || 'Inactive'} onValueChange={(v) => handleFieldChange('status', v)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Active">Activo</SelectItem><SelectItem value="Inactive">Inactivo</SelectItem></SelectContent></Select></div>
+                        <div className="space-y-2"><Label>Cargo</Label><Input value={employee.position} onChange={e => handleFieldChange('position', e.target.value)} /></div>
+                        <div className="space-y-2"><Label>Tipo Contrato</Label><Select value={employee.contractType} onValueChange={v => handleFieldChange('contractType', v)}><SelectTrigger><SelectValue placeholder="..."/></SelectTrigger><SelectContent><SelectItem value="Indefinido">Indefinido</SelectItem><SelectItem value="Plazo Fijo">Plazo Fijo</SelectItem><SelectItem value="Por Obra o Faena">Por Obra o Faena</SelectItem></SelectContent></Select></div>
+                        <div className="space-y-2"><Label>Fecha Inicio</Label><Input type="date" value={employee.contractStartDate} onChange={e => handleFieldChange('contractStartDate', e.target.value)} /></div>
+                        <div className="space-y-2"><Label>Fecha Término</Label><Input type="date" value={employee.contractEndDate} onChange={e => handleFieldChange('contractEndDate', e.target.value)} /></div>
+                        <div className="space-y-2"><Label>Horas Semanales</Label><Input type="number" value={employee.weeklyHours} onChange={e => handleFieldChange('weeklyHours', parseFloat(e.target.value) || 0)} /></div>
+                        <div className="space-y-2"><Label>Jornada</Label><Select value={employee.workday} onValueChange={v => handleFieldChange('workday', v)}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent><SelectItem value="Completa">Completa</SelectItem><SelectItem value="Parcial">Parcial</SelectItem></SelectContent></Select></div>
+                        <div className="space-y-2"><Label>Centro de Costo</Label><Select value={employee.costCenterId} onValueChange={v => handleFieldChange('costCenterId', v)}><SelectTrigger><SelectValue placeholder="..."/></SelectTrigger><SelectContent>{costCenters?.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent></Select></div>
+                        <div className="space-y-2"><Label>Estado</Label><Select value={employee.status} onValueChange={v => handleFieldChange('status', v)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Active">Activo</SelectItem><SelectItem value="Inactive">Inactivo</SelectItem></SelectContent></Select></div>
+                        <div className="space-y-2"><Label>Sueldo Base</Label><Input type="number" value={employee.baseSalary} onChange={e => handleFieldChange('baseSalary', parseFloat(e.target.value) || 0)} /></div>
+                        <div className="space-y-2"><Label>Movilización</Label><Input type="number" value={employee.mobilization} onChange={e => handleFieldChange('mobilization', parseFloat(e.target.value) || 0)} /></div>
+                        <div className="space-y-2"><Label>Colación</Label><Input type="number" value={employee.collation} onChange={e => handleFieldChange('collation', parseFloat(e.target.value) || 0)} /></div>
                     </div>
                 </section>
-                {/* Previsional Data */}
-                <section className="space-y-4">
-                    <h3 className="text-lg font-medium border-b pb-2">Datos Previsionales</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                       <div className="space-y-2 col-span-2"><Label>Sistema de Salud</Label><Select value={employee.healthSystem} onValueChange={(v) => handleFieldChange('healthSystem', v)} disabled={healthLoading}><SelectTrigger><SelectValue placeholder="Selecciona..."/></SelectTrigger><SelectContent>{uniqueHealthEntities.map(entity => <SelectItem key={entity.id} value={entity.name}>{entity.name}</SelectItem>)}</SelectContent></Select></div>
-                        <div className="space-y-2"><Label>Tipo Cotización Salud</Label><Select value={employee.healthContributionType} onValueChange={(v) => handleFieldChange('healthContributionType', v)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Porcentaje">Porcentaje (%)</SelectItem><SelectItem value="Monto Fijo">Monto Fijo (UF)</SelectItem></SelectContent></Select></div>
-                        <div className="space-y-2"><Label>Valor Cotización Salud</Label><Input type="number" value={employee.healthContributionValue ?? ''} onChange={(e) => handleFieldChange('healthContributionValue', parseFloat(e.target.value) || 0)} /></div>
-                         <div className="space-y-2 col-span-2"><Label>AFP</Label><Select value={employee.afp} onValueChange={(v) => handleFieldChange('afp', v)} disabled={afpLoading}><SelectTrigger><SelectValue placeholder="Selecciona..."/></SelectTrigger><SelectContent>{uniqueAfpEntities.map(entity => <SelectItem key={entity.id} value={entity.name}>{entity.name}</SelectItem>)}</SelectContent></Select></div>
-                        <div className="space-y-2"><Label>Tipo Contrato (Seg. Cesantía)</Label><Select value={employee.unemploymentInsuranceType} onValueChange={(v) => handleFieldChange('unemploymentInsuranceType', v)}><SelectTrigger><SelectValue placeholder="Selecciona..."/></SelectTrigger><SelectContent><SelectItem value="Indefinido">Indefinido</SelectItem><SelectItem value="Plazo Fijo">Plazo Fijo</SelectItem></SelectContent></Select></div>
-                        <div className="flex items-center space-x-2 pt-6"><Checkbox id="hasUnemploymentInsurance" checked={!!employee.hasUnemploymentInsurance} onCheckedChange={(checked) => handleFieldChange('hasUnemploymentInsurance', !!checked)} /><Label htmlFor="hasUnemploymentInsurance">Acogido a Seguro de Cesantía</Label></div>
+
+                <section id="fixed-bonuses" className="space-y-4">
+                    <h3 className="text-lg font-medium border-b pb-2">3. Bonos Fijos Imponibles</h3>
+                    <Card className="border-dashed">
+                        <CardContent className="pt-6">
+                            {(employee.bonosFijos || []).length === 0 ? (
+                                <p className="text-center text-sm text-muted-foreground">No hay bonos fijos.</p>
+                            ) : (
+                                <Table>
+                                    <TableHeader><TableRow><TableHead>Glosa</TableHead><TableHead className="text-right">Monto</TableHead><TableHead className="w-[100px] text-right">Acciones</TableHead></TableRow></TableHeader>
+                                    <TableBody>
+                                        {employee.bonosFijos?.map((bono, index) => (
+                                            <TableRow key={index}>
+                                                <TableCell>{bono.glosa}</TableCell>
+                                                <TableCell className="text-right">{formatCurrency(bono.monto)}</TableCell>
+                                                <TableCell className="text-right">
+                                                     <Button variant="ghost" size="icon" onClick={() => setBonoDialogState({ isOpen: true, bono, index })}><Eye className="h-4 w-4" /></Button>
+                                                     <Button variant="ghost" size="icon" onClick={() => handleRemoveBono(index)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            )}
+                        </CardContent>
+                        <CardFooter>
+                             <Button variant="outline" onClick={() => setBonoDialogState({ isOpen: true, bono: { glosa: '', monto: 0 }, index: null })}>
+                                <PlusCircle className="mr-2 h-4 w-4" /> Agregar Bono
+                            </Button>
+                        </CardFooter>
+                    </Card>
+                </section>
+
+                <section id="gratification" className="space-y-4">
+                    <h3 className="text-lg font-medium border-b pb-2">4. Gratificación Legal</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
+                        <div className="space-y-2"><Label>Tipo</Label><Select value={employee.gratificationType} onValueChange={v => handleFieldChange('gratificationType', v)}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent><SelectItem value="Sin Gratificación">Sin Gratificación</SelectItem><SelectItem value="Tope Legal">Tope Legal</SelectItem><SelectItem value="Automatico">Automático (25%)</SelectItem></SelectContent></Select></div>
+                        <div className="space-y-2"><Label>Monto Calculado</Label><Input type="number" value={employee.gratification} disabled /></div>
                     </div>
-                    <h4 className="text-md font-medium border-b pb-2 pt-4">Asignación Familiar</h4>
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-center">
-                        <div className="flex items-center space-x-2 pt-2"><Checkbox id="hasFamilyAllowance" checked={!!employee.hasFamilyAllowance} onCheckedChange={(checked) => handleFieldChange('hasFamilyAllowance', !!checked)} /><Label htmlFor="hasFamilyAllowance">Aplica Asignación Familiar</Label></div>
-                        <div className="space-y-2"><Label>Cargas Familiares</Label><Input type="number" value={employee.familyDependents ?? ''} onChange={(e) => handleFieldChange('familyDependents', parseInt(e.target.value, 10) || 0)} disabled={!employee.hasFamilyAllowance} /></div>
-                        <div className="space-y-2"><Label>Tramo Asignación Familiar</Label><Select value={employee.familyAllowanceBracket} onValueChange={(v) => handleFieldChange('familyAllowanceBracket', v)} disabled={!employee.hasFamilyAllowance}><SelectTrigger><SelectValue placeholder="Automático..." /></SelectTrigger><SelectContent><SelectItem value="A">Tramo A</SelectItem><SelectItem value="B">Tramo B</SelectItem><SelectItem value="C">Tramo C</SelectItem><SelectItem value="D">Tramo D</SelectItem></SelectContent></Select></div>
+                </section>
+                
+                <section id="previsional-data" className="space-y-4">
+                    <h3 className="text-lg font-medium border-b pb-2">5. Datos Previsionales</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                       <div className="space-y-2 col-span-2"><Label>Sistema de Salud</Label><Select value={employee.healthSystem} onValueChange={v => handleFieldChange('healthSystem', v)}><SelectTrigger><SelectValue placeholder="..."/></SelectTrigger><SelectContent>{uniqueHealthEntities.map(e => <SelectItem key={e.id} value={e.name}>{e.name}</SelectItem>)}</SelectContent></Select></div>
+                        <div className="space-y-2"><Label>Tipo Cotización</Label><Select value={employee.healthContributionType} onValueChange={v => handleFieldChange('healthContributionType', v)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Porcentaje">%</SelectItem><SelectItem value="Monto Fijo">UF</SelectItem></SelectContent></Select></div>
+                        <div className="space-y-2"><Label>Valor Cotización</Label><Input type="number" value={employee.healthContributionValue} onChange={e => handleFieldChange('healthContributionValue', parseFloat(e.target.value) || 0)} /></div>
+                         <div className="space-y-2 col-span-2"><Label>AFP</Label><Select value={employee.afp} onValueChange={v => handleFieldChange('afp', v)}><SelectTrigger><SelectValue placeholder="..."/></SelectTrigger><SelectContent>{uniqueAfpEntities.map(e => <SelectItem key={e.id} value={e.name}>{e.name}</SelectItem>)}</SelectContent></Select></div>
+                        <div className="space-y-2"><Label>Tipo Contrato (Seg. Cesantía)</Label><Select value={employee.unemploymentInsuranceType} onValueChange={v => handleFieldChange('unemploymentInsuranceType', v)}><SelectTrigger><SelectValue placeholder="..."/></SelectTrigger><SelectContent><SelectItem value="Indefinido">Indefinido</SelectItem><SelectItem value="Plazo Fijo">Plazo Fijo</SelectItem></SelectContent></Select></div>
+                        <div className="flex items-center space-x-2 pt-6"><Checkbox id="hasUnemploymentInsurance" checked={employee.hasUnemploymentInsurance} onCheckedChange={c => handleFieldChange('hasUnemploymentInsurance', c)} /><Label htmlFor="hasUnemploymentInsurance">Acogido a Seguro de Cesantía</Label></div>
                     </div>
-                    <h4 className="text-md font-medium border-b pb-2 pt-4">Ahorro Previsional Voluntario (APV)</h4>
+                </section>
+
+                <section id="family-allowance" className="space-y-4">
+                    <h3 className="text-lg font-medium border-b pb-2">6. Asignación Familiar</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
+                        <div className="flex items-center space-x-2"><Checkbox id="hasFamilyAllowance" checked={employee.hasFamilyAllowance} onCheckedChange={c => handleFieldChange('hasFamilyAllowance', c)} /><Label htmlFor="hasFamilyAllowance">Aplica Asignación Familiar</Label></div>
+                        <div className="space-y-2"><Label>Cargas</Label><Input type="number" value={employee.familyDependents} onChange={e => handleFieldChange('familyDependents', parseInt(e.target.value) || 0)} disabled={!employee.hasFamilyAllowance} /></div>
+                        <div className="space-y-2"><Label>Tramo</Label><Select value={employee.familyAllowanceBracket} onValueChange={v => handleFieldChange('familyAllowanceBracket', v)} disabled={!employee.hasFamilyAllowance}><SelectTrigger><SelectValue placeholder="..." /></SelectTrigger><SelectContent>{['A','B','C','D'].map(t => <SelectItem key={t} value={t}>Tramo {t}</SelectItem>)}</SelectContent></Select></div>
+                    </div>
+                </section>
+
+                <section id="apv-data" className="space-y-4">
+                    <h3 className="text-lg font-medium border-b pb-2">7. Ahorro Previsional Voluntario (APV)</h3>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div className="space-y-2"><Label>Institución APV</Label><Input value={employee.apvInstitution || ''} onChange={(e) => handleFieldChange('apvInstitution', e.target.value)} /></div>
-                        <div className="space-y-2"><Label>Monto APV</Label><Input type="number" value={employee.apvAmount ?? ''} onChange={(e) => handleFieldChange('apvAmount', parseFloat(e.target.value) || 0)} /></div>
-                        <div className="space-y-2"><Label>Régimen APV</Label><Select value={employee.apvRegime} onValueChange={(v) => handleFieldChange('apvRegime', v)}><SelectTrigger><SelectValue placeholder="Selecciona..." /></SelectTrigger><SelectContent><SelectItem value="A">Régimen A</SelectItem><SelectItem value="B">Régimen B</SelectItem></SelectContent></Select></div>
-                    </div>
-                </section>
-                {/* Legal Documents */}
-                {!isNew && (
-                <section className="space-y-4">
-                    <h3 className="text-lg font-medium border-b pb-2">Documentos Legales</h3>
-                    <Table>
-                        <TableHeader><TableRow><TableHead><FileText className="h-4 w-4 inline-block mr-2"/>Tipo de Documento</TableHead><TableHead>Fecha de Guardado</TableHead><TableHead className="text-right">Acciones</TableHead></TableRow></TableHeader>
-                        <TableBody>
-                            {documentsLoading && <TableRow><TableCell colSpan={3} className="text-center">Cargando documentos...</TableCell></TableRow>}
-                            {!documentsLoading && legalDocuments && legalDocuments.length === 0 && <TableRow><TableCell colSpan={3} className="text-center">No se encontraron documentos.</TableCell></TableRow>}
-                            {legalDocuments?.map((doc) => (
-                                <TableRow key={doc.id}>
-                                    <TableCell className="font-medium">{getDocumentName(doc.templateSlug)}</TableCell>
-                                    <TableCell>{doc.lastSaved ? formatDate(doc.lastSaved as Timestamp) : 'N/A'}</TableCell>
-                                    <TableCell className="text-right"><Button variant="outline" size="sm" asChild><Link href={`/dashboard/documents/${doc.templateSlug}?docId=${doc.id}`}><Eye className="h-4 w-4 mr-2"/>Ver/Editar</Link></Button></TableCell>
-                                </TableRow>
-                            ))}
-                        </TableBody>
-                    </Table>
-                </section>
-                )}
-                {/* Payment Data */}
-                <section className="space-y-4">
-                    <h3 className="text-lg font-medium border-b pb-2">Datos de Pago</h3>
-                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div className="space-y-2"><Label>Forma de Pago</Label><Select value={employee.paymentMethod} onValueChange={(v) => handleFieldChange('paymentMethod', v)}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent><SelectItem value="Transferencia Bancaria">Transferencia Bancaria</SelectItem><SelectItem value="Cheque">Cheque</SelectItem><SelectItem value="Efectivo">Efectivo</SelectItem></SelectContent></Select></div>
-                        <div className="space-y-2"><Label>Banco</Label><Select value={employee.bank} onValueChange={(v) => handleFieldChange('bank', v)}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent><SelectItem value="Banco de Chile">Banco de Chile</SelectItem><SelectItem value="Banco Internacional">Banco Internacional</SelectItem><SelectItem value="Scotiabank Chile">Scotiabank Chile</SelectItem><SelectItem value="BCI">BCI</SelectItem><SelectItem value="Banco Bice">Banco Bice</SelectItem><SelectItem value="HSBC Bank (Chile)">HSBC Bank (Chile)</SelectItem><SelectItem value="Banco Santander-Chile">Banco Santander-Chile</SelectItem><SelectItem value="Itaú Corpbanca">Itaú Corpbanca</SelectItem><SelectItem value="Banco Security">Banco Security</SelectItem><SelectItem value="Banco Falabella">Banco Falabella</SelectItem><SelectItem value="Banco Ripley">Banco Ripley</SelectItem><SelectItem value="Banco Consorcio">Banco Consorcio</SelectItem><SelectItem value="Scotiabank Azul (Ex-BBVA)">Scotiabank Azul (Ex-BBVA)</SelectItem><SelectItem value="BancoEstado">BancoEstado</SelectItem></SelectContent></Select></div>
-                        <div className="space-y-2"><Label>Tipo de Cuenta</Label><Select value={employee.accountType} onValueChange={(v) => handleFieldChange('accountType', v)}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent><SelectItem value="Cuenta Corriente">Cuenta Corriente</SelectItem><SelectItem value="Cuenta Vista">Cuenta Vista</SelectItem><SelectItem value="Cuenta de Ahorro">Cuenta de Ahorro</SelectItem></SelectContent></Select></div>
-                        <div className="space-y-2"><Label>Número de Cuenta</Label><Input value={employee.accountNumber || ''} onChange={(e) => handleFieldChange('accountNumber', e.target.value)} /></div>
+                        <div className="space-y-2"><Label>Institución</Label><Input value={employee.apvInstitution} onChange={e => handleFieldChange('apvInstitution', e.target.value)} /></div>
+                        <div className="space-y-2"><Label>Monto</Label><Input type="number" value={employee.apvAmount} onChange={e => handleFieldChange('apvAmount', parseFloat(e.target.value) || 0)} /></div>
+                        <div className="space-y-2"><Label>Regimen APV</Label><Select value={employee.apvRegime} onValueChange={v => handleFieldChange('apvRegime', v)}><SelectTrigger><SelectValue placeholder="..." /></SelectTrigger><SelectContent><SelectItem value="Regimen A">Regimen A</SelectItem><SelectItem value="Regimen B">Regimen B</SelectItem></SelectContent></Select></div>
                     </div>
                 </section>
             </CardContent>
-             <CardFooter className="flex justify-between">
-                <div>
-                    {!isNew && companyId && (
-                        <DeleteEmployeeManager
-                            companyId={companyId}
-                            employeeId={id}
-                            employeeName={`${employee.firstName || ''} ${employee.lastName || ''}`.trim()}
-                        />
-                    )}
-                </div>
-                <Button onClick={handleSaveChanges} disabled={!companyId}>Guardar Cambios</Button>
+            <CardFooter className="flex justify-between">
+                <DeleteEmployeeManager companyId={companyId} employeeId={id} employeeName={`${employee.firstName} ${employee.lastName}`} />
+                <Button onClick={handleSaveChanges} disabled={employeeLoading}>
+                    {employeeLoading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Guardando...</> : 'Guardar Cambios'}
+                </Button>
             </CardFooter>
+            <Dialog open={bonoDialogState.isOpen} onOpenChange={o => setBonoDialogState(prev => ({ ...prev, isOpen: o }))}>
+                <DialogContent>
+                    <DialogHeader><DialogTitle>{bonoDialogState.index === null ? 'Agregar Bono Fijo' : 'Editar Bono Fijo'}</DialogTitle><DialogDescription>Ingrese los datos del bono fijo.</DialogDescription></DialogHeader>
+                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4"><div className="space-y-2"><Label>Glosa</Label><Input value={bonoDialogState.bono.glosa} onChange={e => setBonoDialogState(prev => ({ ...prev, bono: { ...prev.bono, glosa: e.target.value } }))} /></div><div className="space-y-2"><Label>Monto</Label><Input type="number" value={bonoDialogState.bono.monto} onChange={e => setBonoDialogState(prev => ({ ...prev, bono: { ...prev.bono, monto: parseFloat(e.target.value) || 0 } }))} /></div></div>
+                    <DialogFooter><Button type="button" variant="secondary" onClick={() => setBonoDialogState({ isOpen: false, bono: { glosa: '', monto: 0 }, index: null })}>Cancelar</Button><Button type="button" onClick={handleSaveBono}>Guardar</Button></DialogFooter>
+                </DialogContent>
+            </Dialog>
         </Card>
     );
 }
