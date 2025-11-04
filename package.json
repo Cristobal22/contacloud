@@ -4,8 +4,7 @@
   "private": "true",
   "scripts": {
     "dev": "next dev -p 9004",
-    "build": "NODE_ENV=production next build && next export",
-    "postbuild": "touch out/_next",
+    "build": "NODE_ENV=production next build",
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",

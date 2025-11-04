@@ -43,7 +43,7 @@ import {
   import Link from "next/link"
   import { errorEmitter } from '@/firebase/error-emitter'
   import { FirestorePermissionError } from '@/firebase/errors'
-import { SelectedCompanyContext } from "../../layout"
+import { SelectedCompanyContext } from "@/app/dashboard/layout"
 import { useToast } from "@/hooks/use-toast"
 import { db } from "@/firebase/config"
   
