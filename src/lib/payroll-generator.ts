@@ -1,19 +1,19 @@
 
+import type { FirebaseFirestore } from 'firebase-admin/firestore';
 import type { Employee, Payroll, EconomicIndicator, AfpEntity, HealthEntity, FamilyAllowanceParameter, TaxParameter, TaxableCap } from '@/lib/types';
-import { firestore } from '@/firebase/admin'; // Asumiendo inicialización de admin a través de un punto central
 
 // --- Constantes ---
 const SIS_RATE = 0.015; // Tasa del Seguro de Invalidez y Sobrevivencia (ejemplo, verificar valor actual)
 
 // --- Funciones de Obtención de Datos ---
 
-async function getEconomicIndicator(year: number, month: number): Promise<EconomicIndicator | null> {
+async function getEconomicIndicator(firestore: FirebaseFirestore.Firestore, year: number, month: number): Promise<EconomicIndicator | null> {
     const id = `${year}-${String(month).padStart(2, '0')}`;
     const doc = await firestore.collection('economic-indicators').doc(id).get();
     return doc.exists ? doc.data() as EconomicIndicator : null;
 }
 
-async function getAfpEntity(name: string, year: number, month: number): Promise<AfpEntity | null> {
+async function getAfpEntity(firestore: FirebaseFirestore.Firestore, name: string, year: number, month: number): Promise<AfpEntity | null> {
     const snapshot = await firestore.collection('afp-entities')
         .where('name', '==', name)
         .where('year', '==', year)
@@ -22,7 +22,7 @@ async function getAfpEntity(name: string, year: number, month: number): Promise<
     return snapshot.empty ? null : snapshot.docs[0].data() as AfpEntity;
 }
 
-async function getHealthEntity(name: string, year: number, month: number): Promise<HealthEntity | null> {
+async function getHealthEntity(firestore: FirebaseFirestore.Firestore, name: string, year: number, month: number): Promise<HealthEntity | null> {
     const snapshot = await firestore.collection('health-entities')
         .where('name', '==', name)
         .where('year', '==', year)
@@ -31,12 +31,12 @@ async function getHealthEntity(name: string, year: number, month: number): Promi
     return snapshot.empty ? null : snapshot.docs[0].data() as HealthEntity;
 }
 
-async function getTaxableCaps(year: number): Promise<TaxableCap | null> {
+async function getTaxableCaps(firestore: FirebaseFirestore.Firestore, year: number): Promise<TaxableCap | null> {
     const doc = await firestore.collection('taxable-caps').doc(String(year)).get();
     return doc.exists ? doc.data() as TaxableCap : null;
 }
 
-async function getFamilyAllowance(taxableIncome: number, year: number, month: number, bracket?: 'A' | 'B' | 'C' | 'D'): Promise<number> {
+async function getFamilyAllowance(firestore: FirebaseFirestore.Firestore, taxableIncome: number, year: number, month: number, bracket?: 'A' | 'B' | 'C' | 'D'): Promise<number> {
     let query = firestore.collection('family-allowance-parameters')
         .where('year', '==', year)
         .where('month', '==', month);
@@ -51,15 +51,14 @@ async function getFamilyAllowance(taxableIncome: number, year: number, month: nu
     if (snapshot.empty) return 0;
     const param = snapshot.docs[0].data() as FamilyAllowanceParameter;
 
-    if (bracket) { // Si se busca por tramo, devolver el monto directamente
+    if (bracket) {
         return param.monto;
     }
     
-    // Si es automático, verificar el rango 'hasta'
     return param.hasta >= taxableIncome ? param.monto : 0;
 }
 
-async function getIUT(taxableIncomeInCLP: number, utm: number): Promise<{ iut: number, factor: number, rebaja: number }> {
+async function getIUT(firestore: FirebaseFirestore.Firestore, taxableIncomeInCLP: number, utm: number): Promise<{ iut: number, factor: number, rebaja: number }> {
     const taxableIncomeInUTM = taxableIncomeInCLP / utm;
     const snapshot = await firestore.collection('tax-parameters')
         .where('desdeUTM', '<=', taxableIncomeInUTM)
@@ -67,7 +66,7 @@ async function getIUT(taxableIncomeInCLP: number, utm: number): Promise<{ iut: n
         .limit(1).get();
     if (snapshot.empty) return { iut: 0, factor: 0, rebaja: 0 };
     const param = snapshot.docs[0].data() as TaxParameter;
-    if (param.hastaUTM >= taxableIncomeInUTM) {
+    if (!param.hastaUTM || taxableIncomeInUTM <= param.hastaUTM) {
         const iutInUTM = (taxableIncomeInUTM * param.factor) - param.rebajaUTM;
         const iutInCLP = Math.round(iutInUTM * utm);
         return { iut: iutInCLP > 0 ? iutInCLP : 0, factor: param.factor, rebaja: param.rebajaUTM * utm };
@@ -78,17 +77,17 @@ async function getIUT(taxableIncomeInCLP: number, utm: number): Promise<{ iut: n
 
 // --- Lógica Principal de Cálculo ---
 
-export async function generatePayroll(employee: Employee, year: number, month: number, otherTaxableEarnings: number = 0, otherDiscounts: number = 0): Promise<Partial<Payroll>> {
+export async function generatePayroll(firestore: FirebaseFirestore.Firestore, employee: Employee, year: number, month: number, otherTaxableEarnings: number = 0, otherDiscounts: number = 0): Promise<Partial<Payroll>> {
     
     // 1. Obtener datos externos necesarios
-    const indicator = await getEconomicIndicator(year, month);
-    const caps = await getTaxableCaps(year);
+    const indicator = await getEconomicIndicator(firestore, year, month);
+    const caps = await getTaxableCaps(firestore, year);
     if (!indicator || !caps || !indicator.uf || !indicator.utm) {
         throw new Error(`Indicadores económicos o topes imponibles no encontrados para ${month}/${year}`);
     }
 
-    const afpEntity = employee.afp ? await getAfpEntity(employee.afp, year, month) : null;
-    const healthEntity = employee.healthSystem ? await getHealthEntity(employee.healthSystem, year, month) : null;
+    const afpEntity = employee.afp ? await getAfpEntity(firestore, employee.afp, year, month) : null;
+    const healthEntity = employee.healthSystem ? await getHealthEntity(firestore, employee.healthSystem, year, month) : null;
 
     // 2. Calcular Haberes Imponibles
     const baseSalary = employee.baseSalary || 0;
@@ -104,7 +103,7 @@ export async function generatePayroll(employee: Employee, year: number, month: n
     
     let familyAllowanceAmount = 0;
     if (employee.hasFamilyAllowance && employee.familyDependents && employee.familyDependents > 0) {
-        const singleAllowance = await getFamilyAllowance(taxableBaseForCaps, year, month, employee.familyAllowanceBracket);
+        const singleAllowance = await getFamilyAllowance(firestore, taxableBaseForCaps, year, month, employee.familyAllowanceBracket);
         familyAllowanceAmount = singleAllowance * employee.familyDependents;
     }
 
@@ -146,7 +145,7 @@ export async function generatePayroll(employee: Employee, year: number, month: n
     const taxableBaseForIUT = totalTaxableEarnings - totalPrevisionalDiscounts;
 
     // 6. Calcular Impuesto Único de Segunda Categoría (IUT)
-    const { iut, factor, rebaja } = await getIUT(taxableBaseForIUT, indicator.utm);
+    const { iut, factor, rebaja } = await getIUT(firestore, taxableBaseForIUT, indicator.utm);
     
     // 7. Calcular Totales
     const totalEarnings = totalTaxableEarnings + totalNonTaxableEarnings;

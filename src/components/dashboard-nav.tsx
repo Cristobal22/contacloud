@@ -115,7 +115,7 @@ const payrollSections = [
         icon: UserPlus,
         links: [
             { href: '/dashboard/employees', label: 'Ficha de Personal', icon: Contact },
-            { href: '/dashboard/payroll', label: 'Liquidaciones', icon: FileText },
+            { href: '/dashboard/payroll', label: 'Gestión de Liquidaciones', icon: FileText },
         ]
     },
     {
@@ -123,6 +123,7 @@ const payrollSections = [
         icon: FileCog,
         links: [
             { href: '/dashboard/remuneraciones/import-previred', label: 'Importar Previred', icon: FileUp },
+            { href: '/dashboard/critical-processes/centralization-remunerations', label: 'Centralizar Remuneraciones', icon: RefreshCw },
         ]
     },
     {
@@ -148,13 +149,6 @@ const payrollSections = [
 ];
 
 const criticalProcessesSections = [
-    {
-        title: 'Centralización',
-        icon: RefreshCw,
-        links: [
-            { href: '/dashboard/critical-processes/centralization-remunerations', label: 'Centralización Remuneraciones', icon: FileText },
-        ]
-    },
     {
         title: 'Cierres',
         icon: Lock,

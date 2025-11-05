@@ -1,24 +1,40 @@
+
 'use client';
 
-import React from "react";
+import React from 'react';
 import {
     Card,
     CardContent,
     CardDescription,
     CardHeader,
     CardTitle,
-  } from "@/components/ui/card"
-  import { Button } from "@/components/ui/button"
-  import { Label } from "@/components/ui/label";
-  import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { SelectedCompanyContext } from "../../layout";
-import { useCollection } from "@/firebase";
-import type { AfpEntity, Employee, HealthEntity, Payroll } from "@/lib/types";
-import { useToast } from "@/hooks/use-toast";
-import { format } from "date-fns";
-import { es } from "date-fns/locale";
+} from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select"
+import { Label } from '@/components/ui/label';
+import { SelectedCompanyContext } from '../../layout';
+import { useCollection } from '@/firebase';
+import type { Payroll, Employee } from '@/lib/types';
+import { useToast } from '@/hooks/use-toast';
+import { format } from 'date-fns';
+import { es } from 'date-fns/locale';
+import { validatePreviredData, generatePreviredFileContent, PreviredValidationError } from '@/lib/previred-generator';
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from "@/components/ui/table";
 
-  export default function ArchivoPreviredPage() {
+export default function ArchivoPreviredPage() {
     const { selectedCompany } = React.useContext(SelectedCompanyContext) || {};
     const companyId = selectedCompany?.id;
     const currentYear = new Date().getFullYear();
@@ -28,156 +44,167 @@ import { es } from "date-fns/locale";
     const [year, setYear] = React.useState(currentYear.toString());
     const [month, setMonth] = React.useState(currentMonth.toString());
     const [isGenerating, setIsGenerating] = React.useState(false);
+    const [validationErrors, setValidationErrors] = React.useState<PreviredValidationError[]>([]);
 
-    const { data: payrolls, loading: payrollsLoading } = useCollection<Payroll>({ 
-        path: `companies/${companyId}/payrolls`, 
-        companyId: companyId 
+    const { data: employees, loading: employeesLoading } = useCollection<Employee>({ 
+        path: companyId ? `companies/${companyId}/employees` : undefined,
+        companyId
     });
-     const { data: employees, loading: employeesLoading } = useCollection<Employee>({ 
-      path: `companies/${companyId}/employees`, 
-      companyId: companyId 
+
+    const { data: payrolls, loading: payrollsLoading } = useCollection<Payroll>({
+        path: companyId ? `companies/${companyId}/payrolls` : undefined,
+        companyId, 
+        queryConstraints: [
+            ['year', '==', parseInt(year)],
+            ['month', '==', parseInt(month)]
+        ]
     });
-    const { data: afpEntities, loading: afpLoading } = useCollection<AfpEntity>({ path: 'afp-entities' });
-    const { data: healthEntities, loading: healthLoading } = useCollection<HealthEntity>({ path: 'health-entities' });
 
-    const loading = payrollsLoading || employeesLoading || afpLoading || healthLoading;
+    const loading = employeesLoading || payrollsLoading;
 
-    const handleGenerateFile = () => {
-      setIsGenerating(true);
-      const selectedYear = parseInt(year);
-      const selectedMonth = parseInt(month);
+    const handleGenerateFile = async () => {
+        setIsGenerating(true);
+        setValidationErrors([]);
 
-      const periodPayrolls = payrolls?.filter(p => p.year === selectedYear && p.month === selectedMonth);
+        if (!selectedCompany || !employees || !payrolls) {
+            toast({
+                variant: "destructive",
+                title: "Error de Carga",
+                description: "No se pudieron cargar los datos. Asegúrate de seleccionar una empresa y que existan liquidaciones para el período."
+            });
+            setIsGenerating(false);
+            return;
+        }
 
-      if (!periodPayrolls || periodPayrolls.length === 0) {
-        toast({
-            variant: "destructive",
-            title: "Sin Datos",
-            description: "No hay liquidaciones procesadas para el período seleccionado."
-        });
+        const { validRows, errors } = validatePreviredData(selectedCompany, employees, payrolls);
+
+        if (errors.length > 0) {
+            setValidationErrors(errors);
+            toast({
+                variant: "destructive",
+                title: "Errores de Validación",
+                description: "Se encontraron problemas con los datos. Por favor, revisa la tabla de errores y corrige la información en el sistema."
+            });
+            setIsGenerating(false);
+            return;
+        }
+
+        if (validRows.length === 0) {
+            toast({
+                variant: "default",
+                title: "No Hay Datos Válidos",
+                description: "No se encontraron registros válidos para generar el archivo después de las validaciones."
+            });
+            setIsGenerating(false);
+            return;
+        }
+
+        try {
+            const fileContent = generatePreviredFileContent(validRows);
+            const blob = new Blob([fileContent], { type: 'text/plain;charset=utf-8' });
+            const link = document.createElement("a");
+            const url = URL.createObjectURL(blob);
+            link.setAttribute("href", url);
+            link.setAttribute("download", `previred_${year}_${month}.txt`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            toast({
+                title: "Archivo Generado con Éxito",
+                description: "El archivo de Previred ha sido descargado.",
+            });
+
+        } catch (error) {
+            console.error("Error generating file:", error);
+            toast({
+                variant: "destructive",
+                title: "Error Inesperado",
+                description: "Ocurrió un error al generar el archivo. Revisa la consola para más detalles."
+            });
+        }
+
         setIsGenerating(false);
-        return;
-      }
-      
-      const afpMap = new Map(afpEntities?.map(e => [e.name, e.previredCode]));
-      const healthMap = new Map(healthEntities?.map(e => [e.name, e.previredCode]));
-
-      let fileContent = "";
-      
-      periodPayrolls.forEach(payroll => {
-        const employee = employees?.find(e => e.id === payroll.employeeId);
-        if (!employee) return;
-        
-        const rut = employee.rut.replace(/[.-]/g, '');
-        const rutDigits = rut.slice(0, -1).padStart(11, '0');
-        const rutDV = rut.slice(-1).toUpperCase();
-
-        const afpCode = employee.afp ? afpMap.get(employee.afp) || '' : '';
-        const healthCode = employee.healthSystem ? healthMap.get(employee.healthSystem) || '' : '';
-
-        // This is a simplified version of the Previred file format.
-        // A full implementation would require many more fields and complex logic.
-        const line = [
-          rutDigits, // RUT
-          rutDV, // DV
-          employee.lastName, // Apellido Paterno
-          '', // Apellido Materno
-          employee.firstName, // Nombres
-          'M', // Sexo (Placeholder)
-          employee.nationality || 'CHI', // Nacionalidad
-          '01', // Tipo de Pago
-          format(new Date(selectedYear, selectedMonth - 1, 1), 'yyyy-MM-dd'), // Período
-          '0', // Régimen Previsional
-          payroll.taxableEarnings.toFixed(0), // Renta Imponible
-          'S', // Cotiza AFP
-          afpCode, // Código AFP
-          payroll.taxableEarnings.toFixed(0), // Renta Imponible AFP
-          payroll.afpDiscount.toFixed(0), // Cotización Obligatoria AFP
-          'N', // Ahorro Voluntario
-          '0', // Monto Ahorro Voluntario
-          '0', // Renta Imponible Sustitutiva
-          'S', // Cotiza Salud
-          healthCode, // Código Salud
-          '01', // Moneda Plan Salud
-          '0', // Cotización Pactada
-          payroll.healthDiscount.toFixed(0), // Cotización Obligatoria Salud
-          '0', // Cotización Adicional Voluntaria
-          payroll.taxableEarnings.toFixed(0), // Renta Imponible S. Cesantía
-          'S', // Afiliado S. Cesantía
-        ].join(';');
-        fileContent += line + '\r\n';
-      });
-
-      const blob = new Blob([fileContent], { type: 'text/plain;charset=utf-8' });
-      const link = document.createElement("a");
-      const url = URL.createObjectURL(blob);
-      link.setAttribute("href", url);
-      link.setAttribute("download", `previred_${year}_${month}.txt`);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      setIsGenerating(false);
-
-       toast({
-            title: "Archivo Generado",
-            description: "El archivo de Previred ha sido descargado."
-        });
-
     };
 
-
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Archivo Previred</CardTitle>
-          <CardDescription>Genera el archivo para el pago de cotizaciones en Previred.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col items-center justify-center gap-6 rounded-xl border border-dashed p-8 text-center max-w-lg mx-auto">
-            <h3 className="text-lg font-semibold">Generación de Archivo</h3>
-            <div className="w-full space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2 text-left">
-                        <Label htmlFor="month">Mes</Label>
-                        <Select value={month} onValueChange={setMonth} disabled={!companyId || isGenerating || loading}>
-                            <SelectTrigger id="month">
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {Array.from({ length: 12 }, (_, i) => (
-                                    <SelectItem key={i+1} value={(i+1).toString()}>
-                                        {format(new Date(0, i), 'MMMM', { locale: es })}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
+        <div className="grid gap-6">
+            <Card>
+                <CardHeader>
+                    <CardTitle>Generar Archivo para Previred</CardTitle>
+                    <CardDescription>Genera el archivo de nómina de trabajadores para importar en Previred según las especificaciones de la Dirección del Trabajo.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    <div className="flex flex-col sm:flex-row gap-4 items-end max-w-lg">
+                        <div className="flex-1 grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <Label htmlFor="month">Mes</Label>
+                                <Select value={month} onValueChange={setMonth} disabled={!companyId || loading || isGenerating}>
+                                    <SelectTrigger id="month">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {Array.from({ length: 12 }, (_, i) => (
+                                            <SelectItem key={i+1} value={(i+1).toString()}>
+                                                {format(new Date(0, i), 'MMMM', { locale: es })}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="year">Año</Label>
+                                <Select value={year} onValueChange={setYear} disabled={!companyId || loading || isGenerating}>
+                                    <SelectTrigger id="year">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {Array.from({ length: 5 }, (_, i) => (
+                                            <SelectItem key={currentYear-i} value={(currentYear-i).toString()}>
+                                                {currentYear-i}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        </div>
+                        <Button disabled={!companyId || loading || isGenerating} onClick={handleGenerateFile}>
+                            {loading ? "Cargando..." : (isGenerating ? "Generando..." : "Generar Archivo")}
+                        </Button>
                     </div>
-                    <div className="space-y-2 text-left">
-                        <Label htmlFor="year">Año</Label>
-                        <Select value={year} onValueChange={setYear} disabled={!companyId || isGenerating || loading}>
-                            <SelectTrigger id="year">
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {Array.from({ length: 5 }, (_, i) => (
-                                    <SelectItem key={currentYear-i} value={(currentYear-i).toString()}>
-                                        {currentYear-i}
-                                    </SelectItem>
+                </CardContent>
+            </Card>
+
+            {validationErrors.length > 0 && (
+                <Card>
+                    <CardHeader>
+                        <CardTitle className='text-destructive'>Reporte de Errores de Validación</CardTitle>
+                        <CardDescription>Corrige estos datos en las fichas de los trabajadores o en las liquidaciones antes de volver a generar el archivo.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Trabajador (RUT)</TableHead>
+                                    <TableHead>Campo N°</TableHead>
+                                    <TableHead>Nombre del Campo</TableHead>
+                                    <TableHead>Descripción del Error</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {validationErrors.map((error, index) => (
+                                    <TableRow key={index}>
+                                        <TableCell>{error.rut}</TableCell>
+                                        <TableCell>{error.fieldNumber}</TableCell>
+                                        <TableCell>{error.fieldName}</TableCell>
+                                        <TableCell>{error.error}</TableCell>
+                                    </TableRow>
                                 ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
-                </div>
-                 <p className="text-sm text-muted-foreground text-left">
-                    Esta función generará el archivo de carga para Previred basado en las liquidaciones procesadas del período seleccionado.
-                </p>
-            </div>
-            <Button className="w-full" disabled={!companyId || isGenerating || loading} onClick={handleGenerateFile}>
-                {loading ? "Cargando datos..." : (isGenerating ? "Generando..." : "Generar Archivo")}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-    )
-  }
-  
+                            </TableBody>
+                        </Table>
+                    </CardContent>
+                </Card>
+            )}
+        </div>
+    );
+}

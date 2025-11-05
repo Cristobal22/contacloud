@@ -1,218 +1,172 @@
-// src/lib/types.ts
-
-import type { Timestamp } from 'firebase/firestore';
-
-export interface UserProfile {
-  id: string;
-  email: string;
-  role: 'Admin' | 'Accountant';
-  companyIds: { [key: string]: boolean };
-  displayName?: string;
-  photoURL?: string;
-  subscriptionStatus?: string;
-  subscriptionEndDate?: string;
-  plan?: string;
-}
-
-export interface Company {
-  id: string;
-  name: string;
-  rut: string;
-  ownerId: string;
-  periodStartDate?: string; 
-  periodEndDate?: string;
-  address?: string;
-  commune?: string;
-  city?: string;
-  region?: string;
-  mutual?: string;
-  compensationFund?: string;
-}
-
-export interface Bono {
-  glosa: string;
-  monto: number;
-}
-
-export interface Account {
+export type Company = {
     id: string;
-    code: number;
     name: string;
-    type: 'Activo' | 'Pasivo' | 'Patrimonio' | 'Ingreso' | 'Costo' | 'Gasto';
-    category: string;
-    isAuxiliary: boolean;
-    parentAccountId?: string;
-    companyId: string;
-}
-
-export interface Voucher {
-    id: string;
-    companyId: string;
-    date: string;
-    type: 'Ingreso' | 'Egreso' | 'Traspaso';
-    description: string;
-    entries: VoucherEntry[];
-    isCentralization?: boolean;
-}
-
-export interface VoucherEntry {
-    accountId: string;
-    debit: number;
-    credit: number;
-}
-
-export interface Subject {
-    id: string;
-    companyId: string;
     rut: string;
-    name: string;
+    legalRepresentative: string;
     address: string;
-    commune: string;
-    city: string;
-    region: string;
-    phone?: string;
-    email?: string;
-    type: 'Cliente' | 'Proveedor';
-}
+    email: string;
+    phone: string;
+    createdAt: any; // Opcional: podrías usar un tipo más específico como firebase.firestore.Timestamp
+};
 
-export interface CostCenter {
-    id: string;
-    companyId: string;
-    name: string;
-    description?: string;
-}
-
-export interface Employee {
+export type Employee = {
     id: string;
     companyId: string;
     firstName: string;
     lastName: string;
     rut: string;
-    nationality: string;
-    birthDate: Timestamp;
-    gender: 'Masculino' | 'Femenino' | 'Otro';
-    address: string;
-    commune: string;
-    city: string;
-    phone: string;
     email: string;
-    maritalStatus: 'Soltero(a)' | 'Casado(a)' | 'Divorciado(a)' | 'Viudo(a)';
-    emergencyContactName: string;
-    emergencyContactPhone: string;
-    
+    phone: string;
+    address: string;
+    contractType: 'Indefinido' | 'Plazo Fijo' | 'Por Obra';
     position: string;
-    contractType: 'Indefinido' | 'Plazo Fijo' | 'Por Obra o Faena';
-    contractStartDate: Timestamp;
-    contractEndDate?: Timestamp;
-    weeklyHours: number;
-    workday: 'Completa' | 'Parcial';
-    costCenterId?: string;
-    
+    hireDate: any; // Opcional: firebase.firestore.Timestamp
+    terminationDate?: any; // Opcional
+    status: 'Active' | 'Inactive';
     baseSalary: number;
-    bonosFijos?: Bono[];
-    collation: number;
-    mobilization: number;
     gratificationType: 'Sin Gratificación' | 'Tope Legal' | 'Automatico';
-    
+    weeklyHours: number;
+    bankAccount?: string;
+    bankName?: string;
     afp: string;
     healthSystem: 'Fonasa' | 'Isapre';
-    healthContributionType?: 'Porcentaje' | 'Monto Fijo';
-    healthContributionValue?: number;
+    healthContributionType: 'Porcentaje' | 'Monto Fijo'; // Porcentaje (7%) o Monto Fijo en UF
+    healthContributionValue: number; // Porcentaje o monto en UF
     hasUnemploymentInsurance: boolean;
     unemploymentInsuranceType?: 'Indefinido' | 'Plazo Fijo';
+    hasFamilyAllowance: boolean; // Nuevo campo para indicar si aplica asignación familiar
+    familyDependents: number; // Campo para cargas familiares
+    familyAllowanceBracket?: 'A' | 'B' | 'C' | 'D'; // Nuevo campo para el tramo seleccionado
+    bonosFijos?: Bono[];
+    mobilization?: number;
+    collation?: number;
+    createdAt: any; // Opcional: firebase.firestore.Timestamp
+};
 
-    // Restored Fields
-    hasFamilyAllowance?: boolean;
-    familyDependents?: number;
-    familyAllowanceBracket?: 'A' | 'B' | 'C' | 'D';
-    apvInstitution?: string;
-    apvAmount?: number;
-    apvRegime?: 'A' | 'B';
-
-    // Payment Details
-    paymentMethod?: 'Transferencia Bancaria' | 'Cheque' | 'Efectivo';
-    bank?: string;
-    accountType?: 'Cuenta Corriente' | 'Cuenta Vista' | 'Cuenta de Ahorro';
-    accountNumber?: string;
-
-    status: 'Active' | 'Inactive';
+export type Bono = {
+    glosa: string;
+    monto: number;
+    tipo: 'fijo' | 'variable';
 }
 
-export interface Payroll {
+export type Payroll = {
     id: string;
     companyId: string;
     employeeId: string;
     employeeName: string;
+    period: string; // Ejemplo: "2024-07"
     year: number;
     month: number;
-    period: string;
-
     baseSalary: number;
-    sueldoBaseProporcional?: number;
-    gratification?: number;
-    
-    bonos?: (Bono & { tipo: 'fijo' | 'variable' })[]; 
-    
-    overtimeHours50?: number;
-    overtimeHours100?: number;
-    otherTaxableEarnings?: number;
-    taxableEarnings?: number;
-    nonTaxableEarnings?: number;
-    totalEarnings?: number;
-    
-    afpDiscount?: number;
-    healthDiscount?: number;
-    unemploymentInsuranceDiscount?: number;
-    iut?: number;
-    iutFactor?: number;
-    iutRebajaInCLP?: number;
-    advances?: number;
-    otherDiscounts?: number;
-    totalDiscounts?: number;
-    
-    netSalary?: number;
-    absentDays?: number;
-}
+    absentDays: number;
+    proportionalBaseSalary: number;
+    overtimeHours50: number;
+    overtimeHours100: number;
+    totalOvertimePay: number;
+    bonos: Bono[];
+    gratification: number;
+    taxableEarnings: number;
+    nonTaxableEarnings: number;
+    totalEarnings: number;
+    afpDiscount: number;
+    healthDiscount: number;
+    unemploymentInsuranceDiscount: number;
+    iut: number; // Impuesto Único de Segunda Categoría
+    familyAllowance: number; // Nuevo campo para Asignación Familiar
+    advances: number;
+    totalDiscounts: number;
+    netSalary: number;
+    createdAt: any; // Opcional: firebase.firestore.Timestamp
+};
 
-export interface AfpEntity {
-    id: string;
-    name: string;
-    mandatoryContribution: number;
-    sisContribution: number;
-    year: number;
-    month: number;
-}
-
-export interface HealthEntity {
-    id: string;
-    name: string;
-}
-
-export interface EconomicIndicator {
-    id: string; // YYYY-MM
-    uf: number;
-    utm: number;
-    minWage: number;
-    cpi?: number;
-}
-
-export interface TaxableCap {
-    id: string;
-    year: number;
-    afpCap: number; // In UF
-    afcCap: number; // In UF
-}
-
-export interface SelectedCompanyContextType {
-  selectedCompany: Company | null;
-  setSelectedCompany: (company: Company) => void;
-}
-
-export interface LegalDocument {
+export type Account = {
     id: string;
     companyId: string;
-    employeeId: string;
-    templateSlug: string;
-    formData: any;
-    lastSaved: Timestamp;
-}
+    code: string;
+    name: string;
+    type: 'Activo' | 'Pasivo' | 'Patrimonio' | 'Resultado';
+    balance: number;
+    children?: Account[];
+};
+
+export type Voucher = {
+    id: string;
+    companyId: string;
+    date: any; // Opcional: firebase.firestore.Timestamp
+    description: string;
+    type: 'Ingreso' | 'Egreso' | 'Traspaso';
+    status: 'Borrador' | 'Contabilizado' | 'Anulado';
+    total: number;
+    entries: VoucherEntry[];
+    createdAt: any; // Opcional: firebase.firestore.Timestamp
+};
+
+export type VoucherEntry = {
+    accountId: string;
+    accountName: string;
+    debit: number;
+    credit: number;
+};
+
+// --- Previsional Data ---
+
+export type AfpEntity = {
+    id: string;
+    year: number;
+    month: number;
+    name: string;
+    mandatoryContribution: number; // Tasa de cotización obligatoria
+    previredCode: string;
+    provisionalRegime: string;
+    dtCode: string;
+    employerContribution: number; // Tasa SIS
+};
+
+export type HealthEntity = {
+    id: string;
+    year: number;
+    month: number;
+    name: string;
+    mandatoryContribution: number; // 7%
+    previredCode: string;
+    dtCode: string;
+};
+
+export type EconomicIndicator = {
+    id: string;
+    year: number;
+    month: number;
+    uf?: number;
+    utm: number;
+    minWage: number;
+    uta: number;
+    gratificationCap: number;
+};
+
+export type FamilyAllowanceParameter = {
+    id: string;
+    year: number;
+    month: number;
+    tramo: 'A' | 'B' | 'C' | 'D';
+    desde: number;
+    hasta: number;
+    monto: number;
+};
+
+export type TaxParameter = {
+    id: string;
+    year: number;
+    month: number;
+    tramo: string;
+    desdeUTM: number;
+    hastaUTM: number;
+    factor: number;
+    rebajaUTM: number;
+};
+
+export type TaxableCap = {
+    id: string;
+    year: number;
+    afpCap: number; // UF
+    afcCap: number; // UF
+};
