@@ -34,48 +34,64 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
     }
 
     const { userProfile } = authResult;
-    const { searchParams } = new URL(req.url);
+    const { searchParams, pathname } = new URL(req.url);
     const empresaId = searchParams.get('empresaId');
-    const payrollId = params.id;
+    const pathParts = pathname.split('/');
+    const payrollId = pathParts[pathParts.length - 1];
 
-    if (!empresaId) {
-        return new Response('Bad Request: empresaId is required', { status: 400 });
+    if (!empresaId || typeof empresaId !== 'string') {
+        return new Response('Bad Request: empresaId is required and must be a string', { status: 400 });
+    }
+    if (!payrollId || typeof payrollId !== 'string') {
+        return new Response('Bad Request: payrollId is required and must be a string', { status: 400 });
     }
 
-    const userCompanies = userProfile.companyIds || [];
-    if (userProfile.role !== 'Accountant' || !userCompanies.includes(empresaId)) {
-        return new Response('Forbidden', { status: 403 });
+    const allowedRoles = ['Accountant', 'Admin'];
+
+    // Handle the companyIds map structure by extracting its keys.
+    const companyIds = userProfile.companyIds;
+    let userCompanies: string[] = [];
+    if (companyIds && typeof companyIds === 'object' && !Array.isArray(companyIds)) {
+        userCompanies = Object.keys(companyIds);
+    } else if (Array.isArray(companyIds)) {
+        userCompanies = companyIds;
+    }
+
+    if (!userProfile.role || !allowedRoles.includes(userProfile.role) || !userCompanies.includes(empresaId)) {
+        return new Response('Forbidden: User does not have the required role or company access.', { status: 403 });
     }
 
     try {
         const firestore = getAdminFirestore();
-        const payrollRef = firestore.collection('companies').doc(empresaId).collection('payrolls').doc(payrollId);
-        const payrollDoc = await payrollRef.get();
+        await firestore.runTransaction(async (transaction) => {
+            const payrollRef = firestore.collection('companies').doc(empresaId).collection('payrolls').doc(payrollId);
+            const payrollDoc = await transaction.get(payrollRef);
 
-        if (!payrollDoc.exists) {
-            return new Response('Not Found: Payroll not found', { status: 404 });
-        }
-
-        const payrollData = payrollDoc.data();
-        const voucherId = payrollData?.voucherId;
-
-        const batch = firestore.batch();
-        batch.delete(payrollRef);
-
-        if (voucherId) {
-            const voucherRef = firestore.collection('companies').doc(empresaId).collection('vouchers').doc(voucherId);
-            const voucherDoc = await voucherRef.get(); // <-- THE FIX: Check if voucher exists
-            if (voucherDoc.exists) { // <-- THE FIX: Only update if it exists
-                batch.update(voucherRef, { status: 'Borrador' });
+            if (!payrollDoc.exists) {
+                throw new Error('Payroll not found');
             }
-        }
 
-        await batch.commit();
+            const payrollData = payrollDoc.data();
+            const voucherId = payrollData?.voucherId;
+
+            transaction.delete(payrollRef);
+
+            if (voucherId && typeof voucherId === 'string') {
+                const voucherRef = firestore.collection('companies').doc(empresaId).collection('vouchers').doc(voucherId);
+                const voucherDoc = await transaction.get(voucherRef);
+                if (voucherDoc.exists) {
+                    transaction.update(voucherRef, { status: 'Borrador' });
+                }
+            }
+        });
 
         return NextResponse.json({ message: 'Liquidación revertida con éxito' });
 
-    } catch (error) {
+    } catch (error: any) {
         console.error('Error during payroll annulment:', error);
-        return new Response('Internal Server Error', { status: 500 });
+        if (error.message === 'Payroll not found') {
+            return new Response('Not Found: Payroll not found', { status: 404 });
+        }
+        return new Response(`Internal Server Error: ${error.message}`, { status: 500 });
     }
 }

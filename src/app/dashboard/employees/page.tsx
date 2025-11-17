@@ -26,7 +26,7 @@ import {
     DropdownMenuTrigger,
   } from "@/components/ui/dropdown-menu"
   import { useCollection, useFirestore } from "@/firebase"
-  import { query, collection, where } from 'firebase/firestore';
+  import { query, collection } from 'firebase/firestore';
   import type { Employee, CostCenter } from "@/lib/types"
   import Link from "next/link"
   import React from "react"
@@ -40,16 +40,22 @@ import {
 
     const [selectedEmployeeForHistory, setSelectedEmployeeForHistory] = React.useState<Employee | null>(null);
 
+    // **Structural Correction**
+    // The query now targets the 'employees' sub-collection within the selected company,
+    // aligning with Firestore security rules and correct data architecture.
     const employeesQuery = React.useMemo(() => {
         if (!firestore || !companyId) return null;
+        // This is the correct path: /companies/{companyId}/employees
         const collectionRef = collection(firestore, `companies/${companyId}/employees`);
-        return query(collectionRef, where("companyId", "==", companyId), where("status", "==", "Active"));
+        // The 'where' clause is no longer necessary as the collection is already scoped to the company.
+        return query(collectionRef);
     }, [firestore, companyId]);
 
+    // The query for cost centers remains correct as they are a sub-collection of the company.
     const costCentersQuery = React.useMemo(() => {
         if (!firestore || !companyId) return null;
         const collectionRef = collection(firestore, `companies/${companyId}/cost-centers`);
-        return query(collectionRef, where("companyId", "==", companyId));
+        return query(collectionRef);
     }, [firestore, companyId]);
 
     const { data: employees, loading: employeesLoading } = useCollection<Employee>({
@@ -75,7 +81,7 @@ import {
               <div className="flex items-center justify-between">
                   <div>
                       <CardTitle>Personal</CardTitle>
-                      <CardDescription>Gestiona los empleados de tu organización.</CardDescription>
+                      <CardDescription>Gestiona todos los empleados de tu organización, activos e inactivos.</CardDescription>
                   </div>
                   <Button size="sm" className="gap-1" disabled={!companyId} asChild>
                     <Link href="/dashboard/employees/edit/new">

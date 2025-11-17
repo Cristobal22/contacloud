@@ -2,11 +2,10 @@
 import { NextResponse } from 'next/server';
 import { getAdminApp } from '@/lib/firebase/admin';
 import { generatePayroll } from '@/lib/payroll-generator';
-import type { Employee, PayrollDraft } from '@/lib/types';
-import type { app } from 'firebase-admin';
+import { Employee } from '@/lib/types';
 
-// Helper to authenticate and get the admin app instance
-async function getAuthenticatedAdminApp(req: Request): Promise<app.App | null> {
+// This function authenticates the request and returns the admin app instance.
+async function getAuthenticatedAdminApp(req: Request) {
     const authorization = req.headers.get('Authorization');
     if (authorization?.startsWith('Bearer ')) {
         const token = authorization.split('Bearer ')[1];
@@ -15,69 +14,60 @@ async function getAuthenticatedAdminApp(req: Request): Promise<app.App | null> {
             await adminApp.auth().verifyIdToken(token);
             return adminApp;
         } catch (error) {
-            console.error('Token verification failed', error);
+            console.error('Token verification failed:', error);
             return null;
         }
     }
-    console.error('Missing or invalid Authorization header');
+    console.error('Missing or invalid Authorization header.');
     return null;
 }
 
+// This is the new API route handler for calculating a payroll preview.
 export async function POST(req: Request) {
     const adminApp = await getAuthenticatedAdminApp(req);
     if (!adminApp) {
-        return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
+        return new Response('Unauthorized', { status: 401 });
     }
 
     try {
         const { searchParams } = new URL(req.url);
         const companyId = searchParams.get('companyId');
-        const year = parseInt(searchParams.get('year') || '0', 10);
-        const month = parseInt(searchParams.get('month') || '0', 10);
+        const year = searchParams.get('year');
+        const month = searchParams.get('month');
+        const body = await req.json();
+        const employee = body as Employee; // The employee data is sent in the request body.
 
-        if (!companyId || !year || !month) {
-            return NextResponse.json({ message: 'companyId, year, and month are required' }, { status: 400 });
+        // --- Input Validation ---
+        if (!companyId || !year || !month || !employee) {
+            let missingParams = [];
+            if (!companyId) missingParams.push('companyId');
+            if (!year) missingParams.push('year');
+            if (!month) missingParams.push('month');
+            if (!employee) missingParams.push('employee data');
+            return NextResponse.json({ message: `Parámetros incompletos. Faltan: ${missingParams.join(', ')}` }, { status: 400 });
         }
 
-        const draft: PayrollDraft = await req.json();
-        if (!draft || !draft.employeeId) {
-            return NextResponse.json({ message: 'Invalid payroll draft provided in body' }, { status: 400 });
+        const numericYear = parseInt(year, 10);
+        const numericMonth = parseInt(month, 10);
+
+        if (isNaN(numericYear) || isNaN(numericMonth)) {
+            return NextResponse.json({ message: 'El año y el mes deben ser números válidos.' }, { status: 400 });
         }
 
         const firestore = adminApp.firestore();
-
-        // Fetch the specific employee from the database to ensure data integrity
-        const employeeDoc = await firestore.collection('empresas').doc(companyId).collection('employees').doc(draft.employeeId).get();
-        if (!employeeDoc.exists) {
-            return NextResponse.json({ message: 'Employee not found' }, { status: 404 });
-        }
-        const employee = { id: employeeDoc.id, ...employeeDoc.data() } as Employee;
         
-        // Use the backend's single source of truth for calculation
-        // We pass the employee from DB and enrich it with the draft's changes
-        const otherTaxableEarnings = (draft.variableBonos?.reduce((sum, b) => sum + b.monto, 0) || 0) + (draft.overtimePay || 0);
-        const otherDiscounts = draft.advances || 0;
+        // The core logic: use the payroll generator to calculate the preview.
+        // We pass 0 for otherTaxableEarnings and otherDiscounts as they are handled in the final processing.
+        const payrollDraft = await generatePayroll(firestore, employee, numericYear, numericMonth, 0, 0);
 
-        const calculatedPayroll = await generatePayroll(
-            firestore,
-            employee,
-            year,
-            month,
-            otherTaxableEarnings,
-            otherDiscounts
-        );
-
-        // We need to merge the result with the draft's interactive fields
-        const responsePayload = {
-            ...draft, // keeps fields like absentDays, overtimeHours50, etc.
-            ...calculatedPayroll, // adds all calculated financial fields
-        };
-
-        return NextResponse.json(responsePayload);
+        // Return the calculated draft.
+        return NextResponse.json(payrollDraft);
 
     } catch (error) {
-        console.error('Error calculating payroll preview:', error);
-        const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
-        return NextResponse.json({ message: 'Internal Server Error', error: errorMessage }, { status: 500 });
+        console.error('Error al calcular la liquidación (preview):', error);
+        const errorMessage = error instanceof Error ? error.message : 'Ocurrió un error desconocido en el servidor.';
+        
+        // Provide a clear error message to the client.
+        return NextResponse.json({ message: `Error en el cálculo: ${errorMessage}` }, { status: 500 });
     }
 }

@@ -33,9 +33,9 @@ export function PayrollProcessedTable({ companyId, payrolls, onAnnulSuccess, onP
         setIsAnnulDialogOpen(true);
     };
 
-    const handleAnnulConfirm = async () => {
-        if (!selectedPayroll || !user) {
-            toast({ variant: 'destructive', title: 'Error de Autenticación', description: 'Usuario no encontrado. Por favor, inicie sesión de nuevo.' });
+    const handleAnnulConfirm = async (payrollId: string) => {
+        if (!payrollId || !user) {
+            toast({ variant: 'destructive', title: 'Error', description: 'No se pudo obtener el ID de la liquidación. Por favor, recargue la página.' });
             return;
         }
 
@@ -43,18 +43,14 @@ export function PayrollProcessedTable({ companyId, payrolls, onAnnulSuccess, onP
         toast({ title: 'Anulando liquidación...' });
 
         try {
-            let token;
-            try {
-                token = await user.getIdToken(true); // Force refresh the token
-                if (!token) {
-                    throw new Error('El token de autenticación es inválido.');
-                }
-            } catch (error) {
-                console.error('Error getting ID token:', error);
-                throw new Error('No se pudo verificar su sesión. Por favor, cierre sesión y vuelva a iniciarla.');
+            const token = await user.getIdToken(true);
+            if (!token) {
+                throw new Error('No se pudo obtener un token de autenticación válido.');
             }
 
-            const response = await fetch(`/api/payrolls/${selectedPayroll.id}?empresaId=${companyId}`, {
+            const url = `/api/payrolls/${payrollId}?empresaId=${companyId}`;
+
+            const response = await fetch(url, {
                 method: 'DELETE',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -62,13 +58,14 @@ export function PayrollProcessedTable({ companyId, payrolls, onAnnulSuccess, onP
             });
 
             if (!response.ok) {
-                const isJson = response.headers.get('content-type')?.includes('application/json');
-                const errorData = isJson ? await response.json() : await response.text();
-                throw new Error(isJson ? errorData.message : errorData || 'Error al anular la liquidación');
+                const errorData = await response.text();
+                console.error('Server error response:', errorData);
+                throw new Error(`Error del servidor: ${response.statusText} (${response.status}).`);
             }
 
-            toast({ title: 'Éxito', description: 'La liquidación ha sido anulada y el comprobante revertido.' });
-            onAnnulSuccess(selectedPayroll.id);
+            toast({ title: 'Éxito', description: 'La liquidación ha sido anulada.' });
+            onAnnulSuccess(payrollId);
+
         } catch (error: any) {
             toast({ variant: 'destructive', title: 'Error en la anulación', description: error.message });
         } finally {
@@ -123,16 +120,13 @@ export function PayrollProcessedTable({ companyId, payrolls, onAnnulSuccess, onP
                     <AlertDialogHeader>
                         <AlertDialogTitle>¿Está seguro de anular esta liquidación?</AlertDialogTitle>
                         <AlertDialogDescription>
-                            Esta acción es irreversible. Se eliminará la liquidación de <span className="font-bold">{selectedPayroll?.employeeName}</span> para el período seleccionado.
-                            <br/><br/>
-                            Si la liquidación ya fue centralizada, el comprobante contable asociado será revertido al estado <span className="font-semibold">'Borrador'</span> para mantener la integridad de los informes.
-                            <br/><br/>
-                            <span className="text-amber-600 font-semibold">Advertencia:</span> Si ya generó el Libro de Remuneraciones Electrónico (LRE) o el archivo de Previred, deberá volver a generarlos manualmente.
+                            Esta acción es irreversible y eliminará la liquidación de <span className="font-bold">{selectedPayroll?.employeeName}</span>.
+                            Si existe un comprobante contable asociado, será revertido al estado 'Borrador'.
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                         <AlertDialogCancel disabled={isAnnulling}>Cancelar</AlertDialogCancel>
-                        <AlertDialogAction onClick={handleAnnulConfirm} disabled={isAnnulling}>
+                        <AlertDialogAction onClick={() => selectedPayroll && handleAnnulConfirm(selectedPayroll.id)} disabled={isAnnulling}>
                             {isAnnulling ? 'Anulando...' : 'Confirmar Anulación'}
                         </AlertDialogAction>
                     </AlertDialogFooter>

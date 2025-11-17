@@ -9,7 +9,8 @@ import {
   Briefcase,
   Calendar as CalendarIcon,
 } from "lucide-react"
-import { collection, query, where, documentId, doc, updateDoc, Query } from "firebase/firestore"
+// REMOVED documentId as it's no longer needed for the company query
+import { collection, query, where, doc, updateDoc, Query } from "firebase/firestore"
 import { format, startOfMonth, endOfMonth, parseISO, isAfter, differenceInDays } from 'date-fns';
 import { es } from 'date-fns/locale';
 
@@ -60,28 +61,21 @@ function AccountantDashboardLayout({ children }: { children: React.ReactNode }) 
     const [selectedCompany, setSelectedCompany] = React.useState<Company | null>(null);
     const [isLoadingCompany, setIsLoadingCompany] = React.useState(true);
 
+    // UPDATED QUERY: This is the core fix.
+    // Instead of querying by a list of document IDs, we now securely query for companies
+    // where the current user's UID is in the 'memberUids' array.
+    // This matches the security rule we deployed earlier.
     const companiesQuery = React.useMemo(() => {
-        if (!firestore || !userProfile || userProfile.role !== 'Accountant' || !userProfile.companyIds) {
-            return null;
-        }
-        
-        let companyIdArray: string[];
-        if (Array.isArray(userProfile.companyIds)) {
-            companyIdArray = userProfile.companyIds;
-        } else {
-            companyIdArray = Object.keys(userProfile.companyIds);
-        }
-
-        if (companyIdArray.length === 0) {
+        if (!firestore || !user || userProfile?.role !== 'Accountant') {
             return null;
         }
 
-        return query(collection(firestore, 'companies'), where(documentId(), 'in', companyIdArray.slice(0, 30))) as Query<Company>;
-    }, [firestore, userProfile]);
+        return query(collection(firestore, 'companies'), where('memberUids', 'array-contains', user.uid)) as Query<Company>;
+    }, [firestore, user, userProfile]);
 
     const { data: companies, loading: companiesLoading } = useCollection<Company>({ 
       query: companiesQuery,
-      disabled: profileLoading || !companiesQuery
+      disabled: profileLoading || userLoading || !companiesQuery
     });
     
     React.useEffect(() => {

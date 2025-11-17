@@ -47,7 +47,7 @@ import { useCollection, useDoc, useFirestore } from '@/firebase';
 import type { Voucher, VoucherEntry, Account } from '@/lib/types';
 import { SelectedCompanyContext } from '@/app/dashboard/layout';
 import { doc, setDoc, addDoc, collection } from 'firebase/firestore';
-import { useRouter, useParams } from 'next/navigation';
+import { useRouter, useParams, useSearchParams } from 'next/navigation'; // Import useSearchParams
 import Link from 'next/link';
 import { errorEmitter } from '@/firebase/error-emitter'
 import { FirestorePermissionError } from '@/firebase/errors'
@@ -73,6 +73,7 @@ const ValidationChecklist = ({ items }: { items: string[] }) => {
 
 export default function VoucherEditPage() {
     const params = useParams();
+    const searchParams = useSearchParams(); // Get search params
     const id = params.id as string;
     const isNew = id === 'new';
     const { selectedCompany } = React.useContext(SelectedCompanyContext) || {};
@@ -98,21 +99,57 @@ export default function VoucherEditPage() {
     
     React.useEffect(() => {
         if (isNew) {
-             setVoucher({
-                date: new Date().toISOString().substring(0, 10),
-                type: 'Traspaso',
-                description: '',
-                status: 'Borrador',
-                total: 0,
-                entries: [],
-                companyId: companyId,
-            });
-            setEntries([{ id: `new-entry-${Date.now()}-${Math.random()}`, account: '', description: '', debit: 0, credit: 0 }]);
+            // --- Asistente de Creación de Comprobantes ---
+            const typeFromQuery = searchParams.get('type');
+            const glosaFromQuery = searchParams.get('glosa');
+            const debitAccountIdFromQuery = searchParams.get('debitAccountId');
+            const debitAmountFromQuery = searchParams.get('debitAmount');
+
+            if (typeFromQuery && glosaFromQuery && debitAccountIdFromQuery && debitAmountFromQuery) {
+                // Si vienen parámetros, pre-llena el comprobante de egreso
+                setVoucher({
+                    date: new Date().toISOString().substring(0, 10),
+                    type: typeFromQuery as any,
+                    description: glosaFromQuery,
+                    status: 'Borrador',
+                    total: 0,
+                    entries: [],
+                    companyId: companyId,
+                });
+                setEntries([
+                    { 
+                        id: `new-entry-${Date.now()}-1`,
+                        account: debitAccountIdFromQuery, 
+                        description: '', 
+                        debit: parseFloat(debitAmountFromQuery),
+                        credit: 0 
+                    },
+                    { // Prepara la línea del banco para que el usuario solo elija la cuenta
+                        id: `new-entry-${Date.now()}-2`,
+                        account: '', 
+                        description: '', 
+                        debit: 0,
+                        credit: parseFloat(debitAmountFromQuery) 
+                    }
+                ]);
+            } else {
+                // Comportamiento normal: comprobante vacío
+                setVoucher({
+                    date: new Date().toISOString().substring(0, 10),
+                    type: 'Traspaso',
+                    description: '',
+                    status: 'Borrador',
+                    total: 0,
+                    entries: [],
+                    companyId: companyId,
+                });
+                setEntries([{ id: `new-entry-${Date.now()}-${Math.random()}`, account: '', description: '', debit: 0, credit: 0 }]);
+            }
         } else if (existingVoucher) {
             setVoucher(existingVoucher);
             setEntries(existingVoucher.entries);
         }
-    }, [isNew, existingVoucher, companyId]);
+    }, [isNew, existingVoucher, companyId, searchParams]);
 
     React.useEffect(() => {
         if (voucher?.date && selectedCompany) {

@@ -21,7 +21,8 @@ Esta sección detalla la arquitectura de alto nivel para que un nuevo desarrolla
 
 El núcleo de la aplicación es su arquitectura multi-tenant, diseñada para que cada contador (`Accountant`) tenga su propio espacio de trabajo aislado.
 
-- **Colección `users`**: Almacena los perfiles de los usuarios. Cada documento de usuario contiene un `role` ('Admin' o 'Accountant') y un mapa `companyIds` que asocia al contador con las empresas que ha creado.
+- **Colección `users`**: Almacena los perfiles de los usuarios. Cada documento de usuario contiene un `role` ('Admin' o 'Accountant') y un campo `companyIds`.
+    - **`companyIds`**: Este campo es **crítico** para los permisos. Debe ser un **Objeto (mapa)** donde cada ID de compañía es una clave y su valor es `true`. Ejemplo: `{"companyId1": true, "companyId2": true}`. Ver la sección de Troubleshooting para más detalles.
 - **Colección `companies`**: Almacena la información de cada empresa cliente. La propiedad `ownerId` en cada documento de empresa lo vincula directamente con el usuario contador que la creó.
 - **Aislamiento de Datos**: Las reglas de seguridad de Firestore (`firestore.rules`) garantizan que un contador solo pueda leer o escribir datos en las subcolecciones de las empresas que le pertenecen (validadas a través de `isUserAssociatedWithCompany`).
 
@@ -33,7 +34,7 @@ El sistema define dos roles de usuario principales con permisos claramente defin
     - Puede crear, leer, actualizar y eliminar (`CRUD`) las empresas que posee.
     - Tiene acceso `CRUD` a todos los datos contables y operativos *dentro* de sus propias empresas (ej. `companies/{companyId}/vouchers`).
     - No puede ver ni gestionar empresas o datos de otros contadores.
-    - No puede ver la lista de todos los usuarios.
+    - No puede ver la lista de todos los los usuarios.
 
 - **`Admin` (Administrador)**:
     - Tiene permisos `CRUD` sobre la colección `users`, lo que le permite crear, modificar y eliminar cuentas de contadores.
@@ -47,6 +48,36 @@ La interfaz de usuario está diseñada para ser dinámica y reactiva al contexto
 - **`useUser` y `useUserProfile`**: Estos hooks personalizados gestionan la autenticación y cargan el perfil del usuario, determinando su rol y permisos.
 - **`DashboardLayout`**: Este layout actúa como un controlador principal. Renderiza un diseño diferente (`AdminDashboardLayout` o `AccountantDashboardLayout`) basado en el rol del usuario.
 - **`SelectedCompanyContext`**: Para los contadores, este Contexto de React es fundamental. Almacena la empresa seleccionada actualmente y la pone a disposición de todos los componentes hijos. Esto asegura que todas las consultas a la base de datos y las operaciones se realicen en el contexto de la empresa correcta.
+
+## Puntos Críticos y Troubleshooting
+
+Esta sección documenta lecciones aprendidas durante el desarrollo que son vitales para evitar y diagnosticar problemas complejos.
+
+### 1. La Estructura de Datos de `companyIds` es Crucial
+
+El error más difícil de diagnosticar en este proyecto ha estado relacionado con la estructura del campo `companyIds` en la colección `users`.
+
+- **Estructura Correcta**: Un **Objeto (mapa)** donde las llaves son los IDs de las compañías.
+  ```json
+  "companyIds": {
+    "Bkp3r9551hbDJ3xZumup": true,
+    "JQRIR3pKvjcD8VAhhleZ": true
+  }
+  ```
+- **Estructura Incorrecta**: Un Array de strings (`["id1", "id2"]`) o un solo string.
+
+**Impacto**: Toda la lógica de permisos en el backend (rutas API en `src/app/api`) y las reglas de seguridad (`firestore.rules`) están diseñadas para leer las llaves de este objeto. Si la estructura es incorrecta, el servidor fallará con errores **`403 (Forbidden)`** o **`500 (Internal Server Error)`** que pueden parecer inexplicables, ya que el usuario parece tener los roles y permisos correctos a simple vista.
+
+### 2. Cómo Diagnosticar Errores de Servidor (500 Internal Server Error)
+
+Cuando una operación en el navegador falla con un error 500, el mensaje de error en la consola del navegador es a menudo inútil (ej. `Server error response: ""`).
+
+La verdadera causa del error **siempre** se encuentra en la **terminal donde se ejecuta el servidor de desarrollo (`npm run dev`)**.
+
+- **Paso 1**: Realiza la acción en el navegador para que ocurra el error.
+- **Paso 2**: Inmediatamente, revisa la ventana de la terminal.
+- **Paso 3**: Busca un bloque de texto de error detallado. El código en las rutas API está diseñado para imprimir la causa raíz del error allí (ej. `Error during payroll annulment: ...`). Sin el log de la terminal del servidor, es imposible saber qué falló.
+
 
 ## Key Features
 

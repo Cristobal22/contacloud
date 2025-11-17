@@ -1,4 +1,3 @@
-
 'use client';
 
 import React from 'react';
@@ -6,7 +5,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PayrollDraft } from '@/lib/types';
-import { VariableBonosManager } from './VariableBonosManager'; // Assuming you extract this to its own file
+import { VariableBonosManager } from './VariableBonosManager';
 
 const formatCurrency = (value: number) => new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(Math.round(value));
 
@@ -17,8 +16,10 @@ interface PayrollDraftsTableProps {
 }
 
 export function PayrollDraftsTable({ drafts, onDraftChange, onPreview }: PayrollDraftsTableProps) {
-    if (drafts.length === 0) {
-        return <div className="text-center h-24 flex items-center justify-center">No hay empleados activos o el período ya fue procesado.</div>;
+    // FIX: If there are no drafts, render nothing. 
+    // The parent component is now responsible for showing the correct loading or error message.
+    if (!drafts || drafts.length === 0) {
+        return null;
     }
 
     return (

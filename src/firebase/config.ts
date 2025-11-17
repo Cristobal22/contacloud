@@ -22,4 +22,4 @@ export const firebaseConfig = {
 // Initialize Firebase
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 export const db = getFirestore(app);
-export const functions = getFunctions(app, 'us-central1');
+export const functions = getFunctions(app, 'southamerica-west1');

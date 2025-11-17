@@ -177,6 +177,7 @@ const adminNavSections = [
         icon: UserCog,
         links: [
             { href: '/dashboard/admin/users', label: 'Gestión de Usuarios', icon: Users },
+            { href: '/dashboard/admin/health-check', label: 'Diagnóstico del Sistema', icon: HeartPulse },
         ]
     }
 ];

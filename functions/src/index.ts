@@ -1,53 +1,81 @@
 
+import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
-import { onCall, HttpsError } from "firebase-functions/v2/https";
-import { getFirestore } from "firebase-admin/firestore";
 
-// Securely initialize the Firebase Admin SDK only once
-if (admin.apps.length === 0) {
-  admin.initializeApp();
+// Initialize Admin SDK
+admin.initializeApp();
+
+// Define the structure of the data the function expects
+interface CompanyData {
+  name: string;
+  rut: string;
 }
-const db = getFirestore();
 
-export const getLatestPayrollSalary = onCall(async (request) => {
-  // 1. Check for authentication
-  if (!request.auth) {
-    throw new HttpsError("unauthenticated", "Authentication required.");
-  }
-
-  // 2. Validate input data
-  const { companyId, employeeId } = request.data;
-  if (!companyId || !employeeId) {
-    throw new HttpsError("invalid-argument", "Missing companyId or employeeId.");
-  }
-
-  // 3. Perform the database query
-  try {
-    const payrollsRef = db.collection(`companies/${companyId}/payrolls`);
-    const query = payrollsRef
-      .where("employeeId", "==", employeeId)
-      .orderBy("year", "desc")
-      .orderBy("month", "desc")
-      .limit(1);
-
-    const snapshot = await query.get();
-
-    if (snapshot.empty) {
-      // ALWAYS return the same shape
-      return { baseIndemnizacion: null };
+export const createCompanyAndAssociateUser = functions
+  .region("us-central1") // It's good practice to specify the region
+  .https.onCall(async (data: CompanyData, context) => {
+    // 1. Authentication Check
+    if (!context.auth) {
+      throw new functions.https.HttpsError(
+        "unauthenticated",
+        "A user must be authenticated to create a company."
+      );
     }
 
-    const lastPayroll = snapshot.docs[0].data();
+    const uid = context.auth.uid;
+    const companyData = data;
 
-    // Fallback logic for data consistency
-    const suggestedValue = lastPayroll.baseIndemnizacion ?? lastPayroll.taxableEarnings ?? 0;
+    // 2. Input Data Validation
+    if (!companyData.name || !companyData.rut) {
+      throw new functions.https.HttpsError(
+        "invalid-argument",
+        "The 'name' and 'rut' fields are required."
+      );
+    }
 
-    // ALWAYS return the same shape
-    return { baseIndemnizacion: suggestedValue };
-  } catch (error) {
-    console.error("Error fetching latest payroll for employee:", employeeId, "in company:", companyId, error);
-    // Log the detailed error on the server, but throw a generic one to the client
-    // This helps debugging without exposing implementation details.
-    throw new HttpsError("internal", "An internal error occurred while fetching payroll data.");
-  }
-});
+    // 3. Atomic transaction to create the company and associate the user
+    try {
+      const userRef = admin.firestore().collection("users").doc(uid);
+
+      const newCompanyId = await admin.firestore().runTransaction(async (transaction) => {
+        const userDoc = await transaction.get(userRef);
+        if (!userDoc.exists) {
+          throw new functions.https.HttpsError(
+            "not-found",
+            "User document not found."
+          );
+        }
+
+        // Create the new company
+        const newCompanyRef = admin.firestore().collection("companies").doc();
+        transaction.set(newCompanyRef, {
+          ...companyData,
+          ownerUid: uid,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          active: true, // Set company as active by default
+          memberUids: [uid], // Add the creator as the first member
+        });
+
+        // Associate the new company with the user by updating the 'companyIds' MAP.
+        transaction.update(userRef, {
+          [`companyIds.${newCompanyRef.id}`]: true,
+        });
+
+        return newCompanyRef.id;
+      });
+
+      return { status: "success", companyId: newCompanyId };
+
+    } catch (error) {
+      console.error("Error in the company creation transaction:", error);
+      if (error instanceof functions.https.HttpsError) {
+        throw error;
+      }
+      const errorMessage = (error instanceof Error) ? error.message : "An unknown error occurred.";
+      throw new functions.https.HttpsError(
+        "internal",
+        "An internal error occurred while saving company data.",
+        errorMessage
+      );
+    }
+  });

@@ -1,60 +1,57 @@
-
 import admin from 'firebase-admin';
 
-/**
- * Initializes the Firebase Admin SDK.
- * This function is smart and handles different environments:
- * 1. Google Cloud / Firebase Environment (like Cloud Functions when deployed):
- *    It uses Application Default Credentials. `initializeApp()` is called with no arguments.
- * 2. Local Development or other environments:
- *    It expects a `FIREBASE_ADMIN_CREDENTIALS` environment variable with the JSON key.
- */
+// No inicializamos la app aquí. Solo la declaramos.
+
 function initializeAdminApp() {
-    // If the app is already initialized, return it.
-    if (admin.apps.length > 0) {
-        return admin.apps[0]!;
+    // Esta función contiene la lógica de inicialización, pero solo se llamará cuando sea necesario.
+    
+    // Vercel deployment
+    if (process.env.VERCEL_ENV && process.env.FIREBASE_ADMIN_CREDENTIALS) {
+        console.log('Initializing Firebase Admin SDK for Vercel deployment...');
+        const serviceAccount = JSON.parse(process.env.FIREBASE_ADMIN_CREDENTIALS);
+        return admin.initializeApp({
+            credential: admin.credential.cert(serviceAccount),
+        });
     }
 
-    // When running inside a Google Cloud environment, the SDK automatically finds the credentials.
-    // The `FIREBASE_CONFIG` variable is automatically set by the Firebase environment.
-    if (process.env.FIREBASE_CONFIG) {
-        console.log('Initializing Firebase Admin SDK with Application Default Credentials.');
-        return admin.initializeApp();
-    }
-
-    // For local development, we rely on the service account JSON in the environment variable.
+    // Local development
     const credentialsJson = process.env.FIREBASE_ADMIN_CREDENTIALS;
     if (!credentialsJson) {
-        console.error('FATAL: Firebase credentials not found. The FIREBASE_ADMIN_CREDENTIALS environment variable is not set. This is required for local development.');
-        // In a real app, you might want to throw an error to prevent startup.
-        // For this interactive session, we'll log and continue, but it will likely fail.
-        throw new Error('FIREBASE_ADMIN_CREDENTIALS is not set.');
+        throw new Error('FATAL: FIREBASE_ADMIN_CREDENTIALS environment variable is not set.');
     }
-
+    
+    const trimmedCredentials = credentialsJson.trim();
     try {
-        console.log('Initializing Firebase Admin SDK from FIREBASE_ADMIN_CREDENTIALS variable.');
-        const serviceAccount = JSON.parse(credentialsJson);
+        console.log('Initializing Firebase Admin SDK from environment variable (local)...');
+        const serviceAccount = JSON.parse(trimmedCredentials);
         return admin.initializeApp({
             credential: admin.credential.cert(serviceAccount),
         });
     } catch (e) {
-        console.error('FATAL: Could not parse FIREBASE_ADMIN_CREDENTIALS. Make sure it is a valid, single-line JSON string.', e);
+        console.error('FATAL: Could not parse FIREBASE_ADMIN_CREDENTIALS.', e);
         throw new Error('Failed to parse Firebase credentials.');
     }
 }
 
-const adminApp = initializeAdminApp();
-const db = admin.firestore();
-const auth = admin.auth();
-
+/**
+ * Obtiene la instancia singleton de la Firebase Admin App.
+ * Si la app no está inicializada, la inicializa.
+ * Esta es la única función que se debe usar para obtener la app de admin.
+ */
 export function getAdminApp() {
-    return adminApp;
+    if (admin.apps.length > 0) {
+        return admin.apps[0]!;
+    }
+    return initializeAdminApp();
 }
 
+// Las otras funciones de ayuda ahora usan getAdminApp() para asegurar la inicialización.
 export function getAdminFirestore() {
-    return db;
+    const app = getAdminApp();
+    return admin.firestore(app);
 }
 
 export function getAdminAuth() {
-    return auth;
+    const app = getAdminApp();
+    return admin.auth(app);
 }

@@ -6,60 +6,59 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
+    // Correctly checks if the user is associated with the company via the user's own document.
+    function isUserAssociatedWithCompany(companyId) {
+      let userDoc = get(/databases/$(database)/documents/users/$(request.auth.uid));
+      return isSignedIn() &&
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             'companyIds' in userDoc.data &&
+             companyId in userDoc.data.companyIds;
     }
 
     function isAdmin() {
-      return isSignedIn() && (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Admin');
-    }
-
-    function isUserAssociatedWithCompany(companyId) {
-      return isSignedIn() && (companyId in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyIds);
+      return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Admin';
     }
 
     match /users/{userId} {
-      allow get: if isOwner(userId) || isAdmin();
+      allow get: if isAdmin() || (isSignedIn() && request.auth.uid == userId);
       allow list: if isAdmin();
-      allow create: if (isOwner(userId) && request.resource.data.uid == userId) || isAdmin();
-      allow update: if isOwner(userId) || isAdmin();
-      allow delete: if isOwner(userId) || isAdmin();
+      allow create, update: if isSignedIn() && request.auth.uid == userId;
+      allow delete: if isAdmin();
     }
 
     match /companies/{companyId} {
-      allow get, list: if isUserAssociatedWithCompany(companyId);
-      allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
-      allow update: if isUserAssociatedWithCompany(companyId);
-      allow delete: if isUserAssociatedWithCompany(companyId);
+      allow list: if isSignedIn();
+      allow get: if isUserAssociatedWithCompany(companyId);
+      allow update, delete: if isUserAssociatedWithCompany(companyId);
+      allow create: if false; // Creation is handled by a Cloud Function.
     }
 
-    // Explicit rules for all company subcollections
-    match /companies/{companyId}/accounts/{docId} { allow read, write: if isUserAssociatedWithCompany(companyId); }
-    match /companies/{companyId}/vouchers/{docId} { allow read, write: if isUserAssociatedWithCompany(companyId); }
-    match /companies/{companyId}/subjects/{docId} { allow read, write: if isUserAssociatedWithCompany(companyId); }
-    match /companies/{companyId}/cost-centers/{docId} { allow read, write: if isUserAssociatedWithCompany(companyId); }
-    match /companies/{companyId}/employees/{docId} { allow read, write: if isUserAssociatedWithCompany(companyId); }
-    match /companies/{companyId}/payrolls/{docId} { allow read, write: if isUserAssociatedWithCompany(companyId); }
-    match /companies/{companyId}/documents/{docId} { allow read, write: if isUserAssociatedWithCompany(companyId); }
-    match /companies/{companyId}/purchases/{docId} { allow read, write: if isUserAssociatedWithCompany(companyId); }
-    match /companies/{companyId}/sales/{docId} { allow read, write: if isUserAssociatedWithCompany(companyId); }
-    match /companies/{companyId}/fees/{docId} { allow read, write: if isUserAssociatedWithCompany(companyId); }
+    // --- SUB-COLLECTION RULES ---
+    // Secure all sub-collections of a company. Users can perform any action (list, read, write)
+    // only if they are properly associated with the parent company.
+
+    match /companies/{companyId}/employees/{docId}   { allow list, read, write: if isUserAssociatedWithCompany(companyId); }
+    match /companies/{companyId}/accounts/{docId}    { allow list, read, write: if isUserAssociatedWithCompany(companyId); }
+    match /companies/{companyId}/vouchers/{docId}    { allow list, read, write: if isUserAssociatedWithCompany(companyId); }
+    match /companies/{companyId}/subjects/{docId}    { allow list, read, write: if isUserAssociatedWithCompany(companyId); }
+    match /companies/{companyId}/cost-centers/{docId} { allow list, read, write: if isUserAssociatedWithCompany(companyId); }
+    match /companies/{companyId}/payrolls/{docId}     { allow list, read, write: if isUserAssociatedWithCompany(companyId); }
+    match /companies/{companyId}/documents/{docId}    { allow list, read, write: if isUserAssociatedWithCompany(companyId); }
+    match /companies/{companyId}/purchases/{docId}   { allow list, read, write: if isUserAssociatedWithCompany(companyId); }
+    match /companies/{companyId}/sales/{docId}        { allow list, read, write: if isUserAssociatedWithCompany(companyId); }
+    match /companies/{companyId}/fees/{docId}         { allow list, read, write: if isUserAssociatedWithCompany(companyId); }
 
     match /companies/{companyId}/economic-indicators/{indicatorId} {
       allow get, list: if isUserAssociatedWithCompany(companyId);
       allow create, update, delete: if isAdmin();
     }
-
-    match /users/{userId}/account-groups/{accountGroupId} {
-      allow read, write: if isOwner(userId);
-    }
-
-    // Public or Admin-only collections
-    match /economic-indicators/{indicatorId} { allow get, list: if true; allow create, update, delete: if isAdmin(); }
-    match /health-entities/{entityId} { allow get, list: if true; allow create, update, delete: if isAdmin(); }
-    match /afp-entities/{entityId} { allow get, list: if true; allow create, update, delete: if isAdmin(); }
-    match /family-allowance-parameters/{paramId} { allow get, list: if true; allow create, update, delete: if isAdmin(); }
-    match /tax-parameters/{paramId} { allow get, list: if true; allow create, update, delete: if isAdmin(); }
-    match /taxable-caps/{capId} { allow get, list: if true; allow create, update, delete: if isAdmin(); }
+    
+    // Global-read collections
+    match /economic-indicators/{indicatorId}      { allow get, list: if true; allow create, update, delete: if isAdmin(); }
+    match /health-entities/{entityId}             { allow get, list: if true; allow create, update, delete: if isAdmin(); }
+    match /afp-entities/{entityId}                { allow get, list: if true; allow create, update, delete: if isAdmin(); }
+    match /family-allowance-parameters/{paramId}  { allow get, list: if true; allow create, update, delete: if isAdmin(); }
+    match /tax-parameters/{paramId}               { allow get, list: if true; allow create, update, delete: if isAdmin(); }
+    match /taxable-caps/{capId}                   { allow get, list: if true; allow create, update, delete: if isAdmin(); }
   }
 }

@@ -1,5 +1,3 @@
-
-
 'use client';
 
 import {
@@ -13,7 +11,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { Table, TableBody, TableCell, TableRow, TableHeader, TableHead, TableFooter } from "@/components/ui/table"
-import type { Employee, Payroll } from "@/lib/types"
+import type { Employee, PayrollDraft } from "@/lib/types"
 import React from "react";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
@@ -21,19 +19,18 @@ import { cn } from "@/lib/utils";
 import { Logo } from "./logo";
 import { SelectedCompanyContext } from "@/app/dashboard/layout";
 import { ScrollArea } from "./ui/scroll-area";
-import { useCollection, useFirestore } from "@/firebase";
-import { EconomicIndicator, TaxParameter } from "@/lib/types";
 
 interface PayrollDetailDialogProps {
     isOpen: boolean;
     onClose: () => void;
     data: {
-        payroll: Payroll;
+        payroll: PayrollDraft;
         employee: Employee;
     } | null;
 }
 
-const formatCurrency = (value: number) => {
+const formatCurrency = (value: number | undefined) => {
+    if (value === undefined || value === null) return '$0';
     return `$${Math.round(value).toLocaleString('es-CL')}`;
 }
 
@@ -44,11 +41,6 @@ export function PayrollDetailDialog({ isOpen, onClose, data }: PayrollDetailDial
     const [pdfInstance, setPdfInstance] = React.useState<jsPDF | null>(null);
     const [isPreview, setIsPreview] = React.useState(false);
     
-    const firestore = useFirestore();
-    const companyId = selectedCompany?.id;
-    const { data: taxParameters, loading: taxLoading } = useCollection<TaxParameter>({ path: 'tax-parameters' });
-    const { data: economicIndicators, loading: indicatorsLoading } = useCollection<EconomicIndicator>({ path: companyId ? `companies/${companyId}/economic-indicators` : 'economic-indicators'});
-
     const handleClose = () => {
         setPdfInstance(null);
         setIsPreview(false);
@@ -121,7 +113,7 @@ export function PayrollDetailDialog({ isOpen, onClose, data }: PayrollDetailDial
 
     const { payroll, employee } = data;
     
-    const taxBase = payroll.taxableEarnings - payroll.afpDiscount - payroll.healthDiscount;
+    const taxBase = (payroll.taxableEarnings || 0) - (payroll.afpDiscount || 0) - (payroll.healthDiscount || 0);
     const taxAmountPreRebate = taxBase * (payroll.iutFactor || 0);
     const rebateAmount = payroll.iutRebajaInCLP || 0;
     const iutFactorDisplay = payroll.iutFactor ? (payroll.iutFactor * 100).toFixed(1) + '%' : '0%';
@@ -136,8 +128,8 @@ export function PayrollDetailDialog({ isOpen, onClose, data }: PayrollDetailDial
                     </DialogDescription>
                 </DialogHeader>
 
-                <div className="relative overflow-y-auto px-6">
-                    <div className="h-[600px] w-full">
+                <ScrollArea className="h-[calc(90vh-200px)]">
+                    <div className="relative px-6">
                         <div 
                             className={cn(
                                 "bg-white text-black transition-opacity duration-300", 
@@ -207,7 +199,7 @@ export function PayrollDetailDialog({ isOpen, onClose, data }: PayrollDetailDial
                                                 
                                                 <TableRow><TableCell className="pl-6 text-gray-500">Impuesto según tramo ({iutFactorDisplay})</TableCell><TableCell className="text-right text-gray-500">{formatCurrency(taxAmountPreRebate)}</TableCell></TableRow>
                                                 <TableRow><TableCell className="pl-6 text-gray-500">(-) Rebaja por tramo</TableCell><TableCell className="text-right text-gray-500">{formatCurrency(rebateAmount)}</TableCell></TableRow>
-                                                <TableRow className="font-medium"><TableCell>Impuesto Único a Pagar</TableCell><TableCell className="text-right font-medium">{formatCurrency( payroll.iut || 0)}</TableCell></TableRow>
+                                                <TableRow className="font-medium"><TableCell>Impuesto Único a Pagar</TableCell><TableCell className="text-right font-medium">{formatCurrency(payroll.iut)}</TableCell></TableRow>
                                             </TableBody>
                                             <TableFooter>
                                                 <TableRow className="bg-gray-100 font-bold text-base">
@@ -230,27 +222,27 @@ export function PayrollDetailDialog({ isOpen, onClose, data }: PayrollDetailDial
                                 </div>
                         </div>
                         </div>
-                    </div>
-                    
-                    {isPreview && (
-                        <div className="absolute top-[80px] left-6 right-6 bottom-[80px] bg-white">
-                             <div className="h-full border rounded-md">
-                                {pdfInstance && <iframe src={pdfInstance.output('datauristring')} width="100%" height="100%" title="Vista previa de liquidación"/>}
+                        
+                        {isPreview && (
+                            <div className="absolute top-0 left-0 right-0 bottom-0 bg-white">
+                                <div className="h-full border rounded-md">
+                                    {pdfInstance && <iframe src={pdfInstance.output('datauristring')} width="100%" height="100%" title="Vista previa de liquidación"/>}
+                                </div>
                             </div>
-                        </div>
-                    )}
-                </div>
+                        )}
+                    </div>
+                </ScrollArea>
                 
-                <div className="px-6 pb-6">
+                <div className="px-6 pb-6 pt-2">
                     <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
                         <div className="flex justify-between items-center">
                             <h4 className="text-sm font-semibold text-blue-800">Base para Indemnización (Uso Interno)</h4>
-                            <p className="text-lg font-bold text-blue-900">{formatCurrency(payroll.baseIndemnizacion || payroll.taxableEarnings)}</p>
+                            <p className="text-lg font-bold text-blue-900">{formatCurrency(payroll.severanceBase)}</p>
                         </div>
                     </div>
                 </div>
 
-                <DialogFooter className="p-6 pt-0">
+                <DialogFooter className="p-6 pt-0 border-t mt-4">
                     <Button type="button" variant="secondary" onClick={handleClose}>Cerrar</Button>
                     <Button type="button" variant="outline" onClick={togglePreview}>
                         {isPreview ? "Ocultar Vista Previa" : "Vista Previa PDF"}

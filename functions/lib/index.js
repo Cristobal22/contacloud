@@ -23,50 +23,54 @@ var __importStar = (this && this.__importStar) || function (mod) {
     return result;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getLatestPayrollSalary = void 0;
+exports.createCompanyAndAssociateUser = void 0;
+const functions = __importStar(require("firebase-functions"));
 const admin = __importStar(require("firebase-admin"));
-const https_1 = require("firebase-functions/v2/https");
-const firestore_1 = require("firebase-admin/firestore");
-// Securely initialize the Firebase Admin SDK only once
-if (admin.apps.length === 0) {
-    admin.initializeApp();
-}
-const db = (0, firestore_1.getFirestore)();
-exports.getLatestPayrollSalary = (0, https_1.onCall)(async (request) => {
-    var _a, _b;
-    // 1. Check for authentication
-    if (!request.auth) {
-        throw new https_1.HttpsError("unauthenticated", "Authentication required.");
+// Initialize Admin SDK
+admin.initializeApp();
+exports.createCompanyAndAssociateUser = functions
+    .region("us-central1")
+    .https.onCall(async (data, context) => {
+    // 1. Authentication Check
+    if (!context.auth) {
+        throw new functions.https.HttpsError("unauthenticated", "A user must be authenticated to create a company.");
     }
-    // 2. Validate input data
-    const { companyId, employeeId } = request.data;
-    if (!companyId || !employeeId) {
-        throw new https_1.HttpsError("invalid-argument", "Missing companyId or employeeId.");
+    const uid = context.auth.uid;
+    const companyData = data;
+    // 2. Input Data Validation
+    if (!companyData.name || !companyData.rut) {
+        throw new functions.https.HttpsError("invalid-argument", "The 'name' and 'rut' fields are required.");
     }
-    // 3. Perform the database query
+    // 3. Atomic transaction to create the company and associate the user
     try {
-        const payrollsRef = db.collection(`companies/${companyId}/payrolls`);
-        const query = payrollsRef
-            .where("employeeId", "==", employeeId)
-            .orderBy("year", "desc")
-            .orderBy("month", "desc")
-            .limit(1);
-        const snapshot = await query.get();
-        if (snapshot.empty) {
-            // ALWAYS return the same shape
-            return { baseIndemnizacion: null };
-        }
-        const lastPayroll = snapshot.docs[0].data();
-        // Fallback logic for data consistency
-        const suggestedValue = (_b = (_a = lastPayroll.baseIndemnizacion) !== null && _a !== void 0 ? _a : lastPayroll.taxableEarnings) !== null && _b !== void 0 ? _b : 0;
-        // ALWAYS return the same shape
-        return { baseIndemnizacion: suggestedValue };
+        const userRef = admin.firestore().collection("users").doc(uid);
+        const newCompanyId = await admin.firestore().runTransaction(async (transaction) => {
+            const userDoc = await transaction.get(userRef);
+            if (!userDoc.exists) {
+                throw new functions.https.HttpsError("not-found", "User document not found.");
+            }
+            // Create the new company
+            const newCompanyRef = admin.firestore().collection("companies").doc();
+            transaction.set(newCompanyRef, Object.assign(Object.assign({}, companyData), { ownerUid: uid, 
+                // Add the creator's UID to the 'memberUids' array
+                memberUids: [uid], createdAt: admin.firestore.FieldValue.serverTimestamp() }));
+            // Associate the new company with the user
+            transaction.update(userRef, {
+                companyIds: admin.firestore.FieldValue.arrayUnion(newCompanyRef.id),
+            });
+            return newCompanyRef.id;
+        });
+        return { status: "success", companyId: newCompanyId };
     }
     catch (error) {
-        console.error("Error fetching latest payroll for employee:", employeeId, "in company:", companyId, error);
-        // Log the detailed error on the server, but throw a generic one to the client
-        // This helps debugging without exposing implementation details.
-        throw new https_1.HttpsError("internal", "An internal error occurred while fetching payroll data.");
+        console.error("Error in the company creation transaction:", error);
+        // Re-throw formatted HttpsError if it's already one
+        if (error instanceof functions.https.HttpsError) {
+            throw error;
+        }
+        // For any other error, throw a generic internal error
+        const errorMessage = (error instanceof Error) ? error.message : "An unknown error occurred.";
+        throw new functions.https.HttpsError("internal", "An internal error occurred while saving company data.", errorMessage);
     }
 });
 //# sourceMappingURL=index.js.map

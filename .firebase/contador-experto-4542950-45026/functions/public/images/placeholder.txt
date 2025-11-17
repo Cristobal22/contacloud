@@ -1,0 +1,2 @@
+Por favor, sube tu archivo logo.svg a esta carpeta (public/images/) y elimina este archivo.
+Please upload your logo.svg file to this directory (public/images/) and delete this file.

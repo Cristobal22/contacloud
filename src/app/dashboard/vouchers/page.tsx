@@ -1,332 +1,282 @@
 'use client'
 
-import React from "react"
-import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-  } from "@/components/ui/table"
-  import {
-    Card,
-    CardContent,
-    CardDescription,
-    CardHeader,
-    CardTitle,
-  } from "@/components/ui/card"
-  import { Button, buttonVariants } from "@/components/ui/button"
-  import { Badge } from "@/components/ui/badge"
-  import { MoreHorizontal, PlusCircle } from "lucide-react"
-  import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuLabel,
-    DropdownMenuSeparator,
-    DropdownMenuTrigger,
-  } from "@/components/ui/dropdown-menu"
-    import {
-    AlertDialog,
-    AlertDialogAction,
-    AlertDialogCancel,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
-  } from "@/components/ui/alert-dialog"
-  import { useCollection } from "@/firebase/firestore/use-collection"
-  import { doc, updateDoc, deleteDoc, writeBatch, collection, query, where, getDocs, Timestamp } from "firebase/firestore"
-  import type { Voucher, Purchase } from "@/lib/types"
-  import Link from "next/link"
-  import { errorEmitter } from '@/firebase/error-emitter'
-  import { FirestorePermissionError } from '@/firebase/errors'
-import { SelectedCompanyContext } from "@/app/dashboard/layout"
-import { useToast } from "@/hooks/use-toast"
-import { db } from "@/firebase/config"
-  
-  export default function VouchersPage() {
-    const { selectedCompany } = React.useContext(SelectedCompanyContext) || {};
-    const companyId = selectedCompany?.id;
+import React from 'react';
+import { useRouter } from 'next/navigation';
+import { useCollection } from '@/firebase';
+import type { Voucher } from '@/lib/types';
+import { SelectedCompanyContext } from '../layout';
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { MoreHorizontal, PlusCircle } from "lucide-react"
+import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { useToast } from "@/hooks/use-toast";
+import { useUser } from '@/firebase/auth/use-user';
 
-    const { toast } = useToast();
-    const { data: vouchers, loading } = useCollection<Voucher>({ 
-      path: companyId ? `companies/${companyId}/vouchers` : undefined,
-    });
+const VouchersPage: React.FC = () => {
+  const router = useRouter();
+  const { selectedCompany } = React.useContext(SelectedCompanyContext) || {};
+  const companyId = selectedCompany?.id;
+  const { toast } = useToast();
+  const { user } = useUser();
 
-    const [isContabilizarDialogOpen, setIsContabilizarDialogOpen] = React.useState(false);
-    const [voucherToContabilizar, setVoucherToContabilizar] = React.useState<Voucher | null>(null);
+  const { data: vouchers, loading, refetch } = useCollection<Voucher>({ 
+    path: companyId ? `companies/${companyId}/vouchers` : undefined,
+  });
 
-    const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false);
-    const [voucherToDelete, setVoucherToDelete] = React.useState<Voucher | null>(null);
+  const [isContabilizarDialogOpen, setIsContabilizarDialogOpen] = React.useState(false);
+  const [voucherToContabilizar, setVoucherToContabilizar] = React.useState<Voucher | null>(null);
 
-    const [isUndoDialogOpen, setIsUndoDialogOpen] = React.useState(false);
-    const [voucherToUndo, setVoucherToUndo] = React.useState<Voucher | null>(null);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false);
+  const [voucherToDelete, setVoucherToDelete] = React.useState<Voucher | null>(null);
 
-    const handleOpenContabilizarDialog = (voucher: Voucher) => {
-        setVoucherToContabilizar(voucher);
-        setIsContabilizarDialogOpen(true);
+  const [isUndoDialogOpen, setIsUndoDialogOpen] = React.useState(false);
+  const [voucherToUndo, setVoucherToUndo] = React.useState<Voucher | null>(null);
+
+  const [isForceDeleteDialogOpen, setIsForceDeleteDialogOpen] = React.useState(false);
+  const [voucherToForceDelete, setVoucherToForceDelete] = React.useState<Voucher | null>(null);
+
+  const handleApiAction = async (endpoint: string, body: object, successMessage: string, errorMessage: string) => {
+    try {
+        const token = await user?.getIdToken();
+        if (!token) throw new Error("Authentication token not found.");
+
+        const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify(body),
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || errorMessage);
+        }
+
+        toast({ title: "Éxito", description: successMessage });
+        refetch();
+        return true;
+    } catch (error) {
+        const msg = error instanceof Error ? error.message : errorMessage;
+        toast({ variant: "destructive", title: "Error", description: msg });
+        return false;
     }
-    
-    const handleOpenDeleteDialog = (voucher: Voucher) => {
-        setVoucherToDelete(voucher);
-        setIsDeleteDialogOpen(true);
-    };
+  };
 
-    const handleOpenUndoDialog = (voucher: Voucher) => {
-        setVoucherToUndo(voucher);
-        setIsUndoDialogOpen(true);
-    };
-
-    const handleContabilizarVoucher = () => {
-        if (!companyId || !voucherToContabilizar) return;
-
-        const docRef = doc(db, `companies/${companyId}/vouchers`, voucherToContabilizar.id);
-        const updateData = { status: 'Contabilizado' };
-
+  const handleContabilizar = async () => {
+    if (!voucherToContabilizar || !companyId) return;
+    const success = await handleApiAction(
+        `/api/vouchers/contabilizar`,
+        { companyId, voucherId: voucherToContabilizar.id },
+        "Comprobante Contabilizado.",
+        "No se pudo contabilizar el comprobante."
+    );
+    if (success) {
         setIsContabilizarDialogOpen(false);
         setVoucherToContabilizar(null);
+    }
+  };
 
-        updateDoc(docRef, updateData)
-          .catch(err => {
-            errorEmitter.emit('permission-error', new FirestorePermissionError({
-              path: docRef.path,
-              operation: 'update',
-              requestResourceData: updateData,
-            }));
-          });
-    };
-
-    const handleDelete = () => {
-        if (!companyId || !voucherToDelete) return;
-        const docRef = doc(db, `companies/${companyId}/vouchers`, voucherToDelete.id);
-
+  const handleDelete = async () => {
+    if (!voucherToDelete || !companyId) return;
+    const success = await handleApiAction(
+        `/api/vouchers/delete`,
+        { companyId, voucherId: voucherToDelete.id },
+        "Comprobante eliminado.",
+        "No se pudo eliminar el comprobante."
+    );
+    if (success) {
         setIsDeleteDialogOpen(false);
         setVoucherToDelete(null);
-
-        deleteDoc(docRef)
-            .catch(err => {
-                 errorEmitter.emit('permission-error', new FirestorePermissionError({
-                    path: docRef.path,
-                    operation: 'delete',
-                }));
-            });
-    };
-
-    const handleUndoCentralization = async () => {
-        if (!companyId || !voucherToUndo) return;
-
-        const voucherRef = doc(db, `companies/${companyId}/vouchers`, voucherToUndo.id);
-        const isPurchase = voucherToUndo.description.includes('Compras');
-        const collectionName = isPurchase ? 'purchases' : 'sales';
-        
-        try {
-            const docsQuery = query(
-                collection(db, `companies/${companyId}/${collectionName}`),
-                where('voucherId', '==', voucherToUndo.id)
-            );
-            const docsSnapshot = await getDocs(docsQuery);
-
-            const batch = writeBatch(db);
-
-            // Revert associated documents status
-            docsSnapshot.forEach(docToUpdate => {
-                const docRef = doc(db, `companies/${companyId}/${collectionName}`, docToUpdate.id);
-                batch.update(docRef, { status: 'Pendiente', voucherId: '' });
-            });
-
-            // Delete the voucher
-            batch.delete(voucherRef);
-
-            await batch.commit();
-
-            toast({
-                title: "Centralización Anulada",
-                description: `El comprobante ha sido eliminado y los documentos asociados han vuelto al estado 'Pendiente'.`,
-            });
-
-        } catch (error) {
-            console.error("Error undoing centralization:", error);
-            toast({ variant: "destructive", title: "Error", description: "No se pudo anular la centralización." });
-        } finally {
-            setIsUndoDialogOpen(false);
-            setVoucherToUndo(null);
-        }
-    };
-
-    const formatDate = (date: any) => {
-      if (date instanceof Timestamp) {
-        return date.toDate().toLocaleDateString('es-CL', { timeZone: 'UTC' });
-      }
-      return new Date(date).toLocaleDateString('es-CL', { timeZone: 'UTC' });
     }
+  };
 
-    return (
-      <>
-        <Card>
-          <CardHeader>
-              <div className="flex items-center justify-between">
-                  <div>
-                      <CardTitle>Comprobantes Contables</CardTitle>
-                      <CardDescription>Gestiona los comprobantes de la empresa.</CardDescription>
-                  </div>
-                  <Button size="sm" className="gap-1" disabled={!companyId} asChild>
-                    <Link href={`/dashboard/vouchers/edit/new`}>
-                      <PlusCircle className="h-4 w-4" />
-                      Agregar Comprobante
-                    </Link>
-                  </Button>
-              </div>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
+  const handleUndo = async () => {
+    if (!voucherToUndo || !companyId) return;
+    const success = await handleApiAction(
+        `/api/vouchers/undo`,
+        { companyId, voucherId: voucherToUndo.id },
+        "Comprobante anulado exitosamente.",
+        "No se pudo anular el comprobante."
+    );
+    if (success) {
+        setIsUndoDialogOpen(false);
+        setVoucherToUndo(null);
+    }
+  };
+
+  const handleForceDelete = async () => {
+    if (!voucherToForceDelete || !companyId) return;
+    const success = await handleApiAction(
+        `/api/vouchers/force-delete-centralization`,
+        { companyId, voucherId: voucherToForceDelete.id },
+        "El comprobante de centralización huérfano ha sido eliminado.",
+        "No se pudo forzar la eliminación del comprobante."
+    );
+    if (success) {
+        setIsForceDeleteDialogOpen(false);
+        setVoucherToForceDelete(null);
+    }
+  };
+
+  return (
+    <main className="flex flex-1 flex-col gap-4 p-4 md:gap-8 md:p-8">
+      <Card>
+        <CardHeader className="flex flex-row items-center">
+            <div className="grid gap-2">
+                <CardTitle>Comprobantes Contables</CardTitle>
+                <CardDescription>
+                    Gestiona los comprobantes contables de tu empresa. Registra, edita y visualiza todas las transacciones.
+                </CardDescription>
+            </div>
+            <Button className="ml-auto gap-1" size="sm" onClick={() => router.push('/dashboard/vouchers/edit/new')}>
+                <PlusCircle className="h-3.5 w-3.5" />
+                Nuevo Comprobante
+            </Button>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Fecha</TableHead>
+                <TableHead>Número</TableHead>
+                <TableHead>Tipo</TableHead>
+                <TableHead>Descripción</TableHead>
+                <TableHead>Estado</TableHead>
+                <TableHead className="text-right">Total</TableHead>
+                <TableHead>
+                  <span className="sr-only">Acciones</span>
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {loading && (
                 <TableRow>
-                  <TableHead>Fecha</TableHead>
-                  <TableHead>Tipo</TableHead>
-                  <TableHead>Descripción</TableHead>
-                  <TableHead>Estado</TableHead>
-                  <TableHead className="text-right">Total</TableHead>
-                  <TableHead>
-                    <span className="sr-only">Acciones</span>
-                  </TableHead>
+                  <TableCell colSpan={7} className="text-center">Cargando...</TableCell>
                 </TableRow>
-              </TableHeader>
-              <TableBody>
-                {loading && (
-                  <TableRow>
-                    <TableCell colSpan={6} className="text-center">Cargando...</TableCell>
-                  </TableRow>
-                )}
-                {!loading && vouchers?.map((voucher) => {
-                  const isCentralizationVoucher = voucher.description.startsWith('Centralización');
+              )}
+              {!loading && vouchers?.map((voucher) => {
+                const isCentralizationVoucher = voucher.glosa?.startsWith('Centralización de Remuneraciones');
 
-                  return (
-                    <TableRow key={voucher.id}>
-                        <TableCell>{formatDate(voucher.date)}</TableCell>
-                        <TableCell>
-                          <Badge variant={
-                              voucher.type === 'Ingreso' ? 'default' : 
-                              voucher.type === 'Egreso' ? 'destructive' : 'secondary'
-                          }>{voucher.type}</Badge>
-                        </TableCell>
-                        <TableCell className="font-medium">{voucher.description}</TableCell>
-                        <TableCell>
-                          <Badge variant={voucher.status === 'Contabilizado' ? 'outline' : 'secondary'}>
+                return (
+                  <TableRow key={voucher.id}>
+                    <TableCell>{new Date(voucher.date.seconds * 1000).toLocaleDateString()}</TableCell>
+                    <TableCell className="font-medium">{voucher.number}</TableCell>
+                    <TableCell>{voucher.type}</TableCell>
+                    <TableCell>{voucher.glosa}</TableCell>
+                    <TableCell>
+                        <Badge 
+                            variant={voucher.status === 'Borrador' ? 'outline' : 'default'}
+                            className={voucher.status === 'Contabilizado' ? 'bg-green-100 text-green-800' : ''}
+                        >
                             {voucher.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right">${Math.round(voucher.total).toLocaleString('es-CL')}</TableCell>
-                        <TableCell>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button aria-haspopup="true" size="icon" variant="ghost">
-                                <MoreHorizontal className="h-4 w-4" />
-                                <span className="sr-only">Toggle menu</span>
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-                              <DropdownMenuItem asChild>
-                                    <Link href={`/dashboard/vouchers/edit/${voucher.id}`}>Editar</Link>
-                              </DropdownMenuItem>
-                              {voucher.status === 'Borrador' && (
-                                <>
-                                    <DropdownMenuSeparator />
-                                    <DropdownMenuItem onClick={() => handleOpenContabilizarDialog(voucher)}>
-                                        Contabilizar
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem className="text-destructive" onClick={() => handleOpenDeleteDialog(voucher)}>
-                                        Eliminar
-                                    </DropdownMenuItem>
-                                </>
-                              )}
-                              {isCentralizationVoucher && voucher.status === 'Contabilizado' && (
-                                <>
-                                  <DropdownMenuSeparator />
-                                  <DropdownMenuItem className="text-destructive" onClick={() => handleOpenUndoDialog(voucher)}>
-                                    Anular Centralización
-                                  </DropdownMenuItem>
-                                </>
-                              )}
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </TableCell>
-                    </TableRow>
-                  );
-                })}
-                {!loading && vouchers?.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={6} className="text-center">
-                      {!companyId ? "Selecciona una empresa para ver sus comprobantes." : "No se encontraron comprobantes para esta empresa."}
+                        </Badge>
+                    </TableCell>
+                    <TableCell className="text-right">{`$${new Intl.NumberFormat('es-CL').format(voucher.total)}`}</TableCell>
+                    <TableCell>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button aria-haspopup="true" size="icon" variant="ghost">
+                            <MoreHorizontal className="h-4 w-4" />
+                            <span className="sr-only">Toggle menu</span>
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuLabel>Acciones</DropdownMenuLabel>
+                          {voucher.status === 'Borrador' && (
+                            <>
+                                <DropdownMenuItem onSelect={() => router.push(`/dashboard/vouchers/edit/${voucher.id}`)}>
+                                  Editar
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onSelect={() => { setVoucherToContabilizar(voucher); setIsContabilizarDialogOpen(true); }}>
+                                  Contabilizar
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem onSelect={() => { setVoucherToDelete(voucher); setIsDeleteDialogOpen(true); }} className="text-red-600">
+                                  Eliminar
+                                </DropdownMenuItem>
+                            </>
+                          )}
+                          {voucher.status === 'Contabilizado' && !isCentralizationVoucher && (
+                            <DropdownMenuItem onSelect={() => { setVoucherToUndo(voucher); setIsUndoDialogOpen(true); }}>
+                              Anular
+                            </DropdownMenuItem>
+                          )}
+                          {voucher.status === 'Contabilizado' && isCentralizationVoucher && (
+                            <DropdownMenuItem onSelect={() => { setVoucherToForceDelete(voucher); setIsForceDeleteDialogOpen(true); }} className="text-red-600">
+                              Forzar Eliminación (Admin)
+                            </DropdownMenuItem>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </TableCell>
                   </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
 
-        <AlertDialog open={isContabilizarDialogOpen} onOpenChange={setIsContabilizarDialogOpen}>
-            <AlertDialogContent>
-                <AlertDialogHeader>
-                    <AlertDialogTitle>¿Confirmas la acción?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                        Esta acción no se puede deshacer. Al contabilizar el comprobante, se registrará oficialmente en la contabilidad y no podrá ser editado.
-                    </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                    <AlertDialogAction
-                        onClick={handleContabilizarVoucher}
-                    >
-                        Sí, contabilizar comprobante
-                    </AlertDialogAction>
-                </AlertDialogFooter>
-            </AlertDialogContent>
-        </AlertDialog>
+      {/* All existing dialogs remain unchanged... */}
+      <Dialog open={isContabilizarDialogOpen} onOpenChange={setIsContabilizarDialogOpen}>
+          <DialogContent>
+              <DialogHeader>
+                  <DialogTitle>Confirmar Contabilización</DialogTitle>
+                  <DialogDescription>¿Estás seguro de que quieres contabilizar el comprobante número {voucherToContabilizar?.number}? Esta acción no se puede deshacer.</DialogDescription>
+              </DialogHeader>
+              <DialogFooter>
+                  <Button variant="outline" onClick={() => setIsContabilizarDialogOpen(false)}>Cancelar</Button>
+                  <Button onClick={handleContabilizar}>Confirmar</Button>
+              </DialogFooter>
+          </DialogContent>
+      </Dialog>
 
-        <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-            <AlertDialogContent>
-                <AlertDialogHeader>
-                    <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                        Esta acción no se puede deshacer. Esto eliminará permanentemente el comprobante <span className="font-bold">{voucherToDelete?.description}</span>.
-                    </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                    <AlertDialogAction
-                        className={buttonVariants({ variant: "destructive" })}
-                        onClick={handleDelete}
-                    >
-                        Sí, eliminar
-                    </AlertDialogAction>
-                </AlertDialogFooter>
-            </AlertDialogContent>
-        </AlertDialog>
-        
-        <AlertDialog open={isUndoDialogOpen} onOpenChange={setIsUndoDialogOpen}>
-            <AlertDialogContent>
-                <AlertDialogHeader>
-                    <AlertDialogTitle>¿Estás seguro de anular la centralización?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                        Esta acción es irreversible. Se eliminará el comprobante de centralización <span className="font-bold">{voucherToUndo?.description}</span> y todos los documentos asociados volverán al estado 'Pendiente'.
-                    </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                    <AlertDialogAction
-                        className={buttonVariants({ variant: "destructive" })}
-                        onClick={handleUndoCentralization}
-                    >
-                        Sí, anular centralización
-                    </AlertDialogAction>
-                </AlertDialogFooter>
-            </AlertDialogContent>
-        </AlertDialog>
-      </>
-    )
-  }
+      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+          <DialogContent>
+              <DialogHeader>
+                  <DialogTitle>Confirmar Eliminación</DialogTitle>
+                  <DialogDescription>¿Estás seguro de que quieres eliminar el comprobante número {voucherToDelete?.number}? Esta acción es permanente.</DialogDescription>
+              </DialogHeader>
+              <DialogFooter>
+                  <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>Cancelar</Button>
+                  <Button variant="destructive" onClick={handleDelete}>Eliminar</Button>
+              </DialogFooter>
+          </DialogContent>
+      </Dialog>
+
+      <Dialog open={isUndoDialogOpen} onOpenChange={setIsUndoDialogOpen}>
+          <DialogContent>
+              <DialogHeader>
+                  <DialogTitle>Confirmar Anulación</DialogTitle>
+                  <DialogDescription>¿Estás seguro de que quieres anular el comprobante número {voucherToUndo?.number}? Se creará un nuevo comprobante para revertir los asientos.</DialogDescription>
+              </DialogHeader>
+              <DialogFooter>
+                  <Button variant="outline" onClick={() => setIsUndoDialogOpen(false)}>Cancelar</Button>
+                  <Button onClick={handleUndo}>Anular</Button>
+              </DialogFooter>
+          </DialogContent>
+      </Dialog>
+
+      {/* New Dialog for Force Delete */}
+      <Dialog open={isForceDeleteDialogOpen} onOpenChange={setIsForceDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirmar Eliminación Forzada</DialogTitle>
+            <DialogDescription>
+              Estás a punto de eliminar el comprobante de centralización huérfano número <span className="font-bold">{voucherToForceDelete?.number}</span>. Esta es una herramienta de limpieza de datos y solo debe usarse para corregir inconsistencias donde el proceso de remuneraciones original ya no existe. Esta acción es permanente e irreversible.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsForceDeleteDialogOpen(false)}>Cancelar</Button>
+            <Button variant="destructive" onClick={handleForceDelete}>Entiendo, forzar eliminación</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+    </main>
+  );
+};
+
+export default VouchersPage;

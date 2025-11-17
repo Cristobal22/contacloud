@@ -50,7 +50,7 @@ import {
   import { Switch } from "@/components/ui/switch"
   import { useFirestore, useUser } from "@/firebase"
   import { useCollection } from "@/firebase/firestore/use-collection"
-  import { collection, addDoc, setDoc, doc, deleteDoc, updateDoc, query, where, documentId, writeBatch, Query } from "firebase/firestore"
+  import { collection, setDoc, doc, deleteDoc, updateDoc, query, where, writeBatch, Query, deleteField } from "firebase/firestore"
   import type { Company } from "@/lib/types"
   import { useRouter } from 'next/navigation'
   import { SelectedCompanyContext } from '../layout'
@@ -58,6 +58,7 @@ import {
   import { FirestorePermissionError } from '@/firebase/errors'
   import { useToast } from '@/hooks/use-toast';
   import { useUserProfile } from '@/firebase/auth/use-user-profile';
+  import { useCreateCompany } from '@/features/companies/hooks/use-create-company';
 
   const planLimits: { [key: string]: number } = {
     'Demo': 2,
@@ -73,24 +74,16 @@ import {
     const router = useRouter();
     const { setSelectedCompany } = React.useContext(SelectedCompanyContext) || {};
     const { toast } = useToast();
+    const { callCreateCompany } = useCreateCompany();
 
+    // CORRECTED QUERY: This logic is now consistent with the working dropdown menu.
     const companiesQuery = React.useMemo(() => {
-        if (!firestore || !userProfile) return null;
-
-        if (userProfile.role === 'Admin') {
+        if (!firestore || !user || userProfile?.role !== 'Accountant') {
             return null;
         }
-        
-        // When user is Accountant, companyIds is a map/object.
-        if (userProfile.role === 'Accountant' && userProfile.companyIds) {
-            const companyIdArray = Object.keys(userProfile.companyIds);
-            if (companyIdArray.length > 0) {
-                return query(collection(firestore, 'companies'), where(documentId(), 'in', companyIdArray.slice(0, 30))) as Query<Company>;
-            }
-        }
 
-        return null;
-    }, [firestore, userProfile]);
+        return query(collection(firestore, 'companies'), where('memberUids', 'array-contains', user.uid)) as Query<Company>;
+    }, [firestore, user, userProfile]);
 
     const { data: companies, loading: companiesLoading } = useCollection<Company>({ 
       query: companiesQuery,
@@ -107,7 +100,7 @@ import {
     const handleCreateNew = () => {
         const currentPlan = userProfile?.plan || 'Individual';
         const limit = planLimits[currentPlan] || 5;
-        const currentCompanyCount = userProfile?.companyIds ? Object.keys(userProfile.companyIds).length : 0;
+        const currentCompanyCount = companies?.length || 0;
 
         if (currentCompanyCount >= limit) {
             toast({
@@ -145,12 +138,9 @@ import {
         
         try {
             const batch = writeBatch(firestore);
-            
-            // Reference to the company document to be deleted
             const companyDocRef = doc(firestore, 'companies', companyId);
             batch.delete(companyDocRef);
 
-            // Reference to the user profile to update the companyIds map
             const userProfileRef = doc(firestore, 'users', user.uid);
             batch.update(userProfileRef, {
                 [`companyIds.${companyId}`]: deleteField()
@@ -172,69 +162,45 @@ import {
     };
 
     const handleSave = async () => {
-        if (!firestore || !user || !selectedCompanyLocal || !userProfile) return;
+        if (!user || !selectedCompanyLocal || !userProfile) return;
 
         const isNew = !!selectedCompanyLocal.id?.startsWith('new-');
 
-        if(isNew) {
-            const currentPlan = userProfile.plan || 'Individual';
-            const limit = planLimits[currentPlan] || 5;
-            const currentCompanyCount = userProfile.companyIds ? Object.keys(userProfile.companyIds).length : 0;
-            if (currentCompanyCount >= limit) {
-                 toast({ variant: "destructive", title: "Límite Alcanzado" });
-                setIsFormOpen(false);
-                return;
-            }
-        }
-
         if (!selectedCompanyLocal.name || !selectedCompanyLocal.rut) {
-            toast({ variant: "destructive", title: "Campos requeridos" });
+            toast({ variant: "destructive", title: "Campos requeridos", description: "El nombre y el RUT son obligatorios." });
             return;
         }
 
         setIsFormOpen(false);
-        
-        const companyData: Omit<Company, 'id'> = {
-            name: selectedCompanyLocal.name,
-            rut: selectedCompanyLocal.rut,
-            active: selectedCompanyLocal.active ?? true,
-            giro: selectedCompanyLocal.giro || "No especificado",
-            address: selectedCompanyLocal.address || '',
-            ownerId: user.uid,
-        };
 
         if (isNew) {
-            try {
-                const batch = writeBatch(firestore);
-                const newCompanyRef = doc(collection(firestore, 'companies'));
-                batch.set(newCompanyRef, companyData);
-                
-                if (userProfile?.role === 'Accountant') {
-                    const userProfileRef = doc(firestore, 'users', user.uid);
-                    // Use dot notation to add a new key to the map without overwriting it.
-                    const newCompanyId = newCompanyRef.id;
-                    batch.update(userProfileRef, {
-                        [`companyIds.${newCompanyId}`]: true
-                    });
-                }
-                
-                await batch.commit();
+            const result = await callCreateCompany({
+                name: selectedCompanyLocal.name,
+                rut: selectedCompanyLocal.rut
+            });
 
-                toast({ title: "Empresa Creada", description: `${companyData.name} ha sido creada.` });
-                
-                const newCompany: Company = { id: newCompanyRef.id, ...companyData };
-                
-                if (setSelectedCompany) {
-                    setSelectedCompany(newCompany);
-                }
+            if (result && result.data.companyId && setSelectedCompany) {
+                const newCompany: Company = {
+                    id: result.data.companyId,
+                    name: selectedCompanyLocal.name,
+                    rut: selectedCompanyLocal.rut,
+                    giro: selectedCompanyLocal.giro || "No especificado",
+                    address: selectedCompanyLocal.address || '',
+                    active: true,
+                    ownerId: user.uid
+                };
+                setSelectedCompany(newCompany);
                 router.push('/dashboard/companies/settings');
-
-            } catch (err) {
-                 errorEmitter.emit('permission-error', new FirestorePermissionError({ path: 'companies', operation: 'create' }));
             }
         } else if (selectedCompanyLocal.id) {
             const docRef = doc(firestore, 'companies', selectedCompanyLocal.id);
-            const { ownerId, ...updateData } = companyData; 
+            const updateData = {
+                name: selectedCompanyLocal.name,
+                rut: selectedCompanyLocal.rut,
+                giro: selectedCompanyLocal.giro || "No especificado",
+                address: selectedCompanyLocal.address || '',
+                active: selectedCompanyLocal.active ?? true,
+            };
 
             setDoc(docRef, updateData, { merge: true })
                 .then(() => {

@@ -30,17 +30,18 @@ export async function POST(req: Request) {
 
     try {
         const { searchParams } = new URL(req.url);
-        const empresaId = searchParams.get('empresaId');
+        const companyId = searchParams.get('companyId'); // Corrected parameter name for consistency
 
-        if (!empresaId) {
-            return new Response('empresaId is required', { status: 400 });
+        if (!companyId) {
+            return new Response('companyId is required', { status: 400 });
         }
 
         const year = new Date().getFullYear();
         const month = new Date().getMonth() + 1;
 
         const firestore = adminApp.firestore();
-        const employeesSnapshot = await firestore.collection('empresas').doc(empresaId).collection('employees').where('status', '==', 'Activo').get();
+        // Standardized to use 'companies' to match the rest of the application
+        const employeesSnapshot = await firestore.collection('companies').doc(companyId).collection('employees').where('status', '==', 'Activo').get();
         const employees = employeesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Employee[];
 
         // FIX: Pass the new required arguments (otherTaxableEarnings and otherDiscounts) as 0
@@ -50,7 +51,8 @@ export async function POST(req: Request) {
         const batch = firestore.batch();
         payrolls.forEach(payroll => {
             if (payroll) { // Ensure payroll is not null
-                const docRef = firestore.collection('empresas').doc(empresaId).collection('payrolls').doc();
+                // Standardized to use 'companies' to match the rest of the application
+                const docRef = firestore.collection('companies').doc(companyId).collection('payrolls').doc();
                 batch.set(docRef, payroll);
             }
         });

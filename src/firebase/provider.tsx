@@ -1,9 +1,9 @@
 
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import type { FirebaseApp } from 'firebase/app';
-import type { Auth, onAuthStateChanged } from 'firebase/auth';
+import type { Auth } from 'firebase/auth';
 import type { Firestore } from 'firebase/firestore';
 import type { Functions } from 'firebase/functions';
 import { FirebaseErrorListener } from '@/components/FirebaseErrorListener';
@@ -30,7 +30,6 @@ export function FirebaseProvider({
   firestore: Firestore;
   functions: Functions;
 }) {
-  const [loading, setLoading] = useState(true);
   const contextValue = React.useMemo(
     () => ({
       firebaseApp,
@@ -41,16 +40,8 @@ export function FirebaseProvider({
     [firebaseApp, auth, firestore, functions]
   );
 
-  useEffect(() => {
-    const unsubscribe = (auth as any as { onAuthStateChanged: typeof onAuthStateChanged }).onAuthStateChanged(user => {
-      setLoading(false);
-    });
-    return () => unsubscribe();
-  }, [auth]);
-
-  if (loading) {
-    return <div>Loading...</div>;
-  }
+  // The global loading screen was blocking the entire app. 
+  // The auth state should be managed by specific hooks like useAuth, not by this provider.
 
   return (
     <FirebaseContext.Provider value={contextValue}>
