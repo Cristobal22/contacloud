@@ -6,7 +6,7 @@ export type Company = {
     address: string;
     email: string;
     phone: string;
-    createdAt: any; // Opcional: podrías usar un tipo más específico como firebase.firestore.Timestamp
+    createdAt: any;
 };
 
 export type Employee = {
@@ -20,8 +20,8 @@ export type Employee = {
     address: string;
     contractType: 'Indefinido' | 'Plazo Fijo' | 'Por Obra';
     position: string;
-    hireDate: any; // Opcional: firebase.firestore.Timestamp
-    terminationDate?: any; // Opcional
+    hireDate: any; 
+    terminationDate?: any; 
     status: 'Active' | 'Inactive';
     baseSalary: number;
     gratificationType: 'Sin Gratificación' | 'Tope Legal' | 'Automatico';
@@ -30,17 +30,17 @@ export type Employee = {
     bankName?: string;
     afp: string;
     healthSystem: 'Fonasa' | 'Isapre';
-    healthContributionType: 'Porcentaje' | 'Monto Fijo'; // Porcentaje (7%) o Monto Fijo en UF
-    healthContributionValue: number; // Porcentaje o monto en UF
+    healthContributionType: 'Porcentaje' | 'Monto Fijo'; 
+    healthContributionValue: number; 
     hasUnemploymentInsurance: boolean;
     unemploymentInsuranceType?: 'Indefinido' | 'Plazo Fijo';
-    hasFamilyAllowance: boolean; // Nuevo campo para indicar si aplica asignación familiar
-    familyDependents: number; // Campo para cargas familiares
-    familyAllowanceBracket?: 'A' | 'B' | 'C' | 'D'; // Nuevo campo para el tramo seleccionado
+    hasFamilyAllowance: boolean; 
+    familyDependents: number; 
+    familyAllowanceBracket?: 'A' | 'B' | 'C' | 'D'; 
     bonosFijos?: Bono[];
     mobilization?: number;
     collation?: number;
-    createdAt: any; // Opcional: firebase.firestore.Timestamp
+    createdAt: any; 
 };
 
 export type Bono = {
@@ -49,14 +49,16 @@ export type Bono = {
     tipo: 'fijo' | 'variable';
 }
 
+// Represents the final, processed payroll record stored in the database.
 export type Payroll = {
     id: string;
     companyId: string;
     employeeId: string;
     employeeName: string;
-    period: string; // Ejemplo: "2024-07"
+    period: string; 
     year: number;
     month: number;
+    workedDays: number; // NEWLY ADDED FIELD
     baseSalary: number;
     absentDays: number;
     proportionalBaseSalary: number;
@@ -71,13 +73,22 @@ export type Payroll = {
     afpDiscount: number;
     healthDiscount: number;
     unemploymentInsuranceDiscount: number;
-    iut: number; // Impuesto Único de Segunda Categoría
-    familyAllowance: number; // Nuevo campo para Asignación Familiar
+    iut: number; 
+    familyAllowance: number; 
     advances: number;
     totalDiscounts: number;
     netSalary: number;
-    createdAt: any; // Opcional: firebase.firestore.Timestamp
+    createdAt: any; 
 };
+
+// NEWLY DEFINED: Represents the editable draft of a payroll before it's finalized.
+// This is the type used in the payroll management UI.
+export type PayrollDraft = Partial<Payroll> & {
+    employeeId: string;      // Required for identification
+    employeeName: string;    // Required for display
+    variableBonos?: Bono[]; // Used for temporary, editable bonuses
+};
+
 
 export type Account = {
     id: string;
@@ -92,13 +103,13 @@ export type Account = {
 export type Voucher = {
     id: string;
     companyId: string;
-    date: any; // Opcional: firebase.firestore.Timestamp
+    date: any; 
     description: string;
     type: 'Ingreso' | 'Egreso' | 'Traspaso';
     status: 'Borrador' | 'Contabilizado' | 'Anulado';
     total: number;
     entries: VoucherEntry[];
-    createdAt: any; // Opcional: firebase.firestore.Timestamp
+    createdAt: any; 
 };
 
 export type VoucherEntry = {
@@ -115,11 +126,11 @@ export type AfpEntity = {
     year: number;
     month: number;
     name: string;
-    mandatoryContribution: number; // Tasa de cotización obligatoria
+    mandatoryContribution: number; 
     previredCode: string;
     provisionalRegime: string;
     dtCode: string;
-    employerContribution: number; // Tasa SIS
+    employerContribution: number; 
 };
 
 export type HealthEntity = {
@@ -127,7 +138,7 @@ export type HealthEntity = {
     year: number;
     month: number;
     name: string;
-    mandatoryContribution: number; // 7%
+    mandatoryContribution: number; 
     previredCode: string;
     dtCode: string;
 };
@@ -167,6 +178,6 @@ export type TaxParameter = {
 export type TaxableCap = {
     id: string;
     year: number;
-    afpCap: number; // UF
-    afcCap: number; // UF
+    afpCap: number; 
+    afcCap: number; 
 };

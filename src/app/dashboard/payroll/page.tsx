@@ -30,17 +30,23 @@ type EmployeeStatus = {
     employee: Employee;
     draft: PayrollDraft | null;
     error: string | null;
+    isRecalculating?: boolean;
 }
 
-async function calculateOrGetError(employee: Employee, year: number, month: number, token: string, companyId: string): Promise<PayrollDraft | { error: string }> {
+async function calculateOrGetError(employee: Employee, year: number, month: number, token: string, companyId: string, draftOverrides?: Partial<PayrollDraft>): Promise<PayrollDraft | { error: string }> {
     try {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 15000);
 
+        const bodyPayload = { ...employee, overrides: draftOverrides };
+
         const response = await fetch(`/api/payroll/calculate-preview?companyId=${companyId}&year=${year}&month=${month}`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-            body: JSON.stringify(employee),
+            headers: { 
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}` 
+            },
+            body: JSON.stringify(bodyPayload),
             signal: controller.signal,
         });
 
@@ -64,7 +70,6 @@ function PayrollContent({ companyId, initialPeriod }: { companyId: string, initi
     const { toast } = useToast();
     const { user, loading: authLoading } = useUser();
     const firestore = useFirestore();
-
     const [selectedYear, setSelectedYear] = React.useState(String(initialPeriod.year));
     const [selectedMonth, setSelectedMonth] = React.useState(String(initialPeriod.month));
     
@@ -95,8 +100,6 @@ function PayrollContent({ companyId, initialPeriod }: { companyId: string, initi
     const isPeriodProcessed = React.useMemo(() => processedPayrolls && processedPayrolls.length > 0, [processedPayrolls]);
 
     React.useEffect(() => {
-        // Reset component state when the period or trigger changes.
-        // The data fetching for payrolls will automatically be re-triggered by the `useMemo` hook for the query.
         setEmployeeStatuses([]);
         setCalculationStatus('idle');
         setGeneralError(null);
@@ -169,15 +172,44 @@ function PayrollContent({ companyId, initialPeriod }: { companyId: string, initi
         }
     };
     
-    const handleDraftChange = (employeeId: string, field: keyof PayrollDraft, value: any) => {
+    const handleDraftChange = async (employeeId: string, field: keyof PayrollDraft, value: any) => {
+        const fieldsThatTriggerRecalculation: (keyof PayrollDraft)[] = ['workedDays', 'absentDays', 'overtimeHours50', 'overtimeHours100', 'variableBonos', 'advances'];
+        const requiresRecalculation = fieldsThatTriggerRecalculation.includes(field);
+        const currentStatus = employeeStatuses.find(s => s.employee.id === employeeId);
+
+        if (!currentStatus || !user) return;
+        
+        const updatedDraft = { ...(currentStatus.draft || {}), employeeId, employeeName: currentStatus.employee.firstName + ' ' + currentStatus.employee.lastName, [field]: value };
+
         setEmployeeStatuses(currentStatuses =>
-            currentStatuses.map(status => {
-                if (status.draft && status.draft.employeeId === employeeId) {
-                    return { ...status, draft: { ...status.draft, [field]: value } };
-                }
-                return status;
-            })
+            currentStatuses.map(s => s.employee.id === employeeId ? { ...s, draft: updatedDraft, isRecalculating: requiresRecalculation } : s)
         );
+        
+        if (requiresRecalculation) {
+            try {
+                const token = await user.getIdToken();
+                const numericYear = parseInt(selectedYear, 10);
+                const numericMonth = parseInt(selectedMonth, 10);
+                
+                const result = await calculateOrGetError(currentStatus.employee, numericYear, numericMonth, token, companyId, updatedDraft);
+
+                setEmployeeStatuses(currentStatuses =>
+                    currentStatuses.map(s => {
+                        if (s.employee.id === employeeId) {
+                            return 'error' in result
+                                ? { ...s, error: result.error, isRecalculating: false }
+                                : { ...s, draft: result as PayrollDraft, error: null, isRecalculating: false };
+                        }
+                        return s;
+                    })
+                );
+            } catch (error) {
+                console.error("Recalculation failed:", error);
+                setEmployeeStatuses(currentStatuses =>
+                    currentStatuses.map(s => s.employee.id === employeeId ? { ...s, error: 'Error al recalcular', isRecalculating: false } : s)
+                );
+            }
+        }
     };
     
     const handleProcessingSuccess = () => {

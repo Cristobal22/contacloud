@@ -6,7 +6,7 @@ import { useCollection, useDoc, useFirestore } from '@/firebase';
 import type { Account, Voucher, Company, UserProfile } from '@/lib/types';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { AreaChart, BarChart3, FileText, TrendingDown, TrendingUp, Rocket } from 'lucide-react';
+import { AreaChart, Landmark, FileText, TrendingDown, TrendingUp, Rocket } from 'lucide-react';
 import { useUser } from '@/firebase/auth/use-user';
 import { Bar, BarChart as ReBarChart, ResponsiveContainer, XAxis, YAxis, Tooltip } from 'recharts';
 
@@ -53,9 +53,7 @@ function AccountantDashboardContent({ company, userProfile }: { company: Company
         companyId: companyId
     });
     
-    const { data: companies, loading: companiesLoading } = useDoc<Company>(firestore, `companies/${companyId}`);
-    
-    const loading = accountsLoading || vouchersLoading || companiesLoading;
+    const loading = accountsLoading || vouchersLoading;
 
     const contabilizadosVouchers = React.useMemo(() => vouchers?.filter(v => v.status === 'Contabilizado') || [], [vouchers]);
 
@@ -80,7 +78,7 @@ function AccountantDashboardContent({ company, userProfile }: { company: Company
         accounts.forEach(account => {
             const movements = accountMovements.get(account.code) || { debit: 0, credit: 0 };
             let balance = 0;
-            if (account.type === 'Activo' || account.type === 'Resultado' && movements.debit > movements.credit) {
+            if (account.type === 'Activo' || (account.classification === 'Resultado' && account.type === 'Pérdida')) {
                 balance = movements.debit - movements.credit;
             } else {
                 balance = movements.credit - movements.debit;
@@ -93,36 +91,59 @@ function AccountantDashboardContent({ company, userProfile }: { company: Company
                 const account = accounts.find(a => a.code === accountCode);
                 return {
                     name: account?.name || 'Unknown Account',
-                    balance: balance
+                    balance: balance,
+                    type: account?.type,
+                    classification: account?.classification,
                 };
             })
             .filter(item => item.balance > 0) 
             .sort((a, b) => b.balance - a.balance); 
 
     }, [accounts, contabilizadosVouchers]);
+
+    const utilidadDelEjercicio = React.useMemo(() => {
+        const ingresos = calculatedBalances
+            .filter(b => b.classification === 'Resultado' && b.type === 'Ganancia')
+            .reduce((acc, curr) => acc + curr.balance, 0);
+
+        const egresos = calculatedBalances
+            .filter(b => b.classification === 'Resultado' && b.type === 'Pérdida')
+            .reduce((acc, curr) => acc + curr.balance, 0);
+
+        return ingresos - egresos;
+    }, [calculatedBalances]);
+
+    const totalActivos = React.useMemo(() => {
+        return calculatedBalances
+            .filter(b => b.classification === 'Balance' && b.type === 'Activo')
+            .reduce((acc, curr) => acc + curr.balance, 0);
+    }, [calculatedBalances]);
     
 
     if (loading) {
         return <div>Cargando dashboard...</div>;
     }
 
-    const totalAccounts = accounts?.length || 0;
     const totalVouchers = vouchers?.length || 0;
     const borradorVouchers = vouchers?.filter(v => v.status === 'Borrador').length || 0;
 
     const topBalances = calculatedBalances.slice(0, 8);
+
+    const formatCurrency = (value: number) => {
+        return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(value);
+    };
 
     return (
         <div className="space-y-6">
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Cuentas Contables</CardTitle>
-                        <BarChart3 className="h-4 w-4 text-muted-foreground" />
+                        <CardTitle className="text-sm font-medium">Total Activos</CardTitle>
+                        <Landmark className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">{totalAccounts}</div>
-                        <p className="text-xs text-muted-foreground">Total de cuentas en el plan</p>
+                        <div className="text-2xl font-bold">{formatCurrency(totalActivos)}</div>
+                        <p className="text-xs text-muted-foreground">Suma de todos los activos de la empresa</p>
                     </CardContent>
                 </Card>
                 <Card>
@@ -151,7 +172,9 @@ function AccountantDashboardContent({ company, userProfile }: { company: Company
                         <AreaChart className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold text-green-600">$1,2M</div>
+                        <div className={`text-2xl font-bold ${utilidadDelEjercicio >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {formatCurrency(utilidadDelEjercicio)}
+                        </div>
                         <p className="text-xs text-muted-foreground">Calculado en tiempo real</p>
                     </CardContent>
                 </Card>

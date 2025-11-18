@@ -49,9 +49,10 @@ const VouchersPage: React.FC = () => {
             body: JSON.stringify(body),
         });
 
+        const res = await response.json();
+
         if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || errorMessage);
+            throw new Error(res.error || errorMessage);
         }
 
         toast({ title: "Éxito", description: successMessage });
@@ -158,9 +159,10 @@ const VouchersPage: React.FC = () => {
               )}
               {!loading && vouchers?.map((voucher) => {
                 const isCentralizationVoucher = voucher.glosa?.startsWith('Centralización de Remuneraciones');
+                const isAnulado = voucher.status === 'Anulado';
 
                 return (
-                  <TableRow key={voucher.id}>
+                  <TableRow key={voucher.id} className={isAnulado ? 'bg-gray-100 text-gray-500' : ''}>
                     <TableCell>{new Date(voucher.date.seconds * 1000).toLocaleDateString()}</TableCell>
                     <TableCell className="font-medium">{voucher.number}</TableCell>
                     <TableCell>{voucher.type}</TableCell>
@@ -168,7 +170,11 @@ const VouchersPage: React.FC = () => {
                     <TableCell>
                         <Badge 
                             variant={voucher.status === 'Borrador' ? 'outline' : 'default'}
-                            className={voucher.status === 'Contabilizado' ? 'bg-green-100 text-green-800' : ''}
+                            className={
+                                isAnulado 
+                                ? 'bg-gray-200 text-gray-600' 
+                                : voucher.status === 'Contabilizado' ? 'bg-green-100 text-green-800' : ''
+                            }
                         >
                             {voucher.status}
                         </Badge>
@@ -177,7 +183,7 @@ const VouchersPage: React.FC = () => {
                     <TableCell>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button aria-haspopup="true" size="icon" variant="ghost">
+                          <Button aria-haspopup="true" size="icon" variant="ghost" disabled={isAnulado}>
                             <MoreHorizontal className="h-4 w-4" />
                             <span className="sr-only">Toggle menu</span>
                           </Button>

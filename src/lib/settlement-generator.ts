@@ -1,110 +1,244 @@
 
-import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
-import { generarTextoFiniquito } from '@/templates/finiquito';
-import { NumeroALetras } from 'numero-a-letras'; // <-- CORRECCIÓN AQUÍ
-import type { Company, Employee } from '@/lib/types';
+import { PDFDocument, rgb, StandardFonts, PDFFont, PageSizes, PDFPage } from 'pdf-lib';
+import { generarContenidoFiniquito, FiniquitoData } from '@/templates/finiquito';
+import { numeroAFrase } from '@/lib/number-to-words';
 
-// NOTE: This interface must be kept in sync with the form in finiquito/page.tsx
+// --- Interfaces and Helpers ---
 export interface FiniquitoFormData {
-  nombreTrabajador: string;
-  rutTrabajador: string;
-  nombreEmpleador: string;
-  rutEmpleador: string;
-  fechaInicio: Date | undefined;
-  fechaTermino: Date | undefined;
-  causalTermino: string;
-  baseIndemnizacion: number;
-  anosServicio: number;
-  diasFeriado: number;
-  indemnizacionAnos: number;
-  indemnizacionSustitutiva: number;
-  feriadoLegal: number;
-  totalHaberes: number;
-  descuentosPrevisionales: number;
-  otrosDescuentos: number;
-  totalDescuentos: number;
-  totalAPagar: number;
-  // Added fields to match template
-  incluyeMesAviso: boolean;
-  remuneracionesPendientes: number;
-  otrosHaberes: number;
-  causalHechos: string;
-  formaPago: string;
-  fechaPago: Date | undefined;
-  ciudadFirma: string;
-  ministroDeFe: string;
+    nombreTrabajador: string; rutTrabajador: string; domicilioTrabajador: string; cargoTrabajador: string; oficioTrabajador: string; nombreEmpleador: string; rutEmpleador: string; domicilioEmpleador: string; fechaInicio: Date | undefined; fechaTermino: Date | undefined; causalTermino: string; baseIndemnizacion: number; anosServicio: number; diasFeriado: number; incluyeMesAviso: boolean; causalHechos: string; remuneracionesPendientes: number; otrosHaberes: number; descuentosPrevisionales: number; otrosDescuentos: number; formaPago: string; fechaPago: Date | undefined; ciudadFirma: string; ministroDeFe: string; indemnizacionAnos: number; indemnizacionSustitutiva: number; feriadoLegal: number; totalHaberes: number; totalDescuentos: number; totalAPagar: number;
+}
+const formatCurrency = (value: number = 0): string => new Intl.NumberFormat('es-CL').format(Math.round(value));
+const formatDateToLongString = (date: Date | undefined): string => {
+    if (!date) return '';
+    const adjustedDate = new Date(date.getTime() + date.getTimezoneOffset() * 60000);
+    return adjustedDate.toLocaleDateString('es-CL', { day: 'numeric', month: 'long', year: 'numeric' });
+};
+
+// --- ROBUST, MULTI-PAGE AWARE PDF DRAWING ENGINE ---
+
+type Fonts = { normal: PDFFont; bold: PDFFont };
+type RenderContext = {
+    pdfDoc: PDFDocument;
+    currentPage: PDFPage;
+    cursor: { y: number };
+    width: number;
+    height: number;
+    margin: number;
+    contentWidth: number;
+    fonts: Fonts;
+    colors: { text: any; light: any; };
+};
+
+const createRenderContext = async (pdfDoc: PDFDocument): Promise<RenderContext> => {
+    const page = pdfDoc.addPage(PageSizes.Letter);
+    const { width, height } = page.getSize();
+    const margin = 50;
+    return {
+        pdfDoc,
+        currentPage: page,
+        cursor: { y: height - margin },
+        width,
+        height,
+        margin,
+        contentWidth: width - 2 * margin,
+        fonts: {
+            normal: await pdfDoc.embedFont(StandardFonts.Helvetica),
+            bold: await pdfDoc.embedFont(StandardFonts.HelveticaBold),
+        },
+        colors: { text: rgb(0.1, 0.1, 0.1), light: rgb(0.5, 0.5, 0.5) },
+    };
+};
+
+const ensureSpace = (ctx: RenderContext, requiredHeight: number) => {
+    if (ctx.cursor.y - requiredHeight < ctx.margin) {
+        ctx.currentPage = ctx.pdfDoc.addPage(PageSizes.Letter);
+        ctx.cursor.y = ctx.height - ctx.margin;
+    }
+};
+
+const getRichTextHeight = (text: string, size: number, font: PDFFont, boldFont: PDFFont, maxWidth: number, lineHeight: number): number => {
+    if (!text) return 0;
+    const lines: any[] = [];
+    text.split('\n').forEach(lineText => {
+        let currentLine = '';
+        const words = lineText.split(' ');
+        for (const word of words) {
+            const wordWithSpace = currentLine === '' ? word : `${currentLine} ${word}`;
+            const isBold = word.startsWith('**');
+            const currentFont = isBold ? boldFont : font;
+            const width = currentFont.widthOfTextAtSize(wordWithSpace, size);
+            if (width > maxWidth) {
+                lines.push(currentLine);
+                currentLine = word;
+            } else {
+                currentLine = wordWithSpace;
+            }
+        }
+        lines.push(currentLine);
+    });
+    return lines.length * lineHeight;
+};
+
+
+const drawRichText = (ctx: RenderContext, text: string, options: { size: number; lineHeight: number; color?: any }) => {
+    if (!text) return;
+    const { size, lineHeight, color = ctx.colors.text } = options;
+    const height = getRichTextHeight(text, size, ctx.fonts.normal, ctx.fonts.bold, ctx.contentWidth, lineHeight);
+    ensureSpace(ctx, height);
+
+    const parts = text.split(/(\*\*.*?\*\*)|(\n)/g).filter(p => p);
+    let x = ctx.margin;
+    for (const part of parts) {
+        if (part === '\n') {
+            x = ctx.margin;
+            ctx.cursor.y -= lineHeight;
+            continue;
+        }
+        const isBold = part.startsWith('**') && part.endsWith('**');
+        const content = isBold ? part.slice(2, -2) : part;
+        const font = isBold ? ctx.fonts.bold : ctx.fonts.normal;
+        const words = content.split(' ');
+        for (const word of words) {
+            const wordWidth = font.widthOfTextAtSize(word, size);
+            if (x > ctx.margin && x + wordWidth > ctx.width - ctx.margin) {
+                x = ctx.margin;
+                ctx.cursor.y -= lineHeight;
+            }
+            ctx.currentPage.drawText(word, { x, y: ctx.cursor.y, font, size, color });
+            x += font.widthOfTextAtSize(word + ' ', size);
+        }
+    }
+    ctx.cursor.y -= lineHeight;
+};
+
+
+export async function generateSettlementPDF(formData: FiniquitoFormData): Promise<Uint8Array> {
+    const pdfDoc = await PDFDocument.create();
+    const ctx = await createRenderContext(pdfDoc);
+
+    const totalEnPalabras = numeroAFrase(formData.totalAPagar);
+    const templateData: FiniquitoData = {
+        empleador_nombre: formData.nombreEmpleador,
+        empleador_rut: formData.rutEmpleador,
+        empleador_domicilio: formData.domicilioEmpleador,
+        trabajador_nombre: formData.nombreTrabajador,
+        trabajador_rut: formData.rutTrabajador,
+        trabajador_domicilio: formData.domicilioTrabajador,
+        trabajador_oficio: formData.oficioTrabajador,
+        trabajador_cargo: formData.cargoTrabajador,
+        trabajador_fecha_inicio: formatDateToLongString(formData.fechaInicio),
+        trabajador_fecha_termino: formatDateToLongString(formData.fechaTermino),
+        causal_articulo_y_nombre: formData.causalTermino,
+        causal_hechos_fundamento: formData.causalHechos || 'Hechos no especificados.',
+        monto_indemnizacion_anios_servicio: formatCurrency(formData.indemnizacionAnos),
+        monto_indemnizacion_aviso_previo: formatCurrency(formData.indemnizacionSustitutiva),
+        dias_feriado_proporcional: (formData.diasFeriado || 0).toFixed(2),
+        monto_feriado_proporcional: formatCurrency(formData.feriadoLegal),
+        monto_remuneraciones_pendientes: formatCurrency(formData.remuneracionesPendientes),
+        monto_otros_haberes: formatCurrency(formData.otrosHaberes),
+        monto_total_haberes: formatCurrency(formData.totalHaberes),
+        monto_descuento_previsional: formatCurrency(formData.descuentosPrevisionales),
+        monto_otros_descuentos: formatCurrency(formData.otrosDescuentos),
+        monto_total_descuentos: formatCurrency(formData.totalDescuentos),
+        monto_total_numerico: formatCurrency(formData.totalAPagar),
+        monto_total_en_palabras: totalEnPalabras,
+        forma_pago: formData.formaPago,
+        fecha_pago: formatDateToLongString(formData.fechaPago || new Date()),
+        ciudadFirma: formData.ciudadFirma,
+        ministro_de_fe: formData.ministroDeFe,
+    };
+    const content = generarContenidoFiniquito(templateData);
+
+    // --- Draw Document Content ---
+    ensureSpace(ctx, 30);
+    const titleWidth = ctx.fonts.bold.widthOfTextAtSize(content.title, 14);
+    ctx.currentPage.drawText(content.title, { x: (ctx.width - titleWidth) / 2, y: ctx.cursor.y, font: ctx.fonts.bold, size: 14 });
+    ctx.cursor.y -= 30;
+
+    ctx.cursor.y -= 15;
+    drawRichText(ctx, content.comparecencia, { size: 10, lineHeight: 15 });
+
+    for (const clausula of content.clausulas) {
+        ctx.cursor.y -= 20;
+        ensureSpace(ctx, 50); // Title + one line of content
+        ctx.currentPage.drawText(clausula.titulo, { x: ctx.margin, y: ctx.cursor.y, font: ctx.fonts.bold, size: 11 });
+        ctx.cursor.y -= 22;
+
+        drawRichText(ctx, clausula.contenido, { size: 10, lineHeight: 15 });
+
+        if (clausula.titulo.includes('LIQUIDACIÓN')) {
+            ctx.cursor.y -= 15;
+            drawLiquidationTable(ctx, content.liquidacion);
+        }
+    }
+
+    ctx.cursor.y -= 20;
+    drawSignatures(ctx, content.firmas);
+
+    return await pdfDoc.save();
 }
 
-// Helper to format numbers as CLP currency
-const formatCurrency = (value: number = 0): string => {
-  return new Intl.NumberFormat('es-CL').format(value);
-};
+function drawLiquidationTable(ctx: RenderContext, liquidacion: any) {
+    const col1X = ctx.margin + 15;
+    const col2X = ctx.contentWidth - 100;
 
-// Helper to format dates into a long string format (e.g., "21 de junio de 2024")
-const formatDateToLongString = (date: Date | undefined): string => {
-  if (!date) return ''
-  return date.toLocaleDateString('es-CL', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  });
-};
+    const tableHeight = (liquidacion.haberes.length + liquidacion.descuentos.length + 6) * 15 + 60;
+    ensureSpace(ctx, tableHeight);
 
-export async function generateSettlementPDF(
-  formData: FiniquitoFormData,
-  employee: Employee | null | undefined, 
-  company: Company | null | undefined
-): Promise<Uint8Array> {
+    ctx.currentPage.drawText('-- HABERES --', { x: col1X, y: ctx.cursor.y, font: ctx.fonts.bold, size: 10 });
+    ctx.cursor.y -= 20;
 
-  const totalEnPalabras = NumeroALetras(formData.totalAPagar);
+    liquidacion.haberes.forEach((item: any) => {
+        ctx.currentPage.drawText(item.label, { x: col1X, y: ctx.cursor.y, font: ctx.fonts.normal, size: 10, color: ctx.colors.light });
+        ctx.currentPage.drawText(item.value, { x: col2X, y: ctx.cursor.y, font: ctx.fonts.normal, size: 10, align: 'right', width: 100 + 15 });
+        ctx.cursor.y -= 15;
+    });
 
-  // Map form data to the template data structure, providing fallbacks
-  const templateData = {
-    empleador_nombre: company?.name || formData.nombreEmpleador,
-    empleador_rut: company?.rut || formData.rutEmpleador,
-    empleador_domicilio: company?.address || '',
-    trabajador_nombre: employee ? `${employee.firstName} ${employee.lastName}` : formData.nombreTrabajador,
-    trabajador_rut: employee?.rut || formData.rutTrabajador,
-    trabajador_domicilio: employee?.address || '',
-    trabajador_oficio: employee?.position || '',
-    trabajador_fecha_inicio: formatDateToLongString(formData.fechaInicio),
-    trabajador_fecha_termino: formatDateToLongString(formData.fechaTermino),
-    trabajador_cargo: employee?.position || '',
-    causal_articulo_y_nombre: formData.causalTermino,
-    causal_hechos_fundamento: formData.causalHechos || 'Hechos no especificados.',
-    monto_indemnizacion_anios_servicio: formatCurrency(formData.indemnizacionAnos),
-    monto_indemnizacion_aviso_previo: formatCurrency(formData.indemnizacionSustitutiva),
-    dias_feriado_proporcional: String(formData.diasFeriado),
-    monto_feriado_proporcional: formatCurrency(formData.feriadoLegal),
-    monto_remuneraciones_pendientes: formatCurrency(formData.remuneracionesPendientes),
-    monto_otros_haberes: formatCurrency(formData.otrosHaberes),
-    monto_total_numerico: formatCurrency(formData.totalAPagar),
-    monto_total_en_palabras: totalEnPalabras,
-    forma_pago: formData.formaPago || 'Transferencia Electrónica',
-    fecha_pago: formatDateToLongString(formData.fechaPago) || formatDateToLongString(new Date()),
-    fecha_documento_larga: `${formData.ciudadFirma || company?.commune || ''}, a ${formatDateToLongString(new Date())}`,
-    ministro_de_fe: formData.ministroDeFe || 'Notario Público',
-  };
+    ctx.cursor.y -= 5;
+    ctx.currentPage.drawLine({ start: { x: col1X, y: ctx.cursor.y }, end: { x: ctx.width - ctx.margin, y: ctx.cursor.y }, thickness: 0.5, color: rgb(0.8, 0.8, 0.8) });
+    ctx.cursor.y -= 20;
 
-  const fullText = generarTextoFiniquito(templateData as any);
+    ctx.currentPage.drawText('TOTAL HABERES', { x: col1X, y: ctx.cursor.y, font: ctx.fonts.bold, size: 10 });
+    ctx.currentPage.drawText(liquidacion.totalHaberes, { x: col2X, y: ctx.cursor.y, font: ctx.fonts.bold, size: 10, align: 'right', width: 100 + 15 });
+    ctx.cursor.y -= 25;
 
-  const pdfDoc = await PDFDocument.create();
-  const page = pdfDoc.addPage();
-  const { width, height } = page.getSize();
-  const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
-  const fontSize = 10;
-  const margin = 50;
+    if (liquidacion.descuentos.length > 0) {
+        ctx.currentPage.drawText('-- DESCUENTOS --', { x: col1X, y: ctx.cursor.y, font: ctx.fonts.bold, size: 10 });
+        ctx.cursor.y -= 20;
+        liquidacion.descuentos.forEach((item: any) => {
+            ctx.currentPage.drawText(item.label, { x: col1X, y: ctx.cursor.y, font: ctx.fonts.normal, size: 10, color: ctx.colors.light });
+            ctx.currentPage.drawText(item.value, { x: col2X, y: ctx.cursor.y, font: ctx.fonts.normal, size: 10, align: 'right', width: 100 + 15 });
+            ctx.cursor.y -= 15;
+        });
+        ctx.cursor.y -= 5;
+        ctx.currentPage.drawLine({ start: { x: col1X, y: ctx.cursor.y }, end: { x: ctx.width - ctx.margin, y: ctx.cursor.y }, thickness: 0.5, color: rgb(0.8, 0.8, 0.8) });
+        ctx.cursor.y -= 20;
+        ctx.currentPage.drawText('TOTAL DESCUENTOS', { x: col1X, y: ctx.cursor.y, font: ctx.fonts.bold, size: 10 });
+        ctx.currentPage.drawText(liquidacion.totalDescuentos, { x: col2X, y: ctx.cursor.y, font: ctx.fonts.bold, size: 10, align: 'right', width: 100 + 15 });
+        ctx.cursor.y -= 25;
+    }
 
-  page.drawText(fullText, {
-    x: margin,
-    y: height - 40, // Start a bit lower
-    font,
-    size: fontSize,
-    color: rgb(0.1, 0.1, 0.1),
-    maxWidth: width - 2 * margin,
-    lineHeight: 14,
-  });
+    // --- CORRECTED TOTAL LINE ---
+    ctx.cursor.y -= 8;
+    ctx.currentPage.drawLine({ start: { x: col1X, y: ctx.cursor.y }, end: { x: ctx.width - ctx.margin, y: ctx.cursor.y }, thickness: 1.5, color: ctx.colors.text });
+    ctx.cursor.y -= 20;
 
-  const pdfBytes = await pdfDoc.save();
-  return pdfBytes;
+    ctx.currentPage.drawText(liquidacion.totalAPagar.label, { x: col1X, y: ctx.cursor.y, font: ctx.fonts.bold, size: 12 });
+    ctx.currentPage.drawText(liquidacion.totalAPagar.value, { x: col2X, y: ctx.cursor.y, font: ctx.fonts.bold, size: 12, align: 'right', width: 100 + 15 });
+    ctx.cursor.y -= 20;
+}
+
+function drawSignatures(ctx: RenderContext, firmas: any) {
+    ensureSpace(ctx, 80);
+    ctx.cursor.y -= 60;
+    const sig1X = ctx.margin + 100;
+    const sig2X = ctx.width - ctx.margin - 100;
+
+    ctx.currentPage.drawLine({ start: { x: sig1X - 100, y: ctx.cursor.y }, end: { x: sig1X + 100, y: ctx.cursor.y }, thickness: 0.8 });
+    ctx.currentPage.drawText(firmas.trabajador.nombre, { x: sig1X, y: ctx.cursor.y - 15, font: ctx.fonts.bold, size: 9, align: 'center' });
+    ctx.currentPage.drawText(`R.U.T.: ${firmas.trabajador.rut}`, { x: sig1X, y: ctx.cursor.y - 25, font: ctx.fonts.normal, size: 9, align: 'center' });
+
+    ctx.currentPage.drawLine({ start: { x: sig2X - 100, y: ctx.cursor.y }, end: { x: sig2X + 100, y: ctx.cursor.y }, thickness: 0.8 });
+    ctx.currentPage.drawText(firmas.empleador.nombre, { x: sig2X, y: ctx.cursor.y - 15, font: ctx.fonts.bold, size: 9, align: 'center' });
+    ctx.currentPage.drawText(`R.U.T.: ${firmas.empleador.rut}`, { x: sig2X, y: ctx.cursor.y - 25, font: ctx.fonts.normal, size: 9, align: 'center' });
 }

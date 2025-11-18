@@ -16,8 +16,6 @@ interface PayrollDraftsTableProps {
 }
 
 export function PayrollDraftsTable({ drafts, onDraftChange, onPreview }: PayrollDraftsTableProps) {
-    // FIX: If there are no drafts, render nothing. 
-    // The parent component is now responsible for showing the correct loading or error message.
     if (!drafts || drafts.length === 0) {
         return null;
     }
@@ -30,6 +28,7 @@ export function PayrollDraftsTable({ drafts, onDraftChange, onPreview }: Payroll
                     <TableRow>
                         <TableHead>Empleado</TableHead>
                         <TableHead className="text-right">Sueldo Base</TableHead>
+                        <TableHead className="w-[120px] text-right">Días Trab.</TableHead>
                         <TableHead className="w-[120px] text-right">Días Ausencia</TableHead>
                         <TableHead className="w-[150px] text-center">Bonos Variables</TableHead>
                         <TableHead className="w-[140px] text-right">H. Extra (50%)</TableHead>
@@ -44,6 +43,7 @@ export function PayrollDraftsTable({ drafts, onDraftChange, onPreview }: Payroll
                         <TableRow key={draft.employeeId}>
                             <TableCell>{draft.employeeName}</TableCell>
                             <TableCell className="text-right">{formatCurrency(draft.baseSalary)}</TableCell>
+                            <TableCell><Input type="number" className="text-right" value={draft.workedDays || ''} onChange={e => onDraftChange(draft.employeeId, 'workedDays', parseInt(e.target.value) || 0)} /></TableCell>
                             <TableCell><Input type="number" className="text-right" value={draft.absentDays || ''} onChange={e => onDraftChange(draft.employeeId, 'absentDays', parseInt(e.target.value) || 0)} /></TableCell>
                             <TableCell className="text-center">
                                 <VariableBonosManager draft={draft} onUpdate={(b) => onDraftChange(draft.employeeId, 'variableBonos', b)}>

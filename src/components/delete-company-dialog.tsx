@@ -1,8 +1,6 @@
-
 'use client';
 
 import React from 'react';
-import { httpsCallable } from 'firebase/functions';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import {
@@ -18,21 +16,21 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import type { Company } from '@/lib/types';
-import { useFunctions } from '@/firebase';
 
 interface DeleteCompanyDialogProps {
   company: Company;
 }
 
+// REWRITTEN COMPONENT
+// The dialog is now only responsible for confirming the user's intent and navigating
+// to a dedicated, clean page to perform the deletion. This avoids all race conditions.
 export function DeleteCompanyDialog({ company }: DeleteCompanyDialogProps) {
   const [isOpen, setIsOpen] = React.useState(false);
   const [confirmation, setConfirmation] = React.useState('');
-  const [isDeleting, setIsDeleting] = React.useState(false);
-  const { toast } = useToast();
-  const functions = useFunctions();
   const router = useRouter();
+  const { toast } = useToast();
 
-  const handleDelete = async () => {
+  const handleNavigateToDelete = () => {
     if (confirmation !== company.name) {
       toast({ 
         variant: 'destructive', 
@@ -42,35 +40,16 @@ export function DeleteCompanyDialog({ company }: DeleteCompanyDialogProps) {
       return;
     }
 
-    setIsDeleting(true);
-
-    try {
-      const deleteCompany = httpsCallable(functions, 'deleteCompany');
-      await deleteCompany({ companyId: company.id });
-      
-      toast({ 
-        title: 'Empresa eliminada',
-        description: `La empresa ${company.name} y todos sus datos han sido eliminados.`,
-      });
-      
-      setIsOpen(false);
-      router.push('/dashboard'); // Redirect to a safe page
-
-    } catch (error: any) {
-      console.error("Error deleting company:", error);
-      toast({ 
-        variant: 'destructive', 
-        title: 'Error al eliminar',
-        description: error.message || 'Ocurrió un error inesperado. Por favor, revisa los logs de la función.',
-      });
-    } finally {
-      setIsDeleting(false);
-      setConfirmation('');
-    }
+    // Navigate to the dedicated deleting page, passing company info as search params.
+    // The page will handle the actual deletion in a clean environment.
+    router.push(`/dashboard/deleting?id=${company.id}&name=${encodeURIComponent(company.name)}`);
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+    <Dialog open={isOpen} onOpenChange={(open) => {
+        setIsOpen(open);
+        if (!open) setConfirmation(''); // Reset on close
+    }}>
       <DialogTrigger asChild>
         <Button variant="destructive">Eliminar Empresa</Button>
       </DialogTrigger>
@@ -80,7 +59,7 @@ export function DeleteCompanyDialog({ company }: DeleteCompanyDialogProps) {
           <DialogDescription>
             Esta acción es irreversible. Se eliminarán permanentemente la empresa 
             <span className="font-bold text-foreground">{company.name}</span> 
-            y todos sus datos asociados, incluyendo cuentas, compras, ventas, empleados y comprobantes.
+            y todos sus datos asociados.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-2 py-4">
@@ -94,13 +73,13 @@ export function DeleteCompanyDialog({ company }: DeleteCompanyDialogProps) {
           />
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => setIsOpen(false)} disabled={isDeleting}>Cancelar</Button>
+          <Button variant="outline" onClick={() => setIsOpen(false)}>Cancelar</Button>
           <Button 
             variant="destructive" 
-            onClick={handleDelete} 
-            disabled={isDeleting || confirmation !== company.name}
+            onClick={handleNavigateToDelete} 
+            disabled={confirmation !== company.name}
           >
-            {isDeleting ? 'Eliminando...' : 'Entiendo las consecuencias, eliminar esta empresa'}
+            Entiendo, eliminar esta empresa
           </Button>
         </DialogFooter>
       </DialogContent>

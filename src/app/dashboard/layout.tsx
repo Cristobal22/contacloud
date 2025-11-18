@@ -61,10 +61,6 @@ function AccountantDashboardLayout({ children }: { children: React.ReactNode }) 
     const [selectedCompany, setSelectedCompany] = React.useState<Company | null>(null);
     const [isLoadingCompany, setIsLoadingCompany] = React.useState(true);
 
-    // UPDATED QUERY: This is the core fix.
-    // Instead of querying by a list of document IDs, we now securely query for companies
-    // where the current user's UID is in the 'memberUids' array.
-    // This matches the security rule we deployed earlier.
     const companiesQuery = React.useMemo(() => {
         if (!firestore || !user || userProfile?.role !== 'Accountant') {
             return null;
@@ -94,6 +90,13 @@ function AccountantDashboardLayout({ children }: { children: React.ReactNode }) 
         setIsLoadingCompany(false);
 
     }, [companies, companiesLoading, profileLoading, userLoading]);
+
+    // --- NEW: Log Company ID for safe operations ---
+    React.useEffect(() => {
+        if (selectedCompany) {
+            console.log(`[INFO] Current Company ID for operations: ${selectedCompany.id}`);
+        }
+    }, [selectedCompany]);
 
     React.useEffect(() => {
       if (userProfile?.role === 'Accountant' && userProfile.subscriptionEndDate) {

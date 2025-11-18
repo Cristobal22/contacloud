@@ -46,7 +46,7 @@ import {
 import { useCollection, useDoc, useFirestore } from '@/firebase';
 import type { Voucher, VoucherEntry, Account } from '@/lib/types';
 import { SelectedCompanyContext } from '@/app/dashboard/layout';
-import { doc, setDoc, addDoc, collection } from 'firebase/firestore';
+import { doc, setDoc, addDoc, collection, Timestamp } from 'firebase/firestore';
 import { useRouter, useParams, useSearchParams } from 'next/navigation'; // Import useSearchParams
 import Link from 'next/link';
 import { errorEmitter } from '@/firebase/error-emitter'
@@ -99,61 +99,41 @@ export default function VoucherEditPage() {
     
     React.useEffect(() => {
         if (isNew) {
-            // --- Asistente de Creación de Comprobantes ---
-            const typeFromQuery = searchParams.get('type');
-            const glosaFromQuery = searchParams.get('glosa');
-            const debitAccountIdFromQuery = searchParams.get('debitAccountId');
-            const debitAmountFromQuery = searchParams.get('debitAmount');
-
-            if (typeFromQuery && glosaFromQuery && debitAccountIdFromQuery && debitAmountFromQuery) {
-                // Si vienen parámetros, pre-llena el comprobante de egreso
-                setVoucher({
-                    date: new Date().toISOString().substring(0, 10),
-                    type: typeFromQuery as any,
-                    description: glosaFromQuery,
-                    status: 'Borrador',
-                    total: 0,
-                    entries: [],
-                    companyId: companyId,
-                });
-                setEntries([
-                    { 
-                        id: `new-entry-${Date.now()}-1`,
-                        account: debitAccountIdFromQuery, 
-                        description: '', 
-                        debit: parseFloat(debitAmountFromQuery),
-                        credit: 0 
-                    },
-                    { // Prepara la línea del banco para que el usuario solo elija la cuenta
-                        id: `new-entry-${Date.now()}-2`,
-                        account: '', 
-                        description: '', 
-                        debit: 0,
-                        credit: parseFloat(debitAmountFromQuery) 
-                    }
-                ]);
-            } else {
-                // Comportamiento normal: comprobante vacío
-                setVoucher({
-                    date: new Date().toISOString().substring(0, 10),
-                    type: 'Traspaso',
-                    description: '',
-                    status: 'Borrador',
-                    total: 0,
-                    entries: [],
-                    companyId: companyId,
-                });
-                setEntries([{ id: `new-entry-${Date.now()}-${Math.random()}`, account: '', description: '', debit: 0, credit: 0 }]);
-            }
+            // Standard behavior for a new, empty voucher
+            setVoucher({
+                date: new Date().toISOString().substring(0, 10),
+                type: 'Traspaso',
+                description: '',
+                status: 'Borrador',
+                total: 0,
+                entries: [],
+                companyId: companyId,
+            });
+            setEntries([{ id: `new-entry-${Date.now()}-${Math.random()}`, account: '', description: '', debit: 0, credit: 0 }]);
         } else if (existingVoucher) {
-            setVoucher(existingVoucher);
+            // --- FIX: Handle Firestore Timestamp Object for Dates ---
+            let formattedDate = '';
+            const dateValue = existingVoucher.date;
+
+            if (dateValue && typeof dateValue === 'object' && 'seconds' in dateValue) {
+                // If it's a Firestore Timestamp, convert it to a 'YYYY-MM-DD' string.
+                formattedDate = new Date(dateValue.seconds * 1000).toISOString().substring(0, 10);
+            } else if (typeof dateValue === 'string') {
+                // If it's already a string, use it directly (fallback).
+                formattedDate = dateValue.substring(0, 10);
+            }
+
+            setVoucher({
+                ...existingVoucher,
+                date: formattedDate, // Use the safe, formatted string date.
+            });
             setEntries(existingVoucher.entries);
         }
     }, [isNew, existingVoucher, companyId, searchParams]);
 
     React.useEffect(() => {
         if (voucher?.date && selectedCompany) {
-            validateDate(voucher.date);
+            validateDate(voucher.date as string);
         }
     }, [voucher?.date, selectedCompany]);
 
@@ -261,8 +241,11 @@ export default function VoucherEditPage() {
         const collectionPath = `companies/${companyId}/vouchers`;
         const collectionRef = collection(firestore, collectionPath);
         
+        // --- FIX: Convert date string back to Timestamp for saving ---
+        const dateToSave = voucher.date ? Timestamp.fromDate(parseISO(voucher.date as string)) : Timestamp.now();
+
         const voucherData = {
-          date: voucher.date || new Date().toISOString().substring(0, 10),
+          date: dateToSave,
           type: voucher.type || 'Traspaso',
           description: voucher.description || '',
           status: statusToSave,
@@ -299,12 +282,6 @@ export default function VoucherEditPage() {
                 description: "No se pudo guardar el comprobante. Por favor, intenta de nuevo.",
                 variant: "destructive",
             });
-            const errorPath = isNew ? collectionPath : `companies/${companyId}/vouchers/${id}`;
-            errorEmitter.emit('permission-error', new FirestorePermissionError({
-                path: errorPath,
-                operation: isNew ? 'create' : 'update',
-                requestResourceData: voucherData,
-            }));
         }
     };
     
@@ -356,7 +333,7 @@ export default function VoucherEditPage() {
                             <Input 
                                 id="voucher-date" 
                                 type="date" 
-                                value={voucher.date || ''}
+                                value={(voucher.date as string) || ''}
                                 onChange={(e) => handleHeaderChange('date', e.target.value)}
                                 disabled={!periodIsDefined}
                             />

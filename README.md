@@ -1,107 +1,56 @@
-# BaseImponible.cl
+# BaseImponible.cl - Official README
 
-BaseImponible.cl es una moderna aplicación de contabilidad multi-tenant diseñada para que los contadores gestionen las finanzas de múltiples empresas de forma segura y eficiente. Esta aplicación está construida como un prototipo robusto utilizando Next.js, Firebase y shadcn/ui, mostrando una experiencia de usuario completa e interactiva.
+Este es el repositorio oficial para el proyecto BaseImponible.cl. Para información sobre marketing y características del producto, por favor consulta el archivo `docs/marketing-summary.md`.
 
-## Tech Stack
+---
 
-- **Framework**: [Next.js](https://nextjs.org/) (App Router)
-- **Lenguaje**: TypeScript
-- **Base de Datos**: [Firebase Firestore](https://firebase.google.com/docs/firestore)
-- **Autenticación**: [Firebase Authentication](https://firebase.google.com/docs/auth)
-- **Funciones Serverless**: [Firebase Cloud Functions](https://firebase.google.com/docs/functions)
-- **Hosting**: [Firebase App Hosting](https://firebase.google.com/docs/app-hosting)
-- **Estilos**: [Tailwind CSS](https://tailwindcss.com/)
-- **Componentes UI**: [shadcn/ui](https://ui.shadcn.com/)
+# Guía para Desarrolladores
 
-## ⚠️ Configuración Crítica del Entorno
+Esta sección contiene información técnica esencial para configurar, operar y extender el proyecto. Su propósito es garantizar un flujo de trabajo eficiente y prevenir errores comunes de configuración que han causado problemas en el pasado.
 
-Para que la aplicación funcione, es **esencial** configurar correctamente el entorno de Firebase y las variables locales. Los errores de configuración son la causa más común de problemas.
+## Scripts de Administración (Backend / Tareas de Mantenimiento)
 
-### 1. Prerrequisitos
+El directorio `/scripts` contiene scripts de Node.js/TypeScript diseñados para ejecutar tareas administrativas directamente contra la base de datos (ej: migraciones, limpieza de datos, reportes específicos, etc.). La ejecución de estos scripts es una operación delicada y requiere seguir este procedimiento al pie de la letra.
 
-- **Node.js**: **v20.0.0 o superior**.
-- **npm** o **yarn**.
-- Una cuenta de Google.
+### **[CRÍTICO] Requisito de Autenticación y Variables de Entorno**
 
-### 2. Configuración del Proyecto Firebase
+A diferencia de la aplicación web, que se ejecuta en un entorno de servidor gestionado, estos scripts se ejecutan localmente en tu máquina. Por lo tanto, no tienen acceso automático a las variables de entorno del servidor.
 
-1.  **Crear Proyecto**: Ve a la [Consola de Firebase](https://console.firebase.google.com/) y crea un nuevo proyecto.
-2.  **Activar Facturación**: En la configuración del proyecto, selecciona el plan **Blaze (pago por uso)**. Esto es **obligatorio** para poder desplegar Cloud Functions.
-3.  **Crear App Web**:
-    - En la "Configuración del proyecto" > "General", crea una nueva **Aplicación web**.
-    - Nómbrala y registra la aplicación.
-    - Firebase te mostrará un objeto `firebaseConfig`. Copia estos valores.
+Para autenticarse con Firebase, cada script **debe** tener acceso a las credenciales de la cuenta de servicio.
 
-### 3. Configuración de Variables de Entorno
+1.  **Archivo `.env.local`**: Asegúrate de que el archivo `.env.local` exista en la raíz del proyecto.
+2.  **Variable de Credenciales**: Este archivo debe contener la variable de entorno `GOOGLE_APPLICATION_CREDENTIALS_JSON`, que almacena el contenido JSON completo de la clave de la cuenta de servicio de Firebase.
 
-1.  En la raíz de este proyecto, crea un nuevo archivo llamado **`.env.local`**.
-2.  Copia el contenido del archivo `.env.example` y pégalo en tu nuevo archivo `.env.local`.
-3.  Rellena los valores con las claves que obtuviste de la configuración de tu App Web en Firebase. El archivo `.env.local` se verá así y **no debe ser subido a GitHub**:
+### **Cómo Ejecutar un Script de Forma Segura**
 
-    ```bash
-    # Variables de entorno para el cliente Next.js
-    NEXT_PUBLIC_FIREBASE_API_KEY="AIzaSy...YOUR_KEY"
-    NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN="your-project.firebaseapp.com"
-    NEXT_PUBLIC_FIREBASE_PROJECT_ID="your-project-id"
-    NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET="your-project.appspot.com"
-    NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID="1234567890"
-    NEXT_PUBLIC_FIREBASE_APP_ID="1:12345:web:abcdef123"
-    NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID="G-ABCDEF123"
-    ```
+Para ejecutar un script que necesita acceso a la base de datos, **siempre** debes usar el siguiente comando. Intentar ejecutarlo de otra manera (`ts-node mi-script.ts`) resultará en un fallo de autenticación de Firebase, como se ha comprobado en depuraciones anteriores.
 
-### 4. Configuración de Cloud Functions y Permisos
+```bash
+npx ts-node -r dotenv/config --project tsconfig.scripts.json RUTA_DEL_SCRIPT [ARGUMENTOS]
+```
 
-El proyecto utiliza una Cloud Function (`getLatestPayrollSalary`) para sugerir el sueldo base. Para que funcione, necesita una configuración específica:
+**Desglose del Comando:**
 
-1.  **Región de la Función**: Al desplegar la función (o si ya existe), asegúrate de que esté configurada en la región **`us-central1`**.
-2.  **Runtime de la Función**: La función debe usar el entorno de ejecución **Node.js 20**.
-3.  **Permisos de Invocación**:
-    - Ve a la [Consola de Google Cloud](https://console.cloud.google.com/) y selecciona tu proyecto.
-    - Navega a "Cloud Functions".
-    - Selecciona la función `getLatestPayrollSalary`.
-    - Ve a la pestaña "Permisos".
-    - Haz clic en "Conceder acceso".
-    - En el campo "Principales nuevas", escribe `allUsers`.
-    - En el campo "Seleccionar un rol", elige **`Cloud Functions`** > **`Invocador de Cloud Functions`**.
-    - Guarda los cambios.
+*   `npx ts-node`: Es el ejecutor que compila y corre el script de TypeScript.
+*   `-r dotenv/config`: **(EL PASO CLAVE)**. Este flag (abreviatura de `--require`) instruye a Node.js para que cargue y ejecute el módulo `dotenv/config` **antes** de que cualquier línea de tu script sea procesada. Esto garantiza que las variables del archivo `.env.local` ya existan en el entorno (`process.env`) cuando el módulo de Firebase intente inicializarse.
+*   `--project tsconfig.scripts.json`: Indica a `ts-node` que use la configuración de compilación específica para scripts, que es diferente de la configuración de la aplicación principal.
+*   `RUTA_DEL_SCRIPT`: La ruta al archivo del script, por ejemplo: `scripts/DANGEROUS-delete-all-vouchers.ts`.
+*   `[ARGUMENTOS]`: Cualquier argumento adicional que el script espere recibir.
 
-### 5. Instalación y Ejecución Local
+**Ejemplo Práctico:**
 
-1.  **Instala las dependencias**:
-    ```bash
-    npm install
-    ```
-2.  **Ejecuta el servidor de desarrollo**:
-    ```bash
-    npm run dev
-    ```
-    La aplicación estará disponible en `http://localhost:9003`.
+Para ejecutar el script que borra todos los vouchers de una empresa específica, el comando sería:
 
-### 6. Creación del Primer Usuario Administrador
+```bash
+# Formato: npx ts-node -r dotenv/config --project tsconfig.scripts.json <script> <companyId>
+npx ts-node -r dotenv/config --project tsconfig.scripts.json scripts/DANGEROUS-delete-all-vouchers.ts YZjYRraLdHxVkEs186z7
+```
 
-El sistema necesita un usuario `Admin` para gestionar contadores y parámetros.
+### Creando un Nuevo Script de Administración
 
-1.  **Regístrate en la aplicación**: Usa la página de login para crear tu primera cuenta. Por defecto, tendrá el rol `Accountant`.
-2.  **Promover a Admin**: Abre una terminal en la raíz del proyecto y ejecuta:
-    ```bash
-    npm run init-admin
-    ```
-3.  El script te pedirá el email del usuario que acabas de registrar. Ingrésalo.
-4.  **¡Importante!**: Cierra sesión en la aplicación y vuelve a iniciarla para que los nuevos permisos de `Admin` surtan efecto.
+Cuando necesites crear un nuevo script:
 
-## Despliegue (Deployment)
-
-Este proyecto está configurado para **Firebase App Hosting**, no para el servicio de *Hosting Clásico*. Esto se debe a que utiliza las funciones de servidor de Next.js.
-
-- El repositorio incluye un workflow de GitHub Actions (`.github/workflows/firebase-hosting-pull-request.yml`) que despliega automáticamente las vistas previas de los Pull Requests.
-- Para desplegar a producción, sigue la [guía oficial de Firebase App Hosting](https://firebase.google.com/docs/app-hosting).
-
-## Estructura del Proyecto
-
-- `src/app/`: Páginas y layouts (App Router).
-- `src/components/`: Componentes de React, incluyendo UI de shadcn.
-- `src/firebase/`: Configuración y hooks para interactuar con Firebase. El archivo clave es `config.ts`, donde se define la región de las Functions.
-- `src/lib/`: Funciones de utilidad, tipos de datos y datos de inicialización (`seed-data.ts`).
-- `functions/`: Código fuente de las Cloud Functions. El CLI de Firebase puede generar aquí sus propios archivos `.env.*` para gestionar las variables del backend.
-- `firestore.rules`: Reglas de seguridad para Firestore.
-- `init-admin.mjs`: Script para inicializar el primer usuario administrador.
+1.  Crea tu nuevo archivo `.ts` en el directorio `/scripts`.
+2.  Importa el objeto `db` directamente desde `../src/firebase/server`. No necesitas inicializar Firebase ni cargar `dotenv` manualmente dentro del script; el comando de ejecución se encarga de ello.
+3.  Si usas parámetros de bucles como en `.forEach(doc => ...)` en una consulta de Firestore, recuerda añadir el tipo explícito para cumplir con las reglas de TypeScript y evitar errores de compilación: `.forEach((doc: QueryDocumentSnapshot) => ...)`.
+4.  Para ejecutarlo, sigue siempre las instrucciones de la sección anterior.
