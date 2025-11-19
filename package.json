@@ -7,7 +7,7 @@
   },
   "scripts": {
     "dev": "unset NPM_CONFIG_PREFIX && next dev",
-    "build": "next build --no-cache",
+    "build": "next build",
     "start": "next start",
     "lint": "next lint"
   },
