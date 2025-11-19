@@ -283,7 +283,7 @@ function PayrollContent({ companyId, initialPeriod }: { companyId: string, initi
             {generalError && !isLoading && <div className="text-center py-12 text-red-500 font-medium">{generalError}</div>}
 
             {!isPeriodProcessed && !generalError && calculationStatus === 'done' && (
-                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                 <div className="grid grid-cols-1 gap-6">
                     <Card>
                         <CardHeader><CardTitle>Borradores Generados ({successfulDrafts.length})</CardTitle></CardHeader>
                         <CardContent>
