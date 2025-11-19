@@ -82,3 +82,46 @@ Cuando necesites crear un nuevo script:
 2.  Importa el objeto `db` directamente desde `../src/firebase/server`. No necesitas inicializar Firebase ni cargar `dotenv` manualmente dentro del script; el comando de ejecución se encarga de ello.
 3.  Si usas parámetros de bucles como en `.forEach(doc => ...)` en una consulta de Firestore, recuerda añadir el tipo explícito para cumplir con las reglas de TypeScript y evitar errores de compilación: `.forEach((doc: QueryDocumentSnapshot) => ...)`.
 4.  Para ejecutarlo, sigue siempre las instrucciones de la sección anterior.
+
+---
+
+## Guía de Despliegue y Solución de Errores
+
+Esta sección documenta la configuración de despliegue y las soluciones a errores comunes encontrados durante el ciclo de vida del proyecto.
+
+### **Plataforma de Despliegue**
+
+*   **Servicio**: El proyecto está desplegado en **Firebase App Hosting**. Este servicio está diseñado para aplicaciones web con un backend (como Next.js) y gestiona el ciclo de compilación y despliegue automáticamente.
+*   **Disparador**: Los despliegues se activan automáticamente con cada `push` a la rama `main` del repositorio en GitHub.
+
+### **Configuración de Compilación (Build)**
+
+*   **Motor de Node.js**: El entorno de compilación en Firebase App Hosting está configurado para usar **Node.js versión 20**. Esto es consistente con la variable `engines` en `package.json`.
+*   **Comando de Compilación**: El comando correcto para compilar el proyecto es simplemente `next build`. Este se define en el script `build` del `package.json`.
+
+### **Errores Comunes y Soluciones**
+
+#### 1. **ERROR: `unknown option '--no-cache'` durante el despliegue**
+
+*   **Causa**: Este error ocurrió porque se añadió el flag `--no-cache` al script `build` en `package.json`. Se intentó como una solución para un error de falta de espacio (`ENOSPC`) que ocurría en un entorno de despliegue incorrecto (Firebase Hosting Clásico).
+*   **Solución**: El entorno de compilación de Firebase App Hosting (que usa el CLI de Vercel) no reconoce esta opción. **No se debe usar `--no-cache`**. El script de `build` debe ser únicamente `"build": "next build"`.
+
+#### 2. **ERROR: `ENOSPC: no space left on device` durante el despliegue**
+
+*   **Causa**: Este fue el error original que nos llevó por el camino equivocado. Fue causado por intentar desplegar una aplicación Next.js (que requiere un servidor) en **Firebase Hosting Clásico**, un servicio diseñado para sitios estáticos. El entorno de Hosting Clásico no está preparado para compilar proyectos de Next.js y se quedaba sin espacio.
+*   **Solución**: La solución fundamental fue migrar el despliegue a **Firebase App Hosting**. Este servicio está diseñado específicamente para este tipo de aplicaciones y resuelve el problema de raíz.
+
+#### 3. **ERROR: `fatal: unable to write loose object file: No space left on device` en el entorno local**
+
+*   **Causa**: Este error ocurre al ejecutar comandos de `git` (como `git add` o `git commit`) y es una señal inequívoca de que **el disco duro del ordenador local está lleno**.
+*   **Solución**: Liberar espacio en disco. La forma más rápida en el contexto de este proyecto es eliminar la carpeta `node_modules` y luego reinstalar las dependencias:
+    ```bash
+    # Paso 1: Eliminar la carpeta para liberar espacio
+    rm -rf node_modules
+    
+    # Paso 2: (Opcional pero recomendado) Limpiar la caché de npm
+    npm cache clean --force
+    
+    # Paso 3: Reinstalar las dependencias ahora que hay espacio
+    npm install
+    ```
