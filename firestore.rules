@@ -26,6 +26,12 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // --- USER SUB-COLLECTION RULES ---
+    // Users can manage their own sub-collections, like account-groups.
+    match /users/{userId}/{collection}/{docId} {
+      allow list, read, write, delete: if isSignedIn() && request.auth.uid == userId;
+    }
+
     match /companies/{companyId} {
       allow list: if isSignedIn();
       allow get: if isUserAssociatedWithCompany(companyId);
@@ -33,7 +39,7 @@ service cloud.firestore {
       allow create: if false; // Creation is handled by a Cloud Function.
     }
 
-    // --- SUB-COLLECTION RULES ---
+    // --- COMPANY SUB-COLLECTION RULES ---
     // Secure all sub-collections of a company. Users can perform any action (list, read, write)
     // only if they are properly associated with the parent company.
 

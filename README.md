@@ -4,9 +4,37 @@ Este es el repositorio oficial para el proyecto BaseImponible.cl. Para informaci
 
 ---
 
+## Configuración del Entorno de Desarrollo (Aplicación Principal)
+
+Esta guía te ayudará a poner en marcha la aplicación web principal de Next.js.
+
+### 1. Prerrequisitos
+
+- **Node.js**: Asegúrate de tener instalada una versión de Node.js `20.x`, como se especifica en el archivo `package.json`. Se recomienda usar un gestor de versiones como `nvm`.
+
+### 2. Instalación de Dependencias
+
+Una vez que tengas clonado el repositorio, instala todas las dependencias necesarias con el siguiente comando:
+
+```bash
+npm install
+```
+
+### 3. Ejecutar el Servidor de Desarrollo
+
+Para iniciar la aplicación en modo de desarrollo, ejecuta el script `dev`:
+
+```bash
+npm run dev
+```
+
+La aplicación estará disponible en `http://localhost:3000`. El servidor se recargará automáticamente cada vez que realices cambios en el código.
+
+---
+
 # Guía para Desarrolladores
 
-Esta sección contiene información técnica esencial para configurar, operar y extender el proyecto. Su propósito es garantizar un flujo de trabajo eficiente y prevenir errores comunes de configuración que han causado problemas en el pasado.
+Esta sección contiene información técnica esencial para operar y extender el proyecto. Su propósito es garantizar un flujo de trabajo eficiente y prevenir errores comunes de configuración que han causado problemas en el pasado.
 
 ## Scripts de Administración (Backend / Tareas de Mantenimiento)
 
