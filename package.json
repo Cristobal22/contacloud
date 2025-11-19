@@ -9,6 +9,9 @@
     "lint": "next lint",
     "run-script": "npx ts-node -r dotenv/config --project tsconfig.scripts.json"
   },
+  "engines": {
+    "node": "20.x"
+  },
   "dependencies": {
     "dotenv": "^16.4.5",
     "firebase": "^10.12.2",
