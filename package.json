@@ -10,7 +10,7 @@
     "run-script": "npx ts-node -r dotenv/config --project tsconfig.scripts.json"
   },
   "engines": {
-    "node": "20.x"
+    "node": "22.x"
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",
