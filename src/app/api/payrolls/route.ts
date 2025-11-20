@@ -1,8 +1,10 @@
-
 import { NextResponse } from 'next/server';
 import { adminAuth as auth } from '@/firebase/admin';
 import { adminFirestore as firestore } from '@/firebase/admin';
 import { Payroll } from '@/lib/types';
+
+// Forzar el comportamiento dinámico para evitar errores de renderizado estático
+export const dynamic = 'force-dynamic';
 
 export async function GET(req: Request) {
   try {
