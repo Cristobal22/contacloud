@@ -20,6 +20,7 @@ export const DOCUMENT_TEMPLATES = [
   { name: 'Modelo de Contrato de Temporada', type: 'Contrato', slug: 'contrato-temporada' },
   { name: 'Modelo de Contrato de trabajo para trabajadores de casa particular puertas adentro', type: 'Contrato', slug: 'contrato-casa-particular-puertas-adentro' },
   { name: 'Modelo de Contrato de trabajo para trabajadores de casa particular puertas afuera', type: 'Contrato', slug: 'contrato-casa-particular-puertas-afuera' },
+  { name: 'Certificado de Antigüedad Laboral', type: 'Certificado', slug: 'seniority-certificate' },
 ];
 
-export type DocumentType = 'Contrato' | 'Renuncia' | 'Aviso' | 'Finiquito' | 'Convenio';
+export type DocumentType = 'Contrato' | 'Renuncia' | 'Aviso' | 'Finiquito' | 'Convenio' | 'Certificado';

@@ -125,3 +125,32 @@ Esta sección documenta la configuración de despliegue y las soluciones a error
     # Paso 3: Reinstalar las dependencias ahora que hay espacio
     npm install
     ```
+---
+
+### Arquitectura de Permisos y Acceso a Empresas
+
+El sistema de permisos para acceder a la información de una empresa se basa en un único campo dentro de la colección `companies` de Firestore.
+
+*   **Colección:** `companies`
+*   **Documento:** `{companyId}`
+*   **Campo Clave:** `memberUids` (un array de strings)
+
+#### Lógica de Acceso
+
+1.  **Rol `Admin`:** Un usuario cuyo documento en la colección `users` tiene el campo `role` con el valor `'Admin'` posee acceso universal a todas las empresas del sistema. Esta es una regla de omisión global.
+
+2.  **Acceso General (Propietarios y Contadores):** Para cualquier otro usuario, el acceso a una empresa específica se concede si y solo si su `uid` (ID de usuario de Firebase Authentication) está incluido en el array `memberUids` del documento de esa empresa.
+
+    *   **Ejemplo:** Si el usuario `user_abc` quiere acceder a la empresa `company_xyz`, el documento `companies/company_xyz` debe tener un campo `memberUids: [..., "user_abc", ...]`.
+
+#### Creación de Empresas y Asociación de Usuarios
+
+Es crucial entender que la lógica de negocio para crear una nueva empresa y establecer esta relación de permisos no reside en el código del frontend (el cliente).
+
+*   La creación de una empresa se gestiona a través de una **Callable Cloud Function** de Firebase llamada `createCompanyAndAssociateUser`.
+*   El frontend, a través del hook `useCreateCompany` (`src/features/companies/hooks/use-create-company.ts`), simplemente invoca esta función pasándole los datos básicos de la nueva empresa (nombre, RUT, etc.).
+*   Es esta función en la nube la responsable de:
+    1.  Crear el nuevo documento en la colección `companies`.
+    2.  **Añadir el `uid` del usuario que la está creando al array `memberUids`**, estableciendo así la relación de propiedad y permiso inicial.
+
+Cualquier depuración o modificación de la lógica de permisos en el backend que involucre el acceso a las empresas **debe** basarse en la comprobación del `uid` del solicitante contra el array `memberUids` del documento de la empresa.

@@ -14,6 +14,7 @@ import { contratoCasaParticularPuertasAdentroTemplate } from '@/templates/contra
 import { contratoCasaParticularPuertasAfueraTemplate } from '@/templates/contrato-casa-particular-puertas-afuera';
 import { anexoContratoTrabajoTemplate } from '@/templates/anexo-contrato-trabajo';
 import { pactoHorasExtraTemplate } from '@/templates/pacto-horas-extra';
+import { seniorityCertificateTemplate } from '@/templates/seniority-certificate';
 import React, { useState, useMemo, useEffect, useContext, useRef } from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -54,6 +55,17 @@ const formatDateForInput = (timestamp: any): string => {
 
 
 const formSections = {
+  'seniority-certificate': [
+    {
+      title: 'Datos del Certificado',
+      fields: [
+        { id: 'ciudad_firma', label: 'Ciudad de Firma' },
+        { id: 'dia_firma', label: 'Día de Firma' },
+        { id: 'mes_firma', label: 'Mes de Firma' },
+        { id: 'ano_firma', label: 'Año de Firma' },
+      ],
+    },
+  ],
   'carta-renuncia-voluntaria': [
     {
       title: 'I. Fecha y lugar',
@@ -203,6 +215,7 @@ export default function DocumentEditorPage() {
         case 'contrato-casa-particular-puertas-afuera': return contratoCasaParticularPuertasAfueraTemplate;
         case 'anexo-contrato-trabajo': return anexoContratoTrabajoTemplate;
         case 'pacto-horas-extra': return pactoHorasExtraTemplate;
+        case 'seniority-certificate': return seniorityCertificateTemplate;
         default: return '';
     }
   }, [slug]);

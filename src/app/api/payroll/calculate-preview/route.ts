@@ -5,7 +5,6 @@ import { generatePayroll } from '@/lib/payroll-generator';
 import { Employee } from '@/lib/types';
 import { DecodedIdToken } from 'firebase-admin/auth';
 
-// This function authenticates the request and returns the admin app instance and the user's token.
 async function getAuthenticatedAdmin(req: Request): Promise<{ adminApp: any; decodedToken: DecodedIdToken | null }> {
     const authorization = req.headers.get('Authorization');
     if (authorization?.startsWith('Bearer ')) {
@@ -23,42 +22,49 @@ async function getAuthenticatedAdmin(req: Request): Promise<{ adminApp: any; dec
     return { adminApp: null, decodedToken: null };
 }
 
+// FINAL AND CORRECTED PERMISSION LOGIC
 async function hasCompanyAccess(firestore: any, userId: string, companyId: string): Promise<boolean> {
     try {
-        const userDocRef = firestore.collection('users').doc(userId);
-        const userDoc = await userDocRef.get();
+        const [userDoc, companyDoc] = await Promise.all([
+            firestore.collection('users').doc(userId).get(),
+            firestore.collection('companies').doc(companyId).get()
+        ]);
 
-        if (!userDoc.exists) {
-            console.warn(`User document not found for userId: ${userId}`);
+        if (!userDoc.exists || !companyDoc.exists) {
+            console.warn(`Access check failed: User or Company document not found. User: ${userId}, Company: ${companyId}`);
             return false;
         }
 
         const userData = userDoc.data();
-        // An admin has access to all companies
+        const companyData = companyDoc.data();
+
+        // 1. Admin role has universal access.
         if (userData?.role === 'Admin') {
             return true;
         }
 
-        // An accountant has access only if the companyId is in their companyIds map.
-        if (userData?.role === 'Accountant' && userData.companyIds && userData.companyIds[companyId]) {
+        // 2. User has access if their UID is in the company's `memberUids` array.
+        // This is the definitive check that covers both owners and assigned accountants,
+        // based on the evidence from the rest of the application.
+        if (Array.isArray(companyData?.memberUids) && companyData.memberUids.includes(userId)) {
             return true;
         }
 
-        console.warn(`Access denied for user ${userId} to company ${companyId}. User role: ${userData?.role}`);
+        // If none of the above checks pass, deny access.
+        console.warn(`Access Denied. User ${userId} is not an Admin and is not listed in memberUids for company ${companyId}.`);
         return false;
 
     } catch (error) {
-        console.error('Error verifying company access:', error);
+        console.error('Exception caught while verifying company access:', error);
         return false;
     }
 }
 
 
-// This is the new API route handler for calculating a payroll preview.
+// API route handler for calculating a payroll preview.
 export async function POST(req: Request) {
     const { adminApp, decodedToken } = await getAuthenticatedAdmin(req);
     if (!adminApp || !decodedToken) {
-        // Correctly return a JSON response for unauthorized errors.
         return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
 
@@ -68,23 +74,19 @@ export async function POST(req: Request) {
         const year = searchParams.get('year');
         const month = searchParams.get('month');
         const body = await req.json();
-        const employee = body as Employee; // The employee data is sent in the request body.
+        const employee = body as Employee; 
 
-        // --- Input Validation ---
         if (!companyId || !year || !month || !employee) {
-            let missingParams = [];
-            if (!companyId) missingParams.push('companyId');
-            if (!year) missingParams.push('year');
-            if (!month) missingParams.push('month');
-            if (!employee) missingParams.push('employee data');
-            return NextResponse.json({ message: `Parámetros incompletos. Faltan: ${missingParams.join(', ')}` }, { status: 400 });
+            const missingParams = [!companyId && 'companyId', !year && 'year', !month && 'month', !employee && 'employee data'].filter(Boolean);
+            return NextResponse.json({ message: `Incomplete parameters. Missing: ${missingParams.join(', ')}` }, { status: 400 });
         }
 
         const firestore = adminApp.firestore();
 
-        // --- Permission Check ---
+        // Call the definitive, corrected access logic.
         const canAccess = await hasCompanyAccess(firestore, decodedToken.uid, companyId);
         if (!canAccess) {
+            // Return the Forbidden error, which is the correct behavior if access is denied.
             return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
         }
 
@@ -92,21 +94,16 @@ export async function POST(req: Request) {
         const numericMonth = parseInt(month, 10);
 
         if (isNaN(numericYear) || isNaN(numericMonth)) {
-            return NextResponse.json({ message: 'El año y el mes deben ser números válidos.' }, { status: 400 });
+            return NextResponse.json({ message: 'Year and month must be valid numbers.' }, { status: 400 });
         }
         
-        // The core logic: use the payroll generator to calculate the preview.
-        // We pass 0 for otherTaxableEarnings and otherDiscounts as they are handled in the final processing.
         const payrollDraft = await generatePayroll(firestore, employee, numericYear, numericMonth, 0, 0);
 
-        // Return the calculated draft.
         return NextResponse.json(payrollDraft);
 
     } catch (error) {
-        console.error('Error al calcular la liquidación (preview):', error);
-        const errorMessage = error instanceof Error ? error.message : 'Ocurrió un error desconocido en el servidor.';
-        
-        // Provide a clear error message to the client.
-        return NextResponse.json({ message: `Error en el cálculo: ${errorMessage}` }, { status: 500 });
+        console.error('Error calculating payroll preview:', error);
+        const errorMessage = error instanceof Error ? error.message : 'An unknown server error occurred.';
+        return NextResponse.json({ message: `Calculation error: ${errorMessage}` }, { status: 500 });
     }
 }

@@ -1,11 +1,11 @@
 'use client';
 
 import React from 'react';
-import { useRouter } from 'next/navigation'; 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useUser } from '@/firebase/auth/use-user';
+import { useUserProfile } from '@/firebase/auth/use-user-profile';
 import { useFirestore, useCollection } from '@/firebase';
 import { collection, query, where, Timestamp } from 'firebase/firestore';
 import type { Employee, Payroll, PayrollDraft } from '@/lib/types';
@@ -13,7 +13,6 @@ import { SelectedCompanyContext } from '../layout';
 import { PayrollProcessPreviewDialog } from '@/components/payroll-process-preview-dialog';
 import { PayrollDraftsTable } from '@/components/payroll/PayrollDraftsTable';
 import { PayrollDetailDialog } from '@/components/payroll-detail-dialog';
-import { parseISO } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
@@ -107,7 +106,6 @@ function PayrollContent({ companyId, initialPeriod }: { companyId: string, initi
 
     React.useEffect(() => {
         if (authLoading || employeesLoading || payrollsLoading || isPeriodProcessed) {
-            setCalculationStatus('done');
             return;
         }
 
@@ -124,7 +122,6 @@ function PayrollContent({ companyId, initialPeriod }: { companyId: string, initi
         }
 
         if (!allEmployees || allEmployees.length === 0) {
-            setGeneralError("No hay empleados activos en esta empresa.");
             setCalculationStatus('done');
             return;
         }
@@ -154,6 +151,12 @@ function PayrollContent({ companyId, initialPeriod }: { companyId: string, initi
             });
 
             const results = await Promise.all(statusPromises);
+
+            const forbiddenError = results.find(r => r.error === 'Forbidden');
+            if (forbiddenError) {
+                setGeneralError("Error de Permiso: No tienes acceso para calcular liquidaciones en esta empresa.");
+            }
+
             setEmployeeStatuses(results);
             setCalculationStatus('done');
         };
@@ -248,7 +251,7 @@ function PayrollContent({ companyId, initialPeriod }: { companyId: string, initi
 
     const isLoading = authLoading || employeesLoading || payrollsLoading || calculationStatus === 'calculating';
     const successfulDrafts = employeeStatuses.filter(s => s.draft).map(s => s.draft as PayrollDraft);
-    const failedEmployees = employeeStatuses.filter(s => s.error);
+    const failedEmployees = employeeStatuses.filter(s => s.error && s.error !== 'Forbidden');
 
     let loadingMessage = 'Verificando sesión...';
     if (!authLoading && (employeesLoading || payrollsLoading)) loadingMessage = 'Cargando datos...';
@@ -283,35 +286,43 @@ function PayrollContent({ companyId, initialPeriod }: { companyId: string, initi
             {generalError && !isLoading && <div className="text-center py-12 text-red-500 font-medium">{generalError}</div>}
 
             {!isPeriodProcessed && !generalError && calculationStatus === 'done' && (
-                 <div className="grid grid-cols-1 gap-6">
+                allEmployees && allEmployees.length > 0 ? (
+                    <div className="grid grid-cols-1 gap-6">
+                        <Card>
+                            <CardHeader><CardTitle>Borradores Generados ({successfulDrafts.length})</CardTitle></CardHeader>
+                            <CardContent>
+                                {successfulDrafts.length > 0 ? (
+                                    <PayrollDraftsTable drafts={successfulDrafts} onPreview={handlePreview} onDraftChange={handleDraftChange} />
+                                ) : (
+                                    <div className="text-center py-10 text-gray-500">No se generaron liquidaciones. Revise la sección de problemas.</div>
+                                )}
+                            </CardContent>
+                        </Card>
+                        <Card>
+                            <CardHeader><CardTitle className="text-amber-600">Empleados con Problemas ({failedEmployees.length})</CardTitle></CardHeader>
+                            <CardContent>
+                                {failedEmployees.length > 0 ? (
+                                    <ul className="space-y-3">
+                                        {failedEmployees.map(status => (
+                                            <li key={status.employee.id} className="p-3 bg-amber-50 rounded-md border border-amber-200">
+                                                <p className="font-semibold">{status.employee.firstName} {status.employee.lastName}</p>
+                                                <p className="text-sm text-red-600">Motivo: {status.error}</p>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                ) : (
+                                    <div className="text-center py-10 text-gray-500">Todos los empleados se procesaron correctamente.</div>
+                                )}
+                            </CardContent>
+                        </Card>
+                    </div>
+                ) : (
                     <Card>
-                        <CardHeader><CardTitle>Borradores Generados ({successfulDrafts.length})</CardTitle></CardHeader>
-                        <CardContent>
-                            {successfulDrafts.length > 0 ? (
-                                <PayrollDraftsTable drafts={successfulDrafts} onPreview={handlePreview} onDraftChange={handleDraftChange} />
-                            ) : (
-                                <div className="text-center py-10 text-gray-500">No se generaron liquidaciones exitosas.</div>
-                            )}
+                        <CardContent className="pt-6">
+                            <div className="text-center py-10 text-gray-500">No hay empleados activos en esta empresa.</div>
                         </CardContent>
                     </Card>
-                    <Card>
-                        <CardHeader><CardTitle className="text-amber-600">Empleados con Problemas ({failedEmployees.length})</CardTitle></CardHeader>
-                        <CardContent>
-                            {failedEmployees.length > 0 ? (
-                                <ul className="space-y-3">
-                                    {failedEmployees.map(status => (
-                                        <li key={status.employee.id} className="p-3 bg-amber-50 rounded-md border border-amber-200">
-                                            <p className="font-semibold">{status.employee.firstName} {status.employee.lastName}</p>
-                                            <p className="text-sm text-red-600">Motivo: {status.error}</p>
-                                        </li>
-                                    ))}
-                                </ul>
-                            ) : (
-                                <div className="text-center py-10 text-gray-500">Todos los empleados se procesaron correctamente.</div>
-                            )}
-                        </CardContent>
-                    </Card>
-                </div>
+                )
             )}
 
             {!isLoading && !generalError && isPeriodProcessed && (
@@ -353,6 +364,16 @@ function PayrollContent({ companyId, initialPeriod }: { companyId: string, initi
 
 export default function PayrollPage() {
     const { selectedCompany } = React.useContext(SelectedCompanyContext) || {};
+    const { user, loading: authLoading } = useUser();
+    const { userProfile, loading: profileLoading } = useUserProfile(user?.uid);
+
+    if (authLoading || profileLoading) {
+        return (
+            <div className="flex items-center justify-center h-full">
+                 <p>Cargando...</p>
+            </div>
+        );
+    }
 
     if (!selectedCompany) {
         return (
@@ -366,7 +387,7 @@ export default function PayrollPage() {
             </div>
         );
     }
-
+    
     const now = new Date();
     const initialYear = now.getFullYear();
     const initialMonth = now.getMonth() + 1;
