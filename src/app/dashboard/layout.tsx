@@ -38,9 +38,8 @@ import { useToast } from "@/hooks/use-toast"
 import { CommandMenu } from "@/components/command-menu"
 import { Sidebar, SidebarContent, SidebarHeader, SidebarInset, SidebarProvider, SidebarTrigger, useSidebar } from "@/components/ui/sidebar"
 import { cn } from "@/lib/utils"
-import ClientOnly from '@/components/ClientOnly' // Importar el nuevo componente
+import ClientOnly from '@/components/ClientOnly'
 
-// Cargar HelpChat dinámicamente sigue siendo una buena práctica
 const DynamicHelpChat = dynamic(() => import('@/components/HelpChat'), {
   ssr: false,
 });
@@ -263,44 +262,46 @@ function AccountantDashboardLayout({ children }: { children: React.ReactNode }) 
                     <main className="flex-1 p-4 sm:p-6">
                         {isLoading ? <div className="flex h-full w-full items-center justify-center"><p>Cargando datos del contador...</p></div> : children}
                     </main>
-                    <ClientOnly>
-                        <DynamicHelpChat />
-                    </ClientOnly>
                 </SidebarInset>
             </SidebarProvider>
+            <ClientOnly>
+                <DynamicHelpChat />
+            </ClientOnly>
         </SelectedCompanyContext.Provider>
     );
 }
 
 function AdminDashboardLayout({ children }: { children: React.ReactNode }) {
     return (
-       <SidebarProvider>
-            <Sidebar>
-                <SidebarHeader>
-                    <SidebarLogo />
-                </SidebarHeader>
-                <SidebarContent>
-                    <DashboardNav role="Admin" />
-                </SidebarContent>
-            </Sidebar>
-             <SidebarInset>
-                <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-4 border-b bg-background px-4 sm:px-6">
-                    <div className="flex items-center gap-2">
-                         <SidebarTrigger />
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <CommandMenu />
-                        <UserNav />
-                    </div>
-                </header>
-                <main className="flex-1 p-4 sm:p-6">
-                    {children}
-                </main>
-                <ClientOnly>
-                    <DynamicHelpChat />
-                </ClientOnly>
-            </SidebarInset>
-        </SidebarProvider>
+       <>
+            <SidebarProvider>
+                <Sidebar>
+                    <SidebarHeader>
+                        <SidebarLogo />
+                    </SidebarHeader>
+                    <SidebarContent>
+                        <DashboardNav role="Admin" />
+                    </SidebarContent>
+                </Sidebar>
+                <SidebarInset>
+                    <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-4 border-b bg-background px-4 sm:px-6">
+                        <div className="flex items-center gap-2">
+                            <SidebarTrigger />
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <CommandMenu />
+                            <UserNav />
+                        </div>
+                    </header>
+                    <main className="flex-1 p-4 sm:p-6">
+                        {children}
+                    </main>
+                </SidebarInset>
+            </SidebarProvider>
+            <ClientOnly>
+                <DynamicHelpChat />
+            </ClientOnly>
+        </>
     );
 }
 
