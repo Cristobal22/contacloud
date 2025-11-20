@@ -38,6 +38,7 @@ import { useToast } from "@/hooks/use-toast"
 import { CommandMenu } from "@/components/command-menu"
 import { Sidebar, SidebarContent, SidebarHeader, SidebarInset, SidebarProvider, SidebarTrigger, useSidebar } from "@/components/ui/sidebar"
 import { cn } from "@/lib/utils"
+import HelpChat from "@/components/HelpChat"
 
 export const SelectedCompanyContext = React.createContext<SelectedCompanyContextType | null>(null);
 
@@ -258,6 +259,7 @@ function AccountantDashboardLayout({ children }: { children: React.ReactNode }) 
                     <main className="flex-1 p-4 sm:p-6">
                         {isLoading ? <div className="flex h-full w-full items-center justify-center"><p>Cargando datos del contador...</p></div> : children}
                     </main>
+                    <HelpChat />
                 </SidebarInset>
             </SidebarProvider>
         </SelectedCompanyContext.Provider>
@@ -288,6 +290,7 @@ function AdminDashboardLayout({ children }: { children: React.ReactNode }) {
                 <main className="flex-1 p-4 sm:p-6">
                     {children}
                 </main>
+                <HelpChat />
             </SidebarInset>
         </SidebarProvider>
     );
