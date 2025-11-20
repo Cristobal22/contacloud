@@ -4,13 +4,12 @@
 import React from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import dynamic from 'next/dynamic' // Import dynamic
+import dynamic from 'next/dynamic'
 import {
   ChevronDown,
   Briefcase,
   Calendar as CalendarIcon,
 } from "lucide-react"
-// REMOVED documentId as it's no longer needed for the company query
 import { collection, query, where, doc, updateDoc, Query } from "firebase/firestore"
 import { format, startOfMonth, endOfMonth, parseISO, isAfter, differenceInDays } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -39,8 +38,9 @@ import { useToast } from "@/hooks/use-toast"
 import { CommandMenu } from "@/components/command-menu"
 import { Sidebar, SidebarContent, SidebarHeader, SidebarInset, SidebarProvider, SidebarTrigger, useSidebar } from "@/components/ui/sidebar"
 import { cn } from "@/lib/utils"
+import ClientOnly from '@/components/ClientOnly' // Importar el nuevo componente
 
-// Dynamically import HelpChat component to prevent SSR issues
+// Cargar HelpChat dinámicamente sigue siendo una buena práctica
 const DynamicHelpChat = dynamic(() => import('@/components/HelpChat'), {
   ssr: false,
 });
@@ -97,7 +97,6 @@ function AccountantDashboardLayout({ children }: { children: React.ReactNode }) 
 
     }, [companies, companiesLoading, profileLoading, userLoading]);
 
-    // --- NEW: Log Company ID for safe operations ---
     React.useEffect(() => {
         if (selectedCompany) {
             console.log(`[INFO] Current Company ID for operations: ${selectedCompany.id}`);
@@ -264,7 +263,9 @@ function AccountantDashboardLayout({ children }: { children: React.ReactNode }) 
                     <main className="flex-1 p-4 sm:p-6">
                         {isLoading ? <div className="flex h-full w-full items-center justify-center"><p>Cargando datos del contador...</p></div> : children}
                     </main>
-                    <DynamicHelpChat />
+                    <ClientOnly>
+                        <DynamicHelpChat />
+                    </ClientOnly>
                 </SidebarInset>
             </SidebarProvider>
         </SelectedCompanyContext.Provider>
@@ -295,7 +296,9 @@ function AdminDashboardLayout({ children }: { children: React.ReactNode }) {
                 <main className="flex-1 p-4 sm:p-6">
                     {children}
                 </main>
-                <DynamicHelpChat />
+                <ClientOnly>
+                    <DynamicHelpChat />
+                </ClientOnly>
             </SidebarInset>
         </SidebarProvider>
     );
