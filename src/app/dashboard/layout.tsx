@@ -4,7 +4,6 @@
 import React from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import dynamic from 'next/dynamic'
 import {
   ChevronDown,
   Briefcase,
@@ -39,10 +38,7 @@ import { CommandMenu } from "@/components/command-menu"
 import { Sidebar, SidebarContent, SidebarHeader, SidebarInset, SidebarProvider, SidebarTrigger, useSidebar } from "@/components/ui/sidebar"
 import { cn } from "@/lib/utils"
 import ClientOnly from '@/components/ClientOnly'
-
-const DynamicHelpChat = dynamic(() => import('@/components/HelpChat'), {
-  ssr: false,
-});
+import HelpChat from '@/components/HelpChat'; // Importación estática
 
 export const SelectedCompanyContext = React.createContext<SelectedCompanyContextType | null>(null);
 
@@ -265,7 +261,7 @@ function AccountantDashboardLayout({ children }: { children: React.ReactNode }) 
                 </SidebarInset>
             </SidebarProvider>
             <ClientOnly>
-                <DynamicHelpChat />
+                <HelpChat />
             </ClientOnly>
         </SelectedCompanyContext.Provider>
     );
@@ -299,7 +295,7 @@ function AdminDashboardLayout({ children }: { children: React.ReactNode }) {
                 </SidebarInset>
             </SidebarProvider>
             <ClientOnly>
-                <DynamicHelpChat />
+                <HelpChat />
             </ClientOnly>
         </>
     );
