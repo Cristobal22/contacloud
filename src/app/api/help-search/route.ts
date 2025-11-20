@@ -3,7 +3,6 @@
 import { NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
-// Volvemos a usar la librería oficial de Google para un código más limpio
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 interface SearchResult {
@@ -11,9 +10,11 @@ interface SearchResult {
   content: string;
 }
 
-// TODO: Reemplaza la clave de abajo con una nueva clave de API CREADA PARA SERVIDOR (sin restricciones).
+// Clave de API para servidor (la que creaste sin restricciones)
 const API_KEY = process.env.GEMINI_API_KEY || 'AIzaSyDI1IzmXIwZr8Byu8uiTgbu6nLzSGsr_OQ';
-const MODEL_NAME = 'gemini-1.5-flash'; // Usamos el modelo que sabemos que tu proyecto soporta.
+
+// ÚLTIMO INTENTO: Probando con el modelo base gemini-1.0-pro
+const MODEL_NAME = 'gemini-1.0-pro';
 
 const genAI = new GoogleGenerativeAI(API_KEY);
 
