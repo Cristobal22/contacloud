@@ -1,258 +1,77 @@
 'use client';
 
-import React from 'react';
+import React, { useContext } from 'react';
+import { useRouter } from 'next/navigation';
 import { SelectedCompanyContext } from './layout';
-import { useCollection, useDoc, useFirestore } from '@/firebase';
-import type { Account, Voucher, Company, UserProfile } from '@/lib/types';
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { AreaChart, Landmark, FileText, TrendingDown, TrendingUp, Rocket } from 'lucide-react';
-import { useUser } from '@/firebase/auth/use-user';
-import { Bar, BarChart as ReBarChart, ResponsiveContainer, XAxis, YAxis, Tooltip } from 'recharts';
+import { Button } from '@/components/ui/button';
+import { Briefcase, FileText, Users, BookCopy, PlusCircle } from 'lucide-react';
 
-// Define a simplified dashboard for clients, focusing on their specific data if needed.
-function ClientDashboard() {
-    return (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-             <Card>
-                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Total Ingresos (Mes)</CardTitle>
-                     <TrendingUp className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                 <CardContent>
-                     <div className="text-2xl font-bold">$45,231.89</div>
-                     <p className="text-xs text-muted-foreground">+20.1% desde el mes pasado</p>
-                 </CardContent>
-            </Card>
-             <Card>
-                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Total Gastos (Mes)</CardTitle>
-                     <TrendingDown className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                 <CardContent>
-                     <div className="text-2xl font-bold">$12,134.50</div>
-                     <p className="text-xs text-muted-foreground">+1.7% desde el mes pasado</p>
-                 </CardContent>
-            </Card>
-        </div>
-    );
-}
+const months = [
+    "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+    "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
+];
 
-// The detailed dashboard for accountants, showing comprehensive company data.
-function AccountantDashboardContent({ company, userProfile }: { company: Company, userProfile: UserProfile | null }) {
-    const firestore = useFirestore();
-    const companyId = company.id;
+export default function DashboardPage() {
+    const router = useRouter();
+    const context = useContext(SelectedCompanyContext);
 
-    const { data: accounts, loading: accountsLoading } = useCollection<Account>({ 
-        path: companyId ? `companies/${companyId}/accounts` : undefined,
-        companyId: companyId
-    });
-    
-    const { data: vouchers, loading: vouchersLoading } = useCollection<Voucher>({ 
-        path: companyId ? `companies/${companyId}/vouchers` : undefined, 
-        companyId: companyId
-    });
-    
-    const loading = accountsLoading || vouchersLoading;
-
-    const contabilizadosVouchers = React.useMemo(() => vouchers?.filter(v => v.status === 'Contabilizado') || [], [vouchers]);
-
-    const calculatedBalances = React.useMemo(() => {
-        if (!accounts) return [];
-        
-        const accountMovements = new Map<string, { debit: number; credit: number }>();
-
-        contabilizadosVouchers.forEach(voucher => {
-            if (voucher && Array.isArray(voucher.entries)) {
-                voucher.entries.forEach(entry => {
-                    const current = accountMovements.get(entry.account) || { debit: 0, credit: 0 };
-                    current.debit += Number(entry.debit) || 0;
-                    current.credit += Number(entry.credit) || 0;
-                    accountMovements.set(entry.account, current);
-                });
-            }
-        });
-        
-        const finalBalances = new Map<string, number>();
-
-        accounts.forEach(account => {
-            const movements = accountMovements.get(account.code) || { debit: 0, credit: 0 };
-            let balance = 0;
-            if (account.type === 'Activo' || (account.classification === 'Resultado' && account.type === 'Pérdida')) {
-                balance = movements.debit - movements.credit;
-            } else {
-                balance = movements.credit - movements.debit;
-            }
-            finalBalances.set(account.code, balance);
-        });
-
-        return Array.from(finalBalances.entries())
-            .map(([accountCode, balance]) => {
-                const account = accounts.find(a => a.code === accountCode);
-                return {
-                    name: account?.name || 'Unknown Account',
-                    balance: balance,
-                    type: account?.type,
-                    classification: account?.classification,
-                };
-            })
-            .filter(item => item.balance > 0) 
-            .sort((a, b) => b.balance - a.balance); 
-
-    }, [accounts, contabilizadosVouchers]);
-
-    const utilidadDelEjercicio = React.useMemo(() => {
-        const ingresos = calculatedBalances
-            .filter(b => b.classification === 'Resultado' && b.type === 'Ganancia')
-            .reduce((acc, curr) => acc + curr.balance, 0);
-
-        const egresos = calculatedBalances
-            .filter(b => b.classification === 'Resultado' && b.type === 'Pérdida')
-            .reduce((acc, curr) => acc + curr.balance, 0);
-
-        return ingresos - egresos;
-    }, [calculatedBalances]);
-
-    const totalActivos = React.useMemo(() => {
-        return calculatedBalances
-            .filter(b => b.classification === 'Balance' && b.type === 'Activo')
-            .reduce((acc, curr) => acc + curr.balance, 0);
-    }, [calculatedBalances]);
-    
-
-    if (loading) {
-        return <div>Cargando dashboard...</div>;
-    }
-
-    const totalVouchers = vouchers?.length || 0;
-    const borradorVouchers = vouchers?.filter(v => v.status === 'Borrador').length || 0;
-
-    const topBalances = calculatedBalances.slice(0, 8);
-
-    const formatCurrency = (value: number) => {
-        return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(value);
-    };
-
-    return (
-        <div className="space-y-6">
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Total Activos</CardTitle>
-                        <Landmark className="h-4 w-4 text-muted-foreground" />
+    if (!context || !context.selectedCompany) {
+        return (
+            <div className="flex items-center justify-center h-full">
+                <Card className="w-full max-w-md text-center">
+                    <CardHeader>
+                        <CardTitle>Cargando Dashboard</CardTitle>
+                        <CardDescription>Por favor, espere mientras cargamos la información de su empresa.</CardDescription>
                     </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">{formatCurrency(totalActivos)}</div>
-                        <p className="text-xs text-muted-foreground">Suma de todos los activos de la empresa</p>
-                    </CardContent>
-                </Card>
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Comprobantes Totales</CardTitle>
-                        <FileText className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">{totalVouchers}</div>
-                        <p className="text-xs text-muted-foreground">Registrados en el período</p>
-                    </CardContent>
-                </Card>
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Comprobantes en Borrador</CardTitle>
-                        <FileText className="h-4 w-4 text-amber-500" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">{borradorVouchers}</div>
-                        <p className="text-xs text-muted-foreground">Pendientes de contabilización</p>
-                    </CardContent>
-                </Card>
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Utilidad del Ejercicio</CardTitle>
-                        <AreaChart className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className={`text-2xl font-bold ${utilidadDelEjercicio >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                            {formatCurrency(utilidadDelEjercicio)}
-                        </div>
-                        <p className="text-xs text-muted-foreground">Calculado en tiempo real</p>
-                    </CardContent>
                 </Card>
             </div>
-
-            <Card>
-                <CardHeader>
-                    <CardTitle>Saldos de Cuentas Principales</CardTitle>
-                    <CardDescription>
-                        Visualización de las cuentas con mayor movimiento o saldo.
-                    </CardDescription>
-                </CardHeader>
-                <CardContent className="pl-2">
-                    <ResponsiveContainer width="100%" height={350}>
-                        <ReBarChart data={topBalances} layout="vertical" margin={{ left: 100, right: 20 }}>
-                             <XAxis type="number" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `$${new Intl.NumberFormat('es-CL').format(value as number)}`}/>
-                             <YAxis type="category" dataKey="name" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} width={200} style={{ whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}/>
-                            <Tooltip 
-                                cursor={{ fill: 'transparent' }}
-                                content={({ active, payload }) => {
-                                    if (active && payload && payload.length) {
-                                        return (
-                                        <div className="rounded-lg border bg-background p-2 shadow-sm">
-                                            <div className="grid grid-cols-2 gap-2">
-                                                <div className="flex flex-col">
-                                                    <span className="text-[0.70rem] uppercase text-muted-foreground">Cuenta</span>
-                                                    <span className="font-bold text-muted-foreground">{payload[0].payload.name}</span>
-                                                </div>
-                                                <div className="flex flex-col">
-                                                    <span className="text-[0.70rem] uppercase text-muted-foreground">Saldo</span>
-                                                    <span className="font-bold">{`$${new Intl.NumberFormat('es-CL').format(payload[0].value as number)}`}</span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        )
-                                    }
-
-                                    return null
-                                }}
-                            />
-                            <Bar dataKey="balance" fill="currentColor" radius={[0, 4, 4, 0]} className="fill-primary" />
-                        </ReBarChart>
-                    </ResponsiveContainer>
-                </CardContent>
-            </Card>
-        </div>
-    );
-}
-
-
-function AccountantDashboard() {
-    const { selectedCompany } = React.useContext(SelectedCompanyContext) || {};
-    const { user } = useUser();
-    const { data: userProfile, loading: profileLoading } = useDoc<UserProfile>(useFirestore(), `users/${user?.uid}`);
-
-    if (profileLoading) {
-        return <div>Cargando perfil...</div>;
-    }
-
-    if (userProfile && userProfile.role === 'client') {
-        return <ClientDashboard />;
-    }
-
-    if (!selectedCompany) {
-        return (
-            <Alert>
-                <Rocket className="h-4 w-4" />
-                <AlertTitle>¡Bienvenido a tu Asistente Contable!</AlertTitle>
-                <AlertDescription>
-                    Para empezar, selecciona una empresa del menú desplegable de arriba. Esto cargará el dashboard con los datos correspondientes.
-                </AlertDescription>
-            </Alert>
         );
     }
 
-    return <AccountantDashboardContent company={selectedCompany} userProfile={userProfile} />;
-}
+    const { selectedCompany, periodYear, periodMonth } = context;
+    const monthName = months[periodMonth - 1];
 
-export default function DashboardPage() {
-    return <AccountantDashboard />;
+    const quickAccessItems = [
+        { title: 'Nuevo Comprobante', href: '/dashboard/vouchers/edit/new', icon: PlusCircle, description: 'Registra una nueva transacción contable.' },
+        { title: 'Plan de Cuentas', href: '/dashboard/accounts', icon: BookCopy, description: 'Gestiona la estructura de tus cuentas.' },
+        { title: 'Gestión de Empleados', href: '/dashboard/employees', icon: Users, description: 'Administra la información de tu personal.' },
+        { title: 'Libro Diario', href: '/dashboard/journal', icon: FileText, description: 'Revisa los movimientos contables del período.' },
+    ];
+
+    return (
+        <div className="flex flex-1 flex-col gap-4 md:gap-8">
+            <Card>
+                <CardHeader>
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <CardTitle className="text-2xl">{selectedCompany.legalName}</CardTitle>
+                            <CardDescription>RUT: {selectedCompany.rut} | Período de Trabajo: {monthName} {periodYear}</CardDescription>
+                        </div>
+                        <Briefcase className="h-8 w-8 text-muted-foreground" />
+                    </div>
+                </CardHeader>
+            </Card>
+
+            <div className="space-y-4">
+                <h2 className="text-xl font-semibold">Accesos Rápidos</h2>
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                    {quickAccessItems.map((item) => (
+                        <Card key={item.href} className="flex flex-col">
+                            <CardHeader className="flex-row items-center gap-4 pb-4">
+                                <item.icon className="h-8 w-8 text-primary" />
+                                <CardTitle>{item.title}</CardTitle>
+                            </CardHeader>
+                            <CardContent className="flex-grow">
+                                <p className="text-sm text-muted-foreground">{item.description}</p>
+                            </CardContent>
+                            <CardContent>
+                                <Button onClick={() => router.push(item.href)} className="w-full">Ir ahora</Button>
+                            </CardContent>
+                        </Card>
+                    ))}
+                </div>
+            </div>
+        </div>
+    );
 }

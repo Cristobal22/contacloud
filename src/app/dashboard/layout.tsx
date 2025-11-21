@@ -1,347 +1,139 @@
+'use client';
 
-'use client'
+import * as React from 'react';
+import { useUser } from '@/firebase/auth/use-user';
+import { useFirestore, useCollection, useDoc } from '@/firebase';
+import { collection, query, where } from 'firebase/firestore';
+import type { Company, UserProfile } from '@/lib/types';
+import { UserNav } from '@/components/user-nav';
+import { CompanySwitcher } from '@/components/company-switcher';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { usePathname } from 'next/navigation';
+import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Sidebar, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar'; // FIX: Import SidebarTrigger
+import { DashboardNav } from '@/components/dashboard-nav';
+import { Logo } from '@/components/logo';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
-import React from "react"
-import Link from "next/link"
-import { useRouter } from "next/navigation"
-import {
-  ChevronDown,
-  Briefcase,
-  Calendar as CalendarIcon,
-} from "lucide-react"
-import { collection, query, where, doc, updateDoc, Query } from "firebase/firestore"
-import { format, startOfMonth, endOfMonth, parseISO, isAfter, differenceInDays } from 'date-fns';
-import { es } from 'date-fns/locale';
-
-import { Button } from "@/components/ui/button"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-  DropdownMenuSub,
-  DropdownMenuSubTrigger,
-  DropdownMenuPortal,
-  DropdownMenuSubContent
-} from "@/components/ui/dropdown-menu"
-import { DashboardNav } from "@/components/dashboard-nav"
-import { UserNav } from "@/components/user-nav"
-import { Logo } from "@/components/logo"
-import type { Company, SelectedCompanyContextType } from "@/lib/types"
-import { useUser, useFirestore } from "@/firebase"
-import { useCollection } from "@/firebase/firestore/use-collection"
-import { useUserProfile } from "@/firebase/auth/use-user-profile"
-import { useToast } from "@/hooks/use-toast"
-import { CommandMenu } from "@/components/command-menu"
-import { Sidebar, SidebarContent, SidebarHeader, SidebarInset, SidebarProvider, SidebarTrigger, useSidebar } from "@/components/ui/sidebar"
-import { cn } from "@/lib/utils"
-import ClientOnly from '@/components/ClientOnly'
-import HelpChat from '@/components/HelpChat'; // Importación estática
-
-export const SelectedCompanyContext = React.createContext<SelectedCompanyContextType | null>(null);
-
-function SidebarLogo() {
-    const { state } = useSidebar();
+// --- Reusable Status Display Component ---
+function StatusDisplay({ title, description }: { title: string, description: string }) {
     return (
-        <Link href="/dashboard" className="flex items-center gap-2 font-semibold">
-             <Logo variant="icon" className={cn("transition-opacity", state === 'expanded' ? 'opacity-0 absolute' : 'opacity-100')} />
-             <Logo variant="horizontal" className={cn("w-full h-auto transition-opacity", state === 'collapsed' ? 'opacity-0 absolute' : 'opacity-100')} />
-        </Link>
-    )
+        <div className="flex items-center justify-center h-screen">
+            <Card className="w-full max-w-md text-center">
+                <CardHeader>
+                    <CardTitle>{title}</CardTitle>
+                    <CardDescription>{description}</CardDescription>
+                </CardHeader>
+            </Card>
+        </div>
+    );
 }
 
-function AccountantDashboardLayout({ children }: { children: React.ReactNode }) {
+// --- Main Component State and Context ---
+const months = [
+    { value: 1, label: 'Enero' }, { value: 2, label: 'Febrero' }, { value: 3, label: 'Marzo' },
+    { value: 4, label: 'Abril' }, { value: 5, label: 'Mayo' }, { value: 6, label: 'Junio' },
+    { value: 7, label: 'Julio' }, { value: 8, label: 'Agosto' }, { value: 9, label: 'Septiembre' },
+    { value: 10, label: 'Octubre' }, { value: 11, label: 'Noviembre' }, { value: 12, label: 'Diciembre' },
+];
+const currentYear = new Date().getFullYear();
+const years = Array.from({ length: 10 }, (_, i) => currentYear + 5 - i);
+
+export const SelectedCompanyContext = React.createContext<any | undefined>(undefined);
+
+// --- The Final, Reconstructed, and Corrected Layout Component ---
+export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+    const { user, loading: authLoading } = useUser();
     const firestore = useFirestore();
-    const { user, loading: userLoading } = useUser();
-    const { userProfile, loading: profileLoading, refetchUserProfile } = useUserProfile(user?.uid);
-    const { toast } = useToast();
-    const router = useRouter();
-    
-    const [selectedCompany, setSelectedCompany] = React.useState<Company | null>(null);
-    const [isLoadingCompany, setIsLoadingCompany] = React.useState(true);
+    const pathname = usePathname();
 
-    const companiesQuery = React.useMemo(() => {
-        if (!firestore || !user || userProfile?.role !== 'Accountant') {
-            return null;
-        }
+    const { data: userProfile, loading: profileLoading } = useDoc<UserProfile>(firestore, user ? `users/${user.uid}` : undefined);
 
-        return query(collection(firestore, 'companies'), where('memberUids', 'array-contains', user.uid)) as Query<Company>;
-    }, [firestore, user, userProfile]);
+    const userCompaniesQuery = React.useMemo(() => {
+        if (!firestore || !user?.uid) return null;
+        return query(collection(firestore, 'companies'), where('memberUids', 'array-contains', user.uid));
+    }, [firestore, user?.uid]);
 
     const { data: companies, loading: companiesLoading } = useCollection<Company>({ 
-      query: companiesQuery,
-      disabled: profileLoading || userLoading || !companiesQuery
+        query: userCompaniesQuery, 
+        disabled: !userCompaniesQuery 
     });
-    
-    React.useEffect(() => {
-        const loading = companiesLoading || profileLoading || userLoading;
-        if (loading) return;
 
-        if (companies && companies.length > 0) {
+    const [selectedCompany, setSelectedCompany] = React.useState<Company | null>(null);
+    const [periodYear, setPeriodYear] = React.useState(new Date().getFullYear());
+    const [periodMonth, setPeriodMonth] = React.useState(new Date().getMonth() + 1);
+
+    React.useEffect(() => {
+        if (!companiesLoading && companies && companies.length > 0 && !selectedCompany) {
             const storedCompanyId = localStorage.getItem('selectedCompanyId');
-            const company = companies.find(c => c.id === storedCompanyId) || companies[0];
-            if (company) {
-                setSelectedCompany(company);
-            }
-        } else {
-            setSelectedCompany(null);
+            const companyToSelect = storedCompanyId ? companies.find(c => c.id === storedCompanyId) : companies[0];
+            setSelectedCompany(companyToSelect || companies[0]);
         }
-        setIsLoadingCompany(false);
+    }, [companies, companiesLoading, selectedCompany]);
 
-    }, [companies, companiesLoading, profileLoading, userLoading]);
-
-    React.useEffect(() => {
-        if (selectedCompany) {
-            console.log(`[INFO] Current Company ID for operations: ${selectedCompany.id}`);
-        }
-    }, [selectedCompany]);
-
-    React.useEffect(() => {
-      if (userProfile?.role === 'Accountant' && userProfile.subscriptionEndDate) {
-          const today = new Date();
-          today.setHours(0, 0, 0, 0);
-          const endDate = parseISO(userProfile.subscriptionEndDate);
-          const daysRemaining = differenceInDays(endDate, today);
-
-          if (isAfter(today, endDate)) {
-              toast({
-                  variant: "destructive",
-                  title: "Suscripción Expirada",
-                  description: "Tu acceso ha expirado. Por favor, renueva tu plan para continuar.",
-                  duration: 8000,
-              });
-              router.push('/dashboard/billing');
-          } else if (daysRemaining <= 5) {
-              toast({
-                  title: "Aviso de Suscripción",
-                  description: `Tu plan expira en ${daysRemaining + 1} día(s). Asegúrate de renovarlo para no perder el acceso.`,
-                  duration: 8000,
-              });
-          }
-      }
-    }, [userProfile, router, toast]);
-
-    const handleCompanyChange = (company: Company) => {
+    const handleCompanySwitch = (company: Company) => {
         setSelectedCompany(company);
-        localStorage.setItem('selectedCompanyId', company.id);
-        refetchUserProfile();
-    };
-    
-    const handlePeriodChange = async (year: number, month: number) => {
-        if (!firestore || !selectedCompany) return;
-
-        const newPeriodStart = startOfMonth(new Date(year, month));
-        const newPeriodEnd = endOfMonth(new Date(year, month));
-
-        const companyRef = doc(firestore, 'companies', selectedCompany.id);
-        try {
-            await updateDoc(companyRef, {
-                periodStartDate: format(newPeriodStart, 'yyyy-MM-dd'),
-                periodEndDate: format(newPeriodEnd, 'yyyy-MM-dd'),
-            });
-
-            const updatedCompany = { 
-                ...selectedCompany, 
-                periodStartDate: format(newPeriodStart, 'yyyy-MM-dd'),
-                periodEndDate: format(newPeriodEnd, 'yyyy-MM-dd'),
-            };
-            setSelectedCompany(updatedCompany);
-
-            toast({
-                title: 'Período Actualizado',
-                description: `El período de trabajo se ha cambiado a ${format(newPeriodStart, 'MMMM yyyy', { locale: es })}.`
-            });
-        } catch (error) {
-            console.error("Error updating period:", error);
-            toast({
-                variant: 'destructive',
-                title: 'Error',
-                description: 'No se pudo actualizar el período de trabajo.'
-            });
+        if (company) {
+            localStorage.setItem('selectedCompanyId', company.id);
         }
     };
     
-    const isLoading = userLoading || profileLoading || companiesLoading || isLoadingCompany;
-    
-    const currentYear = new Date().getFullYear();
-    const years = Array.from({ length: 5 }, (_, i) => currentYear - i);
-    const months = Array.from({ length: 12 }, (_, i) => ({ value: i, label: format(new Date(0, i), 'MMMM', { locale: es }) }));
+    const contextValue = { selectedCompany, setSelectedCompany: handleCompanySwitch, companies: companies || [], companiesLoading, periodYear, setPeriodYear, periodMonth, setPeriodMonth };
 
-    const periodLabel = selectedCompany?.periodStartDate 
-        ? format(parseISO(selectedCompany.periodStartDate), 'MMMM yyyy', { locale: es })
-        : 'Sin Período';
+    // --- Loading and Error States ---
+    if (authLoading || profileLoading) {
+        return <StatusDisplay title="Cargando Sesión" description="Verificando tus credenciales..." />;
+    }
+
+    if (companiesLoading) {
+        return <StatusDisplay title="Cargando Empresas" description="Buscando tus empresas asignadas..." />;
+    }
+
+    if (!companies || companies.length === 0) {
+        return <StatusDisplay title="No Tienes Empresas Asignadas" description="Por favor, contacta a un administrador para que te asigne a una empresa." />;
+    }
+
+    if (!selectedCompany) {
+        return <StatusDisplay title="Seleccionando Empresa" description="Finalizando carga..." />;
+    }
+
+    // --- Render the Full, Correct Dashboard Layout ---
+    const hidePeriodSelectors = pathname.startsWith('/dashboard/settings');
+    const userRole = userProfile?.role === 'Admin' ? 'Admin' : 'Accountant';
 
     return (
-        <SelectedCompanyContext.Provider value={{ selectedCompany, setSelectedCompany: handleCompanyChange }}>
-            <CommandMenu />
+        <SelectedCompanyContext.Provider value={contextValue}>
             <SidebarProvider>
-                <Sidebar>
-                    <SidebarHeader>
-                        <SidebarLogo />
-                    </SidebarHeader>
-                    <SidebarContent>
-                        <DashboardNav role="Accountant" planId={userProfile?.plan} />
-                    </SidebarContent>
-                </Sidebar>
-                <SidebarInset>
-                     <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-4 border-b bg-background px-4 sm:px-6">
-                        <div className="flex items-center gap-2">
-                             <SidebarTrigger className="sm:hidden"/>
-                             <SidebarTrigger className="hidden sm:flex"/>
-                             <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                    <Button variant="outline" className="flex items-center gap-2" disabled={isLoading}>
-                                        <Briefcase className="h-4 w-4" />
-                                        <span>{selectedCompany?.name || 'Seleccionar Empresa'}</span>
-                                        <ChevronDown className="h-4 w-4" />
-                                    </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="start">
-                                    <DropdownMenuLabel>Selecciona una Empresa</DropdownMenuLabel>
-                                    <DropdownMenuSeparator />
-                                    {companies && companies.length > 0 ? companies.map((company) => (
-                                        <DropdownMenuItem key={company.id} onSelect={() => handleCompanyChange(company)}>{company.name}</DropdownMenuItem>
-                                    )) : (
-                                        <DropdownMenuItem disabled>No tienes empresas asignadas.</DropdownMenuItem>
-                                    )}
-                                </DropdownMenuContent>
-                            </DropdownMenu>
-
-                             <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                    <Button variant="outline" className="flex items-center gap-2 capitalize" disabled={isLoading || !selectedCompany}>
-                                        <CalendarIcon className="h-4 w-4" />
-                                        <span>{periodLabel}</span>
-                                        <ChevronDown className="h-4 w-4" />
-                                    </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="start">
-                                    <DropdownMenuLabel>Cambiar Período de Trabajo</DropdownMenuLabel>
-                                    <DropdownMenuSeparator/>
-                                     <DropdownMenuSub>
-                                        <DropdownMenuSubTrigger>
-                                            <span>{selectedCompany?.periodStartDate ? parseISO(selectedCompany.periodStartDate).getFullYear() : 'Año'}</span>
-                                        </DropdownMenuSubTrigger>
-                                        <DropdownMenuPortal>
-                                            <DropdownMenuSubContent>
-                                                {years.map(year => (
-                                                    <DropdownMenuItem key={year} onSelect={() => handlePeriodChange(year, selectedCompany?.periodStartDate ? parseISO(selectedCompany.periodStartDate).getMonth() : new Date().getMonth())}>
-                                                        {year}
-                                                    </DropdownMenuItem>
-                                                ))}
-                                            </DropdownMenuSubContent>
-                                        </DropdownMenuPortal>
-                                    </DropdownMenuSub>
-                                    <DropdownMenuSub>
-                                        <DropdownMenuSubTrigger>
-                                             <span>{selectedCompany?.periodStartDate ? format(parseISO(selectedCompany.periodStartDate), 'MMMM', { locale: es}) : 'Mes'}</span>
-                                        </DropdownMenuSubTrigger>
-                                        <DropdownMenuPortal>
-                                            <DropdownMenuSubContent>
-                                                {months.map(month => (
-                                                    <DropdownMenuItem key={month.value} onSelect={() => handlePeriodChange(selectedCompany?.periodStartDate ? parseISO(selectedCompany.periodStartDate).getFullYear() : new Date().getFullYear(), month.value)}>
-                                                        {month.label}
-                                                    </DropdownMenuItem>
-                                                ))}
-                                            </DropdownMenuSubContent>
-                                        </DropdownMenuPortal>
-                                    </DropdownMenuSub>
-                                </DropdownMenuContent>
-                            </DropdownMenu>
+                <div className="grid min-h-screen w-full md:grid-cols-[220px_1fr] lg:grid-cols-[280px_1fr]">
+                    <Sidebar>
+                        <div className="flex h-14 items-center border-b px-6 lg:h-[60px]">
+                           <Logo variant='horizontal' className="w-full h-auto"/>
                         </div>
-                        <div className="flex items-center gap-2">
-                            <UserNav />
-                        </div>
-                    </header>
-                    <main className="flex-1 p-4 sm:p-6">
-                        {isLoading ? <div className="flex h-full w-full items-center justify-center"><p>Cargando datos del contador...</p></div> : children}
-                    </main>
-                </SidebarInset>
+                        <ScrollArea className="h-[calc(100vh-60px)]">
+                            <DashboardNav role={userRole} />
+                        </ScrollArea>
+                    </Sidebar>
+                    <div className="flex flex-col">
+                        <header className="flex h-14 items-center gap-4 border-b bg-muted/40 px-4 lg:h-[60px] lg:px-6">
+                            {/* FIX: Add the missing sidebar toggle button */}
+                            <SidebarTrigger /> 
+                            <CompanySwitcher isCollapsed={false} companies={companies} selectedCompany={selectedCompany} onCompanySwitch={handleCompanySwitch} />
+                            <div className="ml-auto flex items-center space-x-4">
+                                {!hidePeriodSelectors && (
+                                    <div className="flex items-center gap-2">
+                                        <Select value={String(periodMonth)} onValueChange={(val) => setPeriodMonth(Number(val))}><SelectTrigger className="w-[140px]"><SelectValue placeholder="Mes" /></SelectTrigger><SelectContent>{months.map(m => <SelectItem key={m.value} value={String(m.value)}>{m.label}</SelectItem>)}</SelectContent></Select>
+                                        <Select value={String(periodYear)} onValueChange={(val) => setPeriodYear(Number(val))}><SelectTrigger className="w-[100px]"><SelectValue placeholder="Año" /></SelectTrigger><SelectContent>{years.map(y => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}</SelectContent></Select>
+                                    </div>
+                                )}
+                                <UserNav />
+                            </div>
+                        </header>
+                        <main className="flex flex-1 flex-col gap-4 p-4 lg:gap-6 lg:p-6">
+                            {children}
+                        </main>
+                    </div>
+                </div>
             </SidebarProvider>
-            <ClientOnly>
-                <HelpChat />
-            </ClientOnly>
         </SelectedCompanyContext.Provider>
     );
-}
-
-function AdminDashboardLayout({ children }: { children: React.ReactNode }) {
-    return (
-       <>
-            <SidebarProvider>
-                <Sidebar>
-                    <SidebarHeader>
-                        <SidebarLogo />
-                    </SidebarHeader>
-                    <SidebarContent>
-                        <DashboardNav role="Admin" />
-                    </SidebarContent>
-                </Sidebar>
-                <SidebarInset>
-                    <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-4 border-b bg-background px-4 sm:px-6">
-                        <div className="flex items-center gap-2">
-                            <SidebarTrigger />
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <CommandMenu />
-                            <UserNav />
-                        </div>
-                    </header>
-                    <main className="flex-1 p-4 sm:p-6">
-                        {children}
-                    </main>
-                </SidebarInset>
-            </SidebarProvider>
-            <ClientOnly>
-                <HelpChat />
-            </ClientOnly>
-        </>
-    );
-}
-
-function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
-    const { user, loading: userLoading } = useUser();
-    const { userProfile, loading: profileLoading } = useUserProfile(user?.uid);
-    
-    if (userLoading || profileLoading) {
-        return (
-            <div className="flex min-h-screen w-full items-center justify-center">
-                <p>Cargando perfil...</p>
-            </div>
-        );
-    }
-    
-    if (userProfile?.role === 'Admin') {
-        return <AdminDashboardLayout>{children}</AdminDashboardLayout>;
-    }
-
-    if (userProfile?.role === 'Accountant') {
-        return <AccountantDashboardLayout>{children}</AccountantDashboardLayout>;
-    }
-    
-    return (
-        <div className="flex min-h-screen w-full items-center justify-center">
-            <p>No tienes un rol asignado. Contacta al administrador.</p>
-        </div>
-    );
-}
-
-export default function DashboardLayout({
-  children,
-}: {
-  children: React.ReactNode
-}) {
-  const { user, loading: userLoading } = useUser({ redirectTo: '/login' });
-  
-  if (userLoading || !user) {
-    return (
-        <div className="flex min-h-screen w-full items-center justify-center">
-            <p>Cargando...</p>
-        </div>
-    )
-  }
-  
-  return <DashboardLayoutContent>{children}</DashboardLayoutContent>;
 }

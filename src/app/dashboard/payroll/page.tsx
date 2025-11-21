@@ -3,13 +3,11 @@
 import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useUser } from '@/firebase/auth/use-user';
-import { useUserProfile } from '@/firebase/auth/use-user-profile';
 import { useFirestore, useCollection } from '@/firebase';
 import { collection, query, where, Timestamp, getDoc, doc } from 'firebase/firestore';
 import type { Employee, Payroll, PayrollDraft } from '@/lib/types';
-import { SelectedCompanyContext } from '../layout';
+import { SelectedCompanyContext } from '../layout'; // FIX: Use the standardized SelectedCompanyContext
 import { PayrollProcessPreviewDialog } from '@/components/payroll-process-preview-dialog';
 import { PayrollDraftsTable } from '@/components/payroll/PayrollDraftsTable';
 import { ProcessedPayrollsTable } from '@/components/payroll/ProcessedPayrollsTable';
@@ -23,8 +21,6 @@ const months = [
     { value: 7, label: 'Julio' }, { value: 8, label: 'Agosto' }, { value: 9, label: 'Septiembre' },
     { value: 10, label: 'Octubre' }, { value: 11, label: 'Noviembre' }, { value: 12, label: 'Diciembre' },
 ];
-const currentYear = new Date().getFullYear();
-const years = Array.from({ length: 10 }, (_, i) => currentYear + 5 - i);
 
 type EmployeeStatus = {
     employee: Employee;
@@ -55,12 +51,16 @@ async function calculateOrGetError(employee: Employee, year: number, month: numb
     }
 }
 
-function PayrollContent({ companyId, initialPeriod }: { companyId: string, initialPeriod: { year: number, month: number } }) {
+function PayrollContent() {
     const { toast } = useToast();
     const { user, loading: authLoading } = useUser();
     const firestore = useFirestore();
-    const [selectedYear, setSelectedYear] = React.useState(String(initialPeriod.year));
-    const [selectedMonth, setSelectedMonth] = React.useState(String(initialPeriod.month));
+    const context = React.useContext(SelectedCompanyContext); // FIX: Use the standardized SelectedCompanyContext
+
+    if (!context) throw new Error("SelectedCompanyContext must be used within a provider");
+    const { selectedCompany, periodYear, periodMonth } = context;
+    const companyId = selectedCompany?.id;
+
     const [refetchTrigger, setRefetchTrigger] = React.useState(0);
     const [employeeStatuses, setEmployeeStatuses] = React.useState<EmployeeStatus[]>([]);
     const [calculationStatus, setCalculationStatus] = React.useState('idle');
@@ -76,9 +76,9 @@ function PayrollContent({ companyId, initialPeriod }: { companyId: string, initi
 
     const processedPayrollsQuery = React.useMemo(() => {
         if (!firestore || !companyId) return null;
-        const periodDateUTC = new Date(Date.UTC(parseInt(selectedYear), parseInt(selectedMonth) - 1, 1));
+        const periodDateUTC = new Date(Date.UTC(periodYear, periodMonth - 1, 1));
         return query(collection(firestore, `companies/${companyId}/payrolls`), where("period", "==", periodDateUTC));
-    }, [firestore, companyId, selectedYear, selectedMonth, refetchTrigger]);
+    }, [firestore, companyId, periodYear, periodMonth, refetchTrigger]);
 
     const { data: allEmployees, loading: employeesLoading, error: employeesError } = useCollection<Employee>({ query: allEmployeesQuery });
     const { data: processedPayrolls, loading: payrollsLoading } = useCollection<Payroll>({ query: processedPayrollsQuery });
@@ -89,21 +89,20 @@ function PayrollContent({ companyId, initialPeriod }: { companyId: string, initi
         setEmployeeStatuses([]);
         setCalculationStatus('idle');
         setGeneralError(null);
-    }, [selectedYear, selectedMonth, refetchTrigger]);
+    }, [periodYear, periodMonth, refetchTrigger, companyId]);
 
     React.useEffect(() => {
-        if (authLoading || employeesLoading || payrollsLoading || isPeriodProcessed) return;
+        if (!companyId || authLoading || employeesLoading || payrollsLoading || isPeriodProcessed) return;
         if (!user) { setGeneralError("Sesión no válida. Por favor, inicie sesión de nuevo."); setCalculationStatus('done'); return; }
         if (employeesError) { setGeneralError(`Error crítico al cargar empleados: ${employeesError.message}`); setCalculationStatus('done'); return; }
         if (!allEmployees || allEmployees.length === 0) { setCalculationStatus('done'); return; }
+        
         setGeneralError(null);
         setCalculationStatus('calculating');
         const processAllEmployees = async () => {
             const token = await user.getIdToken();
-            const numericYear = parseInt(selectedYear, 10);
-            const numericMonth = parseInt(selectedMonth, 10);
-            const periodStart = new Date(numericYear, numericMonth - 1, 1);
-            const periodEnd = new Date(numericYear, numericMonth, 0);
+            const periodStart = new Date(periodYear, periodMonth - 1, 1);
+            const periodEnd = new Date(periodYear, periodMonth, 0);
             const statusPromises = allEmployees.map(async (emp): Promise<EmployeeStatus> => {
                 if (!emp.contractStartDate) return { employee: emp, draft: null, error: 'Falta fecha de inicio de contrato.' };
                 const startDate = (emp.contractStartDate as unknown as Timestamp).toDate();
@@ -112,7 +111,7 @@ function PayrollContent({ companyId, initialPeriod }: { companyId: string, initi
                     const endDate = (emp.contractEndDate as unknown as Timestamp).toDate();
                     if (endDate < periodStart) return { employee: emp, draft: null, error: 'Contrato no vigente para el período (fin anterior).' };
                 }
-                const result = await calculateOrGetError(emp, numericYear, numericMonth, token, companyId);
+                const result = await calculateOrGetError(emp, periodYear, periodMonth, token, companyId);
                 return 'error' in result ? { employee: emp, draft: null, error: result.error } : { employee: emp, draft: result, error: null };
             });
             const results = await Promise.all(statusPromises);
@@ -122,11 +121,11 @@ function PayrollContent({ companyId, initialPeriod }: { companyId: string, initi
             setCalculationStatus('done');
         };
         processAllEmployees();
-    }, [authLoading, user, allEmployees, isPeriodProcessed, employeesError, employeesLoading, payrollsLoading, selectedYear, selectedMonth, companyId]);
+    }, [authLoading, user, allEmployees, isPeriodProcessed, employeesError, employeesLoading, payrollsLoading, periodYear, periodMonth, companyId]);
     
     const handlePreview = async (item: Payroll | PayrollDraft) => {
         const employeeId = item.employeeId;
-        if (!firestore) return;
+        if (!firestore || !companyId) return;
         const employeeDocRef = doc(firestore, `companies/${companyId}/employees`, employeeId);
         try {
             const employeeDoc = await getDoc(employeeDocRef);
@@ -136,15 +135,14 @@ function PayrollContent({ companyId, initialPeriod }: { companyId: string, initi
             }
             const employeeData = employeeDoc.data() as Employee;
             
-            // Ensure the object passed to the dialog is a full Payroll object
             const payrollData: Payroll = {
                 id: 'id' in item ? item.id! : 'preview-id',
                 companyId: companyId,
                 employeeId: employeeId,
                 employeeName: item.employeeName || `${employeeData.firstName} ${employeeData.lastName}`,
-                period: 'period' in item ? item.period! : `${selectedYear}-${selectedMonth}`,
-                year: item.year || parseInt(selectedYear),
-                month: item.month || parseInt(selectedMonth),
+                period: 'period' in item ? item.period! : `${periodYear}-${periodMonth}`,
+                year: item.year || periodYear,
+                month: item.month || periodMonth,
                 baseSalary: item.baseSalary || 0,
                 workedDays: item.workedDays || 0,
                 absentDays: item.absentDays || 0,
@@ -190,14 +188,12 @@ function PayrollContent({ companyId, initialPeriod }: { companyId: string, initi
     
     const handleRecalculate = async (employeeId: string) => {
         const currentStatus = employeeStatuses.find(s => s.employee.id === employeeId);
-        if (!currentStatus || !user) return;
+        if (!currentStatus || !user || !companyId) return;
         setEmployeeStatuses(currentStatuses => currentStatuses.map(s => s.employee.id === employeeId ? { ...s, isRecalculating: true } : s));
         try {
             const token = await user.getIdToken();
-            const numericYear = parseInt(selectedYear, 10);
-            const numericMonth = parseInt(selectedMonth, 10);
             const draftOverrides: Partial<PayrollDraft> = { workedDays: currentStatus.draft?.workedDays, absentDays: currentStatus.draft?.absentDays, overtimeHours50: currentStatus.draft?.overtimeHours50, overtimeHours100: currentStatus.draft?.overtimeHours100, variableBonos: currentStatus.draft?.variableBonos, advances: currentStatus.draft?.advances };
-            const result = await calculateOrGetError(currentStatus.employee, numericYear, numericMonth, token, companyId, draftOverrides);
+            const result = await calculateOrGetError(currentStatus.employee, periodYear, periodMonth, token, companyId, draftOverrides);
             setEmployeeStatuses(currentStatuses =>
                 currentStatuses.map(s => {
                     if (s.employee.id === employeeId) {
@@ -215,13 +211,14 @@ function PayrollContent({ companyId, initialPeriod }: { companyId: string, initi
     const handleProcessingSuccess = () => setRefetchTrigger(c => c + 1);
 
     const handleUndoCentralization = async () => {
+        if (!user || !companyId) return;
         setIsUndoing(true);
         try {
-            const token = await user?.getIdToken();
+            const token = await user.getIdToken();
             const response = await fetch('/api/payroll/undo-centralization', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                body: JSON.stringify({ companyId, year: selectedYear, month: selectedMonth }),
+                body: JSON.stringify({ companyId, year: periodYear, month: periodMonth }),
             });
             if (!response.ok) { const errorData = await response.json(); throw new Error(errorData.error || 'Error al anular la centralización'); }
             toast({ title: "Éxito", description: "La centralización ha sido anulada. Puede procesar el período nuevamente." });
@@ -234,7 +231,6 @@ function PayrollContent({ companyId, initialPeriod }: { companyId: string, initi
     const isLoading = authLoading || employeesLoading || payrollsLoading || calculationStatus === 'calculating';
     const successfulDrafts = employeeStatuses.filter(s => s.draft).map(s => s.draft as PayrollDraft);
     const failedEmployees = employeeStatuses.filter(s => s.error && s.error !== 'Forbidden');
-    const numericMonth = parseInt(selectedMonth, 10);
 
     return (
         <div className="space-y-6">
@@ -242,12 +238,10 @@ function PayrollContent({ companyId, initialPeriod }: { companyId: string, initi
                 <CardHeader className="flex-row items-center justify-between">
                     <div className="space-y-1.5">
                         <CardTitle>Gestión de Liquidaciones</CardTitle>
-                        <CardDescription>Período: {months.find(m => m.value === numericMonth)?.label} {selectedYear}</CardDescription>
+                        <CardDescription>Período: {months.find(m => m.value === periodMonth)?.label} {periodYear}</CardDescription>
                     </div>
                     <div className="flex items-center gap-2">
-                        <Select value={selectedMonth} onValueChange={setSelectedMonth} disabled={isLoading}><SelectTrigger className="w-[140px]"><SelectValue placeholder="Mes" /></SelectTrigger><SelectContent>{months.map(m => <SelectItem key={m.value} value={String(m.value)}>{m.label}</SelectItem>)}</SelectContent></Select>
-                        <Select value={selectedYear} onValueChange={setSelectedYear} disabled={isLoading}><SelectTrigger className="w-[100px]"><SelectValue placeholder="Año" /></SelectTrigger><SelectContent>{years.map(y => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}</SelectContent></Select>
-                        {!isPeriodProcessed && <PayrollProcessPreviewDialog drafts={successfulDrafts} year={selectedYear} month={selectedMonth} onSuccess={handleProcessingSuccess} />}
+                        {!isPeriodProcessed && <PayrollProcessPreviewDialog drafts={successfulDrafts} year={String(periodYear)} month={String(periodMonth)} onSuccess={handleProcessingSuccess} />}
                     </div>
                 </CardHeader>
             </Card>
@@ -260,7 +254,7 @@ function PayrollContent({ companyId, initialPeriod }: { companyId: string, initi
                     <div className="grid grid-cols-1 gap-6">
                         <Card>
                             <CardHeader><CardTitle>Borradores Generados ({successfulDrafts.length})</CardTitle></CardHeader>
-                            <CardContent>{successfulDrafts.length > 0 ? <PayrollDraftsTable statuses={employeeStatuses.filter(s => s.draft)} year={parseInt(selectedYear)} month={numericMonth} onPreview={handlePreview} onDraftChange={handleDraftChange} onRecalculate={handleRecalculate} /> : <div className="text-center py-10 text-gray-500">No se generaron liquidaciones. Revise la sección de problemas.</div>}</CardContent>
+                            <CardContent>{successfulDrafts.length > 0 ? <PayrollDraftsTable statuses={employeeStatuses.filter(s => s.draft)} year={periodYear} month={periodMonth} onPreview={handlePreview} onDraftChange={handleDraftChange} onRecalculate={handleRecalculate} /> : <div className="text-center py-10 text-gray-500">No se generaron liquidaciones. Revise la sección de problemas.</div>}</CardContent>
                         </Card>
                         <Card>
                             <CardHeader><CardTitle className="text-amber-600">Empleados con Problemas ({failedEmployees.length})</CardTitle></CardHeader>
@@ -287,7 +281,7 @@ function PayrollContent({ companyId, initialPeriod }: { companyId: string, initi
 
             <Dialog open={isUndoDialogOpen} onOpenChange={setIsUndoDialogOpen}>
                 <DialogContent>
-                    <DialogHeader><DialogTitle>¿Anular Centralización del Período?</DialogTitle><DialogDescription>Esta acción eliminará el comprobante de centralización y las liquidaciones procesadas para {months.find(m => m.value === numericMonth)?.label} {selectedYear}. <br />Podrás volver a generar los borradores y procesar el período nuevamente. Esta acción es irreversible.</DialogDescription></DialogHeader>
+                    <DialogHeader><DialogTitle>¿Anular Centralización del Período?</DialogTitle><DialogDescription>Esta acción eliminará el comprobante de centralización y las liquidaciones procesadas para {months.find(m => m.value === periodMonth)?.label} {periodYear}. <br />Podrás volver a generar los borradores y procesar el período nuevamente. Esta acción es irreversible.</DialogDescription></DialogHeader>
                     <DialogFooter><Button variant="outline" onClick={() => setIsUndoDialogOpen(false)} disabled={isUndoing}>Cancelar</Button><Button variant="destructive" onClick={handleUndoCentralization} disabled={isUndoing}>{isUndoing ? 'Anulando...' : 'Sí, anular proceso'}</Button></DialogFooter>
                 </DialogContent>
             </Dialog>
@@ -296,11 +290,13 @@ function PayrollContent({ companyId, initialPeriod }: { companyId: string, initi
 }
 
 export default function PayrollPage() {
-    const { selectedCompany } = React.useContext(SelectedCompanyContext) || {};
-    const { user, loading: authLoading } = useUser();
-    const { userProfile, loading: profileLoading } = useUserProfile(user?.uid);
+    const context = React.useContext(SelectedCompanyContext); // FIX: Use the standardized SelectedCompanyContext
 
-    if (authLoading || profileLoading) return <div className="flex items-center justify-center h-full"><p>Cargando...</p></div>;
+    if (!context) {
+        return <div className="flex items-center justify-center h-full"><p>Cargando contexto...</p></div>;
+    }
+
+    const { selectedCompany } = context;
 
     if (!selectedCompany) {
         return (
@@ -310,6 +306,5 @@ export default function PayrollPage() {
         );
     }
     
-    const now = new Date();
-    return <PayrollContent companyId={selectedCompany.id} initialPeriod={{ year: now.getFullYear(), month: now.getMonth() + 1 }} />;
+    return <PayrollContent />;
 }
