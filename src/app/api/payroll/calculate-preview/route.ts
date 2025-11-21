@@ -2,7 +2,7 @@
 import { NextResponse } from 'next/server';
 import { getAdminApp } from '@/lib/firebase/admin';
 import { generatePayroll } from '@/lib/payroll-generator';
-import { Employee } from '@/lib/types';
+import { Employee, PayrollDraft } from '@/lib/types';
 import { DecodedIdToken } from 'firebase-admin/auth';
 
 async function getAuthenticatedAdmin(req: Request): Promise<{ adminApp: any; decodedToken: DecodedIdToken | null }> {
@@ -22,7 +22,6 @@ async function getAuthenticatedAdmin(req: Request): Promise<{ adminApp: any; dec
     return { adminApp: null, decodedToken: null };
 }
 
-// FINAL AND CORRECTED PERMISSION LOGIC
 async function hasCompanyAccess(firestore: any, userId: string, companyId: string): Promise<boolean> {
     try {
         const [userDoc, companyDoc] = await Promise.all([
@@ -38,19 +37,14 @@ async function hasCompanyAccess(firestore: any, userId: string, companyId: strin
         const userData = userDoc.data();
         const companyData = companyDoc.data();
 
-        // 1. Admin role has universal access.
         if (userData?.role === 'Admin') {
             return true;
         }
 
-        // 2. User has access if their UID is in the company's `memberUids` array.
-        // This is the definitive check that covers both owners and assigned accountants,
-        // based on the evidence from the rest of the application.
         if (Array.isArray(companyData?.memberUids) && companyData.memberUids.includes(userId)) {
             return true;
         }
 
-        // If none of the above checks pass, deny access.
         console.warn(`Access Denied. User ${userId} is not an Admin and is not listed in memberUids for company ${companyId}.`);
         return false;
 
@@ -60,8 +54,6 @@ async function hasCompanyAccess(firestore: any, userId: string, companyId: strin
     }
 }
 
-
-// API route handler for calculating a payroll preview.
 export async function POST(req: Request) {
     const { adminApp, decodedToken } = await getAuthenticatedAdmin(req);
     if (!adminApp || !decodedToken) {
@@ -73,8 +65,10 @@ export async function POST(req: Request) {
         const companyId = searchParams.get('companyId');
         const year = searchParams.get('year');
         const month = searchParams.get('month');
+        
         const body = await req.json();
-        const employee = body as Employee; 
+        const employee = body as Employee;
+        const overrides: Partial<PayrollDraft> = body.overrides || {};
 
         if (!companyId || !year || !month || !employee) {
             const missingParams = [!companyId && 'companyId', !year && 'year', !month && 'month', !employee && 'employee data'].filter(Boolean);
@@ -83,10 +77,8 @@ export async function POST(req: Request) {
 
         const firestore = adminApp.firestore();
 
-        // Call the definitive, corrected access logic.
         const canAccess = await hasCompanyAccess(firestore, decodedToken.uid, companyId);
         if (!canAccess) {
-            // Return the Forbidden error, which is the correct behavior if access is denied.
             return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
         }
 
@@ -97,7 +89,18 @@ export async function POST(req: Request) {
             return NextResponse.json({ message: 'Year and month must be valid numbers.' }, { status: 400 });
         }
         
-        const payrollDraft = await generatePayroll(firestore, employee, numericYear, numericMonth, 0, 0);
+        const payrollDraft = await generatePayroll(
+            firestore, 
+            employee, 
+            numericYear, 
+            numericMonth, 
+            overrides.workedDays, 
+            overrides.absentDays,
+            overrides.overtimeHours50,
+            overrides.overtimeHours100,
+            overrides.variableBonos,
+            overrides.advances
+        );
 
         return NextResponse.json(payrollDraft);
 

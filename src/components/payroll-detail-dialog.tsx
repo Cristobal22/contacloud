@@ -11,7 +11,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { Table, TableBody, TableCell, TableRow, TableHeader, TableHead, TableFooter } from "@/components/ui/table"
-import type { Employee, PayrollDraft } from "@/lib/types"
+import type { Employee, Payroll } from "@/lib/types"
 import React from "react";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
@@ -24,15 +24,46 @@ interface PayrollDetailDialogProps {
     isOpen: boolean;
     onClose: () => void;
     data: {
-        payroll: PayrollDraft;
+        payroll: Payroll;
         employee: Employee;
     } | null;
 }
 
-const formatCurrency = (value: number | undefined) => {
+const formatCurrency = (value: number | undefined | null) => {
     if (value === undefined || value === null) return '$0';
     return `$${Math.round(value).toLocaleString('es-CL')}`;
 }
+
+const formatDate = (date: any): string => {
+    if (!date) return '';
+    if (date.seconds && typeof date.nanoseconds === 'number') {
+        const jsDate = new Date(date.seconds * 1000);
+        const month = jsDate.getUTCMonth();
+        const year = jsDate.getUTCFullYear();
+        const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+        return `${monthNames[month]} de ${year}`;
+    }
+    if (typeof date === 'string') {
+        const parts = date.split(/[-/]/);
+        if (parts.length === 2) {
+            const yearPart = parts.find(p => p.length === 4);
+            const monthPart = parts.find(p => p.length !== 4);
+            if (yearPart && monthPart) {
+                const monthIndex = parseInt(monthPart, 10) - 1;
+                const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+                if (monthIndex >= 0 && monthIndex < 12) {
+                    return `${monthNames[monthIndex]} de ${yearPart}`;
+                }
+            }
+        }
+        return date;
+    }
+    try {
+        return new Date(date).toLocaleDateString('es-CL', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+    } catch {
+        return 'Fecha inválida';
+    }
+};
 
 export function PayrollDetailDialog({ isOpen, onClose, data }: PayrollDetailDialogProps) {
     const payrollContentRef = React.useRef<HTMLDivElement>(null);
@@ -52,15 +83,12 @@ export function PayrollDetailDialog({ isOpen, onClose, data }: PayrollDetailDial
         if (!input) return null;
     
         try {
-            input.style.opacity = '1';
-            const canvas = await html2canvas(input, {
-                scale: 2,
-                useCORS: true, 
-                backgroundColor: '#ffffff'
-            });
-            if (isPreview) {
-               input.style.opacity = '0';
-            }
+            const wasPreviewing = isPreview;
+            if (wasPreviewing) input.style.opacity = '1';
+
+            const canvas = await html2canvas(input, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
+            
+            if (wasPreviewing) input.style.opacity = '0';
     
             const imgData = canvas.toDataURL('image/png');
             const pdfDoc = new jsPDF('p', 'mm', 'a4');
@@ -105,7 +133,8 @@ export function PayrollDetailDialog({ isOpen, onClose, data }: PayrollDetailDial
     const downloadPdf = async () => {
         const pdfToDownload = await generatePdf();
         if (pdfToDownload) {
-            pdfToDownload.save(`liquidacion_${data?.employee.rut}_${data?.payroll.period.replace(/\s+/g, '_')}.pdf`);
+            const safePeriod = formatDate(data?.payroll.period).replace(/\s+/g, '_');
+            pdfToDownload.save(`liquidacion_${data?.employee.rut}_${safePeriod}.pdf`);
         }
     };
 
@@ -113,10 +142,8 @@ export function PayrollDetailDialog({ isOpen, onClose, data }: PayrollDetailDial
 
     const { payroll, employee } = data;
     
-    const taxBase = (payroll.taxableEarnings || 0) - (payroll.afpDiscount || 0) - (payroll.healthDiscount || 0);
-    const taxAmountPreRebate = taxBase * (payroll.iutFactor || 0);
-    const rebateAmount = payroll.iutRebajaInCLP || 0;
-    const iutFactorDisplay = payroll.iutFactor ? (payroll.iutFactor * 100).toFixed(1) + '%' : '0%';
+    const iutFactor = (payroll.taxableEarnings > 0) ? (payroll.iut / (payroll.taxableEarnings - (payroll.afpDiscount || 0) - (payroll.healthDiscount || 0))) : 0;
+    const iutFactorDisplay = iutFactor > 0 ? (iutFactor * 100).toFixed(1) + '%' : '0%';
 
     return (
         <Dialog open={isOpen} onOpenChange={handleClose}>
@@ -124,12 +151,12 @@ export function PayrollDetailDialog({ isOpen, onClose, data }: PayrollDetailDial
                 <DialogHeader className="p-6 pb-0">
                     <DialogTitle>Liquidación de Sueldo</DialogTitle>
                     <DialogDescription>
-                        {`Detalle para ${employee.firstName} para el período de ${payroll.period}.`}
+                        {`Detalle para ${employee.firstName} para el período de ${formatDate(payroll.period)}.`}
                     </DialogDescription>
                 </DialogHeader>
 
-                <ScrollArea className="h-[calc(90vh-200px)]">
-                    <div className="relative px-6">
+                <ScrollArea className="h-auto">
+                    <div className="relative px-6 py-4">
                         <div 
                             className={cn(
                                 "bg-white text-black transition-opacity duration-300", 
@@ -137,11 +164,11 @@ export function PayrollDetailDialog({ isOpen, onClose, data }: PayrollDetailDial
                             )}
                             ref={payrollContentRef}
                         >
-                        <div className="p-8">
+                            <div className="p-8">
                                 <div className="flex justify-between items-start mb-6">
                                     <div>
                                         <h1 className="text-2xl font-bold text-gray-800">Liquidación de Sueldo</h1>
-                                        <p className="text-gray-600">Período: {payroll.period}</p>
+                                        <p className="text-gray-600">Período: {formatDate(payroll.period)}</p>
                                     </div>
                                     <div className="text-right">
                                         <Logo className="justify-end"/>
@@ -156,24 +183,20 @@ export function PayrollDetailDialog({ isOpen, onClose, data }: PayrollDetailDial
                                         <div><span className="font-medium text-gray-600">Nombre:</span> {employee.firstName} {employee.lastName}</div>
                                         <div><span className="font-medium text-gray-600">RUT:</span> {employee.rut}</div>
                                         <div><span className="font-medium text-gray-600">Cargo:</span> {employee.position}</div>
+                                        <div><span className="font-medium text-gray-600">Días Trabajados:</span> {payroll.workedDays}</div>
                                     </div>
                                 </div>
 
-                                <div className="grid grid-cols-2 gap-8">
+                                <div className="grid grid-cols-2 gap-x-8">
                                     <div>
                                         <h3 className="text-base font-semibold mb-2 text-gray-700">Haberes</h3>
                                         <Table>
-                                            <TableHeader>
-                                                <TableRow className="bg-gray-50">
-                                                    <TableHead className="font-bold text-gray-600">Concepto</TableHead>
-                                                    <TableHead className="text-right font-bold text-gray-600">Monto</TableHead>
-                                                </TableRow>
-                                            </TableHeader>
                                             <TableBody>
-                                                <TableRow><TableCell>Sueldo Base</TableCell><TableCell className="text-right">{formatCurrency(payroll.baseSalary)}</TableCell></TableRow>
-                                                <TableRow><TableCell>Gratificación Legal</TableCell><TableCell className="text-right">{formatCurrency(payroll.gratification)}</TableCell></TableRow>
+                                                <TableRow><TableCell>Sueldo Base Proporcional</TableCell><TableCell className="text-right">{formatCurrency(payroll.baseSalary)}</TableCell></TableRow>
+                                                {payroll.gratification > 0 && <TableRow><TableCell>Gratificación Legal</TableCell><TableCell className="text-right">{formatCurrency(payroll.gratification)}</TableCell></TableRow>}
+                                                {payroll.totalOvertimePay > 0 && <TableRow><TableCell>Horas Extra</TableCell><TableCell className="text-right">{formatCurrency(payroll.totalOvertimePay)}</TableCell></TableRow>}
                                                 <TableRow className="font-medium bg-gray-50"><TableCell>Total Haberes Imponibles</TableCell><TableCell className="text-right">{formatCurrency(payroll.taxableEarnings)}</TableCell></TableRow>
-                                                <TableRow><TableCell>Colación y Movilización</TableCell><TableCell className="text-right">{formatCurrency(payroll.nonTaxableEarnings)}</TableCell></TableRow>
+                                                {payroll.nonTaxableEarnings > 0 && <TableRow><TableCell>Haberes no Imponibles</TableCell><TableCell className="text-right">{formatCurrency(payroll.nonTaxableEarnings)}</TableCell></TableRow>}
                                             </TableBody>
                                             <TableFooter>
                                                 <TableRow className="bg-gray-100 font-bold text-base">
@@ -186,20 +209,12 @@ export function PayrollDetailDialog({ isOpen, onClose, data }: PayrollDetailDial
                                     <div>
                                         <h3 className="text-base font-semibold mb-2 text-gray-700">Descuentos</h3>
                                         <Table>
-                                            <TableHeader>
-                                                <TableRow className="bg-gray-50">
-                                                    <TableHead className="font-bold text-gray-600">Concepto</TableHead>
-                                                    <TableHead className="text-right font-bold text-gray-600">Monto</TableHead>
-                                                </TableRow>
-                                            </TableHeader>
                                             <TableBody>
                                                 <TableRow><TableCell>Cotización AFP ({employee.afp})</TableCell><TableCell className="text-right">{formatCurrency(payroll.afpDiscount)}</TableCell></TableRow>
                                                 <TableRow><TableCell>Cotización Salud ({employee.healthSystem})</TableCell><TableCell className="text-right">{formatCurrency(payroll.healthDiscount)}</TableCell></TableRow>
-                                                <TableRow><TableCell>Seguro de Cesantía</TableCell><TableCell className="text-right">{formatCurrency(payroll.unemploymentInsuranceDiscount)}</TableCell></TableRow>
-                                                
-                                                <TableRow><TableCell className="pl-6 text-gray-500">Impuesto según tramo ({iutFactorDisplay})</TableCell><TableCell className="text-right text-gray-500">{formatCurrency(taxAmountPreRebate)}</TableCell></TableRow>
-                                                <TableRow><TableCell className="pl-6 text-gray-500">(-) Rebaja por tramo</TableCell><TableCell className="text-right text-gray-500">{formatCurrency(rebateAmount)}</TableCell></TableRow>
-                                                <TableRow className="font-medium"><TableCell>Impuesto Único a Pagar</TableCell><TableCell className="text-right font-medium">{formatCurrency(payroll.iut)}</TableCell></TableRow>
+                                                {payroll.unemploymentInsuranceDiscount > 0 && <TableRow><TableCell>Seguro de Cesantía</TableCell><TableCell className="text-right">{formatCurrency(payroll.unemploymentInsuranceDiscount)}</TableCell></TableRow>}
+                                                {payroll.iut > 0 && <TableRow className="font-medium"><TableCell>Impuesto Único</TableCell><TableCell className="text-right font-medium">{formatCurrency(payroll.iut)}</TableCell></TableRow>}
+                                                {payroll.advances > 0 && <TableRow><TableCell>Anticipos</TableCell><TableCell className="text-right">{formatCurrency(payroll.advances)}</TableCell></TableRow>}
                                             </TableBody>
                                             <TableFooter>
                                                 <TableRow className="bg-gray-100 font-bold text-base">
@@ -211,16 +226,17 @@ export function PayrollDetailDialog({ isOpen, onClose, data }: PayrollDetailDial
                                     </div>
                                 </div>
 
-
                                 <div className="flex justify-end mt-8">
-                                    <div className="w-full max-w-sm space-y-2 p-4 bg-gray-100 rounded-lg">
-                                        <div className="flex justify-between text-lg font-bold text-gray-800">
-                                            <span>ALCANCE LÍQUIDO:</span>
+                                    <div className="w-full max-w-sm space-y-2 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                                        <div className="flex justify-between text-xl font-bold text-blue-800">
+                                            <span>SUELDO LÍQUIDO:</span>
                                             <span>{formatCurrency(payroll.netSalary)}</span>
                                         </div>
+                                        <p className="text-xs text-center text-blue-600 pt-2">Son: {payroll.netSalaryInWords} pesos</p>
                                     </div>
                                 </div>
-                        </div>
+
+                            </div>
                         </div>
                         
                         {isPreview && (
@@ -233,21 +249,12 @@ export function PayrollDetailDialog({ isOpen, onClose, data }: PayrollDetailDial
                     </div>
                 </ScrollArea>
                 
-                <div className="px-6 pb-6 pt-2">
-                    <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                        <div className="flex justify-between items-center">
-                            <h4 className="text-sm font-semibold text-blue-800">Base para Indemnización (Uso Interno)</h4>
-                            <p className="text-lg font-bold text-blue-900">{formatCurrency(payroll.severanceBase)}</p>
-                        </div>
-                    </div>
-                </div>
-
-                <DialogFooter className="p-6 pt-0 border-t mt-4">
+                <DialogFooter className="p-6 pt-4 border-t">
                     <Button type="button" variant="secondary" onClick={handleClose}>Cerrar</Button>
-                    <Button type="button" variant="outline" onClick={togglePreview}>
+                    <Button type="button" variant="outline" onClick={togglePreview} disabled={!data}>
                         {isPreview ? "Ocultar Vista Previa" : "Vista Previa PDF"}
                     </Button>
-                    <Button type="button" onClick={downloadPdf}>Descargar PDF</Button>
+                    <Button type="button" onClick={downloadPdf} disabled={!data}>Descargar PDF</Button>
                 </DialogFooter>
             </DialogContent>
         </Dialog>
