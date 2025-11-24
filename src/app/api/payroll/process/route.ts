@@ -4,12 +4,6 @@ import { DecodedIdToken } from 'firebase-admin/auth';
 import type { PayrollDraft, Payroll, Voucher, VoucherEntry, PayrollAccountMappings, Company } from '@/lib/types';
 import { WriteBatch, Timestamp } from 'firebase-admin/firestore';
 
-/**
- * Translates a payroll item's user-facing name to its corresponding key in the PayrollAccountMappings object.
- * This allows flexibility in the item names (e.g., 'Horas Extra (50%)' still maps to 'expense_overtime').
- * @param itemName The name of the payroll earning or discount item.
- * @returns The corresponding key from PayrollAccountMappings or undefined if not found.
- */
 const getMappingKeyForName = (itemName: string): keyof PayrollAccountMappings | undefined => {
     const name = itemName.toLowerCase();
     if (name.includes('sueldo') || name.includes('base')) return 'expense_baseSalary';
@@ -62,7 +56,6 @@ export async function POST(request: Request) {
         return NextResponse.json({ message: 'Error: La configuración de mapeo de cuentas de remuneraciones no ha sido definida.' }, { status: 400 });
     }
 
-    // Fetch the company's chart of accounts to resolve account names from IDs
     const accountsSnapshot = await db.collection(`companies/${companyId}/accounts`).get();
     const accountsMap = new Map<string, string>();
     accountsSnapshot.forEach(doc => {
@@ -84,7 +77,7 @@ export async function POST(request: Request) {
     const voucherAggregates: { [accountId: string]: { debit: number, credit: number, accountName: string } } = {};
 
     const addEntry = (accountId: string | undefined, debit: number, credit: number) => {
-        if (!accountId) return; // Silently ignore if no account is mapped
+        if (!accountId) return;
         const accountName = accountsMap.get(accountId);
         if (!accountName) {
             console.warn(`Voucher entry skipped: Account ID "${accountId}" not found in chart of accounts.`);
@@ -101,14 +94,45 @@ export async function POST(request: Request) {
 
     drafts.forEach((draft) => {
       const newPayrollRef = payrollsCollectionRef.doc();
+      
       const finalPayroll: Omit<Payroll, 'id'> = {
-        // ... (payroll data setup - same as before)
+        companyId,
+        employeeId: draft.employeeId,
+        employeeName: draft.employeeName || '',
+        period: Timestamp.fromDate(periodAsDate),
+        year: numericYear,
+        month: numericMonth + 1,
+        baseSalary: draft.baseSalary || 0,
+        workedDays: draft.workedDays || 0,
+        absentDays: draft.absentDays || 0,
+        proportionalBaseSalary: draft.proportionalBaseSalary || 0,
+        overtimeHours50: draft.overtimeHours50 || 0,
+        overtimeHours100: draft.overtimeHours100 || 0,
+        totalOvertimePay: draft.totalOvertimePay || 0,
+        bonos: draft.variableBonos || [],
+        gratification: draft.gratification || 0,
+        taxableEarnings: draft.taxableEarnings || 0,
+        nonTaxableEarnings: draft.nonTaxableEarnings || 0,
+        totalEarnings: draft.totalEarnings || 0,
+        afpDiscount: draft.afpDiscount || 0,
+        healthDiscount: draft.healthDiscount || 0,
+        unemploymentInsuranceDiscount: draft.unemploymentInsuranceDiscount || 0,
+        iut: draft.iut || 0,
+        familyAllowance: draft.familyAllowance || 0,
+        advances: draft.advances || 0,
+        totalDiscounts: draft.totalDiscounts || 0,
+        netSalary: draft.netSalary || 0,
+        createdAt: Timestamp.now(),
+        earnings: draft.earnings || [],
+        discounts: draft.discounts || [],
+        sisDiscount: draft.sisDiscount || 0,
+        employerUnemploymentInsurance: draft.employerUnemploymentInsurance || 0,
+        ccafDiscount: draft.ccafDiscount || 0,
       };
       batch.set(newPayrollRef, finalPayroll);
 
       totalNetSalary += draft.netSalary ?? 0;
 
-      // 1. Process Granular Earnings (Debits to Expense Accounts)
       draft.earnings?.forEach(earning => {
           const mappingKey = getMappingKeyForName(earning.name);
           if (mappingKey) {
@@ -116,7 +140,6 @@ export async function POST(request: Request) {
           }
       });
 
-      // 2. Process Employer Contributions (Debit Expense, Credit Liability)
       if (draft.sisDiscount && draft.sisDiscount > 0) {
           addEntry(mappings.expense_sis, Math.round(draft.sisDiscount), 0);
           addEntry(mappings.liability_afp, 0, Math.round(draft.sisDiscount));
@@ -126,7 +149,6 @@ export async function POST(request: Request) {
           addEntry(mappings.liability_unemployment, 0, Math.round(draft.employerUnemploymentInsurance));
       }
 
-      // 3. Process Employee Discounts (Credits to Liability Accounts)
       if (draft.afpDiscount && draft.afpDiscount > 0) addEntry(mappings.liability_afp, 0, Math.round(draft.afpDiscount));
       if (draft.healthDiscount && draft.healthDiscount > 0) addEntry(mappings.liability_health, 0, Math.round(draft.healthDiscount));
       if (draft.unemploymentInsuranceDiscount && draft.unemploymentInsuranceDiscount > 0) addEntry(mappings.liability_unemployment, 0, Math.round(draft.unemploymentInsuranceDiscount));
@@ -135,7 +157,6 @@ export async function POST(request: Request) {
       if (draft.ccafDiscount && draft.ccafDiscount > 0) addEntry(mappings.liability_ccaf, 0, Math.round(draft.ccafDiscount));
     });
 
-    // 4. Add Net Salary payable (Credit to Liability)
     if (totalNetSalary > 0) {
         addEntry(companyData.salariesPayableAccount, 0, Math.round(totalNetSalary));
     }
@@ -145,7 +166,7 @@ export async function POST(request: Request) {
         accountName: data.accountName,
         debit: data.debit,
         credit: data.credit
-    })).filter(e => e.debit > 0 || e.credit > 0); // Filter out zero entries
+    })).filter(e => e.debit > 0 || e.credit > 0);
 
     const totalDebits = voucherEntries.reduce((sum, e) => sum + e.debit, 0);
     const totalCredits = voucherEntries.reduce((sum, e) => sum + e.credit, 0);
