@@ -17,29 +17,42 @@ import { useToast } from "@/hooks/use-toast";
 import { DeleteCompanyDialog } from '@/components/delete-company-dialog';
 import { PayrollAccountMappingsForm } from '@/components/payroll-account-mappings-form';
 
-const defaultAccountMappings: { [key in keyof Partial<Company>]: string } = {
-    profitAccount: '40105', // UTILIDAD BRUTA
-    lossAccount: '40192', // GANANCIAS (PERDIDAS) OP. CONT.
-    salesInvoicesReceivableAccount: '1010401', // CLIENTES
-    salesNotesReceivableAccount: '1010401', // CLIENTES (same as invoices for simplicity)
-    salesVatAccount: '2010920', // IVA DEBITO FISCAL
-    purchasesInvoicesPayableAccount: '2010201', // PROVEEDORES
-    purchasesNotesPayableAccount: '2010201', // PROVEEDORES (same as invoices)
-    purchasesVatAccount: '1010802', // IVA CREDITO FISCAL
-    vatRemanentAccount: '1010803', // IVA REMANENTE CREDITO FISCAL
-    feesExpenseAccount: '4010820', // GASTOS DE HONORARIOS
-    feesPayableAccount: '2010220', // HONORARIOS POR PAGAR
-    feesWithholdingAccount: '2010930', // RETENCION IMPUESTO HONORARIOS
-    incomeFeesReceivableAccount: '1010415', // HONORARIOS POR COBRAR
-    incomeFeesWithholdingAccount: '2010940', // RETENCION INGRESO HONORARIO
-    remunerationExpenseAccount: '4010810', // GASTOS DE SUELDOS Y SALARIOS
-    salariesPayableAccount: '2010215', // SUELDOS POR PAGAR
-    afpPayableAccount: '2010225', // IMPOSICIONES POR PAGAR
-    healthPayableAccount: '2010225', // IMPOSICIONES POR PAGAR (using the same for simplicity)
-    unemploymentInsurancePayableAccount: '2010225', // IMPOSICIONES POR PAGAR (using the same)
-    employerAfpContributionPayableAccount: '2010226' // APORTE PATRONAL AFP POR PAGAR
+// Mapeo para cuentas principales
+const defaultAccountMappings: { [key in keyof Omit<Partial<Company>, 'payrollAccountMappings'>]: string } = {
+    profitAccount: '3020101', // Ganancia (Pérdida) del Ejercicio
+    lossAccount: '3020101', // Se usa la misma para resultado
+    salesInvoicesReceivableAccount: '1010401', // Clientes Nacionales
+    salesNotesReceivableAccount: '1010401', // Clientes Nacionales
+    salesVatAccount: '2010901', // IVA Débito Fiscal
+    purchasesInvoicesPayableAccount: '2010201', // Proveedores Nacionales
+    purchasesNotesPayableAccount: '2010201', // Proveedores Nacionales
+    purchasesVatAccount: '1010801', // IVA Crédito Fiscal
+    vatRemanentAccount: '1010802', // IVA Remanente
+    feesExpenseAccount: '4010401', // Honorarios
+    feesPayableAccount: '2010301', // Honorarios por Pagar
+    feesWithholdingAccount: '2010902', // Retención Impuesto 2da Categoría
+    incomeFeesReceivableAccount: '1010402', // Boletas de Honorarios por Cobrar
+    incomeFeesWithholdingAccount: '2010903', // Retención Boletas de Honorarios
+    salariesPayableAccount: '2010302', // Sueldos por Pagar
 };
 
+// Mapeo para cuentas de remuneraciones granulares
+const defaultPayrollAccountMappings: { [key in keyof Required<PayrollAccountMappings>]: string } = {
+    expense_baseSalary: '4010101', // Sueldos y Salarios
+    expense_gratification: '4010102', // Gratificaciones
+    expense_overtime: '4010103', // Horas Extraordinarias
+    expense_bonuses: '4010104', // Bonos
+    expense_transportation: '4010105', // Movilización
+    expense_mealAllowance: '4010106', // Colación
+    liability_afp: '2010501', // Cotizaciones Previsionales por Pagar
+    liability_health: '2010502', // Cotizaciones de Salud por Pagar
+    liability_unemployment: '2010503', // Seguro de Cesantía por Pagar
+    liability_tax: '2010904', // Impuesto Único a los Trabajadores
+    liability_advances: '1010601', // Anticipo de Sueldos
+    liability_ccaf: '2010504', // Caja de Compensación por Pagar
+    expense_sis: '4010201', // Aporte Patronal SIS
+    expense_unemployment: '4010202', // Aporte Patronal Seguro de Cesantía
+};
 
 export default function CompanySettingsPage() {
     const { selectedCompany, setSelectedCompany } = React.useContext(SelectedCompanyContext) || {};
@@ -71,7 +84,7 @@ export default function CompanySettingsPage() {
             setCompany(prev => ({
                 ...prev,
                 payrollAccountMappings: {
-                    ...prev?.payrollAccountMappings,
+                    ...(prev?.payrollAccountMappings || {}),
                     [field]: value
                 }
             }));
@@ -118,28 +131,39 @@ export default function CompanySettingsPage() {
 
     const handleAssignDefaults = () => {
         if (!accounts || accounts.length === 0) {
-            toast({
-                variant: 'destructive',
-                title: 'Error',
-                description: 'No hay un plan de cuentas cargado para esta empresa.'
-            });
+            toast({ variant: 'destructive', title: 'Error', description: 'No hay un plan de cuentas cargado.' });
             return;
         }
 
         const accountMap = new Map(accounts.map(acc => [acc.code, acc]));
-        let updatedCompany = { ...company };
+        let updatedCompany: Partial<Company> = { ...(company || {}) };
         let missingAccounts: string[] = [];
 
+        // Asignar cuentas principales
         for (const key in defaultAccountMappings) {
-            const field = key as keyof Company;
+            const field = key as keyof typeof defaultAccountMappings;
             const code = defaultAccountMappings[field];
-
             if (accountMap.has(code)) {
                 updatedCompany[field] = code as any;
             } else {
                 missingAccounts.push(`${field} (código ${code})`);
             }
         }
+
+        // Asignar cuentas de remuneraciones
+        let updatedPayrollMappings: PayrollAccountMappings = { ...(updatedCompany.payrollAccountMappings || {}) };
+        for (const key in defaultPayrollAccountMappings) {
+            const field = key as keyof PayrollAccountMappings;
+            const code = defaultPayrollAccountMappings[field];
+            if (accountMap.has(code)) {
+                updatedPayrollMappings[field] = code;
+            } else {
+                missingAccounts.push(`${field} (código ${code})`);
+            }
+        }
+        updatedCompany.payrollAccountMappings = updatedPayrollMappings;
+
+        setCompany(updatedCompany);
 
         if (missingAccounts.length > 0) {
             toast({
@@ -149,11 +173,9 @@ export default function CompanySettingsPage() {
                 duration: 10000,
             });
         } else {
-            setCompany(updatedCompany);
-            handleSaveChanges(updatedCompany);
             toast({
-                title: 'Cuentas Asignadas y Guardadas',
-                description: 'Se han asignado y guardado las cuentas predeterminadas.'
+                title: 'Cuentas Asignadas',
+                description: 'Se han asignado las cuentas predeterminadas. Guarda los cambios para confirmarlos.'
             });
         }
     };
@@ -241,18 +263,11 @@ export default function CompanySettingsPage() {
                 <div className="space-y-4">
                     <h3 className="text-lg font-medium">Cuentas Contables Principales</h3>
                     <AccountSearchInput 
-                        label="Cuenta de Ganancia" 
+                        label="Cuenta de Resultado del Ejercicio" 
                         value={company.profitAccount || ''} 
                         accounts={accounts || []} 
                         loading={accountsLoading}
-                        onValue-change={(value) => handleInputChange('profitAccount', value)}
-                    />
-                    <AccountSearchInput 
-                        label="Cuenta de Pérdida" 
-                        value={company.lossAccount || ''} 
-                        accounts={accounts || []} 
-                        loading={accountsLoading}
-                        onValueChange={(value) => handleInputChange('lossAccount', value)}
+                        onValueChange={(value) => handleInputChange('profitAccount', value)}
                     />
                 </div>
 
@@ -278,7 +293,7 @@ export default function CompanySettingsPage() {
                         value={company.vatRemanentAccount || ''} 
                         accounts={accounts || []} 
                         loading={accountsLoading}
-                        onValue-change={(value) => handleInputChange('vatRemanentAccount', value)}
+                        onValueChange={(value) => handleInputChange('vatRemanentAccount', value)}
                     />
                      <div className="flex items-center space-x-2 pt-2">
                         <Checkbox id="proportionalVat" checked={!!company.proportionalVat} onCheckedChange={(checked) => handleCheckboxChange('proportionalVat', !!checked)} />
@@ -290,14 +305,14 @@ export default function CompanySettingsPage() {
                 <div className="space-y-4">
                     <h3 className="text-lg font-medium">Cuentas de Ventas</h3>
                     <AccountSearchInput 
-                        label="Facturas por Cobrar" 
+                        label="Cuentas por Cobrar (Facturas)" 
                         value={company.salesInvoicesReceivableAccount || ''} 
                         accounts={accounts || []} 
                         loading={accountsLoading}
                         onValueChange={(value) => handleInputChange('salesInvoicesReceivableAccount', value)}
                     />
                     <AccountSearchInput 
-                        label="Boletas por Cobrar" 
+                        label="Cuentas por Cobrar (Boletas)" 
                         value={company.salesNotesReceivableAccount || ''} 
                         accounts={accounts || []} 
                         loading={accountsLoading}
@@ -320,14 +335,14 @@ export default function CompanySettingsPage() {
                  <div className="space-y-4">
                     <h3 className="text-lg font-medium">Cuentas de Compras</h3>
                     <AccountSearchInput 
-                        label="Facturas por Pagar" 
+                        label="Cuentas por Pagar (Facturas)" 
                         value={company.purchasesInvoicesPayableAccount || ''} 
                         accounts={accounts || []} 
                         loading={accountsLoading}
                         onValueChange={(value) => handleInputChange('purchasesInvoicesPayableAccount', value)}
                     />
                     <AccountSearchInput 
-                        label="Boletas por Pagar" 
+                        label="Cuentas por Pagar (Boletas)" 
                         value={company.purchasesNotesPayableAccount || ''} 
                         accounts={accounts || []} 
                         loading={accountsLoading}
@@ -348,23 +363,23 @@ export default function CompanySettingsPage() {
 
                 {/* Honorarios */}
                 <div className="space-y-4">
-                    <h3 className="text-lg font-medium">Honorarios</h3>
+                    <h3 className="text-lg font-medium">Honorarios (Gastos)</h3>
                      <AccountSearchInput 
-                        label="Cuenta de Gasto (Honorarios)" 
+                        label="Cuenta de Gasto en Honorarios" 
                         value={company.feesExpenseAccount || ''} 
                         accounts={accounts || []} 
                         loading={accountsLoading}
                         onValueChange={(value) => handleInputChange('feesExpenseAccount', value)}
                     />
                     <AccountSearchInput 
-                        label="Honorarios por Pagar" 
+                        label="Cuenta de Honorarios por Pagar" 
                         value={company.feesPayableAccount || ''} 
                         accounts={accounts || []} 
                         loading={accountsLoading}
                         onValueChange={(value) => handleInputChange('feesPayableAccount', value)}
                     />
                     <AccountSearchInput 
-                        label="Retenciones 2da Categoría" 
+                        label="Cuenta de Retención (2da Categoría)" 
                         value={company.feesWithholdingAccount || ''} 
                         accounts={accounts || []} 
                         loading={accountsLoading}
@@ -374,20 +389,20 @@ export default function CompanySettingsPage() {
 
                  {/* Ingresos Honorarios */}
                  <div className="space-y-4">
-                    <h3 className="text-lg font-medium">Ingresos Honorarios</h3>
+                    <h3 className="text-lg font-medium">Honorarios (Ingresos)</h3>
                     <AccountSearchInput 
-                        label="Clientes Honorarios" 
+                        label="Cuenta de Honorarios por Cobrar" 
                         value={company.incomeFeesReceivableAccount || ''} 
                         accounts={accounts || []} 
                         loading={accountsLoading}
-                        onValue-change={(value) => handleInputChange('incomeFeesReceivableAccount', value)}
+                        onValueChange={(value) => handleInputChange('incomeFeesReceivableAccount', value)}
                     />
                     <AccountSearchInput 
-                        label="Retenciones por Pagar" 
+                        label="Cuenta de Retención (Boletas de Honorarios)" 
                         value={company.incomeFeesWithholdingAccount || ''} 
                         accounts={accounts || []} 
                         loading={accountsLoading}
-                        onValue-change={(value) => handleInputChange('incomeFeesWithholdingAccount', value)}
+                        onValueChange={(value) => handleInputChange('incomeFeesWithholdingAccount', value)}
                     />
                 </div>
 
@@ -398,7 +413,7 @@ export default function CompanySettingsPage() {
                         Define las cuentas contables para una correcta centralización de las liquidaciones de sueldo.
                     </p>
                     <AccountSearchInput 
-                        label="Sueldos por Pagar (Pasivo)" 
+                        label="Sueldos por Pagar (Total Líquido)" 
                         value={company.salariesPayableAccount || ''} 
                         accounts={accounts || []} 
                         loading={accountsLoading}
