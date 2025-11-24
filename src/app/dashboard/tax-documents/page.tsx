@@ -10,39 +10,47 @@ import {
     CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Upload } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
+import { ArrowRight } from "lucide-react";
+import Link from 'next/link';
 
 export default function TaxDocumentsPage() {
-    const { toast } = useToast();
-
-    const handlePlaceholderClick = () => {
-        toast({
-            title: "Función en desarrollo",
-            description: "La centralización de documentos tributarios desde el SII aún no está implementada.",
-        });
-    };
 
     return (
         <div className="grid gap-6">
             <Card>
                 <CardHeader>
-                    <CardTitle>Centralización de Documentos Tributarios</CardTitle>
+                    <CardTitle>Centralización de Libros de Compras y Ventas</CardTitle>
                     <CardDescription>
-                        Importa y centraliza automáticamente tus documentos tributarios desde el SII.
+                        Accede a los módulos de compras y ventas para cargar y centralizar tus documentos tributarios del SII.
                     </CardDescription>
                 </CardHeader>
-                <CardContent>
-                    <div className="flex flex-col items-center justify-center gap-4 rounded-xl border border-dashed p-8 text-center">
-                        <Upload className="h-12 w-12 text-muted-foreground" />
-                        <h3 className="text-lg font-semibold">Conectar con el SII</h3>
-                        <p className="text-sm text-muted-foreground max-w-md">
-                            Esta funcionalidad futura te permitirá conectar tu cuenta del SII para descargar y procesar automáticamente tus documentos de compra y venta.
-                        </p>
-                        <Button onClick={handlePlaceholderClick}>
-                            Iniciar Proceso (Próximamente)
-                        </Button>
-                    </div>
+                <CardContent className="grid gap-6 md:grid-cols-2">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Libro de Compras</CardTitle>
+                            <CardDescription>Gestiona la carga de tu Registro de Compras y Ventas (RCV) y prepara los documentos para la centralización contable.</CardDescription>
+                        </CardHeader>
+                        <CardContent className="flex justify-end">
+                            <Link href="/dashboard/purchases" passHref>
+                                <Button>
+                                    Ir a Compras <ArrowRight className="ml-2 h-4 w-4" />
+                                </Button>
+                            </Link>
+                        </CardContent>
+                    </Card>
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Libro de Ventas</CardTitle>
+                            <CardDescription>Carga el detalle de tus ventas o el resumen mensual del SII para consolidar boletas y generar el asiento de ventas.</CardDescription>
+                        </CardHeader>
+                        <CardContent className="flex justify-end">
+                            <Link href="/dashboard/sales" passHref>
+                                <Button>
+                                    Ir a Ventas <ArrowRight className="ml-2 h-4 w-4" />
+                                </Button>
+                            </Link>
+                        </CardContent>
+                    </Card>
                 </CardContent>
             </Card>
         </div>

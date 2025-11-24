@@ -7,13 +7,15 @@ import { useUser } from '@/firebase/auth/use-user';
 import { useFirestore, useCollection } from '@/firebase';
 import { collection, query, where, Timestamp, getDoc, doc } from 'firebase/firestore';
 import type { Employee, Payroll, PayrollDraft } from '@/lib/types';
-import { SelectedCompanyContext } from '../layout'; // FIX: Use the standardized SelectedCompanyContext
+import { SelectedCompanyContext } from '../layout';
 import { PayrollProcessPreviewDialog } from '@/components/payroll-process-preview-dialog';
 import { PayrollDraftsTable } from '@/components/payroll/PayrollDraftsTable';
 import { ProcessedPayrollsTable } from '@/components/payroll/ProcessedPayrollsTable';
 import { PayrollDetailDialog } from '@/components/payroll-detail-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Download } from 'lucide-react';
+import { saveAs } from 'file-saver';
 
 const months = [
     { value: 1, label: 'Enero' }, { value: 2, label: 'Febrero' }, { value: 3, label: 'Marzo' },
@@ -41,13 +43,16 @@ async function calculateOrGetError(employee: Employee, year: number, month: numb
             signal: controller.signal,
         });
         clearTimeout(timeoutId);
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || `Error del servidor (${response.status})`);
+        }
         const data = await response.json();
-        if (!response.ok) throw new Error(data.message || `Error del servidor (${response.status})`);
         return data as PayrollDraft;
     } catch (error) {
         console.error(`Falló el cálculo para el empleado ${employee.id}:`, error);
         const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
-        return { error: errorMessage };
+        return { error: `Calculation error: ${errorMessage}` };
     }
 }
 
@@ -55,7 +60,7 @@ function PayrollContent() {
     const { toast } = useToast();
     const { user, loading: authLoading } = useUser();
     const firestore = useFirestore();
-    const context = React.useContext(SelectedCompanyContext); // FIX: Use the standardized SelectedCompanyContext
+    const context = React.useContext(SelectedCompanyContext);
 
     if (!context) throw new Error("SelectedCompanyContext must be used within a provider");
     const { selectedCompany, periodYear, periodMonth } = context;
@@ -68,6 +73,7 @@ function PayrollContent() {
     const [previewingData, setPreviewingData] = React.useState<{ payroll: Payroll; employee: Employee; } | null>(null);
     const [isUndoDialogOpen, setIsUndoDialogOpen] = React.useState(false);
     const [isUndoing, setIsUndoing] = React.useState(false);
+    const [isDownloading, setIsDownloading] = React.useState(false);
 
     const allEmployeesQuery = React.useMemo(() => {
         if (!firestore || !companyId) return null;
@@ -103,21 +109,43 @@ function PayrollContent() {
             const token = await user.getIdToken();
             const periodStart = new Date(periodYear, periodMonth - 1, 1);
             const periodEnd = new Date(periodYear, periodMonth, 0);
-            const statusPromises = allEmployees.map(async (emp): Promise<EmployeeStatus> => {
-                if (!emp.contractStartDate) return { employee: emp, draft: null, error: 'Falta fecha de inicio de contrato.' };
+            
+            const activeEmployeesForPeriod = allEmployees.filter(emp => {
+                if (!emp.contractStartDate) return false;
                 const startDate = (emp.contractStartDate as unknown as Timestamp).toDate();
-                if (startDate > periodEnd) return { employee: emp, draft: null, error: 'Contrato no vigente para el período (inicio posterior).' };
+                if (startDate > periodEnd) return false;
                 if (emp.contractEndDate) {
                     const endDate = (emp.contractEndDate as unknown as Timestamp).toDate();
-                    if (endDate < periodStart) return { employee: emp, draft: null, error: 'Contrato no vigente para el período (fin anterior).' };
+                    if (endDate < periodStart) return false;
                 }
+                return true;
+            });
+
+            if (activeEmployeesForPeriod.length === 0) {
+                setCalculationStatus('done');
+                return;
+            }
+
+            const statusPromises = activeEmployeesForPeriod.map(async (emp): Promise<EmployeeStatus> => {
                 const result = await calculateOrGetError(emp, periodYear, periodMonth, token, companyId);
                 return 'error' in result ? { employee: emp, draft: null, error: result.error } : { employee: emp, draft: result, error: null };
             });
+
             const results = await Promise.all(statusPromises);
-            const forbiddenError = results.find(r => r.error === 'Forbidden');
-            if (forbiddenError) setGeneralError("Error de Permiso: No tienes acceso para calcular liquidaciones en esta empresa.");
-            setEmployeeStatuses(results);
+
+            // Intelligent error handling
+            const allFailedForIndicators = results.length > 0 && results.every(
+                r => r.error && r.error.includes('Faltan indicadores económicos')
+            );
+
+            if (allFailedForIndicators) {
+                setGeneralError("Mes sin indicadores económicos hasta el momento");
+            } else {
+                const forbiddenError = results.find(r => r.error === 'Forbidden');
+                if (forbiddenError) setGeneralError("Error de Permiso: No tienes acceso para calcular liquidaciones en esta empresa.");
+                setEmployeeStatuses(results);
+            }
+
             setCalculationStatus('done');
         };
         processAllEmployees();
@@ -228,6 +256,56 @@ function PayrollContent() {
         } finally { setIsUndoing(false); }
     };
 
+    const handleDownloadAllPayslips = async () => {
+        if (!user || !companyId) return;
+
+        setIsDownloading(true);
+        toast({ title: "Generando PDF unificado...", description: "Esto puede tardar un momento." });
+
+        try {
+            const token = await user.getIdToken();
+            const response = await fetch('/api/payroll/generate-bulk-payslip-pdf', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`,
+                },
+                body: JSON.stringify({ 
+                    companyId: companyId, 
+                    year: periodYear,
+                    month: periodMonth 
+                }),
+            });
+
+            if (!response.ok) {
+                let errorMsg = `Error HTTP ${response.status}`;
+                try {
+                    const errorData = await response.json();
+                    errorMsg = errorData.error || errorMsg;
+                } catch (e) {
+                    errorMsg = response.statusText;
+                }
+                throw new Error(errorMsg);
+            }
+
+            const pdfBlob = await response.blob();
+            const periodName = months.find(m => m.value === periodMonth)?.label || 'Mes';
+            saveAs(pdfBlob, `Liquidaciones_${periodName}_${periodYear}.pdf`);
+            toast({ title: "Éxito", description: "El PDF con todas las liquidaciones se ha descargado." });
+
+        } catch (error) {
+            console.error("Error al generar el PDF unificado:", error);
+            const errorMessage = error instanceof Error ? error.message : "Ocurrió un error desconocido.";
+            toast({ 
+                variant: "destructive", 
+                title: "Error de Descarga", 
+                description: errorMessage 
+            });
+        } finally {
+            setIsDownloading(false);
+        }
+    };
+
     const isLoading = authLoading || employeesLoading || payrollsLoading || calculationStatus === 'calculating';
     const successfulDrafts = employeeStatuses.filter(s => s.draft).map(s => s.draft as PayrollDraft);
     const failedEmployees = employeeStatuses.filter(s => s.error && s.error !== 'Forbidden');
@@ -271,7 +349,13 @@ function PayrollContent() {
                         <CardDescription>La contabilidad de este período ya está generada. Para hacer cambios, primero debes anular este proceso.</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                        <Button variant="destructive" onClick={() => setIsUndoDialogOpen(true)} disabled={isUndoing}>{isUndoing ? 'Anulando...' : 'Anular Centralización'}</Button>
+                        <div className="flex items-center gap-2">
+                            <Button variant="destructive" onClick={() => setIsUndoDialogOpen(true)} disabled={isUndoing || isDownloading}>{isUndoing ? 'Anulando...' : 'Anular Centralización'}</Button>
+                            <Button variant="outline" onClick={handleDownloadAllPayslips} disabled={isDownloading || isUndoing}>
+                                <Download className="mr-2 h-4 w-4" />
+                                {isDownloading ? 'Descargando...' : 'Descargar Todas'}
+                            </Button>
+                        </div>
                         <ProcessedPayrollsTable payrolls={processedPayrolls} onPreview={handlePreview} />
                     </CardContent>
                 </Card>
@@ -290,7 +374,7 @@ function PayrollContent() {
 }
 
 export default function PayrollPage() {
-    const context = React.useContext(SelectedCompanyContext); // FIX: Use the standardized SelectedCompanyContext
+    const context = React.useContext(SelectedCompanyContext);
 
     if (!context) {
         return <div className="flex items-center justify-center h-full"><p>Cargando contexto...</p></div>;

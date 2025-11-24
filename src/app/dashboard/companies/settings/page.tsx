@@ -5,7 +5,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import React from 'react';
-import type { Company, Account, TaxAccountMapping } from '@/lib/types';
+import type { Company, Account, TaxAccountMapping, PayrollAccountMappings } from '@/lib/types';
 import { useCollection, useFirestore } from '@/firebase';
 import { SelectedCompanyContext } from '../../layout';
 import { doc, updateDoc } from 'firebase/firestore';
@@ -15,6 +15,7 @@ import { errorEmitter } from '@/firebase/error-emitter'
 import { FirestorePermissionError } from '@/firebase/errors'
 import { useToast } from "@/hooks/use-toast";
 import { DeleteCompanyDialog } from '@/components/delete-company-dialog';
+import { PayrollAccountMappingsForm } from '@/components/payroll-account-mappings-form';
 
 const defaultAccountMappings: { [key in keyof Partial<Company>]: string } = {
     profitAccount: '40105', // UTILIDAD BRUTA
@@ -62,6 +63,18 @@ export default function CompanySettingsPage() {
     const handleInputChange = (field: keyof Company, value: any) => {
         if (company) {
             setCompany({ ...company, [field]: value });
+        }
+    };
+
+    const handleMappingChange = (field: keyof PayrollAccountMappings, value: string) => {
+        if (company) {
+            setCompany(prev => ({
+                ...prev,
+                payrollAccountMappings: {
+                    ...prev?.payrollAccountMappings,
+                    [field]: value
+                }
+            }));
         }
     };
     
@@ -232,7 +245,7 @@ export default function CompanySettingsPage() {
                         value={company.profitAccount || ''} 
                         accounts={accounts || []} 
                         loading={accountsLoading}
-                        onValueChange={(value) => handleInputChange('profitAccount', value)}
+                        onValue-change={(value) => handleInputChange('profitAccount', value)}
                     />
                     <AccountSearchInput 
                         label="Cuenta de Pérdida" 
@@ -265,7 +278,7 @@ export default function CompanySettingsPage() {
                         value={company.vatRemanentAccount || ''} 
                         accounts={accounts || []} 
                         loading={accountsLoading}
-                        onValueChange={(value) => handleInputChange('vatRemanentAccount', value)}
+                        onValue-change={(value) => handleInputChange('vatRemanentAccount', value)}
                     />
                      <div className="flex items-center space-x-2 pt-2">
                         <Checkbox id="proportionalVat" checked={!!company.proportionalVat} onCheckedChange={(checked) => handleCheckboxChange('proportionalVat', !!checked)} />
@@ -367,7 +380,7 @@ export default function CompanySettingsPage() {
                         value={company.incomeFeesReceivableAccount || ''} 
                         accounts={accounts || []} 
                         loading={accountsLoading}
-                        onValueChange={(value) => handleInputChange('incomeFeesReceivableAccount', value)}
+                        onValue-change={(value) => handleInputChange('incomeFeesReceivableAccount', value)}
                     />
                     <AccountSearchInput 
                         label="Retenciones por Pagar" 
@@ -380,48 +393,22 @@ export default function CompanySettingsPage() {
 
                  {/* Remuneraciones */}
                  <div className="space-y-4">
-                    <h3 className="text-lg font-medium">Remuneraciones</h3>
+                    <h3 className="text-lg font-medium">Centralización de Remuneraciones</h3>
+                     <p className="text-sm text-muted-foreground">
+                        Define las cuentas contables para una correcta centralización de las liquidaciones de sueldo.
+                    </p>
                     <AccountSearchInput 
-                        label="Cuenta de Gasto (Sueldos)" 
-                        value={company.remunerationExpenseAccount || ''} 
-                        accounts={accounts || []} 
-                        loading={accountsLoading}
-                        onValueChange={(value) => handleInputChange('remunerationExpenseAccount', value)}
-                    />
-                    <AccountSearchInput 
-                        label="Sueldos por Pagar" 
+                        label="Sueldos por Pagar (Pasivo)" 
                         value={company.salariesPayableAccount || ''} 
                         accounts={accounts || []} 
                         loading={accountsLoading}
-                        onValue-change={(value) => handleInputChange('salariesPayableAccount', value)}
+                        onValueChange={(value) => handleInputChange('salariesPayableAccount', value)}
                     />
-                    <AccountSearchInput 
-                        label="Leyes Sociales por Pagar (AFP)" 
-                        value={company.afpPayableAccount || ''} 
-                        accounts={accounts || []} 
+                    <PayrollAccountMappingsForm 
+                        company={company}
+                        accounts={accounts || []}
                         loading={accountsLoading}
-                        onValueChange={(value) => handleInputChange('afpPayableAccount', value)}
-                    />
-                    <AccountSearchInput 
-                        label="Aporte Patronal AFP por Pagar (1%)" 
-                        value={company.employerAfpContributionPayableAccount || ''} 
-                        accounts={accounts || []} 
-                        loading={accountsLoading}
-                        onValue-change={(value) => handleInputChange('employerAfpContributionPayableAccount', value)}
-                    />
-                    <AccountSearchInput 
-                        label="Leyes Sociales por Pagar (Salud)" 
-                        value={company.healthPayableAccount || ''} 
-                        accounts={accounts || []} 
-                        loading={accountsLoading}
-                        onValueChange={(value) => handleInputChange('healthPayableAccount', value)}
-                    />
-                     <AccountSearchInput 
-                        label="Seguro de Cesantía por Pagar" 
-                        value={company.unemploymentInsurancePayableAccount || ''} 
-                        accounts={accounts || []} 
-                        loading={accountsLoading}
-                        onValueChange={(value) => handleInputChange('unemploymentInsurancePayableAccount', value)}
+                        onMappingChange={handleMappingChange}
                     />
                 </div>
 

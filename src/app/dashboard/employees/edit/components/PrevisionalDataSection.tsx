@@ -27,15 +27,15 @@ export function PrevisionalDataSection({ employee, handleFieldChange, uniqueAfpE
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
                <div className="space-y-2 col-span-2">
                    <Label>Sistema de Salud</Label>
-                   <Select value={employee.healthSystem} onValueChange={v => handleFieldChange('healthSystem', v)}>
+                   <Select value={employee.healthSystem || ''} onValueChange={v => handleFieldChange('healthSystem', v)}>
                        <SelectTrigger><SelectValue placeholder="..."/></SelectTrigger>
                        <SelectContent>{uniqueHealthEntities.map(e => <SelectItem key={e.id} value={e.name}>{e.name}</SelectItem>)}</SelectContent>
                    </Select>
                </div>
                 <div className="space-y-2">
                     <Label>Tipo Cotización</Label>
-                    <Select value={employee.healthContributionType} onValueChange={v => handleFieldChange('healthContributionType', v)}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
+                    <Select value={employee.healthContributionType || ''} onValueChange={v => handleFieldChange('healthContributionType', v)}>
+                        <SelectTrigger><SelectValue placeholder="..."/></SelectTrigger>
                         <SelectContent>
                             <SelectItem value="Porcentaje">%</SelectItem>
                             <SelectItem value="Monto Fijo">UF</SelectItem>
@@ -44,27 +44,28 @@ export function PrevisionalDataSection({ employee, handleFieldChange, uniqueAfpE
                 </div>
                 <div className="space-y-2">
                     <Label>Valor Cotización</Label>
-                    <Input type="number" value={employee.healthContributionValue} onChange={e => handleFieldChange('healthContributionValue', parseFloat(e.target.value) || 0)} />
+                    <Input type="number" value={employee.healthContributionValue || ''} onChange={e => handleFieldChange('healthContributionValue', parseFloat(e.target.value) || 0)} />
                 </div>
                  <div className="space-y-2 col-span-2">
                      <Label>AFP</Label>
-                     <Select value={employee.afp} onValueChange={v => handleFieldChange('afp', v)}>
+                     <Select value={employee.afp || ''} onValueChange={v => handleFieldChange('afp', v)}>
                          <SelectTrigger><SelectValue placeholder="..."/></SelectTrigger>
                          <SelectContent>{uniqueAfpEntities.map(e => <SelectItem key={e.id} value={e.name}>{e.name}</SelectItem>)}</SelectContent>
                      </Select>
                  </div>
                 <div className="space-y-2">
                     <Label>Tipo Contrato (Seg. Cesantía)</Label>
-                    <Select value={employee.unemploymentInsuranceType} onValueChange={v => handleFieldChange('unemploymentInsuranceType', v)}>
+                    <Select value={employee.unemploymentInsuranceType || ''} onValueChange={v => handleFieldChange('unemploymentInsuranceType', v)}>
                         <SelectTrigger><SelectValue placeholder="..."/></SelectTrigger>
                         <SelectContent>
                             <SelectItem value="Indefinido">Indefinido</SelectItem>
                             <SelectItem value="Plazo Fijo">Plazo Fijo</SelectItem>
+                            <SelectItem value="No Aplica">No Aplica</SelectItem>
                         </SelectContent>
                     </Select>
                 </div>
                 <div className="flex items-center space-x-2 pt-6">
-                    <Checkbox id="hasUnemploymentInsurance" checked={employee.hasUnemploymentInsurance} onCheckedChange={c => handleFieldChange('hasUnemploymentInsurance', c)} />
+                    <Checkbox id="hasUnemploymentInsurance" checked={!!employee.hasUnemploymentInsurance} onCheckedChange={c => handleFieldChange('hasUnemploymentInsurance', c)} />
                     <Label htmlFor="hasUnemploymentInsurance">Acogido a Seguro de Cesantía</Label>
                 </div>
             </div>

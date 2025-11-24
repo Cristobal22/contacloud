@@ -6,20 +6,20 @@ import { Label } from '@/components/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
-import { CalendarIcon, Loader2 } from "lucide-react"; // Import Loader2
+import { CalendarIcon, Loader2 } from "lucide-react";
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import type { FiniquitoFormData } from '@/lib/settlement-generator';
 
-// Update props interface
 interface FiniquitoDocumentDataFormProps {
     formData: Partial<FiniquitoFormData>;
     handleInputChange: (field: keyof FiniquitoFormData, value: any, isManual?: boolean) => void;
     isFormComplete: boolean;
     onGeneratePDF: () => void;
-    onPreview: () => void; // Add onPreview
-    isGenerating: boolean; // Add isGenerating
+    onGenerateDOCX: () => void; // Add the new handler prop
+    onPreview: () => void;
+    isGenerating: boolean;
 }
 
 export function FiniquitoDocumentDataForm({ 
@@ -27,13 +27,14 @@ export function FiniquitoDocumentDataForm({
     handleInputChange, 
     isFormComplete, 
     onGeneratePDF, 
+    onGenerateDOCX, // Destructure the new prop
     onPreview, 
     isGenerating 
 }: FiniquitoDocumentDataFormProps) {
     return (
         <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* ... all the input fields remain the same ... */}
+                {/* Input fields remain the same... */}
                  <div className="space-y-2">
                     <Label htmlFor="domicilioTrabajador">Domicilio del Trabajador</Label>
                     <Input id="domicilioTrabajador" value={formData.domicilioTrabajador || ''} onChange={e => handleInputChange('domicilioTrabajador', e.target.value, true)} placeholder="Ej: Av. Siempreviva 742, Springfield" />
@@ -75,20 +76,18 @@ export function FiniquitoDocumentDataForm({
                     <Input id="ministroDeFe" value={formData.ministroDeFe || ''} onChange={e => handleInputChange('ministroDeFe', e.target.value, true)} />
                 </div>
             </div>
-            {/* Updated buttons section */}
             <div className="flex justify-end items-center gap-4 pt-4">
                 <Button variant="outline" size="lg" onClick={onPreview} disabled={!isFormComplete || isGenerating}>
                     Vista Previa
                 </Button>
                 <Button size="lg" onClick={onGeneratePDF} disabled={!isFormComplete || isGenerating}>
-                    {isGenerating ? (
-                        <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Generando...
-                        </>
-                    ) : (
-                        'Generar Documento PDF'
-                    )}
+                    {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                    Generar PDF
+                </Button>
+                {/* Add the new DOCX button */}
+                <Button size="lg" onClick={onGenerateDOCX} disabled={!isFormComplete || isGenerating} variant="secondary">
+                    {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                    Generar DOCX
                 </Button>
             </div>
         </div>

@@ -27,21 +27,21 @@ export function PersonalDataSection({ employee, handleFieldChange, availableComm
                 <div className="space-y-2">
                     <Label>RUT</Label>
                     <Input
-                        value={employee.rut}
+                        value={employee.rut || ''}
                         onChange={e => handleFieldChange('rut', e.target.value)}
                     />
                 </div>
                 <div className="space-y-2">
                     <Label>Nombres</Label>
                     <Input
-                        value={employee.firstName}
+                        value={employee.firstName || ''}
                         onChange={e => handleFieldChange('firstName', e.target.value)}
                     />
                 </div>
                 <div className="space-y-2">
                     <Label>Apellidos</Label>
                     <Input
-                        value={employee.lastName}
+                        value={employee.lastName || ''}
                         onChange={e => handleFieldChange('lastName', e.target.value)}
                     />
                 </div>
@@ -49,14 +49,14 @@ export function PersonalDataSection({ employee, handleFieldChange, availableComm
                     <Label>Fecha de Nacimiento</Label>
                     <Input
                         type="date"
-                        value={employee.birthDate}
+                        value={employee.birthDate || ''}
                         onChange={e => handleFieldChange('birthDate', e.target.value)}
                     />
                 </div>
                 <div className="space-y-2">
                     <Label>Nacionalidad</Label>
                     <Select
-                        value={employee.nationality}
+                        value={employee.nationality || ''}
                         onValueChange={v => handleFieldChange('nationality', v)}
                     >
                         <SelectTrigger><SelectValue placeholder="Selecciona..." /></SelectTrigger>
@@ -66,14 +66,14 @@ export function PersonalDataSection({ employee, handleFieldChange, availableComm
                 <div className="space-y-2">
                     <Label>Dirección</Label>
                     <Input
-                        value={employee.address}
+                        value={employee.address || ''}
                         onChange={e => handleFieldChange('address', e.target.value)}
                     />
                 </div>
                 <div className="space-y-2">
                     <Label>Región</Label>
                     <Select
-                        value={employee.region}
+                        value={employee.region || ''}
                         onValueChange={v => handleFieldChange('region', v)}
                     >
                         <SelectTrigger><SelectValue placeholder="Selecciona..." /></SelectTrigger>
@@ -83,7 +83,7 @@ export function PersonalDataSection({ employee, handleFieldChange, availableComm
                 <div className="space-y-2">
                     <Label>Comuna</Label>
                     <Select
-                        value={employee.commune}
+                        value={employee.commune || ''}
                         onValueChange={v => handleFieldChange('commune', v)}
                         disabled={!employee.region}
                     >
@@ -94,7 +94,7 @@ export function PersonalDataSection({ employee, handleFieldChange, availableComm
                 <div className="space-y-2">
                     <Label>Teléfono</Label>
                     <Input
-                        value={employee.phone}
+                        value={employee.phone || ''}
                         onChange={e => handleFieldChange('phone', e.target.value)}
                     />
                 </div>
@@ -102,14 +102,14 @@ export function PersonalDataSection({ employee, handleFieldChange, availableComm
                     <Label>Email</Label>
                     <Input
                         type="email"
-                        value={employee.email}
+                        value={employee.email || ''}
                         onChange={e => handleFieldChange('email', e.target.value)}
                     />
                 </div>
                 <div className="space-y-2">
                     <Label>Género</Label>
                     <Select
-                        value={employee.gender}
+                        value={employee.gender || ''}
                         onValueChange={v => handleFieldChange('gender', v)}
                     >
                         <SelectTrigger><SelectValue placeholder="Selecciona..." /></SelectTrigger>
@@ -123,7 +123,7 @@ export function PersonalDataSection({ employee, handleFieldChange, availableComm
                 <div className="space-y-2">
                     <Label>Estado Civil</Label>
                     <Select
-                        value={employee.maritalStatus}
+                        value={employee.maritalStatus || ''}
                         onValueChange={v => handleFieldChange('maritalStatus', v)}
                     >
                         <SelectTrigger><SelectValue placeholder="Selecciona..." /></SelectTrigger>
@@ -138,14 +138,14 @@ export function PersonalDataSection({ employee, handleFieldChange, availableComm
                 <div className="space-y-2">
                     <Label>Nombre Contacto Emergencia</Label>
                     <Input
-                        value={employee.emergencyContactName}
+                        value={employee.emergencyContactName || ''}
                         onChange={e => handleFieldChange('emergencyContactName', e.target.value)}
                     />
                 </div>
                 <div className="space-y-2">
                     <Label>Teléfono Contacto Emergencia</Label>
                     <Input
-                        value={employee.emergencyContactPhone}
+                        value={employee.emergencyContactPhone || ''}
                         onChange={e => handleFieldChange('emergencyContactPhone', e.target.value)}
                     />
                 </div>

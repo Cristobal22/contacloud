@@ -1,13 +1,25 @@
 
 import type { FirebaseFirestore } from 'firebase-admin/firestore';
-import type { Employee, Payroll, EconomicIndicator, AfpEntity, HealthEntity, FamilyAllowanceParameter, TaxParameter, TaxableCap, Bono } from '@/lib/types';
+import type { Employee, Payroll, EconomicIndicator, AfpEntity, HealthEntity, FamilyAllowanceParameter, TaxParameter, TaxableCap, Bono, PayrollEarningItem, PayrollDiscountItem } from '@/lib/types';
 
 // --- Utility Functions ---
 function isNumber(value: any): value is number {
     return typeof value === 'number' && !isNaN(value);
 }
 
-// --- Data Fetching Functions (as before) ---
+function normalizeDate(dateInput: any): Date | null {
+    if (!dateInput) return null;
+    if (typeof dateInput === 'object' && dateInput !== null && isNumber(dateInput.seconds) && isNumber(dateInput.nanoseconds)) {
+        return new Date(dateInput.seconds * 1000);
+    }
+    const date = new Date(dateInput);
+    if (!isNaN(date.getTime())) {
+        return date;
+    }
+    return null;
+}
+
+// --- Data Fetching Functions ---
 async function getEconomicIndicator(firestore: FirebaseFirestore.Firestore, year: number, month: number): Promise<EconomicIndicator | null> {
     const id = `${year}-${String(month).padStart(2, '0')}`;
     const doc = await firestore.collection('economic-indicators').doc(id).get();
@@ -29,22 +41,21 @@ async function getTaxableCaps(firestore: FirebaseFirestore.Firestore, year: numb
     return doc.exists ? doc.data() as TaxableCap : null;
 }
 
-async function getFamilyAllowance(firestore: FirebaseFirestore.Firestore, taxableIncome: number, year: number, month: number, bracket?: 'A' | 'B' | 'C' | 'D'): Promise<number> {
-    let query = firestore.collection('family-allowance-parameters').where('year', '==', year).where('month', '==', month);
-    if (bracket) {
-        query = query.where('tramo', '==', bracket);
-    } else {
-        query = query.where('desde', '<=', taxableIncome).orderBy('desde', 'desc');
-    }
-    const snapshot = await query.limit(1).get();
-    if (snapshot.empty) return 0;
+async function getFamilyAllowanceBracket(firestore: FirebaseFirestore.Firestore, taxableIncome: number, year: number, month: number): Promise<FamilyAllowanceParameter | null> {
+    const query = firestore.collection('family-allowance-parameters')
+        .where('year', '==', year)
+        .where('month', '==', month)
+        .where('desde', '<=', taxableIncome)
+        .orderBy('desde', 'desc')
+        .limit(1);
+    const snapshot = await query.get();
+    if (snapshot.empty) return null;
     const param = snapshot.docs[0].data() as FamilyAllowanceParameter;
-    if (bracket) return param.monto;
-    return param.hasta >= taxableIncome ? param.monto : 0;
+    return param.hasta >= taxableIncome ? param : null;
 }
 
 async function getIUT(firestore: FirebaseFirestore.Firestore, taxableIncomeInCLP: number, utm: number): Promise<{ iut: number, factor: number, rebaja: number }> {
-    if (taxableIncomeInCLP <= 0) return { iut: 0, factor: 0, rebaja: 0 };
+    if (taxableIncomeInCLP <= 0 || isNaN(taxableIncomeInCLP)) return { iut: 0, factor: 0, rebaja: 0 };
     const taxableIncomeInUTM = taxableIncomeInCLP / utm;
     const snapshot = await firestore.collection('tax-parameters').where('desdeUTM', '<=', taxableIncomeInUTM).orderBy('desdeUTM', 'desc').limit(1).get();
     if (snapshot.empty) return { iut: 0, factor: 0, rebaja: 0 };
@@ -58,13 +69,13 @@ async function getIUT(firestore: FirebaseFirestore.Firestore, taxableIncomeInCLP
     return { iut: 0, factor: 0, rebaja: 0 };
 }
 
-// --- Main Payroll Logic (REWRITTEN) ---
+// --- Main Payroll Logic (Granular) ---
 
 export async function generatePayroll(
-    firestore: FirebaseFirestore.Firestore, 
-    employee: Employee, 
-    year: number, 
-    month: number, 
+    firestore: FirebaseFirestore.Firestore,
+    employee: Employee,
+    year: number,
+    month: number,
     workedDaysOverride?: number,
     absentDaysOverride?: number,
     overtimeHours50Override?: number,
@@ -72,28 +83,45 @@ export async function generatePayroll(
     variableBonosOverride?: Bono[],
     advancesOverride?: number
 ): Promise<Partial<Payroll>> {
-    
-    // 1. Fetch and Validate external data
+
+    const earnings: PayrollEarningItem[] = [];
+    const discounts: PayrollDiscountItem[] = [];
+
     const indicator = await getEconomicIndicator(firestore, year, month);
     if (!indicator || !isNumber(indicator.uf) || !isNumber(indicator.utm) || !isNumber(indicator.gratificationCap)) throw new Error(`Faltan indicadores económicos o están incompletos para ${month}/${year}.`);
-    
+
     const caps = await getTaxableCaps(firestore, year);
     if (!caps || !isNumber(caps.afpCap) || !isNumber(caps.afcCap)) throw new Error(`Faltan topes imponibles o están incompletos para el año ${year}.`);
 
     const afpEntity = employee.afp ? await getAfpEntity(firestore, employee.afp, year, month) : null;
     const healthEntity = employee.healthSystem ? await getHealthEntity(firestore, employee.healthSystem, year, month) : null;
 
-    // 2. Calculate Proportionality and Overrides
     const baseSalary = employee.baseSalary || 0;
-    const daysInMonth = new Date(year, month, 0).getDate();
-    
-    // Determine effective worked days. Chilean standard is 30 for monthly salaries.
-    // We prioritize workedDaysOverride, then absentDaysOverride, then default to 30.
-    const workedDays = isNumber(workedDaysOverride) ? workedDaysOverride : 30 - (isNumber(absentDaysOverride) ? absentDaysOverride : 0);
-    const proportionalFactor = workedDays / 30;
-    const proportionalBaseSalary = baseSalary * proportionalFactor;
+    const periodStartDate = new Date(year, month - 1, 1);
+    const periodEndDate = new Date(year, month, 0);
+    const contractStartDate = normalizeDate(employee.contractStartDate);
+    const contractEndDate = normalizeDate(employee.contractEndDate);
 
-    // 3. Calculate Taxable Earnings
+    if (!contractStartDate) throw new Error("El empleado no tiene una fecha de inicio de contrato válida.");
+
+    let effectiveStartDate = periodStartDate > contractStartDate ? periodStartDate : contractStartDate;
+    let effectiveEndDate = periodEndDate;
+    if (contractEndDate && contractEndDate < periodEndDate) effectiveEndDate = contractEndDate;
+    
+    let calculatedWorkedDays = (effectiveEndDate.getTime() - effectiveStartDate.getTime()) / (1000 * 3600 * 24) + 1;
+    if (calculatedWorkedDays < 0) calculatedWorkedDays = 0;
+    if (calculatedWorkedDays > 30) calculatedWorkedDays = 30;
+    if (new Date(year, month - 1, 1).getMonth() === 1 && calculatedWorkedDays >= 28) calculatedWorkedDays = 30;
+
+    const absentDays = isNumber(absentDaysOverride) ? absentDaysOverride : 0;
+    const workedDays = isNumber(workedDaysOverride) ? workedDaysOverride : calculatedWorkedDays - absentDays;
+    const proportionalFactor = workedDays / 30;
+
+    const proportionalBaseSalary = baseSalary * proportionalFactor;
+    if (proportionalBaseSalary > 0) {
+        earnings.push({ type: 'taxable', name: 'Sueldo Base Proporcional', amount: proportionalBaseSalary, calculationDetail: `${workedDays.toFixed(2)} / 30 días` });
+    }
+
     let gratification = 0;
     if (employee.gratificationType === 'Tope Legal') {
         const monthlyGratificationCap = indicator.gratificationCap / 12;
@@ -102,95 +130,119 @@ export async function generatePayroll(
     } else if (employee.gratificationType === 'Automatico') {
         gratification = proportionalBaseSalary * 0.25;
     }
+    if (gratification > 0) earnings.push({ type: 'taxable', name: 'Gratificación Legal', amount: gratification });
 
-    // Overtime Calculation (based on 45-hour work week)
     const dailySalary = baseSalary / 30;
-    const hourlyRate = (dailySalary * 7) / 45;
+    const hourlyRate = (dailySalary * (employee.weeklyHours || 45)) / 45;
     const overtime50 = hourlyRate * 1.5 * (overtimeHours50Override || 0);
     const overtime100 = hourlyRate * 2 * (overtimeHours100Override || 0);
+    if (overtime50 > 0) earnings.push({ type: 'taxable', name: 'Horas Extra (50%)', amount: overtime50, calculationDetail: `${overtimeHours50Override} horas` });
+    if (overtime100 > 0) earnings.push({ type: 'taxable', name: 'Horas Extra (100%)', amount: overtime100, calculationDetail: `${overtimeHours100Override} horas` });
 
-    // Variable Bonos
-    let taxableBonos = 0;
-    let nonTaxableBonos = 0;
-    if (variableBonosOverride) {
-        variableBonosOverride.forEach(bono => {
-            if (bono.noImponible) {
-                nonTaxableBonos += bono.monto;
-            } else {
-                taxableBonos += bono.monto;
-            }
-        });
-    }
+    (variableBonosOverride || []).forEach(bono => {
+        if (bono.monto > 0) earnings.push({ type: bono.tipo === 'variable' ? 'taxable' : 'non-taxable', name: bono.glosa, amount: bono.monto });
+    });
+    (employee.bonosFijos || []).forEach(bono => {
+        if (bono.monto > 0) earnings.push({ type: bono.tipo === 'fijo' ? 'taxable' : 'non-taxable', name: bono.glosa, amount: bono.monto * proportionalFactor });
+    });
 
-    const totalTaxableEarnings = proportionalBaseSalary + gratification + overtime50 + overtime100 + taxableBonos;
-    const taxableCap = caps.afpCap * indicator.uf;
-    const afcCap = caps.afcCap * indicator.uf;
-    const taxableBaseForCaps = Math.min(totalTaxableEarnings, taxableCap);
-
-    // 4. Calculate Non-Taxable Earnings
     const mobilization = (employee.mobilization || 0) * proportionalFactor;
+    if (mobilization > 0) earnings.push({ type: 'non-taxable', name: 'Movilización', amount: mobilization });
     const collation = (employee.collation || 0) * proportionalFactor;
+    if (collation > 0) earnings.push({ type: 'non-taxable', name: 'Colación', amount: collation });
+    
+    const taxableEarnings = earnings.filter(e => e.type === 'taxable').reduce((sum, e) => sum + e.amount, 0);
+
     let familyAllowanceAmount = 0;
     if (employee.hasFamilyAllowance && employee.familyDependents && employee.familyDependents > 0) {
-        familyAllowanceAmount = await getFamilyAllowance(firestore, taxableBaseForCaps, year, month, employee.familyAllowanceBracket) * employee.familyDependents;
-    }
-    const totalNonTaxableEarnings = mobilization + collation + familyAllowanceAmount + nonTaxableBonos;
-    
-    // 5. Calculate Previsional Discounts
-    let afpDiscount = 0;
-    if (afpEntity && !employee.isPensioner && afpEntity.mandatoryContribution) {
-        afpDiscount = Math.round(taxableBaseForCaps * (afpEntity.mandatoryContribution / 100));
-    }
-    
-    const legalHealthMinimum = Math.round(taxableBaseForCaps * 0.07);
-    let healthDiscount = legalHealthMinimum;
-    if (healthEntity) {
-        if (employee.healthContributionType === 'Porcentaje') {
-            const pactado = Math.round(taxableBaseForCaps * ((employee.healthContributionValue || 7) / 100));
-            healthDiscount = Math.max(legalHealthMinimum, pactado);
-        } else { // Monto Fijo en UF
-            const pactadoEnCLP = Math.round((employee.healthContributionValue || 0) * indicator.uf);
-            healthDiscount = Math.max(legalHealthMinimum, pactadoEnCLP);
+        const allowanceBracket = await getFamilyAllowanceBracket(firestore, taxableEarnings, year, month);
+        if (allowanceBracket) {
+            familyAllowanceAmount = allowanceBracket.monto * employee.familyDependents;
+            if (familyAllowanceAmount > 0) earnings.push({ type: 'non-taxable', name: 'Asignación Familiar', amount: familyAllowanceAmount, calculationDetail: `${employee.familyDependents} cargas, tramo ${allowanceBracket.tramo}` });
         }
     }
 
-    let unemploymentInsuranceDiscount = 0;
-    if (employee.contractType === 'Indefinido' && employee.hasUnemploymentInsurance) {
-        const afcBase = Math.min(totalTaxableEarnings, afcCap);
-        unemploymentInsuranceDiscount = Math.round(afcBase * 0.006);
+    const nonTaxableEarnings = earnings.filter(e => e.type === 'non-taxable').reduce((sum, e) => sum + e.amount, 0);
+    const totalEarnings = taxableEarnings + nonTaxableEarnings;
+    const taxableCap = caps.afpCap * indicator.uf;
+    const afcCap = caps.afcCap * indicator.uf;
+
+    const afpTaxableBase = Math.min(taxableEarnings, taxableCap);
+    let afpDiscount = 0;
+    if (afpEntity && afpEntity.mandatoryContribution > 0) {
+        afpDiscount = Math.round(afpTaxableBase * (afpEntity.mandatoryContribution / 100));
+        if (afpDiscount > 0) discounts.push({ type: 'previsional', name: 'Cotización Obligatoria AFP', amount: afpDiscount, calculationDetail: `${afpEntity.name} ${afpEntity.mandatoryContribution}%` });
     }
 
-    // 6. Calculate Taxable Base for IUT
-    const apvDiscount = (employee.apvRegime === 'B' && isNumber(employee.apvAmount)) ? employee.apvAmount : 0;
-    const totalPrevisionalDiscounts = afpDiscount + healthDiscount + unemploymentInsuranceDiscount + apvDiscount;
-    const taxableBaseForIUT = totalTaxableEarnings - totalPrevisionalDiscounts;
-
-    // 7. Calculate IUT
-    const { iut } = await getIUT(firestore, taxableBaseForIUT, indicator.utm);
+    const healthTaxableBase = Math.min(taxableEarnings, taxableCap);
+    let healthDiscount = 0;
+    if (healthEntity) {
+        const legalMinDiscount = Math.round(healthTaxableBase * 0.07);
+        let pactadoDiscount = legalMinDiscount;
+        if (employee.healthContributionType === 'Monto Fijo' && employee.healthPlanAmount) {
+            pactadoDiscount = Math.round(employee.healthPlanAmount * indicator.uf);
+        } else if (employee.healthContributionType === 'Porcentaje' && employee.healthContributionValue) {
+            pactadoDiscount = Math.round(healthTaxableBase * (employee.healthContributionValue / 100));
+        }
+        healthDiscount = Math.max(legalMinDiscount, pactadoDiscount);
+        if (healthDiscount > 0) discounts.push({ type: 'previsional', name: 'Cotización Salud', amount: healthDiscount, calculationDetail: `${healthEntity.name}` });
+    }
     
-    // 8. Calculate Totals
-    const otherFinalDiscounts = (employee.apvRegime === 'A' && isNumber(employee.apvAmount) ? employee.apvAmount : 0) + (advancesOverride || 0);
-    const totalEarnings = totalTaxableEarnings + totalNonTaxableEarnings;
-    const totalDiscounts = totalPrevisionalDiscounts + iut + otherFinalDiscounts;
+    let unemploymentInsuranceDiscount = 0;
+    const afcTaxableBase = Math.min(taxableEarnings, afcCap);
+    if (employee.hasUnemploymentInsurance && employee.unemploymentInsuranceType) {
+        let rate = 0;
+        if (employee.unemploymentInsuranceType === 'Indefinido') rate = 0.006;
+        if (employee.unemploymentInsuranceType === 'Plazo Fijo') rate = 0; // Employer only
+        if (employee.unemploymentInsuranceType === 'Trabajador de Casa Particular') rate = 0; // Employer only
+
+        unemploymentInsuranceDiscount = Math.round(afcTaxableBase * rate);
+        if (unemploymentInsuranceDiscount > 0) discounts.push({ type: 'previsional', name: 'Seguro de Cesantía', amount: unemploymentInsuranceDiscount, calculationDetail: '0.6% Contrato Indefinido' });
+    }
+
+    const apvDiscount = (employee.apvRegime === 'B' && isNumber(employee.apvAmount)) ? employee.apvAmount : 0;
+    if (apvDiscount > 0) discounts.push({ type: 'previsional', name: 'APV Régimen B', amount: apvDiscount, calculationDetail: employee.apvInstitution });
+    
+    const totalPrevisionalDiscounts = afpDiscount + healthDiscount + unemploymentInsuranceDiscount + apvDiscount;
+    const taxableBaseForIUT = taxableEarnings - totalPrevisionalDiscounts;
+    const { iut } = await getIUT(firestore, taxableBaseForIUT, indicator.utm);
+    if (iut > 0) discounts.push({ type: 'tax', name: 'Impuesto Único a la Renta', amount: iut });
+
+    const apvRegimeADiscount = (employee.apvRegime === 'A' && isNumber(employee.apvAmount)) ? employee.apvAmount : 0;
+    if (apvRegimeADiscount > 0) discounts.push({ type: 'other', name: 'APV Régimen A', amount: apvRegimeADiscount, calculationDetail: employee.apvInstitution });
+    const advances = advancesOverride || 0;
+    if (advances > 0) discounts.push({ type: 'other', name: 'Anticipo', amount: advances });
+    
+    const totalDiscounts = discounts.reduce((sum, d) => sum + d.amount, 0);
     const netSalary = totalEarnings - totalDiscounts;
 
-    // 9. Build Payroll Object
+    // FIX: Add baseSalary to the returned payroll object
     return {
         employeeId: employee.id,
         employeeName: `${employee.firstName} ${employee.lastName}`,
-        period: `${String(month).padStart(2, '0')}-${year}`,
-        year, month, 
-        baseSalary: Math.round(proportionalBaseSalary),
-        workedDays: workedDays,
-        absentDays: isNumber(absentDaysOverride) ? absentDaysOverride : (30 - workedDays),
-        gratification: Math.round(gratification),
-        overtimeHours50: overtimeHours50Override, overtimeHours100: overtimeHours100Override, variableBonos: variableBonosOverride, advances: advancesOverride,
-        taxableEarnings: Math.round(totalTaxableEarnings),
-        nonTaxableEarnings: Math.round(totalNonTaxableEarnings),
+        year, month,
+        
+        baseSalary: baseSalary, // <-- Ensure base salary is included
+        workedDays, 
+        absentDays,
+        
+        earnings: earnings.map(e => ({...e, amount: Math.round(e.amount)})),
+        discounts: discounts.map(d => ({...d, amount: Math.round(d.amount)})),
+
+        taxableEarnings: Math.round(taxableEarnings),
+        nonTaxableEarnings: Math.round(nonTaxableEarnings),
         totalEarnings: Math.round(totalEarnings),
-        afpDiscount, healthDiscount, unemploymentInsuranceDiscount, iut,
-        otherDiscounts: Math.round(otherFinalDiscounts),
         totalDiscounts: Math.round(totalDiscounts),
         netSalary: Math.round(netSalary),
-    };
+        
+        afpDiscount: Math.round(afpDiscount),
+        healthDiscount: Math.round(healthDiscount),
+        unemploymentInsuranceDiscount: Math.round(unemploymentInsuranceDiscount),
+        familyAllowance: Math.round(familyAllowanceAmount),
+        iut: Math.round(iut),
+        advances: Math.round(advances),
+        afpTaxableBase: Math.round(afpTaxableBase),
+        healthTaxableBase: Math.round(healthTaxableBase),
+        unemploymentInsuranceTaxableBase: Math.round(afcTaxableBase),
+    } as Partial<Payroll>;
 }

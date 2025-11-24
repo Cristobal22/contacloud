@@ -1,3 +1,34 @@
+
+// src/lib/types.ts
+
+// --- COMPANY & EMPLOYEE ---
+
+/**
+ * Defines the granular accounting mappings for payroll processing.
+ * Each property holds the ID of an account from the company's chart of accounts.
+ */
+export type PayrollAccountMappings = {
+    // Expense Accounts (Haberes)
+    expense_baseSalary?: string;
+    expense_gratification?: string;
+    expense_overtime?: string;
+    expense_bonuses?: string;      // For both variable and fixed bonuses
+    expense_transportation?: string; // Movilización
+    expense_mealAllowance?: string;  // Colación
+    
+    // Liability Accounts (Descuentos)
+    liability_afp?: string;
+    liability_health?: string;
+    liability_unemployment?: string;
+    liability_tax?: string;          // Impuesto Único
+    liability_advances?: string;     // Anticipos
+    liability_ccaf?: string;         // CCAF Credits, etc.
+
+    // Employer Contribution Expenses (Gasto Empleador)
+    expense_sis?: string;            // Aporte SIS
+    expense_unemployment?: string;   // Aporte Seguro Cesantía
+};
+
 export type Company = {
     id: string;
     name: string;
@@ -6,47 +37,112 @@ export type Company = {
     address: string;
     email: string;
     phone: string;
-    createdAt: any;
+    createdAt: any; // Consider using a specific Date type or string
+    mutual?: string;
+    ccaf?: string;
+
+    // DEPRECATED - General account mappings for payroll
+    // To be replaced by payrollAccountMappings for granular control
+    remunerationExpenseAccount?: string; 
+    salariesPayableAccount?: string;
+    afpPayableAccount?: string;
+    healthPayableAccount?: string;
+    unemploymentInsurancePayableAccount?: string;
+    employerAfpContributionPayableAccount?: string;
+
+    // NEW - Granular account mappings for payroll
+    payrollAccountMappings?: PayrollAccountMappings;
 };
 
 export type Employee = {
     id: string;
     companyId: string;
+
+    // Personal Data
+    rut: string;
     firstName: string;
     lastName: string;
-    rut: string;
-    email: string;
-    phone: string;
+    birthDate: any; // Consider using a specific Date type or string
+    nationality: string;
     address: string;
-    contractType: 'Indefinido' | 'Plazo Fijo' | 'Por Obra';
-    position: string;
-    hireDate: any; 
-    terminationDate?: any; 
+    region: string;
+    commune: string;
+    phone?: string;
+    email?: string;
+    gender: string;
+    maritalStatus: string;
+    emergencyContactName?: string;
+    emergencyContactPhone?: string;
+
+    // Contractual Data
     status: 'Active' | 'Inactive';
-    baseSalary: number;
-    gratificationType: 'Sin Gratificación' | 'Tope Legal' | 'Automatico';
+    position: string;
+    contractType: 'Indefinido' | 'Plazo Fijo' | 'Obra o Faena' | 'Trabajador de Casa Particular';
+    contractStartDate: any; // Consider using a specific Date type or string
+    contractEndDate?: any; // Consider using a specific Date type or string
     weeklyHours: number;
-    bankAccount?: string;
-    bankName?: string;
-    afp: string;
-    healthSystem: 'Fonasa' | 'Isapre';
-    healthContributionType: 'Porcentaje' | 'Monto Fijo'; 
-    healthContributionValue: number; 
-    hasUnemploymentInsurance: boolean;
-    unemploymentInsuranceType?: 'Indefinido' | 'Plazo Fijo';
-    hasFamilyAllowance: boolean; 
-    familyDependents: number; 
-    familyAllowanceBracket?: 'A' | 'B' | 'C' | 'D'; 
+    workday: string;
+    costCenterId?: string;
+
+    // Compensation Data
+    baseSalary: number;
+    mobilization: number;
+    collation: number;
+    gratificationType: 'Sin Gratificación' | 'Tope Legal' | 'Automatico';
     bonosFijos?: Bono[];
-    mobilization?: number;
-    collation?: number;
-    createdAt: any; 
+
+    // Previsional Data
+    healthSystem: string;
+    healthContributionType: 'Porcentaje' | 'Monto Fijo';
+    healthContributionValue: number;
+    afp: string;
+    isPensioner: boolean; // NEW: To exclude from AFP calculation if true
+    hasUnemploymentInsurance: boolean;
+    unemploymentInsuranceType?: 'Indefinido' | 'Plazo Fijo' | 'Trabajador de Casa Particular';
+    healthPlanType?: 'UF' | 'Pesos';
+    healthPlanAmount?: number;
+
+    // Family Allowance
+    hasFamilyAllowance: boolean;
+    familyDependents?: number;
+    familyAllowanceBracket?: 'A' | 'B' | 'C' | 'D'; // This is calculated, not stored
+
+    // APV
+    apvInstitution?: string;
+    apvAmount?: number;
+    apvRegime?: 'A' | 'B';
+
+    // Payment Data
+    paymentMethod: string;
+    bank?: string;
+    accountType?: string;
+    accountNumber?: string;
+    
+    // Metadata
+    createdAt: any; // Consider using a specific Date type or string
 };
 
 export type Bono = {
     glosa: string;
     monto: number;
     tipo: 'fijo' | 'variable';
+    noImponible?: boolean;
+}
+
+// --- PAYROLL (Granular Structure) ---
+
+export type PayrollEarningItem = {
+    type: 'taxable' | 'non-taxable';
+    name: string;
+    amount: number;
+    calculationDetail?: string; 
+}
+
+export type PayrollDiscountItem = {
+    type: 'previsional' | 'tax' | 'other';
+    name: string;
+    amount: number;
+    calculationDetail?: string;
 }
 
 // Represents the final, processed payroll record stored in the database.
@@ -55,40 +151,56 @@ export type Payroll = {
     companyId: string;
     employeeId: string;
     employeeName: string;
-    period: string; 
+    period: any; // Should be a Timestamp
     year: number;
     month: number;
-    workedDays: number; // NEWLY ADDED FIELD
+    
     baseSalary: number;
+    workedDays: number;
     absentDays: number;
-    proportionalBaseSalary: number;
-    overtimeHours50: number;
-    overtimeHours100: number;
-    totalOvertimePay: number;
-    bonos: Bono[];
-    gratification: number;
+
+    // Granular Earnings & Discounts
+    earnings: PayrollEarningItem[];
+    discounts: PayrollDiscountItem[];
+
+    // Totals
     taxableEarnings: number;
     nonTaxableEarnings: number;
     totalEarnings: number;
+    totalDiscounts: number;
+    netSalary: number;
+    
+    // Specific values for reports
     afpDiscount: number;
     healthDiscount: number;
     unemploymentInsuranceDiscount: number;
+    sisDiscount?: number;
     iut: number; 
-    familyAllowance: number; 
+    voluntaryAfpAmount?: number;
+    additionalHealthDiscount?: number;
+    employerUnemploymentInsurance?: number;
+    ccafDiscount?: number;
+    familyAllowance: number;
     advances: number;
-    totalDiscounts: number;
-    netSalary: number;
-    createdAt: any; 
+
+    // Taxable bases
+    afpTaxableBase: number;
+    healthTaxableBase: number;
+    unemploymentInsuranceTaxableBase: number;
+    ccafTaxableBase?: number;
+
+    createdAt: any; // Should be a Timestamp
 };
 
-// NEWLY DEFINED: Represents the editable draft of a payroll before it's finalized.
-// This is the type used in the payroll management UI.
+// Represents the editable draft of a payroll before it's finalized.
 export type PayrollDraft = Partial<Payroll> & {
-    employeeId: string;      // Required for identification
-    employeeName: string;    // Required for display
-    variableBonos?: Bono[]; // Used for temporary, editable bonuses
+    employeeId: string; 
+    employeeName: string;
+    variableBonos?: Bono[];
 };
 
+
+// --- ACCOUNTING & VOUCHERS ---
 
 export type Account = {
     id: string;
@@ -103,13 +215,13 @@ export type Account = {
 export type Voucher = {
     id: string;
     companyId: string;
-    date: any; 
+    date: any; // Should be a Timestamp
     description: string;
     type: 'Ingreso' | 'Egreso' | 'Traspaso';
     status: 'Borrador' | 'Contabilizado' | 'Anulado';
     total: number;
     entries: VoucherEntry[];
-    createdAt: any; 
+    createdAt: any; // Should be a Timestamp
 };
 
 export type VoucherEntry = {
@@ -119,7 +231,7 @@ export type VoucherEntry = {
     credit: number;
 };
 
-// --- Previsional Data ---
+// --- PREVISIONAL DATA & PARAMETERS ---
 
 export type AfpEntity = {
     id: string;
@@ -130,7 +242,7 @@ export type AfpEntity = {
     previredCode: string;
     provisionalRegime: string;
     dtCode: string;
-    employerContribution: number; 
+    employerContribution: number; // SIS rate
 };
 
 export type HealthEntity = {
@@ -138,7 +250,7 @@ export type HealthEntity = {
     year: number;
     month: number;
     name: string;
-    mandatoryContribution: number; 
+    mandatoryContribution: number; // Always 7%
     previredCode: string;
     dtCode: string;
 };

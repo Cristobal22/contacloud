@@ -1,6 +1,33 @@
-# BaseImponible.cl - Official README
+# BaseImponible.cl: La Plataforma Inteligente de Remuneraciones y Contabilidad para Chile
 
-Este es el repositorio oficial para el proyecto BaseImponible.cl. Para información sobre marketing y características del producto, por favor consulta el archivo `docs/marketing-summary.md`.
+**BaseImponible.cl** es una solución SaaS (Software as a Service) moderna y eficiente, diseñada específicamente para simplificar la gestión de remuneraciones y la contabilidad de pequeñas y medianas empresas en Chile. Nuestra plataforma automatiza los cálculos complejos, se integra con servicios clave como Previred y el SII, y centraliza toda la información financiera en un solo lugar, permitiendo a los dueños de negocios y contadores enfocarse en crecer, no en la burocracia.
+
+[![Estado del Despliegue](https://img.shields.io/badge/despliegue-activo-brightgreen)](https://app.baseimponible.cl)
+[![Tecnología](https://img.shields.io/badge/tech-Next.js%2C%20Firebase%2C%20TypeScript-blue)](https://nextjs.org/)
+
+---
+
+## El Problema: La Carga Operativa de la PYME Chilena
+
+Las PYMEs en Chile enfrentan una carga operativa desproporcionada. La legislación laboral y tributaria es compleja y cambia constantemente. Procesar liquidaciones de sueldo, pagar cotizaciones previsionales, y mantener la contabilidad al día son tareas que consumen tiempo, son propensas a errores y generan estrés. Las soluciones existentes suelen ser software de escritorio anticuado, caro, o planillas de cálculo manuales que no ofrecen seguridad ni escalabilidad.
+
+## Nuestra Solución: Eficiencia, Seguridad y Simplicidad
+
+BaseImponible.cl ataca este problema de raíz con una plataforma en la nube que ofrece:
+
+*   **Cálculo Automatizado y Preciso:** Olvídate de los cálculos manuales. Ingresa los datos de tus empleados y nosotros nos encargamos de calcular sueldos, gratificaciones, descuentos legales (AFP, Salud, Seguro de Cesantía) e impuestos, siempre actualizados a la normativa vigente.
+
+*   **Cálculo de Remuneraciones Granular y Transparente:** A diferencia de otros sistemas que solo muestran totales, BaseImponible.cl ahora almacena un desglose completo de cada liquidación. Cada haber (sueldo, bonos, horas extra) y cada descuento (AFP, salud, impuestos) se registra individualmente. Esto ofrece una transparencia y trazabilidad sin precedentes, facilitando la verificación de cálculos y la generación de liquidaciones de sueldo claras para el empleado.
+
+*   **Integración Total con Previred:** Genera el archivo para el pago masivo de cotizaciones con un solo clic, listo para ser subido a Previred.
+
+*   **Contabilidad Centralizada:** Cada liquidación de sueldo genera automáticamente el comprobante contable de centralización, manteniendo tu libro diario y balances siempre al día.
+
+*   **Portal de Empleado (Próximamente):** Ofrece a tus colaboradores un portal para visualizar y descargar sus liquidaciones de sueldo, reduciendo la carga administrativa.
+
+*   **Seguridad a Nivel Bancario:** Toda tu información está protegida en la nube de Google, con estrictos controles de acceso para garantizar la confidencialidad de tus datos.
+
+*   **Interfaz Moderna y Amigable:** Diseñada para ser intuitiva, tanto para dueños de empresa sin conocimientos contables como para contadores expertos.
 
 ---
 
@@ -104,7 +131,7 @@ Esta sección documenta la configuración de despliegue y las soluciones a error
 #### 1. **ERROR: `unknown option '--no-cache'` durante el despliegue**
 
 *   **Causa**: Este error ocurrió porque se añadió el flag `--no-cache` al script `build` en `package.json`. Se intentó como una solución para un error de falta de espacio (`ENOSPC`) que ocurría en un entorno de despliegue incorrecto (Firebase Hosting Clásico).
-*   **Solución**: El entorno de compilación de Firebase App Hosting (que usa el CLI de Vercel) no reconoce esta opción. **No se debe usar `--no-cache`**. El script de `build` debe ser únicamente `"build": "next build"`.
+*   **Solución**: El entorno de compilación de Firebase App Hosting (que usa el CLI de Vercel) no reconoce esta opción. **No se debe usar `--no-cache`**. El script de `build` debe ser únicamente `\"build\": \"next build\"`.
 
 #### 2. **ERROR: `ENOSPC: no space left on device` durante el despliegue**
 
@@ -137,11 +164,11 @@ El sistema de permisos para acceder a la información de una empresa se basa en 
 
 #### Lógica de Acceso
 
-1.  **Rol `Admin`:** Un usuario cuyo documento en la colección `users` tiene el campo `role` con el valor `'Admin'` posee acceso universal a todas las empresas del sistema. Esta es una regla de omisión global.
+1.  **Rol `Admin`:** Un usuario cuyo documento en la colección `users` tiene el campo `role` con el valor `\'Admin\'` posee acceso universal a todas las empresas del sistema. Esta es una regla de omisión global.
 
 2.  **Acceso General (Propietarios y Contadores):** Para cualquier otro usuario, el acceso a una empresa específica se concede si y solo si su `uid` (ID de usuario de Firebase Authentication) está incluido en el array `memberUids` del documento de esa empresa.
 
-    *   **Ejemplo:** Si el usuario `user_abc` quiere acceder a la empresa `company_xyz`, el documento `companies/company_xyz` debe tener un campo `memberUids: [..., "user_abc", ...]`.
+    *   **Ejemplo:** Si el usuario `user_abc` quiere acceder a la empresa `company_xyz`, el documento `companies/company_xyz` debe tener un campo `memberUids: [..., \"user_abc\", ...]`.\
 
 #### Creación de Empresas y Asociación de Usuarios
 

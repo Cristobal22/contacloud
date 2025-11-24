@@ -89,12 +89,12 @@ export function FiniquitoPreview({ isOpen, onClose, content }: FiniquitoPreviewP
             <div className="mt-24 grid grid-cols-2 gap-20">
               <div className="text-center">
                 <div className="border-t border-black w-3/4 mx-auto mb-2"></div>
-                <p className="text-sm font-semibold text-gray-900">{content.firmas.trabajador.nombre}</p>
+                <p className="text-sm font-semibold text-gray-900 break-words">{content.firmas.trabajador.nombre}</p>
                 <p className="text-sm">RUT: {content.firmas.trabajador.rut}</p>
               </div>
               <div className="text-center">
                 <div className="border-t border-black w-3/4 mx-auto mb-2"></div>
-                <p className="text-sm font-semibold text-gray-900">{content.firmas.empleador.nombre}</p>
+                <p className="text-sm font-semibold text-gray-900 break-words">{content.firmas.empleador.nombre}</p>
                 <p className="text-sm">RUT: {content.firmas.empleador.rut}</p>
               </div>
             </div>

@@ -228,17 +228,106 @@ function drawLiquidationTable(ctx: RenderContext, liquidacion: any) {
     ctx.cursor.y -= 20;
 }
 
+// --- NEW HELPER FUNCTIONS for text wrapping and centering ---
+function getTextBlockHeight(text: string, font: PDFFont, size: number, maxWidth: number, lineHeight: number): number {
+    if (!text) return 0;
+    const words = text.split(' ');
+    let line = '';
+    let lineCount = 1;
+
+    for (const word of words) {
+        const testLine = line === '' ? word : `${line} ${word}`;
+        const testWidth = font.widthOfTextAtSize(testLine, size);
+        if (testWidth > maxWidth && line !== '') {
+            lineCount++;
+            line = word;
+        } else {
+            line = testLine;
+        }
+    }
+    return lineCount * lineHeight;
+}
+
+function drawCenteredWrappedText(
+    ctx: RenderContext,
+    text: string,
+    x: number, // Center of the text block
+    y: number, // Top of the text block
+    maxWidth: number,
+    options: { font: PDFFont; size: number; lineHeight: number; color?: any }
+) {
+    if (!text) return;
+    const { font, size, lineHeight, color = ctx.colors.text } = options;
+    const words = text.split(' ');
+    let line = '';
+    let currentY = y;
+
+    const lines: string[] = [];
+    for (const word of words) {
+        const testLine = line === '' ? word : `${line} ${word}`;
+        const testWidth = font.widthOfTextAtSize(testLine, size);
+        if (testWidth > maxWidth && line !== '') {
+            lines.push(line);
+            line = word;
+        } else {
+            line = testLine;
+        }
+    }
+    lines.push(line);
+
+    for (const l of lines) {
+        const lineWidth = font.widthOfTextAtSize(l, size);
+        const lineX = x - lineWidth / 2;
+        ctx.currentPage.drawText(l, {
+            x: lineX,
+            y: currentY,
+            font,
+            size,
+            color,
+        });
+        currentY -= lineHeight;
+    }
+}
+
+// --- REVISED SIGNATURE DRAWING FUNCTION ---
 function drawSignatures(ctx: RenderContext, firmas: any) {
-    ensureSpace(ctx, 80);
+    const signatureBlockWidth = 200;
+    const lineHeight = 12;
+    const nameSize = 9;
+    const rutSize = 9;
+
+    const trabajadorNameHeight = getTextBlockHeight(firmas.trabajador.nombre, ctx.fonts.bold, nameSize, signatureBlockWidth, lineHeight);
+    const empleadorNameHeight = getTextBlockHeight(firmas.empleador.nombre, ctx.fonts.bold, nameSize, signatureBlockWidth, lineHeight);
+    
+    const requiredHeight = Math.max(trabajadorNameHeight, empleadorNameHeight) + (lineHeight * 2) + 60;
+
+    ensureSpace(ctx, requiredHeight);
     ctx.cursor.y -= 60;
-    const sig1X = ctx.margin + 100;
-    const sig2X = ctx.width - ctx.margin - 100;
 
-    ctx.currentPage.drawLine({ start: { x: sig1X - 100, y: ctx.cursor.y }, end: { x: sig1X + 100, y: ctx.cursor.y }, thickness: 0.8 });
-    ctx.currentPage.drawText(firmas.trabajador.nombre, { x: sig1X, y: ctx.cursor.y - 15, font: ctx.fonts.bold, size: 9, align: 'center' });
-    ctx.currentPage.drawText(`R.U.T.: ${firmas.trabajador.rut}`, { x: sig1X, y: ctx.cursor.y - 25, font: ctx.fonts.normal, size: 9, align: 'center' });
+    const signatureLineY = ctx.cursor.y;
+    const nameY = signatureLineY - 15;
 
-    ctx.currentPage.drawLine({ start: { x: sig2X - 100, y: ctx.cursor.y }, end: { x: sig2X + 100, y: ctx.cursor.y }, thickness: 0.8 });
-    ctx.currentPage.drawText(firmas.empleador.nombre, { x: sig2X, y: ctx.cursor.y - 15, font: ctx.fonts.bold, size: 9, align: 'center' });
-    ctx.currentPage.drawText(`R.U.T.: ${firmas.empleador.rut}`, { x: sig2X, y: ctx.cursor.y - 25, font: ctx.fonts.normal, size: 9, align: 'center' });
+    const sig1X_center = ctx.margin + (signatureBlockWidth / 2) + 25;
+    const sig2X_center = ctx.width - ctx.margin - (signatureBlockWidth / 2) - 25;
+
+    ctx.currentPage.drawLine({ start: { x: sig1X_center - 100, y: signatureLineY }, end: { x: sig1X_center + 100, y: signatureLineY }, thickness: 0.8 });
+    ctx.currentPage.drawLine({ start: { x: sig2X_center - 100, y: signatureLineY }, end: { x: sig2X_center + 100, y: signatureLineY }, thickness: 0.8 });
+
+    drawCenteredWrappedText(ctx, firmas.trabajador.nombre, sig1X_center, nameY, signatureBlockWidth, {
+        font: ctx.fonts.bold,
+        size: nameSize,
+        lineHeight,
+    });
+    const trabajadorBlockHeight = getTextBlockHeight(firmas.trabajador.nombre, ctx.fonts.bold, nameSize, signatureBlockWidth, lineHeight);
+    const trabajadorRutY = nameY - trabajadorBlockHeight;
+    ctx.currentPage.drawText(`R.U.T.: ${firmas.trabajador.rut}`, { x: sig1X_center, y: trabajadorRutY, font: ctx.fonts.normal, size: rutSize, align: 'center' });
+
+    drawCenteredWrappedText(ctx, firmas.empleador.nombre, sig2X_center, nameY, signatureBlockWidth, {
+        font: ctx.fonts.bold,
+        size: nameSize,
+        lineHeight,
+    });
+    const empleadorBlockHeight = getTextBlockHeight(firmas.empleador.nombre, ctx.fonts.bold, nameSize, signatureBlockWidth, lineHeight);
+    const empleadorRutY = nameY - empleadorBlockHeight;
+    ctx.currentPage.drawText(`R.U.T.: ${firmas.empleador.rut}`, { x: sig2X_center, y: empleadorRutY, font: ctx.fonts.normal, size: rutSize, align: 'center' });
 }

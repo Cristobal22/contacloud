@@ -103,6 +103,7 @@ export const initialChartOfAccounts: Omit<Account, 'id' | 'companyId' | 'balance
     { code: "2010220", name: "HONORARIOS POR PAGAR", type: "Pasivo" },
     { code: "2010225", name: "IMPOSICIONES POR PAGAR", type: "Pasivo" },
     { code: "2010226", name: "APORTE PATRONAL AFP POR PAGAR", type: "Pasivo" },
+    { code: "2010227", name: "PRÉSTAMOS CCAF POR PAGAR", type: "Pasivo" }, // NEW
     { code: "20104", name: "CXP ENTIDAD RELACIONADA CORR.", type: "Pasivo" },
     { code: "2010401", name: "CXP ENTIDAD RELACIONada CORR.", type: "Pasivo" },
     { code: "20105", name: "OTRAS PROVISIONES A C.P.", type: "Pasivo" },
@@ -174,10 +175,12 @@ export const initialChartOfAccounts: Omit<Account, 'id' | 'companyId' | 'balance
     { code: "4010813", name: "GASTOS DE AFC EMPLEADOR", type: "Resultado" },
     { code: "4010814", name: "GASTOS DE SEGURO DE INVALIDEZ", type: "Resultado" },
     { code: "4010815", name: "GASTOS DE SEGURO ACCIDENTE", type: "Resultado" },
-    { code: "4010816", name: "GASTOS DE MOVILIZacion", type: "Resultado" },
+    { code: "4010816", name: "GASTOS DE MOVILIZACION", type: "Resultado" },
     { code: "4010817", name: "GASTOS DE COLACION", type: "Resultado" },
-    { code: "4010818", name: "BONOS E OUTROS", type: "Resultado" },
+    { code: "4010818", name: "GASTOS DE BONOS Y COMISIONES", type: "Resultado" }, // RENAMED
+    { code: "4010819", name: "GASTO GRATIFICACIÓN LEGAL", type: "Resultado" },    // NEW
     { code: "4010820", name: "GASTOS DE HONORARIOS", type: "Resultado" },
+    { code: "4010821", name: "GASTO HORAS EXTRAORDINARIAS", type: "Resultado" },// NEW
     { code: "4010822", name: "HONORARIOS", type: "Resultado" },
     { code: "4010890", name: "GASTOS GENERALES", type: "Resultado" },
     { code: "40109", name: "GASTOS DE MANTENIMIENTO Y REP", type: "Resultado" },

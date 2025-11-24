@@ -57,7 +57,7 @@ async function hasCompanyAccess(firestore: any, userId: string, companyId: strin
 export async function POST(req: Request) {
     const { adminApp, decodedToken } = await getAuthenticatedAdmin(req);
     if (!adminApp || !decodedToken) {
-        return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     try {
@@ -72,21 +72,21 @@ export async function POST(req: Request) {
 
         if (!companyId || !year || !month || !employee) {
             const missingParams = [!companyId && 'companyId', !year && 'year', !month && 'month', !employee && 'employee data'].filter(Boolean);
-            return NextResponse.json({ message: `Incomplete parameters. Missing: ${missingParams.join(', ')}` }, { status: 400 });
+            return NextResponse.json({ error: `Incomplete parameters. Missing: ${missingParams.join(', ')}` }, { status: 400 });
         }
 
         const firestore = adminApp.firestore();
 
         const canAccess = await hasCompanyAccess(firestore, decodedToken.uid, companyId);
         if (!canAccess) {
-            return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
+            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
         const numericYear = parseInt(year, 10);
         const numericMonth = parseInt(month, 10);
 
         if (isNaN(numericYear) || isNaN(numericMonth)) {
-            return NextResponse.json({ message: 'Year and month must be valid numbers.' }, { status: 400 });
+            return NextResponse.json({ error: 'Year and month must be valid numbers.' }, { status: 400 });
         }
         
         const payrollDraft = await generatePayroll(
@@ -107,6 +107,6 @@ export async function POST(req: Request) {
     } catch (error) {
         console.error('Error calculating payroll preview:', error);
         const errorMessage = error instanceof Error ? error.message : 'An unknown server error occurred.';
-        return NextResponse.json({ message: `Calculation error: ${errorMessage}` }, { status: 500 });
+        return NextResponse.json({ error: errorMessage }, { status: 500 });
     }
 }

@@ -230,7 +230,7 @@ export default function FiniquitoGeneratorPage() {
             monto_total_en_palabras: numeroAFrase(calculated.totalAPagar),
             forma_pago: formData.formaPago || '',
             fecha_pago: formatDateToLongString(formData.fechaPago || new Date()),
-            fecha_documento_larga: `${formData.ciudadFirma}, a ${formatDateToLongString(new Date())}`,
+            ciudadFirma: formData.ciudadFirma || '',
             ministro_de_fe: formData.ministroDeFe || '',
         };
     };
@@ -269,6 +269,53 @@ export default function FiniquitoGeneratorPage() {
         } catch (error) {
             console.error("Error generating PDF:", error);
             toast({ title: "Error", description: "Hubo un problema al generar el PDF. Revisa la consola para más detalles.", variant: "destructive" });
+        } finally {
+            setIsGenerating(false);
+        }
+    };
+    
+    const handleGenerateDOCX = async () => {
+        if (!isDocumentFormComplete) {
+            toast({ title: "Datos Faltantes", description: "Por favor completa todos los campos del formulario para generar el documento.", variant: "destructive" });
+            return;
+        }
+
+        setIsGenerating(true);
+        try {
+            const templateData = getFullTemplateData();
+            const content = generarContenidoFiniquito(templateData);
+            
+            // Convert the structured content to a plain text string for the main body
+            const mainContentString = [
+                content.title,
+                '\n',
+                content.comparecencia.replace(/\*\*/g, ''), // Remove bold markers
+                ...content.clausulas.map(c => `\n\n${c.titulo}\n${c.contenido.replace(/\*\*/g, '')}`),
+            ].join('\n');
+
+            const response = await fetch('/api/generate-docx', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    mainContent: mainContentString,
+                    signatures: content.firmas
+                }),
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to generate DOCX');
+            }
+
+            const blob = await response.blob();
+            saveAs(blob, `Finiquito - ${templateData.trabajador_nombre}.docx`);
+
+            toast({ title: "Éxito", description: "El documento DOCX se ha generado y descargado." });
+
+        } catch (error) {
+            console.error("Error generating DOCX:", error);
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            toast({ title: "Error", description: `Hubo un problema al generar el DOCX: ${errorMessage}`, variant: "destructive" });
         } finally {
             setIsGenerating(false);
         }
@@ -325,7 +372,8 @@ export default function FiniquitoGeneratorPage() {
                                 handleInputChange={handleInputChange}
                                 isFormComplete={isDocumentFormComplete}
                                 onGeneratePDF={handleGeneratePDF}
-                                onPreview={handlePreview} // Pass the new handler
+                                onGenerateDOCX={handleGenerateDOCX} // Pass the new DOCX handler
+                                onPreview={handlePreview}
                                 isGenerating={isGenerating}
                             />
                         </CardContent>

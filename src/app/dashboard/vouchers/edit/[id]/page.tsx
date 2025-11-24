@@ -374,8 +374,8 @@ export default function VoucherEditPage() {
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {entries.map(entry => (
-                                <TableRow key={entry.id}>
+                            {entries.map((entry, index) => (
+                                <TableRow key={index}>
                                     <TableCell>
                                         <Popover open={openPopovers[entry.id!] || false} onOpenChange={() => togglePopover(entry.id!)}>
                                             <PopoverTrigger asChild>

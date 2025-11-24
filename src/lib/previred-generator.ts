@@ -1,12 +1,9 @@
 
 // src/lib/previred-generator.ts
 
-import { Employee, Payroll, Company } from './types';
+import { Employee, Payroll, Company, AfpEntity as AfpEntityType, HealthEntity as HealthEntityType } from './types';
+import { format } from 'date-fns';
 
-/**
- * Define la estructura para los errores de validación encontrados
- * durante la generación del archivo Previred.
- */
 export interface PreviredValidationError {
   rut: string;
   fieldNumber: number;
@@ -14,53 +11,59 @@ export interface PreviredValidationError {
   error: string;
 }
 
-/**
- * Define la estructura de una fila de datos validada para Previred.
- * Los campos son un arreglo de strings/numbers que representan los 105 campos.
- */
 export type PreviredRow = (string | number)[];
 
-/**
- * Define la estructura del resultado de la validación.
- * Contiene los registros que pasaron la validación y los errores encontrados.
- */
 export interface PreviredValidationResult {
   validRows: PreviredRow[];
   errors: PreviredValidationError[];
 }
 
-// Helper para validación de RUT (Módulo 11)
+// --- MAPPINGS and HELPERS ---
+
+// Corrected: Using string literal types for better type checking
+export type AfpEntityName = 'Capital' | 'Cuprum' | 'Habitat' | 'Modelo' | 'Planvital' | 'Provida' | 'Uno' | 'Otra';
+export type HealthEntityName = 'Fonasa' | 'Banmédica' | 'Colmena' | 'Consalud' | 'CruzBlanca' | 'Nueva Masvida' | 'Vida Tres' | 'Esencial' | 'Otra';
+
+
+const afpCodeMapping: Record<AfpEntityName, number> = {
+    'Capital': 33, 'Cuprum': 3, 'Habitat': 5, 'Modelo': 34, 'Planvital': 8, 'Provida': 9, 'Uno': 35, 'Otra': 99
+};
+
+const healthCodeMapping: Record<HealthEntityName, number> = {
+    'Fonasa': 1000, 'Banmédica': 78, 'Colmena': 67, 'Consalud': 99, 'CruzBlanca': 76, 'Nueva Masvida': 65, 'Vida Tres': 81, 'Esencial': 107, 'Otra': 999
+};
+
 function validateRut(rut: string): boolean {
-    if (!/^[0-9]+-[0-9kK]{1}$/.test(rut)) {
-        return false;
-    }
+    if (!/^[0-9]+-[0-9kK]{1}$/.test(rut)) return false;
     const [body, dv] = rut.split('-');
-    let sum = 0;
-    let multiple = 2;
+    let sum = 0, multiple = 2;
     for (let i = body.length - 1; i >= 0; i--) {
         sum += parseInt(body.charAt(i), 10) * multiple;
-        if (multiple < 7) {
-            multiple++;
-        } else {
-            multiple = 2;
-        }
+        multiple = multiple < 7 ? multiple + 1 : 2;
     }
     const calculatedDv = 11 - (sum % 11);
     const expectedDv = calculatedDv === 11 ? '0' : calculatedDv === 10 ? 'K' : calculatedDv.toString();
-    
     return expectedDv.toUpperCase() === dv.toUpperCase();
 }
 
+const isNumber = (value: any): value is number => typeof value === 'number' && !isNaN(value);
 
-/**
- * Valida los datos de la nómina de una empresa para un período específico
- * y los prepara para la generación del archivo Previred.
- *
- * @param company - Los datos de la empresa.
- * @param employees - Un arreglo de todos los empleados de la empresa.
- * @param payrolls - Un arreglo de todas las liquidaciones del período.
- * @returns Un objeto que contiene las filas validadas y una lista de errores.
- */
+function normalizeDate(dateInput: any): Date | null {
+    if (!dateInput) return null;
+    if (typeof dateInput === 'object' && dateInput !== null && isNumber(dateInput.seconds) && isNumber(dateInput.nanoseconds)) {
+        return new Date(dateInput.seconds * 1000);
+    }
+    const date = new Date(dateInput);
+    if (!isNaN(date.getTime())) {
+        return date;
+    }
+    return null;
+}
+
+const formatDate = (date: Date | null): string => date ? format(date, 'dd-MM-yyyy') : '          ';
+
+const NUMERIC_FIELDS = new Set([12, 18, 19, 20, 21, 22, 23, 26, 27, 28, 29, 30, 31, 32, 33, 39, 40, 41, 42, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104]);
+
 export function validatePreviredData(
   company: Company,
   employees: Employee[],
@@ -71,12 +74,7 @@ export function validatePreviredData(
   const errors: PreviredValidationError[] = [];
 
   if (payrolls.length === 0) {
-      errors.push({
-          rut: 'N/A',
-          fieldNumber: 0,
-          fieldName: 'Nómina',
-          error: 'No se encontraron liquidaciones para el período seleccionado.'
-      });
+      errors.push({ rut: 'N/A', fieldNumber: 0, fieldName: 'Nómina', error: 'No se encontraron liquidaciones para el período seleccionado.' });
       return { validRows, errors };
   }
 
@@ -84,84 +82,77 @@ export function validatePreviredData(
     const employee = employees.find(e => e.id === payroll.employeeId);
     
     if (!employee) {
-        errors.push({
-            rut: 'N/A',
-            fieldNumber: 0,
-            fieldName: 'Empleado',
-            error: `No se encontró el empleado con ID ${payroll.employeeId} para la liquidación del período ${payroll.period}.`
-        });
-        continue; // Pasar a la siguiente liquidación
+        errors.push({ rut: 'N/A', fieldNumber: 0, fieldName: 'Empleado', error: `No se encontró el empleado con ID ${payroll.employeeId}.` });
+        continue;
     }
 
     const recordErrors: PreviredValidationError[] = [];
-    const previredFields = new Array(105).fill(''); // Inicializar los 105 campos
+    const p = new Array(105).fill(null); // Use null as a placeholder
 
-    // --- INICIO DE VALIDACIONES POR CAMPO ---
-
-    // Campo 1 y 2: RUT y DV
-    if (!employee.rut || !validateRut(employee.rut)) {
-        recordErrors.push({ rut: employee.rut || 'Sin RUT', fieldNumber: 1, fieldName: 'RUT Trabajador', error: 'RUT inválido o faltante.' });
-    } else {
+    // --- FIELD MAPPING ---
+    if (employee.rut && validateRut(employee.rut)) {
         const [rutBody, dv] = employee.rut.split('-');
-        previredFields[0] = rutBody.replace(/\./g, '');
-        previredFields[1] = dv;
+        p[0] = rutBody.replace(/\./g, '');
+        p[1] = dv.toUpperCase();
+    } else {
+        recordErrors.push({ rut: employee.rut || 'Sin RUT', fieldNumber: 1, fieldName: 'RUT Trabajador', error: 'RUT inválido o faltante.' });
     }
 
-    // Campo 13: Días Trabajados
-    const workedDays = payroll.workedDays;
-    if (workedDays === undefined || workedDays < 0 || workedDays > 30) {
-        recordErrors.push({ rut: employee.rut, fieldNumber: 13, fieldName: 'Días Trabajados', error: `Valor '${workedDays}' no es válido. Debe estar entre 0 y 30.` });
-    } else {
-        previredFields[12] = workedDays;
-    }
+    const nameParts = employee.lastName.split(' ');
+    p[2] = nameParts[0] || ' ';
+    p[3] = nameParts.slice(1).join(' ') || ' ';
+    p[4] = employee.firstName || ' ';
+    p[5] = employee.gender === 'Masculino' ? 'M' : employee.gender === 'Femenino' ? 'F' : ' ';
+    p[6] = employee.nationality === 'Chilena' ? 152 : 999; // 152: Chile, 999: Extranjero
+    p[7] = 1; // Tipo de Pago: 1 (Efectivo / Cheque / Vale Vista / Depósito Cta Cte)
+    p[8] = formatDate(normalizeDate(payroll.period));
+    p[9] = formatDate(normalizeDate(payroll.period));
+    p[10] = employee.afp ? 'AFP' : 'INP';
+    p[11] = 0; // Tipo de trabajador: 0 (Activo)
+    p[12] = payroll.workedDays > 30 ? 30 : payroll.workedDays;
+    p[13] = '00'; // Tipo de Línea
+    p[14] = ' '; // Movimiento: I, R, ' '
+    p[15] = formatDate(normalizeDate(employee.contractStartDate));
+    p[16] = formatDate(normalizeDate(employee.contractEndDate));
     
-    // Campo 14: Tipo de Línea
-    previredFields[13] = '00'; // Por ahora, solo línea principal
+    p[25] = employee.afp ? afpCodeMapping[employee.afp as AfpEntityName] || 99 : 99; 
+    p[26] = payroll.taxableEarnings ?? 0;
+    p[27] = payroll.afpDiscount ?? 0;
+    p[28] = payroll.sisDiscount ?? 0; 
+    p[29] = payroll.voluntaryAfpAmount ?? 0;
 
-    // Campo 27: Renta Imponible AFP
-    if (employee.afpEntity) { // Asume que si tiene entidad, cotiza
-        if (payroll.taxableEarnings === undefined || payroll.taxableEarnings < 0) {
-             recordErrors.push({ rut: employee.rut, fieldNumber: 27, fieldName: 'Renta Imponible AFP', error: 'Dato faltante o inválido.' });
-        } else {
-            previredFields[26] = payroll.taxableEarnings;
-        }
-    } else {
-         previredFields[26] = 0;
-    }
+    p[37] = employee.healthSystem ? healthCodeMapping[employee.healthSystem as HealthEntityName] || 999 : 1000; // Fonasa por defecto
+    p[38] = ' '; // Nro. FUN
+    p[39] = payroll.healthTaxableBase ?? 0;
+    p[40] = payroll.healthDiscount ?? 0; // 7%
+    p[41] = payroll.additionalHealthDiscount ?? 0; // Adicional
+    p[42] = (payroll.healthDiscount ?? 0) + (payroll.additionalHealthDiscount ?? 0); // Suma del 7% y el adicional
+    p[43] = employee.healthPlanType === 'UF' ? 1 : 2; // 1: UF, 2: Pesos
+    p[44] = employee.healthPlanAmount ?? 0;
 
-    // Campo 28: Cotización Obligatoria AFP
-    if (employee.afpEntity) {
-        if (payroll.afpDiscount === undefined || payroll.afpDiscount < 0) {
-             recordErrors.push({ rut: employee.rut, fieldNumber: 28, fieldName: 'Cotización Obligatoria AFP', error: 'Cálculo de cotización AFP faltante o inválido.' });
-        } else {
-             previredFields[27] = payroll.afpDiscount;
-        }
-    } else {
-        previredFields[27] = 0;
-    }
+    p[45] = 18; // Caja de compensacion, hardcode Los Andes
+    p[46] = payroll.ccafTaxableBase ?? 0;
+    p[47] = payroll.ccafDiscount ?? 0;
 
-     // Llenar campos numéricos vacíos con 0
-    for(let i = 0; i < previredFields.length; i++) {
-        const numericFields = [12, 26, 27]; // Ejemplo, agregar todos los campos numéricos
-        if (numericFields.includes(i) && previredFields[i] === '') {
-            previredFields[i] = 0;
-        }
-    }
+    p[51] = payroll.unemploymentInsuranceTaxableBase ?? 0;
+    p[52] = payroll.unemploymentInsuranceDiscount ?? 0; 
+    p[53] = payroll.employerUnemploymentInsurance ?? 0;
 
-
-    // --- FIN DE VALIDACIONES ---
-
+    // --- FINALIZATION ---
     if (recordErrors.length > 0) {
       errors.push(...recordErrors);
     } else {
-      validRows.push(previredFields);
+      // Replace placeholders with format-correct defaults
+      for (let i = 0; i < p.length; i++) {
+        if (p[i] === null || p[i] === undefined) {
+          p[i] = NUMERIC_FIELDS.has(i) ? 0 : ' ';
+        }
+      }
+      validRows.push(p);
     }
   }
   
-  return {
-    validRows,
-    errors,
-  };
+  return { validRows, errors };
 }
 
 /**
