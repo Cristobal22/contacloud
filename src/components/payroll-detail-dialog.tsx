@@ -9,8 +9,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
-import { Separator } from "@/components/ui/separator"
-import { Table, TableBody, TableCell, TableRow, TableHeader, TableHead, TableFooter } from "@/components/ui/table"
+import { Table, TableBody, TableCell, TableRow, TableFooter } from "@/components/ui/table"
 import type { Employee, Payroll } from "@/lib/types"
 import React from "react";
 import jsPDF from "jspdf";
@@ -44,22 +43,17 @@ const formatDate = (date: any): string => {
         return `${monthNames[month]} de ${year}`;
     }
     if (typeof date === 'string') {
-        const parts = date.split(/[-/]/);
-        if (parts.length === 2) {
-            const yearPart = parts.find(p => p.length === 4);
-            const monthPart = parts.find(p => p.length !== 4);
-            if (yearPart && monthPart) {
-                const monthIndex = parseInt(monthPart, 10) - 1;
-                const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
-                if (monthIndex >= 0 && monthIndex < 12) {
-                    return `${monthNames[monthIndex]} de ${yearPart}`;
-                }
-            }
+        const [yearPart, monthPart] = date.split(/[-/]/);
+        if (yearPart && monthPart) {
+            const monthIndex = parseInt(monthPart, 10) - 1;
+            const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+            if (monthIndex >= 0 && monthIndex < 12) return `${monthNames[monthIndex]} de ${yearPart}`;
         }
         return date;
     }
     try {
-        return new Date(date).toLocaleDateString('es-CL', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+        const d = new Date(date);
+        return d.toLocaleDateString('es-CL', { month: 'long', year: 'numeric', timeZone: 'UTC' });
     } catch {
         return 'Fecha inválida';
     }
@@ -141,9 +135,8 @@ export function PayrollDetailDialog({ isOpen, onClose, data }: PayrollDetailDial
     if (!data) return null;
 
     const { payroll, employee } = data;
-    
-    const iutFactor = (payroll.taxableEarnings > 0) ? (payroll.iut / (payroll.taxableEarnings - (payroll.afpDiscount || 0) - (payroll.healthDiscount || 0))) : 0;
-    const iutFactorDisplay = iutFactor > 0 ? (iutFactor * 100).toFixed(1) + '%' : '0%';
+    const taxableEarningsItems = payroll.earnings.filter(e => e.type === 'taxable');
+    const nonTaxableEarningsItems = payroll.earnings.filter(e => e.type === 'non-taxable');
 
     return (
         <Dialog open={isOpen} onOpenChange={handleClose}>
@@ -192,11 +185,14 @@ export function PayrollDetailDialog({ isOpen, onClose, data }: PayrollDetailDial
                                         <h3 className="text-base font-semibold mb-2 text-gray-700">Haberes</h3>
                                         <Table>
                                             <TableBody>
-                                                <TableRow><TableCell>Sueldo Base Proporcional</TableCell><TableCell className="text-right">{formatCurrency(payroll.baseSalary)}</TableCell></TableRow>
-                                                {payroll.gratification > 0 && <TableRow><TableCell>Gratificación Legal</TableCell><TableCell className="text-right">{formatCurrency(payroll.gratification)}</TableCell></TableRow>}
-                                                {payroll.totalOvertimePay > 0 && <TableRow><TableCell>Horas Extra</TableCell><TableCell className="text-right">{formatCurrency(payroll.totalOvertimePay)}</TableCell></TableRow>}
+                                                {taxableEarningsItems.map((item, index) => (
+                                                    <TableRow key={`tax-earn-${index}`}><TableCell>{item.name}</TableCell><TableCell className="text-right">{formatCurrency(item.amount)}</TableCell></TableRow>
+                                                ))}
                                                 <TableRow className="font-medium bg-gray-50"><TableCell>Total Haberes Imponibles</TableCell><TableCell className="text-right">{formatCurrency(payroll.taxableEarnings)}</TableCell></TableRow>
-                                                {payroll.nonTaxableEarnings > 0 && <TableRow><TableCell>Haberes no Imponibles</TableCell><TableCell className="text-right">{formatCurrency(payroll.nonTaxableEarnings)}</TableCell></TableRow>}
+                                                {nonTaxableEarningsItems.map((item, index) => (
+                                                    <TableRow key={`non-tax-earn-${index}`}><TableCell>{item.name}</TableCell><TableCell className="text-right">{formatCurrency(item.amount)}</TableCell></TableRow>
+                                                ))}
+                                                <TableRow className="font-medium bg-gray-50"><TableCell>Total Haberes no Imponibles</TableCell><TableCell className="text-right">{formatCurrency(payroll.nonTaxableEarnings)}</TableCell></TableRow>
                                             </TableBody>
                                             <TableFooter>
                                                 <TableRow className="bg-gray-100 font-bold text-base">
@@ -210,11 +206,9 @@ export function PayrollDetailDialog({ isOpen, onClose, data }: PayrollDetailDial
                                         <h3 className="text-base font-semibold mb-2 text-gray-700">Descuentos</h3>
                                         <Table>
                                             <TableBody>
-                                                <TableRow><TableCell>Cotización AFP ({employee.afp})</TableCell><TableCell className="text-right">{formatCurrency(payroll.afpDiscount)}</TableCell></TableRow>
-                                                <TableRow><TableCell>Cotización Salud ({employee.healthSystem})</TableCell><TableCell className="text-right">{formatCurrency(payroll.healthDiscount)}</TableCell></TableRow>
-                                                {payroll.unemploymentInsuranceDiscount > 0 && <TableRow><TableCell>Seguro de Cesantía</TableCell><TableCell className="text-right">{formatCurrency(payroll.unemploymentInsuranceDiscount)}</TableCell></TableRow>}
-                                                {payroll.iut > 0 && <TableRow className="font-medium"><TableCell>Impuesto Único</TableCell><TableCell className="text-right font-medium">{formatCurrency(payroll.iut)}</TableCell></TableRow>}
-                                                {payroll.advances > 0 && <TableRow><TableCell>Anticipos</TableCell><TableCell className="text-right">{formatCurrency(payroll.advances)}</TableCell></TableRow>}
+                                                {payroll.discounts.map((item, index) => (
+                                                    <TableRow key={`discount-${index}`}><TableCell>{item.name}</TableCell><TableCell className="text-right">{formatCurrency(item.amount)}</TableCell></TableRow>
+                                                ))}
                                             </TableBody>
                                             <TableFooter>
                                                 <TableRow className="bg-gray-100 font-bold text-base">

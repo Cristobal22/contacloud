@@ -119,21 +119,11 @@ export async function generatePayroll(
 
     const proportionalBaseSalary = baseSalary * proportionalFactor;
     if (proportionalBaseSalary > 0) {
-        earnings.push({ type: 'taxable', name: 'Sueldo Base Proporcional', amount: proportionalBaseSalary, calculationDetail: `${workedDays.toFixed(2)} / 30 días` });
+        earnings.push({ type: 'taxable', name: 'Sueldo Base', amount: proportionalBaseSalary, calculationDetail: `${workedDays.toFixed(2)} / 30 días` });
     }
-
-    let gratification = 0;
-    if (employee.gratificationType === 'Tope Legal') {
-        const monthlyGratificationCap = indicator.gratificationCap / 12;
-        const calculatedGratification = proportionalBaseSalary * 0.25;
-        gratification = Math.min(calculatedGratification, monthlyGratificationCap);
-    } else if (employee.gratificationType === 'Automatico') {
-        gratification = proportionalBaseSalary * 0.25;
-    }
-    if (gratification > 0) earnings.push({ type: 'taxable', name: 'Gratificación Legal', amount: gratification });
 
     const dailySalary = baseSalary / 30;
-    const hourlyRate = (dailySalary * (employee.weeklyHours || 45)) / 45;
+    const hourlyRate = (dailySalary * 7) / (employee.weeklyHours || 45);
     const overtime50 = hourlyRate * 1.5 * (overtimeHours50Override || 0);
     const overtime100 = hourlyRate * 2 * (overtimeHours100Override || 0);
     if (overtime50 > 0) earnings.push({ type: 'taxable', name: 'Horas Extra (50%)', amount: overtime50, calculationDetail: `${overtimeHours50Override} horas` });
@@ -145,6 +135,22 @@ export async function generatePayroll(
     (employee.bonosFijos || []).forEach(bono => {
         if (bono.monto > 0) earnings.push({ type: bono.tipo === 'fijo' ? 'taxable' : 'non-taxable', name: bono.glosa, amount: bono.monto * proportionalFactor });
     });
+
+    const preliminaryTaxableEarnings = earnings.filter(e => e.type === 'taxable').reduce((sum, e) => sum + e.amount, 0);
+    let gratification = 0;
+    const gratificationType = employee.gratificationType || 'Tope Legal'; 
+
+    if (gratificationType === 'Tope Legal') {
+        const monthlyGratificationCap = indicator.gratificationCap / 12;
+        const calculatedGratification = preliminaryTaxableEarnings * 0.25;
+        gratification = Math.min(calculatedGratification, monthlyGratificationCap);
+    } else if (gratificationType === 'Automatico') {
+        gratification = preliminaryTaxableEarnings * 0.25;
+    }
+
+    if (gratification > 0) {
+        earnings.push({ type: 'taxable', name: 'Gratificación Legal', amount: gratification });
+    }
 
     const mobilization = (employee.mobilization || 0) * proportionalFactor;
     if (mobilization > 0) earnings.push({ type: 'non-taxable', name: 'Movilización', amount: mobilization });
@@ -170,19 +176,19 @@ export async function generatePayroll(
     const afpTaxableBase = Math.min(taxableEarnings, taxableCap);
     let afpDiscount = 0;
     if (afpEntity && afpEntity.mandatoryContribution > 0) {
-        afpDiscount = Math.round(afpTaxableBase * (afpEntity.mandatoryContribution / 100));
+        afpDiscount = afpTaxableBase * (afpEntity.mandatoryContribution / 100);
         if (afpDiscount > 0) discounts.push({ type: 'previsional', name: 'Cotización Obligatoria AFP', amount: afpDiscount, calculationDetail: `${afpEntity.name} ${afpEntity.mandatoryContribution}%` });
     }
 
     const healthTaxableBase = Math.min(taxableEarnings, taxableCap);
     let healthDiscount = 0;
     if (healthEntity) {
-        const legalMinDiscount = Math.round(healthTaxableBase * 0.07);
+        const legalMinDiscount = healthTaxableBase * 0.07;
         let pactadoDiscount = legalMinDiscount;
         if (employee.healthContributionType === 'Monto Fijo' && employee.healthPlanAmount) {
-            pactadoDiscount = Math.round(employee.healthPlanAmount * indicator.uf);
+             pactadoDiscount = employee.healthPlanAmount * (employee.healthPlanType === 'UF' ? indicator.uf : 1);
         } else if (employee.healthContributionType === 'Porcentaje' && employee.healthContributionValue) {
-            pactadoDiscount = Math.round(healthTaxableBase * (employee.healthContributionValue / 100));
+            pactadoDiscount = healthTaxableBase * (employee.healthContributionValue / 100);
         }
         healthDiscount = Math.max(legalMinDiscount, pactadoDiscount);
         if (healthDiscount > 0) discounts.push({ type: 'previsional', name: 'Cotización Salud', amount: healthDiscount, calculationDetail: `${healthEntity.name}` });
@@ -193,10 +199,8 @@ export async function generatePayroll(
     if (employee.hasUnemploymentInsurance && employee.unemploymentInsuranceType) {
         let rate = 0;
         if (employee.unemploymentInsuranceType === 'Indefinido') rate = 0.006;
-        if (employee.unemploymentInsuranceType === 'Plazo Fijo') rate = 0; // Employer only
-        if (employee.unemploymentInsuranceType === 'Trabajador de Casa Particular') rate = 0; // Employer only
 
-        unemploymentInsuranceDiscount = Math.round(afcTaxableBase * rate);
+        unemploymentInsuranceDiscount = afcTaxableBase * rate;
         if (unemploymentInsuranceDiscount > 0) discounts.push({ type: 'previsional', name: 'Seguro de Cesantía', amount: unemploymentInsuranceDiscount, calculationDetail: '0.6% Contrato Indefinido' });
     }
 
@@ -216,13 +220,16 @@ export async function generatePayroll(
     const totalDiscounts = discounts.reduce((sum, d) => sum + d.amount, 0);
     const netSalary = totalEarnings - totalDiscounts;
 
-    // FIX: Add baseSalary to the returned payroll object
+    // FINAL FIX: This return statement is now clean. It returns the granular arrays and the definitive totals.
+    // All redundant properties that were causing the data serialization issue have been removed.
     return {
         employeeId: employee.id,
         employeeName: `${employee.firstName} ${employee.lastName}`,
+        companyId: employee.companyId,
         year, month,
+        status: 'processed',
         
-        baseSalary: baseSalary, // <-- Ensure base salary is included
+        baseSalary: baseSalary,
         workedDays, 
         absentDays,
         
@@ -234,15 +241,5 @@ export async function generatePayroll(
         totalEarnings: Math.round(totalEarnings),
         totalDiscounts: Math.round(totalDiscounts),
         netSalary: Math.round(netSalary),
-        
-        afpDiscount: Math.round(afpDiscount),
-        healthDiscount: Math.round(healthDiscount),
-        unemploymentInsuranceDiscount: Math.round(unemploymentInsuranceDiscount),
-        familyAllowance: Math.round(familyAllowanceAmount),
-        iut: Math.round(iut),
-        advances: Math.round(advances),
-        afpTaxableBase: Math.round(afpTaxableBase),
-        healthTaxableBase: Math.round(healthTaxableBase),
-        unemploymentInsuranceTaxableBase: Math.round(afcTaxableBase),
-    } as Partial<Payroll>;
+    } as Payroll;
 }

@@ -1,6 +1,6 @@
 
 import { NextApiRequest, NextApiResponse } from 'next';
-import { db } from '@/firebase/server';
+import { initializeFirebaseAdmin } from '@/firebase/server';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
     if (req.method !== 'POST') {
@@ -9,9 +9,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     try {
-        if (!db) {
-            return res.status(500).json({ error: "Server configuration error: Firebase Admin is not initialized." });
-        }
+        const db = initializeFirebaseAdmin();
 
         const { companyId, voucherId } = req.body;
         if (!companyId || !voucherId) {
@@ -38,7 +36,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             return res.status(403).json({ error: 'Deletion failed: An undone voucher cannot be deleted as it is a critical part of the accounting history.' });
         } else if (status !== 'Borrador') {
             // Catch-all for any other statuses
-            return res.status(403).json({ error: `Deletion failed: Only vouchers with status 'Borrador' can be deleted. Current status: ${status}.` });
+            return res.status(403).json({ error: `Deletion failed: Only vouchers with status \'Borrador\' can be deleted. Current status: ${status}.` });
         }
 
         // If the status is 'Borrador', proceed with deletion

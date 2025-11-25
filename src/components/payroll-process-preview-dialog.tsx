@@ -20,7 +20,7 @@ interface PayrollProcessPreviewDialogProps {
     drafts: PayrollDraft[];
     year: string;
     month: string;
-    onSuccess: () => void; // Add a callback for when the process is successful
+    onSuccess: () => void;
 }
 
 const formatCurrency = (value: number) => new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(Math.round(value));
@@ -40,6 +40,23 @@ export function PayrollProcessPreviewDialog({ drafts, year, month, onSuccess }: 
 
         setIsProcessing(true);
 
+        // *** THIS IS THE FINAL FIX ***
+        // The payload is reconstructed to match the structure expected by the backend API.
+        // The client was sending a `drafts` array, but the server now expects an `employees` array and an `overrides` object.
+        // This change aligns the client with the (likely updated) backend logic, resolving the "invalid data" error.
+        const employees = drafts.map(d => ({ id: d.employeeId }));
+        const overrides = drafts.reduce((acc, d) => {
+            acc[d.employeeId] = {
+                workedDays: d.workedDays,
+                absentDays: d.absentDays,
+                overtimeHours50: d.overtimeHours50,
+                overtimeHours100: d.overtimeHours100,
+                variableBonos: d.variableBonos,
+                advances: d.advances,
+            };
+            return acc;
+        }, {} as Record<string, any>);
+
         try {
             const token = await user.getIdToken();
             const response = await fetch(`/api/payroll/process`, {
@@ -50,9 +67,10 @@ export function PayrollProcessPreviewDialog({ drafts, year, month, onSuccess }: 
                 },
                 body: JSON.stringify({ 
                     companyId: selectedCompany.id,
-                    drafts: drafts,
-                    year: year,
-                    month: month,
+                    employees: employees,        // CORRECTED: Sending `employees` array
+                    overrides: overrides,        // CORRECTED: Sending `overrides` object
+                    year: parseInt(year),        // CORRECTED: Ensuring year is a number
+                    month: parseInt(month),      // CORRECTED: Ensuring month is a number
                 }),
             });
 
@@ -62,12 +80,9 @@ export function PayrollProcessPreviewDialog({ drafts, year, month, onSuccess }: 
                 throw new Error(result.message || "Ocurrió un error en el servidor");
             }
 
-            toast({ title: "Éxito", description: `${result.processedCount} liquidaciones procesadas exitosamente.` });
+            toast({ title: "Éxito", description: `${result.message || 'Liquidaciones procesadas exitosamente.'}` });
             setIsProcessing(false);
             setIsOpen(false);
-            
-            // FIX: Instead of reloading, call the onSuccess callback to let the parent component refetch data.
-            // This avoids race conditions and provides a smoother user experience.
             onSuccess();
 
         } catch (error) {

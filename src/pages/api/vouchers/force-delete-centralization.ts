@@ -1,5 +1,5 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { db } from '@/firebase/server';
+import { initializeFirebaseAdmin } from '@/firebase/server';
 
 // WARNING: This is a special-purpose administrative tool.
 // It is designed to delete orphaned payroll centralization vouchers.
@@ -12,9 +12,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     try {
-        if (!db) {
-            return res.status(500).json({ error: "Server configuration error: Firebase Admin is not initialized." });
-        }
+        const db = initializeFirebaseAdmin();
 
         const { companyId, voucherId } = req.body;
         if (!companyId || !voucherId) {

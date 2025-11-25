@@ -1,6 +1,6 @@
 
 import { NextApiRequest, NextApiResponse } from 'next';
-import { db } from '@/firebase/server';
+import { initializeFirebaseAdmin } from '@/firebase/server';
 import { FieldValue } from 'firebase-admin/firestore';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -10,9 +10,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     try {
-        if (!db) {
-            return res.status(500).json({ error: "Server configuration error: Firebase Admin is not initialized." });
-        }
+        const db = initializeFirebaseAdmin();
 
         const { companyId, voucherId } = req.body;
         if (!companyId || !voucherId) {
@@ -35,7 +33,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         
         // 1. Check if the voucher is already accounted for.
         if (voucherData.status !== 'Borrador') {
-            return res.status(403).json({ error: `Only vouchers with status 'Borrador' can be accounted for. Current status: ${voucherData.status}.` });
+            return res.status(403).json({ error: `Only vouchers with status \'Borrador\' can be accounted for. Current status: ${voucherData.status}.` });
         }
 
         // 2. Check if the voucher is balanced.

@@ -133,7 +133,6 @@ function PayrollContent() {
 
             const results = await Promise.all(statusPromises);
 
-            // Intelligent error handling
             const allFailedForIndicators = results.length > 0 && results.every(
                 r => r.error && r.error.includes('Faltan indicadores económicos')
             );
@@ -162,35 +161,26 @@ function PayrollContent() {
                 return;
             }
             const employeeData = employeeDoc.data() as Employee;
-            
+
             const payrollData: Payroll = {
                 id: 'id' in item ? item.id! : 'preview-id',
                 companyId: companyId,
                 employeeId: employeeId,
                 employeeName: item.employeeName || `${employeeData.firstName} ${employeeData.lastName}`,
-                period: 'period' in item ? item.period! : `${periodYear}-${periodMonth}`,
+                period: 'period' in item ? item.period! : new Date(Date.UTC(periodYear, periodMonth - 1, 1)),
                 year: item.year || periodYear,
                 month: item.month || periodMonth,
                 baseSalary: item.baseSalary || 0,
                 workedDays: item.workedDays || 0,
                 absentDays: item.absentDays || 0,
-                proportionalBaseSalary: 'proportionalBaseSalary' in item ? item.proportionalBaseSalary! : 0,
-                overtimeHours50: item.overtimeHours50 || 0,
-                overtimeHours100: item.overtimeHours100 || 0,
-                totalOvertimePay: 'totalOvertimePay' in item ? item.totalOvertimePay! : 0,
-                bonos: 'bonos' in item ? item.bonos! : (item as PayrollDraft).variableBonos || [],
-                gratification: item.gratification || 0,
+                earnings: 'earnings' in item ? item.earnings! : [],
+                discounts: 'discounts' in item ? item.discounts! : [],
                 taxableEarnings: item.taxableEarnings || 0,
                 nonTaxableEarnings: item.nonTaxableEarnings || 0,
                 totalEarnings: item.totalEarnings || 0,
-                afpDiscount: item.afpDiscount || 0,
-                healthDiscount: item.healthDiscount || 0,
-                unemploymentInsuranceDiscount: item.unemploymentInsuranceDiscount || 0,
-                iut: item.iut || 0,
-                familyAllowance: 'familyAllowance' in item ? item.familyAllowance! : 0,
-                advances: item.advances || 0,
                 totalDiscounts: item.totalDiscounts || 0,
                 netSalary: item.netSalary || 0,
+                netSalaryInWords: item.netSalaryInWords || '',
                 createdAt: 'createdAt' in item ? item.createdAt : new Date(),
             };
 

@@ -11,7 +11,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { MoreHorizontal, PlusCircle } from "lucide-react"
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useToast } from "@/hooks/use-toast";
 import { useUser } from '@/firebase/auth/use-user';
 
@@ -38,7 +38,7 @@ const VouchersPage: React.FC = () => {
   const [isForceDeleteDialogOpen, setIsForceDeleteDialogOpen] = React.useState(false);
   const [voucherToForceDelete, setVoucherToForceDelete] = React.useState<Voucher | null>(null);
 
-  const handleApiAction = async (endpoint: string, body: object, successMessage: string, errorMessage: string) => {
+  const handleApiAction = React.useCallback(async (endpoint: string, body: object, successMessage: string, errorMessage: string) => {
     try {
         const token = await user?.getIdToken();
         if (!token) throw new Error("Authentication token not found.");
@@ -52,7 +52,7 @@ const VouchersPage: React.FC = () => {
         const res = await response.json();
 
         if (!response.ok) {
-            throw new Error(res.error || errorMessage);
+            throw new Error(res.message || errorMessage);
         }
 
         toast({ title: "Éxito", description: successMessage });
@@ -63,7 +63,7 @@ const VouchersPage: React.FC = () => {
         toast({ variant: "destructive", title: "Error", description: msg });
         return false;
     }
-  };
+  }, [user, refetch, toast]);
 
   const handleContabilizar = async () => {
     if (!voucherToContabilizar || !companyId) return;
@@ -225,7 +225,6 @@ const VouchersPage: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* All existing dialogs remain unchanged... */}
       <Dialog open={isContabilizarDialogOpen} onOpenChange={setIsContabilizarDialogOpen}>
           <DialogContent>
               <DialogHeader>
@@ -265,7 +264,6 @@ const VouchersPage: React.FC = () => {
           </DialogContent>
       </Dialog>
 
-      {/* New Dialog for Force Delete */}
       <Dialog open={isForceDeleteDialogOpen} onOpenChange={setIsForceDeleteDialogOpen}>
         <DialogContent>
           <DialogHeader>
