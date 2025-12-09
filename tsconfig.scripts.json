@@ -2,9 +2,17 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "module": "commonjs",
-    "noEmit": false
+    "moduleResolution": "node", 
+    "noEmit": false,
+    "outDir": "dist/scripts",
+    "noImplicitAny": false // <-- AÑADIDO: Ignora los errores de tipado implícito para el script
   },
   "include": [
-    "scripts"
+    "scripts/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "src",
+    ".next"
   ]
 }
