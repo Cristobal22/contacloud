@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { collection, query, where, getDocs, Timestamp, addDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '@/lib/firebase/server';
+import { db } from '@/lib/firebase/admin';
 import { Sale, Purchase, VatProportionalityRecord } from '@/lib/types';
 
 export async function POST(request: Request) {
