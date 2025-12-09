@@ -1,17 +1,16 @@
-
 # Dependencies
 /node_modules
+
+# Build output
+/dist
+/build
+/.next
 
 # Firebase / Google Cloud
 serviceAccountKey.json
 *.firebase
 .firebaserc
 firebase.json
-
-# Build output
-/dist
-/build
-/.next
 
 # Misc
 .DS_Store
