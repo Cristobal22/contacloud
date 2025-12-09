@@ -49,6 +49,8 @@ import { GratificationSection } from '../components/GratificationSection';
 import { PrevisionalDataSection } from '../components/PrevisionalDataSection';
 import { FamilyAllowanceSection } from '../components/FamilyAllowanceSection';
 import { ApvDataSection } from '../components/ApvDataSection';
+import { SilDataSection } from '../components/SilDataSection';
+import { PaymentDataSection } from '../components/PaymentDataSection';
 
 const defaultEmployeeState: Partial<Employee> & { gratification?: number } = {
     rut: '',
@@ -85,16 +87,18 @@ const defaultEmployeeState: Partial<Employee> & { gratification?: number } = {
     afp: '',
     unemploymentInsuranceType: '',
     hasUnemploymentInsurance: true,
-    hasFamilyAllowance: false,
-    familyDependents: 0,
-    familyAllowanceBracket: '',
+    familyAllowanceBracket: 'D',
+    normalFamilyDependents: 0,
+    invalidityFamilyDependents: 0,
     apvInstitution: '',
     apvAmount: 0,
     apvRegime: '',
-    paymentMethod: '',
+    paymentMethod: 'Depósito en Cta. Cte./Vista',
     bank: '',
     accountType: '',
     accountNumber: '',
+    hasSubmittedSIL: false,
+    silFolio: '',
 };
 
 function DeleteEmployeeManager({ companyId, employeeId, employeeName }: { companyId: string; employeeId: string; employeeName: string }) {
@@ -296,6 +300,8 @@ export default function EmployeeFormPage() {
                 <PrevisionalDataSection employee={employee} handleFieldChange={handleFieldChange} uniqueAfpEntities={uniqueAfpEntities} uniqueHealthEntities={uniqueHealthEntities} />
                 <FamilyAllowanceSection employee={employee} handleFieldChange={handleFieldChange} />
                 <ApvDataSection employee={employee} handleFieldChange={handleFieldChange} />
+                <PaymentDataSection employee={employee} handleFieldChange={handleFieldChange} />
+                <SilDataSection employee={employee} handleFieldChange={handleFieldChange} />
             </CardContent>
             <CardFooter className="flex justify-between">
                 {!isNew && <DeleteEmployeeManager companyId={companyId!} employeeId={id} employeeName={`${employee.firstName} ${employee.lastName}`} />}

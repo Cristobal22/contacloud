@@ -6,7 +6,6 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // Correctly checks if the user is associated with the company via the user's own document.
     function isUserAssociatedWithCompany(companyId) {
       let userDoc = get(/databases/$(database)/documents/users/$(request.auth.uid));
       return isSignedIn() &&
@@ -19,6 +18,7 @@ service cloud.firestore {
       return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Admin';
     }
 
+    //--- User Profile Rules ---//
     match /users/{userId} {
       allow get: if isAdmin() || (isSignedIn() && request.auth.uid == userId);
       allow list: if isAdmin();
@@ -26,45 +26,54 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
-    // --- USER SUB-COLLECTION RULES ---
-    // Users can manage their own sub-collections, like account-groups.
+    // Rules for subcollections of a user (e.g., notifications)
+    match /users/{userId}/{collection} {
+        allow list, create: if isSignedIn() && request.auth.uid == userId;
+    }
     match /users/{userId}/{collection}/{docId} {
-      allow list, read, write, delete: if isSignedIn() && request.auth.uid == userId;
+      allow get, update, delete: if isSignedIn() && request.auth.uid == userId;
     }
 
+    //--- Company Rules ---//
     match /companies/{companyId} {
-      allow list: if isSignedIn();
       allow get: if isUserAssociatedWithCompany(companyId);
-      allow update, delete: if isUserAssociatedWithCompany(companyId);
-      allow create: if false; // Creation is handled by a Cloud Function.
+      allow update: if isUserAssociatedWithCompany(companyId);
+      allow create, delete, list: if false; // Security: No direct manipulation/listing of companies.
     }
 
-    // --- COMPANY SUB-COLLECTION RULES ---
-    // Secure all sub-collections of a company. Users can perform any action (list, read, write)
-    // only if they are properly associated with the parent company.
+    // --- Generic rules for ALL company subcollections ---
+    // This is the definitive fix: Allows listing AND creation at the collection level.
+    match /companies/{companyId}/{subcollection} {
+      allow list, create: if isUserAssociatedWithCompany(companyId);
+    }
 
-    match /companies/{companyId}/employees/{docId}   { allow list, read, write: if isUserAssociatedWithCompany(companyId); }
-    match /companies/{companyId}/accounts/{docId}    { allow list, read, write: if isUserAssociatedWithCompany(companyId); }
-    match /companies/{companyId}/vouchers/{docId}    { allow list, read, write: if isUserAssociatedWithCompany(companyId); }
-    match /companies/{companyId}/subjects/{docId}    { allow list, read, write: if isUserAssociatedWithCompany(companyId); }
-    match /companies/{companyId}/cost-centers/{docId} { allow list, read, write: if isUserAssociatedWithCompany(companyId); }
-    match /companies/{companyId}/payrolls/{docId}     { allow list, read, write: if isUserAssociatedWithCompany(companyId); }
-    match /companies/{companyId}/documents/{docId}    { allow list, read, write: if isUserAssociatedWithCompany(companyId); }
-    match /companies/{companyId}/purchases/{docId}   { allow list, read, write: if isUserAssociatedWithCompany(companyId); }
-    match /companies/{companyId}/sales/{docId}        { allow list, read, write: if isUserAssociatedWithCompany(companyId); }
-    match /companies/{companyId}/fees/{docId}         { allow list, read, write: if isUserAssociatedWithCompany(companyId); }
-
-    match /companies/{companyId}/economic-indicators/{indicatorId} {
-      allow get, list: if isUserAssociatedWithCompany(companyId);
-      allow create, update, delete: if isAdmin();
+    // This rule now only needs to handle operations on existing documents.
+    match /companies/{companyId}/{subcollection}/{docId} {
+      allow get, update, delete: if isUserAssociatedWithCompany(companyId);
     }
     
-    // Global-read collections
-    match /economic-indicators/{indicatorId}      { allow get, list: if true; allow create, update, delete: if isAdmin(); }
-    match /health-entities/{entityId}             { allow get, list: if true; allow create, update, delete: if isAdmin(); }
-    match /afp-entities/{entityId}                { allow get, list: if true; allow create, update, delete: if isAdmin(); }
-    match /family-allowance-parameters/{paramId}  { allow get, list: if true; allow create, update, delete: if isAdmin(); }
-    match /tax-parameters/{paramId}               { allow get, list: if true; allow create, update, delete: if isAdmin(); }
-    match /taxable-caps/{capId}                   { allow get, list: if true; allow create, update, delete: if isAdmin(); }
+    // --- GLOBAL READABLE COLLECTIONS ---
+    // Rules are correctly split for document access (get, write) and collection access (list, create).
+
+    match /monthlyParameters                { allow list: if isSignedIn(); allow create: if isAdmin(); }
+    match /monthlyParameters/{docId}        { allow get: if isSignedIn(); allow update, delete: if isAdmin(); }
+
+    match /economic-indicators              { allow list: if isSignedIn(); allow create: if isAdmin(); }
+    match /economic-indicators/{docId}      { allow get: if isSignedIn(); allow update, delete: if isAdmin(); }
+
+    match /health-entities                  { allow list: if isSignedIn(); allow create: if isAdmin(); }
+    match /health-entities/{docId}          { allow get: if isSignedIn(); allow update, delete: if isAdmin(); }
+
+    match /afp-entities                     { allow list: if isSignedIn(); allow create: if isAdmin(); }
+    match /afp-entities/{docId}             { allow get: if isSignedIn(); allow update, delete: if isAdmin(); }
+
+    match /family-allowance-parameters      { allow list: if isSignedIn(); allow create: if isAdmin(); }
+    match /family-allowance-parameters/{docId} { allow get: if isSignedIn(); allow update, delete: if isAdmin(); }
+
+    match /tax-parameters                   { allow list: if isSignedIn(); allow create: if isAdmin(); }
+    match /tax-parameters/{docId}           { allow get: if isSignedIn(); allow update, delete: if isAdmin(); }
+
+    match /taxable-caps                     { allow list: if isSignedIn(); allow create: if isAdmin(); }
+    match /taxable-caps/{docId}             { allow get: if isSignedIn(); allow update, delete: if isAdmin(); }
   }
 }
