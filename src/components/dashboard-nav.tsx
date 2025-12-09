@@ -85,6 +85,7 @@ const accountantNavSections = [
             { href: '/dashboard/reports/eight-column-balance', label: 'Balance 8 Columnas', icon: Library },
             { href: '/dashboard/general-balance', label: 'Balance General', icon: Scale },
             { href: '/dashboard/vat-summary', label: 'Resumen Mensual IVA', icon: FileText },
+            { href: '/dashboard/accounting/vat-proportionality', label: 'Proporcionalidad IVA', icon: Shield },
             { href: '/dashboard/cash-flow', label: 'Flujo de Caja', icon: DollarSign },
         ]
     },

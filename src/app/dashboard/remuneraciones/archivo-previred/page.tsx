@@ -20,11 +20,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from '@/components/ui/label';
 import { SelectedCompanyContext } from '../../layout';
 import { useCollection } from '@/firebase';
-import type { Payroll, Employee, Company } from '@/lib/types';
+import { useUser } from '@/firebase/auth/use-user';
+import type { Payroll, Employee, Company, PayrollDraft } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
+import { Timestamp } from 'firebase/firestore';
 import { es } from 'date-fns/locale';
-import { validatePreviredData, generatePreviredFileContent, PreviredValidationError, PreviredRow } from '@/lib/previred-generator';
+import { validatePreviredData, generatePreviredFileContent, PreviredValidationError, PreviredRow } from '@/lib/previred-generator-corrected';
 import { PREVIRED_FIELDS } from '@/lib/previred-fields';
 import {
     Table,
@@ -35,101 +37,139 @@ import {
     TableRow,
 } from "@/components/ui/table";
 import { AlertCircle, FileCheck, FileText, Info, Loader2, TriangleAlert, XCircle } from 'lucide-react';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 // Main Component
 export default function ArchivoPreviredPage() {
     const { selectedCompany } = React.useContext(SelectedCompanyContext) || {};
     const companyId = selectedCompany?.id;
-    const currentYear = new Date().getFullYear();
-    const currentMonth = new Date().getMonth() + 1;
+    const { user } = useUser();
     const { toast } = useToast();
 
+    const currentYear = new Date().getFullYear();
     const [year, setYear] = React.useState(currentYear.toString());
-    const [month, setMonth] = React.useState(currentMonth.toString());
+    const [month, setMonth] = React.useState((new Date().getMonth() + 1).toString());
+    
     const [isLoading, setIsLoading] = React.useState(false);
-    
-    const [processedData, setProcessedData] = React.useState<{ validRows: PreviredRow[], errors: PreviredValidationError[], validPayrolls: Payroll[] } | null>(null);
+    const [statusMessage, setStatusMessage] = React.useState('');
+    const [validRowsState, setValidRowsState] = React.useState<PreviredRow[]>([]);
+    const [errorsState, setErrorsState] = React.useState<PreviredValidationError[]>([]);
+    const [calculatedPayrolls, setCalculatedPayrolls] = React.useState<PayrollDraft[]>([]);
 
-    const { data: employees, loading: employeesLoading } = useCollection<Employee>({ 
+    // Fetch employees
+    const { data: employees, loading: employeesLoading } = useCollection<Employee>({
         path: companyId ? `companies/${companyId}/employees` : undefined,
-        companyId
+        queryConstraints: [['status', '==', 'Active']],
+        companyId,
+        fetchFull: true,
     });
-
-    const { data: payrolls, loading: payrollsLoading } = useCollection<Payroll>({
-        path: companyId ? `companies/${companyId}/payrolls` : undefined,
-        companyId, 
-        queryConstraints: [
-            ['year', '==', parseInt(year)],
-            ['month', '==', parseInt(month)]
-        ]
-    });
-    
-    // --- THE TRUST FILTER: Ensures we only use payrolls for the *selected* period ---
-    const payrollsForPeriod = React.useMemo(() => {
-        if (!payrolls) {
-            return [];
-        }
-        const selectedYear = parseInt(year);
-        const selectedMonth = parseInt(month);
-        // This filter is the definitive source of truth for the UI.
-        return payrolls.filter(p => p.year === selectedYear && p.month === selectedMonth);
-    }, [payrolls, year, month]);
 
     React.useEffect(() => {
-        setProcessedData(null);
+        // Reset results when period or company changes
+        setValidRowsState([]); 
+        setErrorsState([]);
+        setCalculatedPayrolls([]);
     }, [year, month, companyId]);
 
     const handleGenerateAndDownload = async () => {
         setIsLoading(true);
-        setProcessedData(null);
-
-        // --- Check against the filtered, safe-to-use payrolls ---'''
-        if (!payrollsForPeriod || payrollsForPeriod.length === 0) {
-            toast({ variant: "destructive", title: "Proceso Detenido", description: "No hay liquidaciones para el período seleccionado." });
+        setStatusMessage('Iniciando proceso...');
+        setValidRowsState([]);
+        setErrorsState([]);
+        setCalculatedPayrolls([]);
+        
+        if (!employees || employees.length === 0) {
+            toast({ variant: "destructive", title: "No se encontraron empleados activos." });
             setIsLoading(false);
             return;
         }
 
-        if (!selectedCompany || !employees) {
-            toast({ variant: "destructive", title: "Error de Carga", description: "Datos de empresa o empleados no disponibles." });
+        if (!user || !selectedCompany) {
+            toast({ variant: "destructive", title: "Error de sesión", description: "No se pudo verificar la sesión de usuario o la empresa seleccionada." });
+            setIsLoading(false);
+            return;
+        }
+
+        setStatusMessage('Calculando liquidaciones...');
+        toast({ description: "Obteniendo los borradores de liquidación más actualizados..." });
+
+        const token = await user.getIdToken();
+        const periodStart = new Date(parseInt(year), parseInt(month) - 1, 1);
+        const periodEnd = new Date(parseInt(year), parseInt(month), 0);
+
+        const activeEmployeesForPeriod = employees.filter(emp => {
+            if (!emp.contractStartDate) return false;
+            const startDate = emp.contractStartDate instanceof Timestamp ? emp.contractStartDate.toDate() : new Date(emp.contractStartDate);
+            if (startDate > periodEnd) return false;
+            if (emp.contractEndDate) {
+                const endDate = emp.contractEndDate instanceof Timestamp ? emp.contractEndDate.toDate() : new Date(emp.contractEndDate);
+                if (endDate < periodStart) return false;
+            }
+            return true;
+        });
+
+        if (activeEmployeesForPeriod.length === 0) {
+            toast({ variant: "destructive", title: "Sin Empleados Activos", description: "No se encontraron empleados con contrato vigente para el período seleccionado." });
             setIsLoading(false);
             return;
         }
         
-        // Pass the filtered, safe payrolls to the validation function
-        const { validRows, errors } = validatePreviredData(
-            selectedCompany, 
-            employees, 
-            payrollsForPeriod, // Use the safe variable
-            parseInt(year), 
+        const draftPromises = activeEmployeesForPeriod.map(async (emp) => {
+            try {
+                const response = await fetch(`/api/payroll/calculate-preview?companyId=${selectedCompany.id}&year=${year}&month=${month}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                    body: JSON.stringify(emp),
+                    signal: AbortSignal.timeout(15000)
+                });
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    console.error(`Error calculando para ${emp.rut}: ${errorData.error}`);
+                    errorsState.push({ rut: emp.rut, fieldNumber: 0, fieldName: 'Cálculo', error: errorData.error || 'Error desconocido' });
+                    return null;
+                }
+                return await response.json() as PayrollDraft;
+            } catch (e) {
+                const errorMessage = e instanceof Error ? e.message : String(e);
+                console.error(`Fallo en la llamada de cálculo para ${emp.rut}:`, e);
+                errorsState.push({ rut: emp.rut, fieldNumber: 0, fieldName: 'Cálculo', error: errorMessage });
+                return null;
+            }
+        });
+
+        const results = await Promise.all(draftPromises);
+        const successfulDrafts = results.filter((d): d is PayrollDraft => d !== null);
+        setCalculatedPayrolls(successfulDrafts);
+
+        if (successfulDrafts.length === 0) {
+            toast({ variant: "destructive", title: "Cálculo Fallido", description: "No se pudo calcular ninguna liquidación. Revise la pestaña de errores para más detalles." });
+            setIsLoading(false);
+            return;
+        }
+
+        setStatusMessage(`Validando ${successfulDrafts.length} liquidaciones para Previred...`);
+        toast({ description: `Se calcularon ${successfulDrafts.length} liquidaciones. Validando para Previred...` });
+
+        const { validRows, errors: validationErrors } = validatePreviredData(
+            selectedCompany,
+            activeEmployeesForPeriod,
+            successfulDrafts as Payroll[],
+            parseInt(year),
             parseInt(month)
         );
         
-        const validRuts = new Set(validRows.map(row => `${row[0]}-${row[1]}`));
-        const validPayrolls = payrollsForPeriod.filter(p => {
-            const emp = employees.find(e => e.id === p.employeeId);
-            return emp && validRuts.has(emp.rut);
-        });
+        setValidRowsState(validRows);
+        setErrorsState(prev => [...prev, ...validationErrors]); // Combine fetch errors with validation errors
 
-        setProcessedData({ validRows, errors, validPayrolls });
-
-        if (errors.length > 0 && validRows.length === 0) {
-            toast({ variant: "destructive", title: "Errores de Validación", description: "No se pudo generar el archivo. Revise los errores.", duration: 5000 });
-            setIsLoading(false);
-            return;
-        }
-        
-        if (errors.length > 0 && validRows.length > 0) {
-             toast({ variant: "default", title: "Archivo Generado con Advertencias", description: "Algunos empleados fueron omitidos. Revise los errores.", duration: 5000 });
+        if (validationErrors.length > 0) {
+            toast({ variant: "default", title: validationErrors.length === successfulDrafts.length ? "Errores de Validación" : "Archivo Generado con Advertencias", description: "Algunos empleados fueron omitidos. Revise la pestaña de errores.", duration: 5000 });
         }
 
         if (validRows.length === 0) {
-            // This toast is now implicitly correct because it followed the check on payrollsForPeriod
             setIsLoading(false);
             return;
         }
         
+        setStatusMessage('Generando archivo de descarga...');
         try {
             const fileContent = generatePreviredFileContent(validRows);
             const blob = new Blob([fileContent], { type: 'text/plain;charset=utf-8' });
@@ -139,27 +179,27 @@ export default function ArchivoPreviredPage() {
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
-            if (errors.length === 0) {
+            if (errorsState.length === 0 && validationErrors.length === 0) {
                 toast({ title: "¡Archivo Generado y Descargado!", description: "El archivo Previred se ha creado correctamente." });
             }
         } catch (error) {
-            console.error("Error downloading file:", error);
-            toast({ variant: 'destructive', title: 'Error al Descargar', description: 'Hubo un problema al generar el archivo.' });
+            console.error("Error al descargar el archivo:", error);
+            toast({ variant: 'destructive', title: 'Error al Descargar', description: 'Hubo un problema al generar el archivo .txt.' });
         }
 
         setIsLoading(false);
+        setStatusMessage('');
     };
     
-    const isLoadingData = employeesLoading || payrollsLoading;
-    // --- The Generate button now depends on the safe, filtered variable ---
-    const canGenerate = !isLoadingData && payrollsForPeriod.length > 0;
+    const isLoadingData = employeesLoading;
+    const canGenerate = !isLoadingData && employees && employees.length > 0;
 
     return (
         <div className="grid gap-6">
             <Card>
                 <CardHeader>
                     <CardTitle>Generar Archivo para Previred</CardTitle>
-                    <CardDescription>Selecciona el período para generar el archivo. El botón solo se habilitará si existen liquidaciones procesadas para ese mes.</CardDescription>
+                    <CardDescription>Selecciona un período para generar el archivo a partir de los borradores de liquidación más recientes.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                     <div className="flex flex-col sm:flex-row gap-4 items-end max-w-lg">
@@ -187,58 +227,46 @@ export default function ArchivoPreviredPage() {
                                 </Select>
                             </div>
                         </div>
-                        <TooltipProvider>
-                            <Tooltip>
-                                <TooltipTrigger asChild>
-                                    <div className='w-full sm:w-auto'>
-                                        <Button 
-                                            size="lg" 
-                                            disabled={!canGenerate || isLoading} 
-                                            onClick={handleGenerateAndDownload}
-                                            className='w-full'
-                                        >
-                                            {isLoading ? <><Loader2 className='mr-2 h-4 w-4 animate-spin'/> Procesando...</> : <><FileCheck className='mr-2 h-4 w-4'/> Generar y Descargar</>}
-                                        </Button>
-                                    </div>
-                                </TooltipTrigger>
-                                {/* This tooltip now correctly reflects the state of the safe variable */}
-                                {!canGenerate && !isLoadingData && (
-                                    <TooltipContent>
-                                        <p>No hay liquidaciones procesadas para este período.</p>
-                                    </TooltipContent>
-                                )}
-                            </Tooltip>
-                        </TooltipProvider>
+                        <div className='w-full sm:w-auto'>
+                            <Button 
+                                size="lg" 
+                                disabled={!canGenerate || isLoading}
+                                onClick={handleGenerateAndDownload}
+                                className='w-full'
+                            >
+                                {isLoading ? <><Loader2 className='mr-2 h-4 w-4 animate-spin'/> {statusMessage || 'Procesando...'}</> : <><FileCheck className='mr-2 h-4 w-4'/> Generar y Descargar</>}
+                            </Button>
+                        </div>
                     </div>
-                    {/* This warning now correctly reflects the state of the safe variable */}
-                    {!isLoadingData && !canGenerate && (
+                    {isLoadingData && (
+                        <div className='flex items-center text-sm text-gray-500 p-3 rounded-md bg-gray-50 border mt-2 max-w-lg'>
+                            <Loader2 className='h-4 w-4 mr-2 flex-shrink-0 animate-spin' />
+                            Cargando empleados...
+                        </div>
+                    )}
+                    {!isLoadingData && (!employees || employees.length === 0) && (
                         <div className='flex items-center text-sm text-red-600 font-semibold p-3 rounded-md bg-red-50 border border-red-200 mt-2 max-w-lg'>
                             <XCircle className='h-5 w-5 mr-2 flex-shrink-0' />
-                            No se puede generar el archivo porque no existen liquidaciones procesadas para el período seleccionado.
+                            No se puede generar el archivo porque no hay empleados activos en esta empresa.
                         </div>
                     )}
                 </CardContent>
             </Card>
 
-            {processedData && (
-                <Tabs defaultValue={processedData.validRows.length > 0 ? "data" : "errors"} className="w-full">
+            {(validRowsState.length > 0 || errorsState.length > 0 || calculatedPayrolls.length > 0) && (
+                 <Tabs defaultValue="data" className="w-full">
                     <TabsList className='mb-4'>
-                        <TabsTrigger value="data"><FileText className='w-4 h-4 mr-2' /> Datos Válidos ({processedData.validRows.length})</TabsTrigger>
-                        <TabsTrigger value="errors" className={processedData.errors.length > 0 ? 'text-red-500' : ''}>
-                            <AlertCircle className='w-4 h-4 mr-2' /> Errores ({processedData.errors.length})
+                        <TabsTrigger value="data"><FileText className='w-4 h-4 mr-2' /> Datos Válidos ({validRowsState.length})</TabsTrigger>
+                        <TabsTrigger value="errors" className={errorsState.length > 0 ? 'text-red-500' : ''}>
+                            <AlertCircle className='w-4 h-4 mr-2' /> Errores ({errorsState.length})
                         </TabsTrigger>
-                        <TabsTrigger value="totals">Totales</TabsTrigger>
                         <TabsTrigger value="info">Ayuda</TabsTrigger>
                     </TabsList>
-                    
                     <TabsContent value="data">
-                       <PreviredDataTab validRows={processedData.validRows} />
+                       <PreviredDataTab validRows={validRowsState} />
                     </TabsContent>
                     <TabsContent value="errors">
-                        <ErrorsTab errors={processedData.errors} />
-                    </TabsContent>
-                    <TabsContent value="totals">
-                        <TotalsTab validPayrolls={processedData.validPayrolls} />
+                        <ErrorsTab errors={errorsState} />
                     </TabsContent>
                     <TabsContent value="info">
                         <InfoTab />
@@ -248,8 +276,6 @@ export default function ArchivoPreviredPage() {
         </div>
     );
 }
-
-// --- Tab Components (No changes needed here) ---
 
 function PreviredDataTab({ validRows }: { validRows: PreviredRow[] }) {
     if (validRows.length === 0) {
@@ -328,53 +354,6 @@ function ErrorsTab({ errors }: { errors: PreviredValidationError[] }) {
     );
 }
 
-function TotalsTab({ validPayrolls }: { validPayrolls: Payroll[]}) {
-    if (validPayrolls.length === 0) {
-        return <Card><CardContent><p className='py-6 text-center text-gray-500'>No hay liquidaciones válidas para calcular totales.</p></CardContent></Card>;
-    }
-
-    const totals = validPayrolls.reduce((acc, p) => {
-        acc.afpTotal += (p.afpDiscount || 0);
-        acc.sisTotal += (p.sisDiscount || 0);
-        acc.healthTotal += (p.healthDiscount || 0) + (p.additionalHealthDiscount || 0);
-        acc.unemploymentTotal += (p.employerUnemploymentInsurance || 0) + (p.unemploymentInsuranceDiscount || 0);
-        acc.ccafTotal += (p.ccafDiscount || 0);
-        return acc;
-    }, { afpTotal: 0, sisTotal: 0, healthTotal: 0, unemploymentTotal: 0, ccafTotal: 0 });
-
-    const grandTotal = Object.values(totals).reduce((sum, val) => sum + val, 0);
-    const formatCLP = (val:number) => new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(Math.round(val));
-
-    return (
-        <Card>
-            <CardHeader>
-                 <CardTitle>Desglose de Totales (Estimado)</CardTitle>
-                 <CardDescription>Este resumen se calcula <span className="font-bold">únicamente</span> a partir de los trabajadores incluidos en el archivo.</CardDescription>
-            </CardHeader>
-            <CardContent className='max-w-2xl mx-auto space-y-4'>
-                <div className='text-center p-6 bg-gray-50 rounded-lg border'>
-                    <p className="text-sm text-gray-600">Total Estimado a Pagar</p>
-                    <h3 className='text-3xl font-bold'>{formatCLP(grandTotal)}</h3>
-                </div>
-                 <TotalCategory title="AFP + SIS" amount={totals.afpTotal + totals.sisTotal} />
-                 <TotalCategory title="Salud (Fonasa/Isapre)" amount={totals.healthTotal} />
-                 <TotalCategory title="Seguro de Cesantía (AFC)" amount={totals.unemploymentTotal} />
-                 <TotalCategory title="Asignación Familiar (CCAF)" amount={totals.ccafTotal} />
-            </CardContent>
-        </Card>
-    );
-}
-
-const TotalCategory = ({ title, amount }: { title: string, amount: number }) => {
-    const formatCLP = (val:number) => new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(Math.round(val));
-    return (
-        <div className='border rounded-lg p-4 flex justify-between items-center'>
-            <h4 className='font-semibold text-gray-700'>{title}</h4>
-            <span className='font-bold text-lg text-gray-900'>{formatCLP(amount)}</span>
-        </div>
-    );
-};
-
 function InfoTab() {
     return (
         <Card>
@@ -383,11 +362,11 @@ function InfoTab() {
             </CardHeader>
             <CardContent className="space-y-4 text-sm leading-relaxed">
                  <ol className="list-decimal list-inside space-y-3">
-                    <li><strong>Selecciona el Período</strong>: Elige el mes y año que quieres declarar.</li>
-                    <li><strong>Verifica el Botón</strong>: Si está deshabilitado, no hay liquidaciones para ese mes.</li>
-                    <li><strong>Genera el Archivo</strong>: Al hacer clic, el sistema validará los datos contra el período que seleccionaste.</li>
-                    <li><strong>Revisa Errores</strong>: Si la pestaña "Errores" muestra algún problema (ej. contratos inactivos), debes corregirlo para poder incluir a esos trabajadores.</li>
-                    <li><strong>Descarga y Sube</strong>: Si no hay errores graves, el archivo <code>.txt</code> se descargará. Súbelo a Previred.com.</li>
+                    <li><strong>Fuente de Datos</strong>: Esta herramienta utiliza los <strong>borradores de liquidación</strong> más recientes, los mismos que ves en la pantalla de gestión de liquidaciones.</li>
+                    <li><strong>Proceso</strong>: Al hacer clic en "Generar", el sistema recalcula todas las liquidaciones para el período seleccionado, las valida y luego genera el archivo.</li>
+                     <li><strong>Parámetros</strong>: La generación del archivo depende de los <strong>parámetros económicos mensuales</strong> (valor UF, topes imponibles). Si ves un error sobre esto, significa que no están configurados para el período que seleccionaste.</li>
+                    <li><strong>Revisión</strong>: Si la pestaña "Errores" muestra algún problema, significa que el borrador de ese empleado tiene datos incompatibles con Previred. Debes corregir los datos del empleado y volver a intentarlo.</li>
+                    <li><strong>Descarga y Sube</strong>: El archivo <code>.txt</code> descargado está listo para ser subido a Previred.com.</li>
                 </ol>
             </CardContent>
         </Card>

@@ -141,7 +141,7 @@ export async function generatePayroll(
     const gratificationType = employee.gratificationType || 'Tope Legal'; 
 
     if (gratificationType === 'Tope Legal') {
-        const monthlyGratificationCap = indicator.gratificationCap / 12;
+        const monthlyGratificationCap = indicator.gratificationCap; // CORRECTED: Use the value directly
         const calculatedGratification = preliminaryTaxableEarnings * 0.25;
         gratification = Math.min(calculatedGratification, monthlyGratificationCap);
     } else if (gratificationType === 'Automatico') {
